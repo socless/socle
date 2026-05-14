@@ -17,13 +17,19 @@ object IrWalk {
 
   def design(c: Circ): Design = {
     val bundles = mutable.LinkedHashMap.empty[String, BundleDef]
-    val modules = c.modules.map(buildModule(_, bundles))
+    // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
+    // endpoints needs to read port types off the instance's own module,
+    // which lives elsewhere in the circuit. Building it once here is cheaper
+    // than searching per wire.
+    val byName  = c.modules.map(m => m.name -> m).toMap
+    val modules = c.modules.map(buildModule(_, byName, bundles))
     Design(top = c.name, bundles = bundles.toMap, modules = modules)
   }
 
   // ── Module ────────────────────────────────────────────────────────────────
   private def buildModule(
     m:       Mod,
+    byName:  Map[String, Mod],
     bundles: mutable.LinkedHashMap[String, BundleDef],
   ): ModuleDef = {
     val ports = m.ports.map(p => buildPort(p, bundles))
@@ -35,7 +41,7 @@ object IrWalk {
         source = i.src.map(toRef).getOrElse(SourceRef.unknown),
       )
     }
-    val wires = coalesceWires(m, bundles)
+    val wires = coalesceWires(m, byName, bundles)
     val metrics = Metrics(
       registers = 0,
       wires     = m.conns.size,
@@ -161,6 +167,7 @@ object IrWalk {
     */
   private def coalesceWires(
     m:       Mod,
+    byName:  Map[String, Mod],
     bundles: mutable.LinkedHashMap[String, BundleDef],
   ): Seq[WireDef] = {
     case class Group(from: String, to: String, src: Option[SrcInfo], count: Int)
@@ -190,7 +197,7 @@ object IrWalk {
       }
     }
     groups.values.toSeq.map { g =>
-      val bundle = inferBundle(m, g.from, g.to, bundles)
+      val bundle = inferBundle(m, g.from, g.to, byName, bundles)
       WireDef(
         from   = g.from,
         to     = g.to,
@@ -201,23 +208,61 @@ object IrWalk {
     }
   }
 
-  /** Best-effort bundle type for a coalesced wire: look up the port's type
-    * on either endpoint's instance / on the current module.
+  /** Best-effort bundle type for a coalesced wire endpoint.
+    *
+    * Resolution order, trying each in turn:
+    *   1. `<inst>.<port>` on either side — look up `inst.ofModule` in the
+    *      circuit and read its port type. Common case for inter-module
+    *      wires (e.g. `cpu.io → xbar.in[0]`).
+    *   2. Bare `<port>` on either side — read this module's port type.
+    *   3. Fallback to `"Wire"` so the UI still draws something.
+    *
+    * Vec subscripts (`xbar.in[0]`) are stripped so the port lookup works
+    * on the underlying bundle type. The first match wins — Chisel
+    * structurally typechecks at connect time, so both sides agree.
     */
   private def inferBundle(
     m:        Mod,
     from:     String,
     to:       String,
+    byName:   Map[String, Mod],
     bundles:  mutable.LinkedHashMap[String, BundleDef],
   ): String = {
-    // Try the module's own ports first (matches `from` if from is unqualified)
-    m.ports.find(p => p.name == from || p.name == to).foreach { p =>
-      val (k, _) = registerType(p.tpe, p.dir, p.name, bundles)
-      return k
+    val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
+
+    def stripIdx(s: String): String = {
+      val i = s.indexOf('[')
+      if (i < 0) s else s.substring(0, i)
     }
-    // Otherwise: we don't have the instance's port type here (it's defined
-    // in another module). Fall back to a generic "Wire" — the UI tolerates it.
-    "Wire"
+
+    def resolveOnInst(path: String): Option[String] = {
+      val parts = path.split('.')
+      if (parts.length < 2) return None
+      val instName = stripIdx(parts(0))
+      val portName = stripIdx(parts(1))
+      for {
+        ofMod <- instMap.get(instName)
+        mod   <- byName.get(ofMod)
+        port  <- mod.ports.find(_.name == portName)
+      } yield {
+        val (k, _) = registerType(port.tpe, port.dir, port.name, bundles)
+        k
+      }
+    }
+
+    def resolveOnSelf(path: String): Option[String] = {
+      val portName = stripIdx(path.split('.').head)
+      m.ports.find(_.name == portName).map { p =>
+        val (k, _) = registerType(p.tpe, p.dir, p.name, bundles)
+        k
+      }
+    }
+
+    resolveOnInst(from)
+      .orElse(resolveOnInst(to))
+      .orElse(resolveOnSelf(from))
+      .orElse(resolveOnSelf(to))
+      .getOrElse("Wire")
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

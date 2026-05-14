@@ -1904,22 +1904,38 @@ function bBuildAdj(mod) {
 }
 
 // Longest-path topological rank — ground-truth source for column placement.
+//
+// IMPORTANT: bundle wires in CHIRRTL go both directions on the same handshake
+// (forward bits + reverse ready/valid), so the coalesced adjacency is almost
+// always cyclic. A naive longest-path BFS would loop forever incrementing
+// ranks in a cycle. We use Kahn's: rank goes monotonically up as in-degree
+// drains. Anything still unranked at the end is inside a cycle; we lump
+// those into a "back-edge" column past the DAG so the layout still terminates.
 function bTopoRanks(mod) {
   const { fwd, rev } = bBuildAdj(mod);
   const ranks = {};
   const insts = mod.children.map((c) => c.name);
-  // Start from sources (no predecessors)
+  const inDeg = {};
+  for (const n of insts) inDeg[n] = rev[n].size;
+
+  // Sources first (in-degree 0).
   const q = [];
-  for (const n of insts) if (rev[n].size === 0) { ranks[n] = 0; q.push(n); }
+  for (const n of insts) if (inDeg[n] === 0) { ranks[n] = 0; q.push(n); }
   while (q.length) {
     const n = q.shift();
+    const r = (ranks[n] || 0) + 1;
     for (const m of fwd[n] || []) {
-      const r = (ranks[n] || 0) + 1;
-      if (ranks[m] == null || ranks[m] < r) { ranks[m] = r; q.push(m); }
+      // Update rank optimistically each time we reach m from a longer path.
+      if (ranks[m] == null || ranks[m] < r) ranks[m] = r;
+      if (--inDeg[m] === 0) q.push(m);
     }
   }
-  // Cyclic / orphaned nodes: pin them to rank 0
-  for (const n of insts) if (ranks[n] == null) ranks[n] = 0;
+
+  // Cycle members never reached in-degree 0. Pin them just past the DAG.
+  let maxR = -1;
+  for (const r of Object.values(ranks)) if (r > maxR) maxR = r;
+  const cycleRank = maxR + 1;
+  for (const n of insts) if (ranks[n] == null) ranks[n] = cycleRank;
   return ranks;
 }
 
@@ -1940,10 +1956,16 @@ function bPlaceColumns(cols, opts) {
 }
 
 // Layout 1: hier — TOP_LAYOUT at root (Masters | Fabric | Slaves), topo at depth.
+// TOP_LAYOUT is design-specific (the bundled AXI demo defines one); other
+// designs fall through to the topo-rank layout below so they still render.
 function bLayoutHier(mod, path) {
   let cols;
-  if (path.length === 1) {
-    cols = B_TOP_LAYOUT.columns.map((col) => ({
+  const topLayout = B_TOP_LAYOUT && B_TOP_LAYOUT.columns;
+  const topLayoutMatches = topLayout
+    ? topLayout.some((col) => col.modules.some((m) => mod.children.find((c) => c.name === m)))
+    : false;
+  if (path.length === 1 && topLayoutMatches) {
+    cols = topLayout.map((col) => ({
       label: col.label,
       instances: col.modules.filter((m) => mod.children.find((c) => c.name === m)),
     }));
