@@ -1320,6 +1320,7 @@ function BenchApp({ tweaks }) {
   const [selectedSig, setSelectedSig] = useState(null); // 'cpu.io.ar' or 'cpu.io.ar.bits.addr'
   const [hoveredSig, setHoveredSig] = useState(null);
   const [expandedBundles, setExpandedBundles] = useState(new Set()); // bundle paths expanded
+  const [expandedModules, setExpandedModules] = useState(new Set()); // child instance names expanded inline
   const [bottomTab, setBottomTab] = useState('source');
   const [drawerHeight, setDrawerHeight] = useState(240);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -1346,17 +1347,27 @@ function BenchApp({ tweaks }) {
     if (!B_MODULES[child.type]) return; // leaf module — no internals
     setPath((p) => [...p, inst]);
     setSelectedSig(null);
+    setExpandedModules(new Set());
   }, [mod]);
 
   const navTo = useCallback((idx) => {
     setPath((p) => p.slice(0, idx + 1));
     setSelectedSig(null);
+    setExpandedModules(new Set());
   }, []);
 
   const toggleBundle = useCallback((bpath) => {
     setExpandedBundles((s) => {
       const n = new Set(s);
       if (n.has(bpath)) n.delete(bpath); else n.add(bpath);
+      return n;
+    });
+  }, []);
+
+  const toggleExpandModule = useCallback((inst) => {
+    setExpandedModules((s) => {
+      const n = new Set(s);
+      if (n.has(inst)) n.delete(inst); else n.add(inst);
       return n;
     });
   }, []);
@@ -1378,6 +1389,7 @@ function BenchApp({ tweaks }) {
             hoveredSig={hoveredSig} setHoveredSig={setHoveredSig}
             drillInto={drillInto}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
+            expandedModules={expandedModules} toggleExpandModule={toggleExpandModule}
             tweaks={tweaks}
           />
           <BenchBottomPanel
@@ -1404,7 +1416,7 @@ function BenchApp({ tweaks }) {
     <CommandPalette
       open={paletteOpen}
       onClose={() => setPaletteOpen(false)}
-      onNavigate={(payload) => { setPath(payload); setSelectedSig(null); }}
+      onNavigate={(payload) => { setPath(payload); setSelectedSig(null); setExpandedModules(new Set()); }}
     />
     </>
   );
@@ -2167,7 +2179,57 @@ function bRouteMidpoint(w, routingStyle) {
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
 }
 
-function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, tweaks }) {
+function BenchModuleBox({ inst, b, mod, child, childMod, wiresOnMe, selectedHere, drillable, expandable, expanded, drillInto, toggleExpandModule }) {
+  const [hover, setHover] = useState(false);
+  return (
+    <div
+      onDoubleClick={() => drillable && drillInto(inst)}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
+        background: benchTokens.panel,
+        border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
+        borderRadius: 6,
+        boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
+        cursor: drillable ? 'pointer' : 'default',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden',
+        transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), box-shadow .12s, border-color .12s',
+      }}
+    >
+      <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
+        <ModuleGlyph type={child.type} active={selectedHere} />
+        <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
+          {expandable && (
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleExpandModule(inst); }}
+              title={expanded ? 'Collapse' : 'Peek inside'}
+              style={{
+                border: `1px solid ${benchTokens.borderSoft}`, background: benchTokens.panel,
+                color: benchTokens.ink3, fontSize: 11, lineHeight: 1, padding: '2px 5px',
+                borderRadius: 4, cursor: 'pointer',
+                opacity: (hover || expanded) ? 1 : 0,
+                transition: 'opacity .12s',
+              }}
+            >↕</button>
+          )}
+        </div>
+      </div>
+      <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
+        {child.doc}
+      </div>
+      <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
+        <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
+        {drillable && <span style={{ color: benchTokens.accent }}>{expandable ? '↕ peek · ↵ open' : '↵ open'}</span>}
+      </div>
+    </div>
+  );
+}
+
+function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
   const layoutResult = useMemo(
     () => bComputeLayout(mod, path, tweaks.layout),
     [mod, path, tweaks.layout],
@@ -2311,36 +2373,18 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             if (!child) return null;
             const childMod = B_MODULES[child.type];
             const drillable = !!childMod && childMod.children.length > 0;
+            const expandable = drillable; // alias for clarity
+            const expanded = expandedModules.has(inst);
             const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
             const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
             return (
-              <div key={inst}
-                onDoubleClick={() => drillable && drillInto(inst)}
-                style={{
-                  position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
-                  background: benchTokens.panel,
-                  border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
-                  borderRadius: 6,
-                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
-                  cursor: drillable ? 'pointer' : 'default',
-                  display: 'flex', flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), box-shadow .12s, border-color .12s',
-                }}
-              >
-                <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
-                  <ModuleGlyph type={child.type} active={selectedHere} />
-                  <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
-                  <span style={{ marginLeft: 'auto', fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
-                </div>
-                <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
-                  {child.doc}
-                </div>
-                <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
-                  <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
-                  {drillable && <span style={{ color: benchTokens.accent }}>↵ open</span>}
-                </div>
-              </div>
+              <BenchModuleBox
+                key={inst}
+                inst={inst} b={b} mod={mod} child={child} childMod={childMod}
+                wiresOnMe={wiresOnMe} selectedHere={selectedHere}
+                drillable={drillable} expandable={expandable} expanded={expanded}
+                drillInto={drillInto} toggleExpandModule={toggleExpandModule}
+              />
             );
           })}
 
