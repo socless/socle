@@ -1977,8 +1977,12 @@ function bPlaceColumns(cols, opts) {
 
   const boxes = {};
   let runningX = 0;
+  const columnXs = [];
+  const columnWs = [];
   cols.forEach((col) => {
     const w = Math.max(colW, ...col.instances.map((i) => widthFor(i)));
+    columnXs.push(runningX);
+    columnWs.push(w);
     let y = 0;
     col.instances.forEach((inst) => {
       const h = heightFor(inst);
@@ -1997,7 +2001,7 @@ function bPlaceColumns(cols, opts) {
           col.instances.reduce((acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0), 0),
         ),
       );
-  return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label) };
+  return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label), columnXs, columnWs };
 }
 
 // Layout 1: hier — TOP_LAYOUT at root (Masters | Fabric | Slaves), topo at depth.
@@ -2537,7 +2541,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     };
     return bComputeLayout(mod, path, tweaks.layout, { heightFor, widthFor });
   }, [mod, path, tweaks.layout, subLayouts]);
-  const { boxes: layoutBoxes, totalW, totalH, columnLabels, routingStyle } = layoutResult;
+  const { boxes: layoutBoxes, totalW, totalH, columnLabels, columnXs = [], columnWs = [], routingStyle } = layoutResult;
   const containerH = totalH + 40;
 
   // CHIRRTL emits both directions of every Decoupled handshake (bits forward,
@@ -2611,7 +2615,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           {columnLabels.length > 0 && columnLabels.map((label, ci) => (
             label ? (
               <div key={ci} style={{
-                position: 'absolute', left: ci * (NODE_W + 80), top: -28, width: NODE_W,
+                position: 'absolute', left: columnXs[ci], top: -28, width: columnWs[ci],
                 fontSize: 10, fontFamily: benchTokens.mono, color: benchTokens.ink3,
                 textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
               }}>{label}</div>
