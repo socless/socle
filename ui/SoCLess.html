@@ -2273,11 +2273,11 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, pointerEvents: 'none', overflow: 'visible' }}>
             <defs>
               {Object.entries(B_CHAN).map(([k, v]) => (
-                <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
                   <path d="M0 0 L8 4 L0 8 Z" fill={v} />
                 </marker>
               ))}
-              <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
                 <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
               </marker>
             </defs>
