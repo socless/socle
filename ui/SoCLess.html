@@ -2669,8 +2669,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // dragging shape when active: { startMouseX, startMouseY, startPan: { x, y } }
   const canvasWrapRef = useRef(null);
 
-  const clampZoom = (z) => Math.min(3, Math.max(0.25, z));
-
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.code === 'Space' && !e.repeat) {
@@ -2700,25 +2698,33 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     setPan({ x: 0, y: 0 });
   }, [path]);
 
-  const onWheel = useCallback((e) => {
-    // Only zoom — don't intercept regular vertical scroll the user might want
-    // when zoom is 1 (TODO: revisit if it's annoying).
-    e.preventDefault();
-    const rect = canvasWrapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    setZoom((z) => {
-      const factor = Math.exp(-e.deltaY * 0.0015); // smooth multiplicative zoom
-      const newZ   = clampZoom(z * factor);
-      // Update pan so the world point under the cursor stays fixed.
-      setPan((p) => {
-        const wx = (mx - p.x) / z;
-        const wy = (my - p.y) / z;
-        return { x: mx - wx * newZ, y: my - wy * newZ };
+  // React's JSX onWheel is attached as a passive listener since React 17, so
+  // e.preventDefault() inside it silently no-ops. Register a non-passive
+  // 'wheel' listener directly on the wrapper DOM node instead.
+  useEffect(() => {
+    const node = canvasWrapRef.current;
+    if (!node) return;
+    const handler = (e) => {
+      // Only zoom — don't intercept regular vertical scroll the user might want
+      // when zoom is 1 (TODO: revisit if it's annoying).
+      e.preventDefault();
+      const rect = node.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      setZoom((z) => {
+        const factor = Math.exp(-e.deltaY * 0.0015); // smooth multiplicative zoom
+        const newZ   = Math.min(3, Math.max(0.25, z * factor));
+        // Update pan so the world point under the cursor stays fixed.
+        setPan((p) => {
+          const wx = (mx - p.x) / z;
+          const wy = (my - p.y) / z;
+          return { x: mx - wx * newZ, y: my - wy * newZ };
+        });
+        return newZ;
       });
-      return newZ;
-    });
+    };
+    node.addEventListener('wheel', handler, { passive: false });
+    return () => node.removeEventListener('wheel', handler);
   }, []);
 
   const onMouseDown = useCallback((e) => {
@@ -2781,7 +2787,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
       <div
         ref={canvasWrapRef}
-        onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}
