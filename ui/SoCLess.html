@@ -2377,6 +2377,7 @@ function WireVisualLayer({
   selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
   showWidths,
   layerId = 'top',
+  expandedModules = null,
 }) {
   const isHl = (w) =>
     selectedSig && (w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
@@ -2470,6 +2471,16 @@ function WireVisualLayer({
           </g>
         );
       })}
+      {expandedModules && (
+        <g>
+          {wires.flatMap((w) => {
+            const dots = [];
+            if (expandedModules.has(w.fromInst)) dots.push({ x: w.x1, y: w.y1, key: `${w.id}-from` });
+            if (expandedModules.has(w.toInst))   dots.push({ x: w.x2, y: w.y2, key: `${w.id}-to` });
+            return dots.map((d) => <circle key={d.key} cx={d.x} cy={d.y} r={4} fill="#b3a8f0" />);
+          })}
+        </g>
+      )}
     </svg>
   );
 }
@@ -2638,6 +2649,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             globalExpanded={globalExpanded}
             showWidths={tweaks.showWidths}
             layerId="top"
+            expandedModules={expandedModules}
           />
         </div>
       </div>
