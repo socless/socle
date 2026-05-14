@@ -2501,6 +2501,62 @@ function WireVisualLayer({
   );
 }
 
+function PortDot({ port, side, pos, selectedSig, setSelectedSig, hoveredSig, setHoveredSig }) {
+  const [hover, setHover] = useState(false);
+  const selected = selectedSig === port.name;
+  const isHover  = hoveredSig === port.name || hover;
+
+  // Position on the chosen edge.
+  const sty = {
+    position: 'absolute',
+    width: 10, height: 10, borderRadius: '50%',
+    background: selected ? benchTokens.accent : '#b3a8f0',
+    border: '2px solid white',
+    boxShadow: isHover ? `0 0 0 4px ${benchTokens.accentBg}` : '0 0 0 0 transparent',
+    transition: 'box-shadow .12s, background .12s',
+    cursor: 'pointer',
+    pointerEvents: 'auto',
+  };
+  if (side === 'left')   { sty.left = 6;    sty.top   = `calc(${pos * 100}% - 5px)`; }
+  if (side === 'right')  { sty.right = 6;   sty.top   = `calc(${pos * 100}% - 5px)`; }
+  if (side === 'top')    { sty.top  = 6;    sty.left  = `calc(${pos * 100}% - 5px)`; }
+  if (side === 'bottom') { sty.bottom = 6;  sty.left  = `calc(${pos * 100}% - 5px)`; }
+
+  const tip = {
+    position: 'absolute',
+    padding: '4px 8px',
+    background: benchTokens.panel,
+    border: `1px solid ${benchTokens.border}`,
+    borderRadius: 4,
+    fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink,
+    whiteSpace: 'nowrap',
+    pointerEvents: 'none',
+    boxShadow: '0 4px 12px rgba(0,0,0,.08)',
+  };
+  if (side === 'left')   { tip.left = 24;   tip.top  = `calc(${pos * 100}% - 12px)`; }
+  if (side === 'right')  { tip.right = 24;  tip.top  = `calc(${pos * 100}% - 12px)`; }
+  if (side === 'top')    { tip.top  = 24;   tip.left = `calc(${pos * 100}% - 60px)`; }
+  if (side === 'bottom') { tip.bottom = 24; tip.left = `calc(${pos * 100}% - 60px)`; }
+
+  return (
+    <>
+      <div style={sty}
+        title={port.name}
+        onClick={() => setSelectedSig(port.name)}
+        onMouseEnter={() => { setHover(true);  setHoveredSig(port.name); }}
+        onMouseLeave={() => { setHover(false); setHoveredSig(null); }}
+      />
+      {isHover && (
+        <div style={tip}>
+          <span style={{ fontWeight: 600 }}>{port.name}</span>
+          <span style={{ color: benchTokens.ink3 }}> : {port.bundle}</span>
+          <span style={{ color: benchTokens.ink4 }}> ({port.dir})</span>
+        </div>
+      )}
+    </>
+  );
+}
+
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
   // Per-expanded-instance sub-layouts. Keyed by *type* so two instances of the
   // same module reuse the same sub-layout.
@@ -2585,6 +2641,20 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     }
     return out;
   }, [expandedModules, subLayouts, mod, tweaks.collapseBidir]);
+
+  // Split mod.ports by direction. dir is one of: 'in', 'out', 'master', 'slave', 'inout'.
+  const edgePorts = useMemo(() => {
+    const left  = [];
+    const right = [];
+    const top   = [];
+    for (const p of (mod.ports || [])) {
+      const d = (p.dir || '').toLowerCase();
+      if (d === 'in' || d === 'slave')       left.push(p);
+      else if (d === 'out' || d === 'master') right.push(p);
+      else                                    top.push(p);   // 'inout' / unknown
+    }
+    return { left, right, top };
+  }, [mod.ports]);
 
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
@@ -2785,6 +2855,28 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             layerId="top"
             expandedModules={expandedModules}
           />
+        </div>
+
+        {/* Module-port dots on the viewport edges — pinned, not pan/zoom-transformed */}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {edgePorts.left.map((p, i) => (
+            <PortDot key={`L-${p.name}`} port={p} side="left"
+              pos={(i + 1) / (edgePorts.left.length + 1)}
+              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
+              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
+          ))}
+          {edgePorts.right.map((p, i) => (
+            <PortDot key={`R-${p.name}`} port={p} side="right"
+              pos={(i + 1) / (edgePorts.right.length + 1)}
+              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
+              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
+          ))}
+          {edgePorts.top.map((p, i) => (
+            <PortDot key={`T-${p.name}`} port={p} side="top"
+              pos={(i + 1) / (edgePorts.top.length + 1)}
+              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
+              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
+          ))}
         </div>
       </div>
     </div>
