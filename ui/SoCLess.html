@@ -2269,7 +2269,61 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             ) : null
           ))}
 
-          {/* Wires */}
+          {/* Wire hit-target layer (under boxes) — transparent fat strokes only */}
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, overflow: 'visible' }}>
+            {wires.map((w) => {
+              const d = bRoutePath(w, routingStyle);
+              return (
+                <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
+                  style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+                  onClick={() => setSelectedSig(w.fromPath)}
+                  onMouseEnter={() => setHoveredSig(w.fromPath)}
+                  onMouseLeave={() => setHoveredSig(null)}
+                />
+              );
+            })}
+          </svg>
+
+          {/* Module boxes */}
+          {Object.entries(layoutBoxes).map(([inst, b]) => {
+            const child = mod.children.find((c) => c.name === inst);
+            if (!child) return null;
+            const childMod = B_MODULES[child.type];
+            const drillable = !!childMod && childMod.children.length > 0;
+            const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
+            const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
+            return (
+              <div key={inst}
+                onDoubleClick={() => drillable && drillInto(inst)}
+                style={{
+                  position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
+                  background: benchTokens.panel,
+                  border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
+                  borderRadius: 6,
+                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
+                  cursor: drillable ? 'pointer' : 'default',
+                  display: 'flex', flexDirection: 'column',
+                  overflow: 'hidden',
+                  transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), box-shadow .12s, border-color .12s',
+                }}
+              >
+                <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
+                  <ModuleGlyph type={child.type} active={selectedHere} />
+                  <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
+                  <span style={{ marginLeft: 'auto', fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
+                </div>
+                <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
+                  {child.doc}
+                </div>
+                <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
+                  <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
+                  {drillable && <span style={{ color: benchTokens.accent }}>↵ open</span>}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Wire visual layer (over boxes) — strokes, arrowheads, labels, bundle pills */}
           <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, pointerEvents: 'none', overflow: 'visible' }}>
             <defs>
               {Object.entries(B_CHAN).map(([k, v]) => (
@@ -2331,13 +2385,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                       markerStart={w.bidir ? 'url(#arr-default)' : undefined}
                     />
                   )}
-                  {/* Click target */}
-                  <path d={d} stroke="transparent" strokeWidth={14} fill="none"
-                    style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                    onClick={() => setSelectedSig(w.fromPath)}
-                    onMouseEnter={() => setHoveredSig(w.fromPath)}
-                    onMouseLeave={() => setHoveredSig(null)}
-                  />
                   {tweaks.showWidths && (
                     <g transform={`translate(${mid.x}, ${mid.y - 8})`}>
                       <rect x={-30} y={-9} width={60} height={18} rx={3}
@@ -2351,7 +2398,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   )}
                   {!globalExpanded && (
                     <g transform={`translate(${mid.x - 10}, ${mid.y + 14})`}
-                       style={{ cursor: 'pointer' }}
+                       style={{ cursor: 'pointer', pointerEvents: 'auto' }}
                        onClick={() => toggleBundle(w.fromPath)}>
                       <rect x={-2} y={-7} width={24} height={14} rx={7} fill={benchTokens.panel} stroke={benchTokens.border} />
                       <text x={10} y={3} textAnchor="middle" fontFamily={benchTokens.mono} fontSize={9} fill={benchTokens.ink3}>
@@ -2363,45 +2410,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
               );
             })}
           </svg>
-
-          {/* Module boxes */}
-          {Object.entries(layoutBoxes).map(([inst, b]) => {
-            const child = mod.children.find((c) => c.name === inst);
-            if (!child) return null;
-            const childMod = B_MODULES[child.type];
-            const drillable = !!childMod && childMod.children.length > 0;
-            const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
-            const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
-            return (
-              <div key={inst}
-                onDoubleClick={() => drillable && drillInto(inst)}
-                style={{
-                  position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
-                  background: benchTokens.panel,
-                  border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
-                  borderRadius: 6,
-                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
-                  cursor: drillable ? 'pointer' : 'default',
-                  display: 'flex', flexDirection: 'column',
-                  overflow: 'hidden',
-                  transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), box-shadow .12s, border-color .12s',
-                }}
-              >
-                <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
-                  <ModuleGlyph type={child.type} active={selectedHere} />
-                  <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
-                  <span style={{ marginLeft: 'auto', fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
-                </div>
-                <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
-                  {child.doc}
-                </div>
-                <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
-                  <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
-                  {drillable && <span style={{ color: benchTokens.accent }}>↵ open</span>}
-                </div>
-              </div>
-            );
-          })}
         </div>
       </div>
     </div>
