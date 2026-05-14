@@ -2590,6 +2590,35 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // regardless of individual toggles; the per-wire expand pill is hidden.
   const globalExpanded = tweaks.bundleMode === 'expanded';
 
+  // Pan/zoom state. Pan is in viewport pixels (pre-scale offset on the inner
+  // canvas); zoom is a uniform scale factor clamped to [0.25, 3].
+  const [zoom, setZoom] = useState(1);
+  const [pan,  setPan]  = useState({ x: 0, y: 0 });
+  const canvasWrapRef = useRef(null);
+
+  const clampZoom = (z) => Math.min(3, Math.max(0.25, z));
+
+  const onWheel = useCallback((e) => {
+    // Only zoom — don't intercept regular vertical scroll the user might want
+    // when zoom is 1 (TODO: revisit if it's annoying).
+    e.preventDefault();
+    const rect = canvasWrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    setZoom((z) => {
+      const factor = Math.exp(-e.deltaY * 0.0015); // smooth multiplicative zoom
+      const newZ   = clampZoom(z * factor);
+      // Update pan so the world point under the cursor stays fixed.
+      setPan((p) => {
+        const wx = (mx - p.x) / z;
+        const wy = (my - p.y) / z;
+        return { x: mx - wx * newZ, y: my - wy * newZ };
+      });
+      return newZ;
+    });
+  }, []);
+
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
       {/* Canvas chrome */}
@@ -2609,8 +2638,15 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         </div>
       </div>
 
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
-        <div style={{ position: 'relative', width: totalW, height: containerH, transition: 'width .3s, height .3s' }}>
+      <div ref={canvasWrapRef} onWheel={onWheel} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
+        <div style={{
+          position: 'relative',
+          width: totalW,
+          height: containerH,
+          transition: 'width .3s, height .3s',
+          transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0',
+        }}>
           {/* Column labels (hier only) */}
           {columnLabels.length > 0 && columnLabels.map((label, ci) => (
             label ? (
