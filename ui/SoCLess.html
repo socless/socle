@@ -1969,8 +1969,8 @@ function bTopoRanks(mod) {
 function bPlaceColumns(cols, opts) {
   const o = opts || {};
   const colW    = o.colW    ?? NODE_W;
-  const colGap  = o.colGap  ?? 80;
-  const rowGap  = o.rowGap  ?? 28;
+  const colGap  = o.colGap  ?? 160;
+  const rowGap  = o.rowGap  ?? 56;
   // Per-instance callbacks. Scalar fallbacks preserve existing behaviour.
   const heightFor = o.heightFor || ((_inst) => o.modH ?? NODE_H);
   const widthFor  = o.widthFor  || ((_inst) => colW);
@@ -2043,7 +2043,7 @@ function bLayoutOrth(mod, _path, dims) {
     const insts = mod.children.map((c) => c.name).filter((n) => ranks[n] === r);
     if (insts.length) cols.push({ label: '', instances: insts });
   }
-  const placed = bPlaceColumns(cols, { colW: 200, colGap: 56, modH: 80, rowGap: 22, ...dims });
+  const placed = bPlaceColumns(cols, { colW: 200, colGap: 112, modH: 80, rowGap: 44, ...dims });
   return { ...placed, columnLabels: [], routingStyle: 'orth' };
 }
 
@@ -2518,7 +2518,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           subMod,
           [...path, inst],
           tweaks.layout,
-          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 32, rowGap: 18 },
+          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 64, rowGap: 36 },
         );
       }
       out[inst] = cache[cacheKey];
