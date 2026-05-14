@@ -1,0 +1,112 @@
+//| mill-version: 1.1.6
+//
+// SoCLess build — Mill 1.1.6.
+//
+// Two artifacts get published:
+//   io.socless::socless::<v>        — runtime library (Scala 2.13 / Chisel)
+//   io.socless::mill-socless::<v>   — Mill plugin trait (Scala 3 / Mill APIs)
+//
+// Bundled `example/` is a demonstration that skips publishLocal — it depends
+// on `socless` via moduleDeps and inlines the launcher invocation. Real
+// consumers use the seamless plugin flow (see README).
+//
+// Quick start (this workspace):
+//   mill socless.publishLocal
+//   mill mill-socless.publishLocal
+//   mill example.socless           # writes out/example/socless.dest/design.json
+
+package build
+
+import mill._
+import mill.scalalib._
+import mill.scalalib.publish._
+
+object V {
+  val scala       = "2.13.16"
+  val scala3Mill  = "3.8.2"          // Mill 1.6 runs on Scala 3
+  val chisel      = "7.11.0"
+  val mill        = "1.1.6"
+  val upickle     = "4.0.2"
+  val osLib       = "0.11.4"
+  val publishVer  = "0.1.0-SNAPSHOT"
+}
+
+// ─── Common publish boilerplate ─────────────────────────────────────────────
+trait SoclessPublish extends PublishModule {
+  def publishVersion = V.publishVer
+  def pomSettings = PomSettings(
+    description    = "SoCLess Chisel design exporter",
+    organization   = "io.socless",
+    url            = "https://github.com/socless/socless",
+    licenses       = Seq(License.MIT),
+    versionControl = VersionControl.github("socless", "socless"),
+    developers     = Seq(),
+  )
+}
+
+// ─── Chisel toolchain (Scala 2.13 + scalac plugin) ──────────────────────────
+trait ChiselToolchain extends ScalaModule {
+  def scalaVersion = V.scala
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"org.chipsalliance::chisel:${V.chisel}",
+  )
+  def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
+    mvn"org.chipsalliance:::chisel-plugin:${V.chisel}",
+  )
+  def scalacOptions = Seq(
+    "-language:reflectiveCalls",
+    "-deprecation",
+    "-feature",
+  )
+}
+
+// ─── Runtime library ────────────────────────────────────────────────────────
+object socless extends ChiselToolchain with SoclessPublish {
+  def artifactName = "socless"
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.lihaoyi::upickle:${V.upickle}",
+    mvn"com.lihaoyi::os-lib:${V.osLib}",
+  )
+  // Bundle ui/ at JAR root so SoclessModule.soclessUI can extract SoCLess.html
+  def uiDir = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" }
+  override def resources = Task { super.resources() :+ uiDir() }
+}
+
+// ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────
+// Compiled against the Mill APIs so users can mix in `SoclessModule`. Doesn't
+// declare a moduleDep on `socless` — the trait pulls the runtime in at task
+// time via the user's mvnDeps.
+object `mill-socless` extends ScalaModule with SoclessPublish {
+  def scalaVersion = V.scala3Mill
+  def artifactName = "mill-socless"
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.lihaoyi::mill-libs:${V.mill}",
+  )
+}
+
+// ─── Bundled example (uses moduleDeps, NOT the published plugin) ────────────
+// Stays inside this workspace so `mill example.socless` works without a
+// prior publishLocal. Real-world consumers should use the plugin trait
+// instead (see README's "Seamless Mill plugin" section).
+object example extends ChiselToolchain {
+  def moduleDeps = Seq(socless)
+
+  /** Top-level Chisel module to elaborate. */
+  def soclessTop: String = "axisystem.AXISystem"
+
+  /** Inlined version of what `SoclessModule.socless` does — fork java with
+    * the example's runClasspath and call `socless.Launcher`. */
+  def soclessRun: T[PathRef] = Task {
+    val out   = Task.dest / "design.json"
+    val cpStr = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val rc = os.proc(
+      "java", "-cp", cpStr,
+      "socless.Launcher",
+      "--top", soclessTop,
+      "--output", out.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
+    if (rc.exitCode != 0) throw new RuntimeException(s"launcher exited ${rc.exitCode}")
+    Task.log.info(s"[socless] wrote $out")
+    PathRef(out)
+  }
+}

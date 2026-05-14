@@ -1,0 +1,8 @@
+out/
+.bsp/
+.metals/
+.bloop/
+ui/design.json
+*.class
+*.tasty
+mill.*.lock
