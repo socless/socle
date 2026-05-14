@@ -15,6 +15,38 @@
   *::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 4px; }
   *::-webkit-scrollbar-track { background: transparent; }
   .socless-loading { position: fixed; inset: 0; display: grid; place-items: center; color: #8a8a86; font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; }
+
+  /* Loader chrome — toast banner + drop-zone overlay. Lives outside React so
+     the loader script (which runs before React mounts) can show feedback. */
+  .socless-toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px);
+    z-index: 2147483645; min-width: 240px; max-width: 520px;
+    padding: 9px 14px 9px 12px; border-radius: 8px;
+    background: rgba(28, 27, 23, 0.92); color: #f5f4ef;
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 11.5px; letter-spacing: 0.1px;
+    box-shadow: 0 12px 32px rgba(0,0,0,0.22), 0 1px 0 rgba(255,255,255,0.06) inset;
+    display: flex; align-items: center; gap: 10px;
+    opacity: 0; transition: opacity .18s, transform .18s cubic-bezier(.3,.7,.4,1);
+    pointer-events: none;
+  }
+  .socless-toast[data-on="1"] { opacity: 1; transform: translate(-50%, 0); }
+  .socless-toast[data-kind="err"] { background: #5a1f1a; color: #ffd9d3; }
+  .socless-toast[data-kind="ok"]  { background: #1b2a1c; color: #d2f0d3; }
+  .socless-toast .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; opacity: 0.8; }
+
+  .socless-dropzone {
+    position: fixed; inset: 0; z-index: 2147483644; pointer-events: none;
+    background: rgba(34, 31, 24, 0.22); backdrop-filter: blur(2px);
+    display: grid; place-items: center; opacity: 0; transition: opacity .12s;
+  }
+  .socless-dropzone[data-on="1"] { opacity: 1; }
+  .socless-dropzone-card {
+    padding: 28px 36px; border-radius: 14px;
+    background: rgba(255,255,255,0.95); border: 1.5px dashed rgba(34,31,24,0.32);
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 13px; color: #221f18;
+    text-align: center; line-height: 1.5;
+  }
+  .socless-dropzone-card b { font-weight: 600; display: block; margin-bottom: 4px; }
 </style>
 
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
@@ -26,7 +58,7 @@
     "density": "comfortable",
     "showWidths": true,
     "layout": "hier",
-    "bundleMode": "expanded"
+    "bundleMode": "collapsed"
   }/*EDITMODE-END*/;
 </script>
 
@@ -377,34 +409,263 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
 
 </script>
 
-<!-- design.json loader: if a SoCLess-format JSON sits next to this HTML,
-     load it and replace the bundled demo. Falls back silently to the AXI
-     example when the file is missing or unreachable. -->
+<!-- Design loader.
+     Probe order:
+       1) ?design=<id>       — fixture id from examples/manifest.json
+       2) ?design=<url>      — any JSON URL (relative to this page)
+       3) ./design.json      — live elaboration output next to the HTML
+       4) (bundled demo)     — fall through, no fetch
+     Loader MUTATES window.DESIGN.{MODULES,BUNDLES} in place so the inline
+     bench code's `const B_MODULES = window.DESIGN.MODULES` captures stay
+     valid across reloads. Components remount via a version counter (see App).
+
+     Interactions wired up here (run pre-React so they're always available):
+       • toast(msg, kind)              — transient banner for load feedback
+       • window drag-and-drop of *.json → loads as a design
+       • __soclessLoadDesign(idOrUrl)  — picker entry point (also URL-syncs)
+       • __soclessLoadDesignFromFile(file) — load from a File / Blob
+       • __soclessReloadLive()         — re-fetch ./design.json without reload -->
 <script>
-window.__DESIGN_READY = (async () => {
-  try {
-    const r = await fetch('design.json', { cache: 'no-store' });
-    if (!r.ok) return false;
-    const j = await r.json();
-    if (!j || !Array.isArray(j.modules)) return false;
+(function () {
+  // Default top, only used pre-load
+  window.DESIGN.TOP = window.DESIGN.TOP || 'AXISystem';
+  window.DESIGN.SOURCE = 'demo';          // 'demo' | 'live' | <fixture id>
+  window.DESIGN.SOURCE_LABEL = 'demo';
+  window.DESIGN.MANIFEST = [];            // [{id, label, path, doc}] from examples/manifest.json
+  window.DESIGN.VERSION = 0;              // bumps on every load → triggers UI remount
+
+  // ── Toast: out-of-React feedback for loads. The loader runs before React
+  // has mounted, so we draw to the DOM directly. One element, reused.
+  let toastEl = null, toastT = null;
+  function toast(msg, kind = 'info', ms = 2400) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'socless-toast';
+      toastEl.innerHTML = '<span class="dot"></span><span class="msg"></span>';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.dataset.kind = kind;
+    toastEl.querySelector('.msg').textContent = msg;
+    toastEl.dataset.on = '1';
+    clearTimeout(toastT);
+    toastT = setTimeout(() => { toastEl.dataset.on = '0'; }, ms);
+  }
+  window.__soclessToast = toast;
+
+  function mutateAssign(target, source) {
+    if (!target || !source) return;
+    for (const k of Object.keys(target)) delete target[k];
+    Object.assign(target, source);
+  }
+
+  // Infer a sensible top when the declared one doesn't resolve to a module.
+  // Order of preference:
+  //   1. j.top, if it appears in modules
+  //   2. A module with children that nothing else instantiates (true root)
+  //   3. The module with the most children (rich for browsing)
+  //   4. First module in the file
+  // Step 2 covers the common Chisel-7 case where `public module Foo:` got
+  // dropped by an older parser — the children of the missing top stay as
+  // orphan roots with children, and we pick the richest.
+  function resolveTop(declared, byName) {
+    if (declared && byName[declared]) return declared;
+    const all = Object.values(byName);
+    const referenced = new Set();
+    for (const m of all) for (const c of (m.children || [])) referenced.add(c.type);
+    const orphans = all
+      .filter((m) => (m.children || []).length > 0 && !referenced.has(m.name))
+      .sort((a, b) => (b.children || []).length - (a.children || []).length);
+    if (orphans.length) return orphans[0].name;
+    const byCount = [...all].sort((a, b) => (b.children || []).length - (a.children || []).length);
+    return (byCount[0] && byCount[0].name) || Object.keys(byName)[0];
+  }
+
+  function ingest(j, sourceId, sourceLabel) {
+    if (!j || !Array.isArray(j.modules)) throw new Error('not a SoCLess design.json');
     const byName = {};
     for (const m of j.modules) byName[m.name] = m;
-    window.DESIGN.MODULES = byName;
+    mutateAssign(window.DESIGN.MODULES, byName);
     if (j.bundles && typeof j.bundles === 'object') {
       const bs = {};
       for (const [k, v] of Object.entries(j.bundles)) {
-        bs[k] = { kind: v.kind, fields: v.fields || [], channels: v.channels || [] };
+        bs[k] = { kind: v.kind, fields: v.fields || [], channels: v.channels || [], name: v.name || k };
       }
-      window.DESIGN.BUNDLES = bs;
+      mutateAssign(window.DESIGN.BUNDLES, bs);
     }
-    if (j.top) window.DESIGN.TOP = j.top;
-    window.DESIGN.LOADED_FROM = 'design.json';
-    console.info('[socless] loaded design.json: ' + j.modules.length + ' modules, ' + Object.keys(j.bundles || {}).length + ' bundles');
+    const declared = j.top;
+    const resolved = resolveTop(declared, window.DESIGN.MODULES);
+    window.DESIGN.TOP = resolved;
+    window.DESIGN.TOP_DECLARED = declared || null;
+    if (declared && resolved !== declared) {
+      console.warn('[socless] declared top "' + declared + '" not in modules; using "' + resolved + '" instead');
+    }
+    window.DESIGN.SOURCE = sourceId;
+    window.DESIGN.SOURCE_LABEL = sourceLabel;
+    window.DESIGN.VERSION += 1;
+    const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
+    const summary = plural(j.modules.length, 'module') + ' · ' + plural(Object.keys(j.bundles || {}).length, 'bundle');
+    const topNote = declared && declared !== resolved ? ' (declared "' + declared + '")' : '';
+    console.info('[socless] loaded ' + sourceLabel + ': ' + summary + ', top=' + resolved + topNote);
+    window.dispatchEvent(new CustomEvent('socless:design-changed', { detail: { source: sourceId } }));
+    toast(sourceLabel + ' · ' + summary, 'ok');
     return true;
-  } catch (e) {
-    console.info('[socless] design.json not found — using bundled demo');
+  }
+
+  async function fetchJson(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error(url + ' ' + r.status);
+    return r.json();
+  }
+
+  async function loadFromManifestId(id) {
+    const entry = (window.DESIGN.MANIFEST || []).find((d) => d.id === id);
+    if (!entry) throw new Error('no fixture with id=' + id);
+    const j = await fetchJson(entry.path);
+    return ingest(j, entry.id, entry.label);
+  }
+
+  // ── URL sync. Picks update `?design=<id>`; initial load reads it.
+  // Use replaceState on the first pick so the back button still returns
+  // the user to whatever page they came from; subsequent picks pushState.
+  let _hasSyncedOnce = false;
+  function syncUrl(id) {
+    try {
+      const u = new URL(window.location.href);
+      if (id === 'demo') u.searchParams.delete('design');
+      else u.searchParams.set('design', id);
+      const method = _hasSyncedOnce ? 'pushState' : 'replaceState';
+      window.history[method]({}, '', u.toString());
+      _hasSyncedOnce = true;
+    } catch (e) { /* old browser, no big deal */ }
+  }
+
+  // Public API for the design picker + URL-driven switching.
+  window.__soclessLoadDesign = async function (idOrUrl, opts) {
+    const pushUrl = !opts || opts.pushUrl !== false;
+    try {
+      if (typeof idOrUrl !== 'string') return false;
+      if ((window.DESIGN.MANIFEST || []).some((d) => d.id === idOrUrl)) {
+        const ok = await loadFromManifestId(idOrUrl);
+        if (ok && pushUrl) syncUrl(idOrUrl);
+        return ok;
+      }
+      if (idOrUrl === 'live' || idOrUrl === 'design.json') {
+        const j = await fetchJson('design.json');
+        const ok = ingest(j, 'live', 'live (design.json)');
+        if (ok && pushUrl) syncUrl('live');
+        return ok;
+      }
+      const j = await fetchJson(idOrUrl);
+      const ok = ingest(j, idOrUrl, idOrUrl);
+      if (ok && pushUrl) syncUrl(idOrUrl);
+      return ok;
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      console.error('[socless] load failed:', msg);
+      toast('load failed: ' + msg, 'err');
+      return false;
+    }
+  };
+
+  // Refresh `live` — re-fetch design.json in place. Useful while iterating
+  // on a Chisel design and re-running `mill example.soclessRun`.
+  window.__soclessReloadLive = function () {
+    return window.__soclessLoadDesign('live', { pushUrl: false });
+  };
+
+  // Load a SoCLess design.json from a File / Blob (drag-drop or upload).
+  window.__soclessLoadDesignFromFile = async function (file) {
+    try {
+      const text = await file.text();
+      const j = JSON.parse(text);
+      const name = file.name || 'file';
+      return ingest(j, 'file:' + name, name);
+    } catch (e) {
+      toast('couldn\'t read ' + (file && file.name || 'file') + ': ' + (e.message || e), 'err');
+      return false;
+    }
+  };
+
+  // Browser history navigation (back/forward) should switch designs too.
+  window.addEventListener('popstate', () => {
+    const want = new URLSearchParams(window.location.search).get('design');
+    if (want) window.__soclessLoadDesign(want, { pushUrl: false });
+    else window.__soclessReloadLive();
+  });
+
+  // ── Drag and drop *.json onto the page → load as a design.
+  // Counter-based ref-counting prevents the overlay from flickering when
+  // dragenter/dragleave bubble across nested children.
+  let dragDepth = 0, dropEl = null;
+  function ensureDropZone() {
+    if (dropEl) return dropEl;
+    dropEl = document.createElement('div');
+    dropEl.className = 'socless-dropzone';
+    dropEl.innerHTML = '<div class="socless-dropzone-card"><b>Drop a design.json</b>SoCLess will load it into the current view</div>';
+    document.body.appendChild(dropEl);
+    return dropEl;
+  }
+  function isJsonDrag(e) {
+    const dt = e.dataTransfer;
+    if (!dt) return false;
+    if (dt.types && (dt.types.includes('Files') || (dt.types.contains && dt.types.contains('Files')))) {
+      return true;
+    }
     return false;
   }
+  window.addEventListener('dragenter', (e) => {
+    if (!isJsonDrag(e)) return;
+    e.preventDefault();
+    dragDepth += 1;
+    ensureDropZone().dataset.on = '1';
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!isJsonDrag(e)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (!isJsonDrag(e)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0 && dropEl) dropEl.dataset.on = '0';
+  });
+  window.addEventListener('drop', (e) => {
+    if (!e.dataTransfer || !e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    dragDepth = 0;
+    if (dropEl) dropEl.dataset.on = '0';
+    const f = e.dataTransfer.files[0];
+    if (!/\.json$/i.test(f.name)) {
+      toast('expected a .json file, got ' + f.name, 'err');
+      return;
+    }
+    window.__soclessLoadDesignFromFile(f);
+  });
+
+  // Initial load: read manifest, then pick a source.
+  window.__DESIGN_READY = (async () => {
+    // (1) manifest (best-effort — fixtures only work over HTTP)
+    try { window.DESIGN.MANIFEST = (await fetchJson('examples/manifest.json')).designs || []; }
+    catch { window.DESIGN.MANIFEST = []; }
+
+    // (2) URL param
+    const params = new URLSearchParams(window.location.search);
+    const want = params.get('design');
+    if (want) {
+      const ok = await window.__soclessLoadDesign(want, { pushUrl: false });
+      if (ok) return true;
+    }
+
+    // (3) live design.json next to the HTML (the Mill plugin drops one here)
+    try {
+      const j = await fetchJson('design.json');
+      return ingest(j, 'live', 'live (design.json)');
+    } catch {
+      console.info('[socless] no design.json — using bundled demo');
+      window.DESIGN.VERSION = 1;          // initial demo counts as a load
+      return false;
+    }
+  })();
 })();
 </script>
 
@@ -1026,8 +1287,9 @@ function getModuleByPath(path) {
   // path = ['AXISystem'] or ['AXISystem', 'xbar'] (instance names after top)
   // For depth>1 we look up the instance's type to find its module def.
   let mod = B_MODULES[path[0]];
+  if (!mod) return null;
   for (let i = 1; i < path.length; i++) {
-    const child = mod.children.find((c) => c.name === path[i]);
+    const child = (mod.children || []).find((c) => c.name === path[i]);
     if (!child) return mod;
     mod = B_MODULES[child.type] || mod;
   }
@@ -1043,14 +1305,32 @@ function parseEndpoint(s) {
 
 // ─── App root ────────────────────────────────────────────────────────────────
 function BenchApp({ tweaks }) {
-  const [path, setPath] = useState(['AXISystem']);
+  // Default to the loaded design's top, fall back to the bundled demo top.
+  // Each design load remounts BenchApp via `key={DESIGN.VERSION}` on the App
+  // side, so this initializer re-evaluates fresh per design.
+  const initialTop = window.DESIGN.TOP || Object.keys(B_MODULES)[0] || 'AXISystem';
+  const [path, setPath] = useState([initialTop]);
   const [selectedSig, setSelectedSig] = useState(null); // 'cpu.io.ar' or 'cpu.io.ar.bits.addr'
   const [hoveredSig, setHoveredSig] = useState(null);
   const [expandedBundles, setExpandedBundles] = useState(new Set()); // bundle paths expanded
   const [bottomTab, setBottomTab] = useState('source');
   const [drawerHeight, setDrawerHeight] = useState(240);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
-  const mod = getModuleByPath(path);
+  // ⌘K / Ctrl-K opens the command palette. Also ⌘P as a VSCode-ish alias.
+  useEffect(() => {
+    const onKey = (e) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && (e.key === 'k' || e.key === 'K' || e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setPaletteOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const mod = getModuleByPath(path) || { name: path[path.length - 1], type: '?', ports: [], children: [], wires: [], metrics: {}, source: { file: '', line: 0, col: 0 } };
   const density = DENSITY[tweaks.density] || DENSITY.comfortable;
 
   const drillInto = useCallback((inst) => {
@@ -1075,12 +1355,13 @@ function BenchApp({ tweaks }) {
   }, []);
 
   return (
+    <>
     <div style={{
       width: '100%', height: '100%', background: benchTokens.bg,
       color: benchTokens.ink, fontFamily: benchTokens.sans, fontSize: density.font,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      <BenchTopBar path={path} navTo={navTo} mod={mod} />
+      <BenchTopBar path={path} navTo={navTo} mod={mod} onOpenPalette={() => setPaletteOpen(true)} />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <BenchHierarchy path={path} setPath={setPath} density={density} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderLeft: `1px solid ${benchTokens.border}`, borderRight: `1px solid ${benchTokens.border}` }}>
@@ -1111,11 +1392,22 @@ function BenchApp({ tweaks }) {
         />
       </div>
     </div>
+    <CommandPalette
+      open={paletteOpen}
+      onClose={() => setPaletteOpen(false)}
+      onNavigate={(payload) => { setPath(payload); setSelectedSig(null); }}
+    />
+    </>
   );
 }
 
 // ─── Top bar ─────────────────────────────────────────────────────────────────
-function BenchTopBar({ path, navTo, mod }) {
+function BenchTopBar({ path, navTo, mod, onOpenPalette }) {
+  const metrics = (mod && mod.metrics) || {};
+  const source  = window.DESIGN.SOURCE_LABEL || 'demo';
+  const isLive  = window.DESIGN.SOURCE === 'live';
+  const isMac   = typeof navigator !== 'undefined' && /Mac|iP(hone|ad|od)/.test(navigator.platform);
+  const kHint   = isMac ? '⌘K' : 'Ctrl K';
   return (
     <div style={{
       height: 38, flexShrink: 0,
@@ -1127,7 +1419,7 @@ function BenchTopBar({ path, navTo, mod }) {
         <div style={{ width: 18, height: 18, borderRadius: 4, background: benchTokens.ink, color: benchTokens.bg, display: 'grid', placeItems: 'center', fontFamily: benchTokens.mono, fontSize: 10, fontWeight: 700, letterSpacing: -0.5 }}>S</div>
         <span style={{ fontWeight: 600, letterSpacing: -0.1 }}>socless</span>
         <span style={{ color: benchTokens.ink4 }}>·</span>
-        <span style={{ color: benchTokens.ink2, fontFamily: benchTokens.mono, fontSize: 11 }}>AXISystem.fir</span>
+        <DesignPicker />
       </div>
       {/* breadcrumb */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, marginLeft: 8, color: benchTokens.ink2 }}>
@@ -1148,20 +1440,346 @@ function BenchTopBar({ path, navTo, mod }) {
           </React.Fragment>
         ))}
       </div>
-      {/* search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, padding: '5px 10px', borderRadius: 5, color: benchTokens.ink3, width: 220 }}>
+      {/* search trigger — opens palette on click or ⌘K */}
+      <button
+        onClick={onOpenPalette}
+        title="Search modules, instances, ports"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt,
+          padding: '5px 10px', borderRadius: 5, color: benchTokens.ink3, width: 220,
+          border: 'none', cursor: 'pointer', textAlign: 'left',
+        }}
+        onMouseEnter={(e) => e.currentTarget.style.background = benchTokens.border}
+        onMouseLeave={(e) => e.currentTarget.style.background = benchTokens.panelAlt}
+      >
         <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="4.5" cy="4.5" r="3"/><path d="M7 7l2.5 2.5"/></svg>
-        <span style={{ fontSize: 11.5 }}>Search signals…</span>
-        <span style={{ marginLeft: 'auto', fontFamily: benchTokens.mono, fontSize: 10, padding: '1px 4px', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 3 }}>⌘K</span>
-      </div>
-      {/* synth metrics */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink3 }}>
-        {mod.metrics.gates != null && <span><span style={{ color: benchTokens.ink2 }}>{mod.metrics.gates.toLocaleString()}</span> gates</span>}
-        <span><span style={{ color: benchTokens.ink2 }}>{mod.metrics.registers}</span> reg</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ width: 6, height: 6, borderRadius: 3, background: benchTokens.ok }} />
-          {window.DESIGN.LOADED_FROM ? 'live' : 'demo'}
+        <span style={{ fontSize: 11.5 }}>Search modules…</span>
+        <span style={{ marginLeft: 'auto', fontFamily: benchTokens.mono, fontSize: 10, padding: '1px 4px', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 3 }}>{kHint}</span>
+      </button>
+      {/* metrics + status */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink3, flexShrink: 0 }}>
+        {metrics.gates != null && <span><span style={{ color: benchTokens.ink2 }}>{Number(metrics.gates).toLocaleString()}</span> gates</span>}
+        {metrics.registers != null && <span><span style={{ color: benchTokens.ink2 }}>{metrics.registers}</span> reg</span>}
+        <span title={source} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: 3, background: isLive ? benchTokens.ok : benchTokens.warn }} />
+          {source}
         </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Design picker ─ switch between bundled fixtures + live design.json ────
+// Keyboard: `d` toggles open (when no input is focused). Esc closes.
+// `r` while picker is open + current source is `live` re-fetches design.json.
+function DesignPicker() {
+  const [open, setOpen] = useState(false);
+  const [reloading, setReloading] = useState(false);
+  // Subscribe to design changes so the picker label updates without remount.
+  // (App's `key={version}` remounts BenchApp but NOT the toolbar — the picker
+  // lives outside that key, so it needs its own bump-on-change effect.)
+  const [, setBump] = useState(0);
+  useEffect(() => {
+    const onChange = () => setBump((x) => x + 1);
+    window.addEventListener('socless:design-changed', onChange);
+    return () => window.removeEventListener('socless:design-changed', onChange);
+  }, []);
+
+  const manifest = window.DESIGN.MANIFEST || [];
+  const current  = window.DESIGN.SOURCE;
+  const label    = window.DESIGN.SOURCE_LABEL || 'demo';
+  const isLive   = current === 'live';
+  const isFile   = typeof current === 'string' && current.startsWith('file:');
+
+  // "live" is always offered — fetch fails harmlessly if design.json isn't there.
+  const options = [
+    { id: 'live', label: 'live · design.json', doc: 'Real elaboration output (Mill plugin)', kind: 'live' },
+    ...manifest.map((d) => ({ id: d.id, label: d.label, doc: d.doc, kind: 'fixture' })),
+  ];
+
+  const ref = useRef(null);
+  const fileRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    window.addEventListener('mousedown', onClick);
+    return () => window.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  // Global shortcuts. `d` to toggle picker, Esc to close. Skip when a form
+  // input owns focus so we don't hijack typing.
+  useEffect(() => {
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
+      if (typing) return;
+      if (e.key === 'd' || e.key === 'D') {
+        if (e.metaKey || e.ctrlKey || e.altKey) return;
+        e.preventDefault();
+        setOpen((v) => !v);
+      } else if (e.key === 'Escape' && open) {
+        setOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const pick = (id) => { setOpen(false); window.__soclessLoadDesign(id); };
+
+  const reloadLive = async (e) => {
+    e?.stopPropagation();
+    setReloading(true);
+    try { await window.__soclessReloadLive(); }
+    finally { setReloading(false); }
+  };
+
+  const openFile = (e) => {
+    e?.stopPropagation();
+    fileRef.current?.click();
+  };
+  const onFile = async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    setOpen(false);
+    await window.__soclessLoadDesignFromFile(f);
+  };
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 2 }} ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        title="Switch design (press D)"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px',
+          background: open ? benchTokens.panelAlt : 'transparent',
+          border: `1px solid ${open ? benchTokens.border : 'transparent'}`,
+          borderRadius: 5, cursor: 'pointer', color: benchTokens.ink2,
+          fontFamily: benchTokens.mono, fontSize: 11,
+        }}
+        onMouseEnter={(e) => { if (!open) e.currentTarget.style.background = benchTokens.panelAlt; }}
+        onMouseLeave={(e) => { if (!open) e.currentTarget.style.background = 'transparent'; }}
+      >
+        <span style={{
+          width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+          background: isLive ? 'oklch(0.62 0.16 145)'
+                     : isFile ? 'oklch(0.62 0.16 250)'
+                     : current === 'demo' ? benchTokens.ink4
+                     : 'oklch(0.62 0.16 60)',
+        }} />
+        <span style={{ color: benchTokens.ink }}>{label}</span>
+        <svg width="8" height="5" viewBox="0 0 8 5" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M1 1l3 3 3-3"/></svg>
+      </button>
+      {isLive && (
+        <button
+          onClick={reloadLive}
+          title="Reload design.json"
+          aria-label="Reload design.json"
+          style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 22, height: 22, background: 'transparent', border: 'none',
+            borderRadius: 4, cursor: 'pointer', color: benchTokens.ink3,
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = benchTokens.panelAlt; e.currentTarget.style.color = benchTokens.ink; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = benchTokens.ink3; }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+               style={{ transition: 'transform .4s cubic-bezier(.3,.7,.4,1)', transform: reloading ? 'rotate(360deg)' : 'rotate(0deg)' }}>
+            <path d="M10 4a4 4 0 1 1-1-1.7" />
+            <path d="M10 1.5v2.7H7.3" />
+          </svg>
+        </button>
+      )}
+      <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onFile} />
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+          background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
+          borderRadius: 6, boxShadow: '0 8px 24px rgba(0,0,0,0.08)', minWidth: 280, padding: 4,
+        }}>
+          {options.map((o) => {
+            const active = current === o.id;
+            return (
+              <button key={o.id} onClick={() => pick(o.id)}
+                style={{
+                  display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                  width: '100%', padding: '6px 10px', borderRadius: 4,
+                  background: active ? benchTokens.accentBg : 'transparent',
+                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                }}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = benchTokens.panelAlt; }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = 'transparent'; }}
+              >
+                <span style={{
+                  fontFamily: benchTokens.mono, fontSize: 11.5,
+                  color: active ? benchTokens.accent : benchTokens.ink,
+                  fontWeight: active ? 600 : 400,
+                }}>{o.label}</span>
+                {o.doc && <span style={{ fontSize: 10.5, color: benchTokens.ink3, marginTop: 1 }}>{o.doc}</span>}
+              </button>
+            );
+          })}
+          <div style={{ height: 1, background: benchTokens.borderSoft, margin: '4px 0' }} />
+          <button onClick={openFile}
+            style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+              width: '100%', padding: '6px 10px', borderRadius: 4,
+              background: isFile ? benchTokens.accentBg : 'transparent',
+              border: 'none', cursor: 'pointer', textAlign: 'left',
+            }}
+            onMouseEnter={(e) => { if (!isFile) e.currentTarget.style.background = benchTokens.panelAlt; }}
+            onMouseLeave={(e) => { if (!isFile) e.currentTarget.style.background = 'transparent'; }}
+          >
+            <span style={{
+              fontFamily: benchTokens.mono, fontSize: 11.5,
+              color: isFile ? benchTokens.accent : benchTokens.ink,
+              fontWeight: isFile ? 600 : 400,
+            }}>open file…</span>
+            <span style={{ fontSize: 10.5, color: benchTokens.ink3, marginTop: 1 }}>
+              {isFile ? label : 'Or drop a design.json onto the window'}
+            </span>
+          </button>
+          <div style={{
+            padding: '6px 10px 4px', fontSize: 10, color: benchTokens.ink4,
+            fontFamily: benchTokens.mono, letterSpacing: 0.4,
+          }}>
+            <span style={{ opacity: 0.7 }}>press</span> <kbd style={{
+              padding: '1px 4px', border: `1px solid ${benchTokens.border}`, borderRadius: 3,
+              fontFamily: 'inherit', fontSize: 9.5, background: benchTokens.panelAlt,
+            }}>D</kbd> <span style={{ opacity: 0.7 }}>to toggle</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Command palette ─ ⌘K search over modules + instances + ports ─────────
+function CommandPalette({ open, onClose, onNavigate }) {
+  const [q, setQ] = useState('');
+  const [cursor, setCursor] = useState(0);
+  const inputRef = useRef(null);
+
+  // Index everything once per design version (the parent's `key` remount
+  // recreates this component on every load, but we still gate the memo so a
+  // search session within one design doesn't reindex on every keystroke).
+  const items = useMemo(() => {
+    const out = [];
+    for (const m of Object.values(B_MODULES)) {
+      out.push({ kind: 'module', label: m.name, sub: m.doc || m.type, payload: [m.name] });
+      (m.children || []).forEach((c) => {
+        out.push({
+          kind: 'instance',
+          label: m.name + '.' + c.name,
+          sub: c.type + (c.doc ? ' · ' + c.doc : ''),
+          payload: B_MODULES[c.type] ? [c.type] : [m.name],
+        });
+      });
+      (m.ports || []).forEach((p) => {
+        out.push({
+          kind: 'port',
+          label: m.name + ':' + p.name,
+          sub: (p.dir || '?') + ' ' + (p.bundle || ''),
+          payload: [m.name],
+        });
+      });
+    }
+    return out;
+  }, []);
+
+  const results = useMemo(() => {
+    if (!q.trim()) return items.slice(0, 60);
+    const needle = q.toLowerCase();
+    const scored = [];
+    for (const it of items) {
+      const hay = (it.label + ' ' + (it.sub || '')).toLowerCase();
+      const idx = hay.indexOf(needle);
+      if (idx >= 0) scored.push({ ...it, score: idx + (it.kind === 'module' ? 0 : 0.5) });
+    }
+    scored.sort((a, b) => a.score - b.score);
+    return scored.slice(0, 100);
+  }, [q, items]);
+
+  useEffect(() => {
+    if (open) { setQ(''); setCursor(0); setTimeout(() => inputRef.current && inputRef.current.focus(), 0); }
+  }, [open]);
+  useEffect(() => { setCursor(0); }, [q]);
+
+  if (!open) return null;
+  const KIND_COLOR = { module: benchTokens.accent, instance: 'oklch(0.55 0.16 290)', port: 'oklch(0.55 0.16 50)' };
+
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.32)',
+      display: 'flex', justifyContent: 'center', paddingTop: '12vh', zIndex: 100,
+    }}>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        width: 580, maxWidth: '90vw', maxHeight: '70vh',
+        background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
+        borderRadius: 10, boxShadow: '0 24px 60px rgba(0,0,0,0.22)',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: `1px solid ${benchTokens.borderSoft}` }}>
+          <svg width="13" height="13" viewBox="0 0 11 11" fill="none" stroke={benchTokens.ink3} strokeWidth="1.5"><circle cx="4.5" cy="4.5" r="3"/><path d="M7 7l2.5 2.5"/></svg>
+          <input
+            ref={inputRef}
+            value={q}
+            placeholder="Search modules, instances, ports…"
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') { onClose(); }
+              else if (e.key === 'ArrowDown') { setCursor((c) => Math.min(c + 1, results.length - 1)); e.preventDefault(); }
+              else if (e.key === 'ArrowUp')   { setCursor((c) => Math.max(c - 1, 0)); e.preventDefault(); }
+              else if (e.key === 'Enter') {
+                const hit = results[cursor];
+                if (hit) { onNavigate(hit.payload); onClose(); }
+              }
+            }}
+            style={{
+              flex: 1, border: 'none', outline: 'none', background: 'transparent',
+              fontFamily: benchTokens.sans, fontSize: 14, color: benchTokens.ink,
+            }}
+          />
+          <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink4 }}>
+            {results.length} {results.length === 1 ? 'result' : 'results'}
+          </span>
+        </div>
+        <div style={{ overflowY: 'auto', padding: 4 }}>
+          {results.length === 0 ? (
+            <div style={{ padding: '24px 14px', color: benchTokens.ink3, fontSize: 12, textAlign: 'center' }}>
+              No matches for "{q}".
+            </div>
+          ) : results.map((r, i) => {
+            const active = i === cursor;
+            return (
+              <button
+                key={r.kind + ':' + r.label + ':' + i}
+                onMouseEnter={() => setCursor(i)}
+                onClick={() => { onNavigate(r.payload); onClose(); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                  padding: '7px 10px', borderRadius: 6, border: 'none',
+                  background: active ? benchTokens.accentBg : 'transparent',
+                  cursor: 'pointer', textAlign: 'left',
+                }}
+              >
+                <span style={{
+                  fontFamily: benchTokens.mono, fontSize: 9.5, padding: '1px 5px',
+                  borderRadius: 3, color: KIND_COLOR[r.kind], background: benchTokens.bg,
+                  border: `1px solid ${benchTokens.borderSoft}`, textTransform: 'uppercase',
+                  letterSpacing: 0.4, minWidth: 60, textAlign: 'center',
+                }}>{r.kind}</span>
+                <span style={{ fontFamily: benchTokens.mono, fontSize: 12, color: active ? benchTokens.accent : benchTokens.ink, fontWeight: active ? 600 : 400 }}>{r.label}</span>
+                <span style={{ fontSize: 11, color: benchTokens.ink3, marginLeft: 'auto', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 240 }}>{r.sub}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 14, padding: '7px 14px', borderTop: `1px solid ${benchTokens.borderSoft}`, fontSize: 10.5, color: benchTokens.ink4, fontFamily: benchTokens.mono }}>
+          <span>↑↓ navigate</span><span>↵ go</span><span>esc close</span>
+        </div>
       </div>
     </div>
   );
@@ -1169,8 +1787,15 @@ function BenchTopBar({ path, navTo, mod }) {
 
 // ─── Hierarchy tree (left) ───────────────────────────────────────────────────
 function BenchHierarchy({ path, setPath, density }) {
-  const root = B_MODULES.AXISystem;
-  const [expanded, setExpanded] = useState(new Set(['AXISystem', 'xbar']));
+  const top = window.DESIGN.TOP || Object.keys(B_MODULES)[0] || 'AXISystem';
+  const root = B_MODULES[top];
+  // Auto-expand the top plus first level of children for orientation.
+  const initialExpanded = useMemo(() => {
+    const s = new Set([top]);
+    if (root && root.children) root.children.forEach((c) => s.add(c.name));
+    return s;
+  }, [top]);
+  const [expanded, setExpanded] = useState(initialExpanded);
 
   // Build flat list with indent levels
   const rows = useMemo(() => {
@@ -1184,7 +1809,7 @@ function BenchHierarchy({ path, setPath, density }) {
         for (const c of mod.children) walk(c.name, c.type, [...p, c.name], depth + 1);
       }
     };
-    walk('AXISystem', 'AXISystem', ['AXISystem'], 0);
+    walk(top, top, [top], 0);
     return out;
   }, [expanded]);
 
@@ -2084,9 +2709,19 @@ window.BenchApp = BenchApp;
 <script type="text/babel">
 function App() {
   const [tweaks, setTweak] = useTweaks(window.__TWEAK_DEFAULTS);
+  // Remount BenchApp on every design load so module-scope `const B_MODULES = ...`
+  // captures pick up the fresh mutated objects + state initializers re-run with
+  // the new top.
+  const [version, setVersion] = React.useState(window.DESIGN.VERSION || 1);
+  React.useEffect(() => {
+    const onChange = () => setVersion(window.DESIGN.VERSION);
+    window.addEventListener('socless:design-changed', onChange);
+    return () => window.removeEventListener('socless:design-changed', onChange);
+  }, []);
+
   return (
     <div style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      <BenchApp tweaks={tweaks} />
+      <BenchApp key={version} tweaks={tweaks} />
       <TweaksPanel title="Tweaks">
         <TweakSection label="Display">
           <TweakRadio label="Density" value={tweaks.density}

@@ -1,0 +1,30 @@
+{
+  "top": "GCD",
+  "bundles": {
+    "Decoupled_in": {
+      "name": "Decoupled_in",
+      "kind": "Decoupled",
+      "fields": [["a", 16, "out"], ["b", 16, "out"]]
+    },
+    "Decoupled_out": {
+      "name": "Decoupled_out",
+      "kind": "Decoupled",
+      "fields": [["result", 16, "out"]]
+    }
+  },
+  "modules": [
+    {
+      "name": "GCD",
+      "type": "GCD",
+      "doc": "Iterative Euclidean GCD — accepts (a,b), emits gcd(a,b).",
+      "source": { "file": "GCD.scala", "line": 8, "col": 1 },
+      "ports": [
+        { "name": "in",  "dir": "slave",  "bundle": "Decoupled_in",  "doc": "operand pair", "source": { "file": "GCD.scala", "line": 9, "col": 9 } },
+        { "name": "out", "dir": "master", "bundle": "Decoupled_out", "doc": "result",       "source": { "file": "GCD.scala", "line": 10, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 3, "wires": 6, "lines": 24 }
+    }
+  ]
+}

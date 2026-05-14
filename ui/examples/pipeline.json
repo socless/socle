@@ -1,0 +1,137 @@
+{
+  "top": "RVPipeline",
+  "bundles": {
+    "FetchOut": {
+      "name": "FetchOut", "kind": "Decoupled",
+      "fields": [["pc", 32, "out"], ["inst", 32, "out"]]
+    },
+    "DecodeOut": {
+      "name": "DecodeOut", "kind": "Decoupled",
+      "fields": [
+        ["pc", 32, "out"], ["op", 4, "out"],
+        ["rs1", 32, "out"], ["rs2", 32, "out"],
+        ["imm", 32, "out"], ["rd", 5, "out"]
+      ]
+    },
+    "ExecOut": {
+      "name": "ExecOut", "kind": "Decoupled",
+      "fields": [["result", 32, "out"], ["rd", 5, "out"], ["wen", 1, "out"]]
+    },
+    "MemPort": {
+      "name": "MemPort", "kind": "Bundle",
+      "channels": [
+        { "name": "req",  "type": "MemReq",  "flip": false },
+        { "name": "resp", "type": "MemResp", "flip": true  }
+      ]
+    },
+    "MemReq": {
+      "name": "MemReq", "kind": "Decoupled",
+      "fields": [["addr", 32, "out"], ["wdata", 32, "out"], ["wen", 1, "out"]]
+    },
+    "MemResp": {
+      "name": "MemResp", "kind": "Decoupled",
+      "fields": [["rdata", 32, "out"]]
+    },
+    "RegFilePort": {
+      "name": "RegFilePort", "kind": "Bundle",
+      "channels": [
+        { "name": "raddr1", "type": "UInt<5>",  "flip": false },
+        { "name": "raddr2", "type": "UInt<5>",  "flip": false },
+        { "name": "rdata1", "type": "UInt<32>", "flip": true  },
+        { "name": "rdata2", "type": "UInt<32>", "flip": true  },
+        { "name": "waddr",  "type": "UInt<5>",  "flip": false },
+        { "name": "wdata",  "type": "UInt<32>", "flip": false },
+        { "name": "wen",    "type": "UInt<1>",  "flip": false }
+      ]
+    }
+  },
+  "modules": [
+    {
+      "name": "RVPipeline", "type": "RVPipeline",
+      "doc": "4-stage in-order RISC pipeline. Fetch → Decode → Exec → Writeback. Forwarding omitted for clarity.",
+      "source": { "file": "RVPipeline.scala", "line": 12, "col": 1 },
+      "ports": [
+        { "name": "imem", "dir": "master", "bundle": "MemPort", "doc": "Instruction memory port", "source": { "file": "RVPipeline.scala", "line": 14, "col": 9 } },
+        { "name": "dmem", "dir": "master", "bundle": "MemPort", "doc": "Data memory port",        "source": { "file": "RVPipeline.scala", "line": 15, "col": 9 } }
+      ],
+      "children": [
+        { "name": "fetch",  "type": "Fetch",   "doc": "PC + instruction fetch", "source": { "file": "RVPipeline.scala", "line": 18, "col": 7 } },
+        { "name": "decode", "type": "Decode",  "doc": "Decode + regfile read",  "source": { "file": "RVPipeline.scala", "line": 19, "col": 7 } },
+        { "name": "exec",   "type": "Exec",    "doc": "ALU / branch unit",      "source": { "file": "RVPipeline.scala", "line": 20, "col": 7 } },
+        { "name": "wb",     "type": "WB",      "doc": "Writeback + LSU",        "source": { "file": "RVPipeline.scala", "line": 21, "col": 7 } },
+        { "name": "rf",     "type": "RegFile", "doc": "32×32 register file",    "source": { "file": "RVPipeline.scala", "line": 22, "col": 7 } }
+      ],
+      "wires": [
+        { "from": "fetch.out",  "to": "decode.in",   "bundle": "FetchOut",    "label": "IF→ID",  "source": { "file": "RVPipeline.scala", "line": 25, "col": 3 } },
+        { "from": "decode.out", "to": "exec.in",     "bundle": "DecodeOut",   "label": "ID→EX",  "source": { "file": "RVPipeline.scala", "line": 26, "col": 3 } },
+        { "from": "exec.out",   "to": "wb.in",       "bundle": "ExecOut",     "label": "EX→WB",  "source": { "file": "RVPipeline.scala", "line": 27, "col": 3 } },
+        { "from": "fetch.imem", "to": "imem",        "bundle": "MemPort",     "label": "fetch→imem", "source": { "file": "RVPipeline.scala", "line": 28, "col": 3 } },
+        { "from": "wb.dmem",    "to": "dmem",        "bundle": "MemPort",     "label": "wb→dmem",  "source": { "file": "RVPipeline.scala", "line": 29, "col": 3 } },
+        { "from": "decode.rf",  "to": "rf.port",     "bundle": "RegFilePort", "label": "decode rd", "source": { "file": "RVPipeline.scala", "line": 30, "col": 3 } },
+        { "from": "wb.rf",      "to": "rf.port",     "bundle": "RegFilePort", "label": "wb wr",     "source": { "file": "RVPipeline.scala", "line": 31, "col": 3 } }
+      ],
+      "metrics": { "registers": 168, "wires": 7, "lines": 32 }
+    },
+    {
+      "name": "Fetch", "type": "Fetch",
+      "doc": "Holds PC, issues imem reads, hands instruction to Decode.",
+      "source": { "file": "Fetch.scala", "line": 4, "col": 1 },
+      "ports": [
+        { "name": "imem", "dir": "master", "bundle": "MemPort",  "doc": "I-mem", "source": { "file": "Fetch.scala", "line": 6, "col": 9 } },
+        { "name": "out",  "dir": "master", "bundle": "FetchOut", "doc": "→ Decode", "source": { "file": "Fetch.scala", "line": 7, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 32, "wires": 12, "lines": 28 }
+    },
+    {
+      "name": "Decode", "type": "Decode",
+      "doc": "Instruction decoder + regfile read.",
+      "source": { "file": "Decode.scala", "line": 4, "col": 1 },
+      "ports": [
+        { "name": "in",  "dir": "slave",  "bundle": "FetchOut",    "doc": "← Fetch",   "source": { "file": "Decode.scala", "line": 6, "col": 9 } },
+        { "name": "out", "dir": "master", "bundle": "DecodeOut",   "doc": "→ Exec",    "source": { "file": "Decode.scala", "line": 7, "col": 9 } },
+        { "name": "rf",  "dir": "master", "bundle": "RegFilePort", "doc": "regfile read", "source": { "file": "Decode.scala", "line": 8, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 48, "wires": 22, "lines": 64 }
+    },
+    {
+      "name": "Exec", "type": "Exec",
+      "doc": "ALU, branch comparator, and forwarding mux.",
+      "source": { "file": "Exec.scala", "line": 4, "col": 1 },
+      "ports": [
+        { "name": "in",  "dir": "slave",  "bundle": "DecodeOut", "doc": "← Decode", "source": { "file": "Exec.scala", "line": 6, "col": 9 } },
+        { "name": "out", "dir": "master", "bundle": "ExecOut",   "doc": "→ WB",     "source": { "file": "Exec.scala", "line": 7, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 64, "wires": 18, "lines": 42 }
+    },
+    {
+      "name": "WB", "type": "WB",
+      "doc": "Memory access + writeback to regfile.",
+      "source": { "file": "WB.scala", "line": 4, "col": 1 },
+      "ports": [
+        { "name": "in",   "dir": "slave",  "bundle": "ExecOut",     "doc": "← Exec",      "source": { "file": "WB.scala", "line": 6, "col": 9 } },
+        { "name": "dmem", "dir": "master", "bundle": "MemPort",     "doc": "D-mem",       "source": { "file": "WB.scala", "line": 7, "col": 9 } },
+        { "name": "rf",   "dir": "master", "bundle": "RegFilePort", "doc": "regfile wr",  "source": { "file": "WB.scala", "line": 8, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 24, "wires": 14, "lines": 36 }
+    },
+    {
+      "name": "RegFile", "type": "RegFile",
+      "doc": "32×32-bit register file. Two read ports, one write port.",
+      "source": { "file": "RegFile.scala", "line": 4, "col": 1 },
+      "ports": [
+        { "name": "port", "dir": "slave", "bundle": "RegFilePort", "doc": "RW", "source": { "file": "RegFile.scala", "line": 6, "col": 9 } }
+      ],
+      "children": [],
+      "wires": [],
+      "metrics": { "registers": 1024, "wires": 8, "lines": 18 }
+    }
+  ]
+}

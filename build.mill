@@ -13,7 +13,9 @@
 // Quick start (this workspace):
 //   mill socless.publishLocal
 //   mill mill-socless.publishLocal
-//   mill example.socless           # writes out/example/socless.dest/design.json
+//   mill example.soclessRun           # AXISystem (default)
+//   mill example.soclessRunGcd        # GCD
+//   mill example.soclessRunPipeline   # 4-stage RVPipeline
 
 package build
 
@@ -23,7 +25,7 @@ import mill.scalalib.publish._
 
 object V {
   val scala       = "2.13.16"
-  val scala3Mill  = "3.8.2"          // Mill 1.6 runs on Scala 3
+  val scala3Mill  = "3.8.2"          // Mill 1.1.x runs on Scala 3
   val chisel      = "7.11.0"
   val mill        = "1.1.6"
   val upickle     = "4.0.2"
@@ -85,28 +87,49 @@ object `mill-socless` extends ScalaModule with SoclessPublish {
 }
 
 // ─── Bundled example (uses moduleDeps, NOT the published plugin) ────────────
-// Stays inside this workspace so `mill example.socless` works without a
+// Stays inside this workspace so `mill example.soclessRun*` works without a
 // prior publishLocal. Real-world consumers should use the plugin trait
 // instead (see README's "Seamless Mill plugin" section).
+//
+// One Mill module compiles all the example designs (axisystem, gcd, rvpipeline
+// in sibling packages). Different tops are exposed as separate tasks so each
+// gets its own out/ dir and you can name them on the CLI.
 object example extends ChiselToolchain {
   def moduleDeps = Seq(socless)
 
-  /** Top-level Chisel module to elaborate. */
+  /** Default top — kept for back-compat with `mill example.soclessRun`. */
   def soclessTop: String = "axisystem.AXISystem"
 
-  /** Inlined version of what `SoclessModule.socless` does — fork java with
-    * the example's runClasspath and call `socless.Launcher`. */
-  def soclessRun: T[PathRef] = Task {
-    val out   = Task.dest / "design.json"
-    val cpStr = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+  /** Internal: fork java with this module's runClasspath, call socless.Launcher
+    * with `--top <fqcn>`, and return the path to the emitted design.json.
+    * Called from each named soclessRun* task below.
+    */
+  private def runFor(top: String, dest: os.Path, log: mill.api.Logger, cp: Seq[mill.api.PathRef]): os.Path = {
+    val out   = dest / "design.json"
+    val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
     val rc = os.proc(
       "java", "-cp", cpStr,
       "socless.Launcher",
-      "--top", soclessTop,
+      "--top", top,
       "--output", out.toString,
-    ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
-    if (rc.exitCode != 0) throw new RuntimeException(s"launcher exited ${rc.exitCode}")
-    Task.log.info(s"[socless] wrote $out")
-    PathRef(out)
+    ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = dest, check = false)
+    if (rc.exitCode != 0) throw new RuntimeException(s"launcher exited ${rc.exitCode} for top=$top")
+    log.info(s"[socless] $top → $out")
+    out
+  }
+
+  /** AXI4 interconnect (default soclessTop). */
+  def soclessRun: T[PathRef] = Task {
+    PathRef(runFor(soclessTop, Task.dest, Task.log, runClasspath()))
+  }
+
+  /** GCD — single-module Decoupled in/out demo. */
+  def soclessRunGcd: T[PathRef] = Task {
+    PathRef(runFor("gcd.GCD", Task.dest, Task.log, runClasspath()))
+  }
+
+  /** 4-stage RVPipeline — multi-module with mixed Decoupled + sub-bundles. */
+  def soclessRunPipeline: T[PathRef] = Task {
+    PathRef(runFor("rvpipeline.RVPipeline", Task.dest, Task.log, runClasspath()))
   }
 }

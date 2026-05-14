@@ -1,0 +1,105 @@
+{
+  "top": "AXISystem",
+  "bundles": {
+    "AXI4_AR": { "name": "AXI4_AR", "kind": "Decoupled", "fields": [["id",4,"out"],["addr",32,"out"],["len",8,"out"],["size",3,"out"],["burst",2,"out"],["cache",4,"out"],["prot",3,"out"]] },
+    "AXI4_AW": { "name": "AXI4_AW", "kind": "Decoupled", "fields": [["id",4,"out"],["addr",32,"out"],["len",8,"out"],["size",3,"out"],["burst",2,"out"],["cache",4,"out"],["prot",3,"out"]] },
+    "AXI4_W":  { "name": "AXI4_W",  "kind": "Decoupled", "fields": [["data",64,"out"],["strb",8,"out"],["last",1,"out"]] },
+    "AXI4_R":  { "name": "AXI4_R",  "kind": "Decoupled", "fields": [["id",4,"out"],["data",64,"out"],["resp",2,"out"],["last",1,"out"]] },
+    "AXI4_B":  { "name": "AXI4_B",  "kind": "Decoupled", "fields": [["id",4,"out"],["resp",2,"out"]] },
+    "AXI4":    { "name": "AXI4",    "kind": "Bundle",    "channels": [
+      { "name": "ar", "type": "AXI4_AR", "flip": false },
+      { "name": "aw", "type": "AXI4_AW", "flip": false },
+      { "name": "w",  "type": "AXI4_W",  "flip": false },
+      { "name": "r",  "type": "AXI4_R",  "flip": true  },
+      { "name": "b",  "type": "AXI4_B",  "flip": true  }
+    ] }
+  },
+  "modules": [
+    {
+      "name": "AXISystem", "type": "AXISystem",
+      "doc": "Top-level interconnect — 2 masters, 1 crossbar, 2 slaves.",
+      "source": { "file": "AXISystem.scala", "line": 100, "col": 1 },
+      "ports": [],
+      "children": [
+        { "name": "cpu",    "type": "AXIMaster",   "doc": "RV32 fetch + LSU master",      "source": { "file": "AXISystem.scala", "line": 104, "col": 7 } },
+        { "name": "dma",    "type": "AXIMaster",   "doc": "Scatter-gather DMA engine",     "source": { "file": "AXISystem.scala", "line": 105, "col": 7 } },
+        { "name": "xbar",   "type": "AXICrossbar", "doc": "2×2 round-robin crossbar",       "source": { "file": "AXISystem.scala", "line": 106, "col": 7 } },
+        { "name": "mem",    "type": "AXISlave",    "doc": "DDR4 memory controller",         "source": { "file": "AXISystem.scala", "line": 107, "col": 7 } },
+        { "name": "periph", "type": "AXISlave",    "doc": "APB peripheral bridge",          "source": { "file": "AXISystem.scala", "line": 108, "col": 7 } }
+      ],
+      "wires": [
+        { "from": "cpu.io",      "to": "xbar.in[0]", "bundle": "AXI4", "label": "cpu↔xbar",    "source": { "file": "AXISystem.scala", "line": 111, "col": 3 } },
+        { "from": "dma.io",      "to": "xbar.in[1]", "bundle": "AXI4", "label": "dma↔xbar",    "source": { "file": "AXISystem.scala", "line": 112, "col": 3 } },
+        { "from": "xbar.out[0]", "to": "mem.io",     "bundle": "AXI4", "label": "xbar↔mem",    "source": { "file": "AXISystem.scala", "line": 113, "col": 3 } },
+        { "from": "xbar.out[1]", "to": "periph.io",  "bundle": "AXI4", "label": "xbar↔periph", "source": { "file": "AXISystem.scala", "line": 114, "col": 3 } }
+      ],
+      "metrics": { "registers": 612, "wires": 4, "lines": 14, "gates": 18204 }
+    },
+    {
+      "name": "AXIMaster", "type": "AXIMaster",
+      "doc": "Issues read/write transactions on a single AXI4 port.",
+      "source": { "file": "AXIMaster.scala", "line": 8, "col": 1 },
+      "ports": [
+        { "name": "io", "dir": "master", "bundle": "AXI4", "doc": "AXI4 master interface", "source": { "file": "AXIMaster.scala", "line": 10, "col": 9 } }
+      ],
+      "children": [
+        { "name": "txQ",   "type": "Queue",       "doc": "Outstanding transaction queue (depth 8)", "source": { "file": "AXIMaster.scala", "line": 14, "col": 7 } },
+        { "name": "idGen", "type": "IdAllocator", "doc": "Issues unique AXI transaction IDs",       "source": { "file": "AXIMaster.scala", "line": 15, "col": 7 } }
+      ],
+      "wires": [
+        { "from": "txQ.deq",   "to": "io.ar",   "bundle": "AXI4_AR", "label": "txQ → ar", "source": { "file": "AXIMaster.scala", "line": 18, "col": 3 } },
+        { "from": "idGen.out", "to": "txQ.enq", "bundle": "TxReq",   "label": "next id",   "source": { "file": "AXIMaster.scala", "line": 19, "col": 3 } }
+      ],
+      "metrics": { "registers": 96, "wires": 2, "lines": 18, "gates": 1840 }
+    },
+    {
+      "name": "AXICrossbar", "type": "AXICrossbar",
+      "doc": "2×2 round-robin crossbar — address-decoded routing.",
+      "source": { "file": "AXICrossbar.scala", "line": 8, "col": 1 },
+      "ports": [
+        { "name": "in[0]",  "dir": "slave",  "bundle": "AXI4", "doc": "From CPU master",     "source": { "file": "AXICrossbar.scala", "line": 10, "col": 9 } },
+        { "name": "in[1]",  "dir": "slave",  "bundle": "AXI4", "doc": "From DMA master",     "source": { "file": "AXICrossbar.scala", "line": 11, "col": 9 } },
+        { "name": "out[0]", "dir": "master", "bundle": "AXI4", "doc": "To memory slave",     "source": { "file": "AXICrossbar.scala", "line": 12, "col": 9 } },
+        { "name": "out[1]", "dir": "master", "bundle": "AXI4", "doc": "To peripheral slave", "source": { "file": "AXICrossbar.scala", "line": 13, "col": 9 } }
+      ],
+      "children": [
+        { "name": "arbAR",   "type": "RRArbiter", "doc": "Round-robin AR arbiter",      "source": { "file": "AXICrossbar.scala", "line": 18, "col": 7 } },
+        { "name": "arbAW",   "type": "RRArbiter", "doc": "Round-robin AW arbiter",      "source": { "file": "AXICrossbar.scala", "line": 19, "col": 7 } },
+        { "name": "routerR", "type": "RRouter",   "doc": "R response router (id-based)", "source": { "file": "AXICrossbar.scala", "line": 20, "col": 7 } },
+        { "name": "routerB", "type": "RRouter",   "doc": "B response router (id-based)", "source": { "file": "AXICrossbar.scala", "line": 21, "col": 7 } },
+        { "name": "decAR",   "type": "AddrDec",   "doc": "AR address decoder",           "source": { "file": "AXICrossbar.scala", "line": 22, "col": 7 } },
+        { "name": "decAW",   "type": "AddrDec",   "doc": "AW address decoder",           "source": { "file": "AXICrossbar.scala", "line": 23, "col": 7 } }
+      ],
+      "wires": [
+        { "from": "in[0].ar",     "to": "arbAR.in[0]",  "bundle": "AXI4_AR", "label": "cpu AR",         "source": { "file": "AXICrossbar.scala", "line": 26, "col": 3 } },
+        { "from": "in[1].ar",     "to": "arbAR.in[1]",  "bundle": "AXI4_AR", "label": "dma AR",         "source": { "file": "AXICrossbar.scala", "line": 27, "col": 3 } },
+        { "from": "arbAR.out",    "to": "decAR.in",     "bundle": "AXI4_AR", "label": "arbitrated AR",  "source": { "file": "AXICrossbar.scala", "line": 28, "col": 3 } },
+        { "from": "decAR.out[0]", "to": "out[0].ar",    "bundle": "AXI4_AR", "label": "mem AR",          "source": { "file": "AXICrossbar.scala", "line": 29, "col": 3 } },
+        { "from": "decAR.out[1]", "to": "out[1].ar",    "bundle": "AXI4_AR", "label": "periph AR",       "source": { "file": "AXICrossbar.scala", "line": 30, "col": 3 } },
+        { "from": "out[0].r",     "to": "routerR.in[0]","bundle": "AXI4_R",  "label": "mem R",           "source": { "file": "AXICrossbar.scala", "line": 31, "col": 3 } },
+        { "from": "out[1].r",     "to": "routerR.in[1]","bundle": "AXI4_R",  "label": "periph R",        "source": { "file": "AXICrossbar.scala", "line": 32, "col": 3 } },
+        { "from": "routerR.out[0]","to": "in[0].r",     "bundle": "AXI4_R",  "label": "cpu R",           "source": { "file": "AXICrossbar.scala", "line": 33, "col": 3 } },
+        { "from": "routerR.out[1]","to": "in[1].r",     "bundle": "AXI4_R",  "label": "dma R",           "source": { "file": "AXICrossbar.scala", "line": 34, "col": 3 } }
+      ],
+      "metrics": { "registers": 248, "wires": 9, "lines": 22, "gates": 6420 }
+    },
+    {
+      "name": "AXISlave", "type": "AXISlave",
+      "doc": "AXI4 slave wrapper with response-pipelined backend.",
+      "source": { "file": "AXISlave.scala", "line": 8, "col": 1 },
+      "ports": [
+        { "name": "io", "dir": "slave", "bundle": "AXI4", "doc": "AXI4 slave interface", "source": { "file": "AXISlave.scala", "line": 10, "col": 9 } }
+      ],
+      "children": [
+        { "name": "respQ",      "type": "Queue",   "doc": "Response queue (depth 4)",       "source": { "file": "AXISlave.scala", "line": 14, "col": 7 } },
+        { "name": "beReadback", "type": "Backend", "doc": "Backend storage / fabric stub",   "source": { "file": "AXISlave.scala", "line": 15, "col": 7 } }
+      ],
+      "wires": [
+        { "from": "io.ar",            "to": "beReadback.req",  "bundle": "AXI4_AR", "label": "addr req",   "source": { "file": "AXISlave.scala", "line": 18, "col": 3 } },
+        { "from": "beReadback.resp",  "to": "respQ.enq",       "bundle": "AXI4_R",  "label": "data resp",  "source": { "file": "AXISlave.scala", "line": 19, "col": 3 } },
+        { "from": "respQ.deq",        "to": "io.r",            "bundle": "AXI4_R",  "label": "pipelined R","source": { "file": "AXISlave.scala", "line": 20, "col": 3 } }
+      ],
+      "metrics": { "registers": 134, "wires": 3, "lines": 16, "gates": 3210 }
+    }
+  ]
+}

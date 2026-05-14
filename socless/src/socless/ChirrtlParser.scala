@@ -64,7 +64,13 @@ object ChirrtlParser {
     }
 
     val Circuit  = """^\s*circuit\s+(\w+)\s*:.*$""".r
-    val ModLine  = """^(\s+)(module|extmodule|intmodule)\s+(\w+)\s*:\s*(@\[[^\]]*\])?\s*$""".r
+    // Chisel 7+ emits `public module Foo:` for the entry point (layer support).
+    // Older Chisel just emits `module Foo:`. We accept both, plus extmodule /
+    // intmodule. Multiple `@[file line:col]` markers may appear on one line
+    // (Chisel attaches a marker per parent macro expansion); we capture them
+    // as a single trailing block and only parse the first one — coalescing
+    // them all into one source ref would be lossy without buying anything.
+    val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+(\w+)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
 
     for (raw <- lines) {
       raw match {
@@ -90,12 +96,16 @@ object ChirrtlParser {
   }
 
   // ── Statement-level parsing ────────────────────────────────────────────────
-  private val PortRe = """^\s+(input|output)\s+([\w$]+)\s*:\s*(.+?)\s*(@\[[^\]]*\])?\s*$""".r
-  private val InstRe = """^\s+inst\s+([\w$]+)\s+of\s+([\w$]+)\s*(@\[[^\]]*\])?\s*$""".r
+  // Each statement may carry one or more `@[...]` source markers — Chisel 7
+  // attaches them per parent macro frame. We accept zero-or-more and parse
+  // only the first (innermost). Stmt lines we don't recognize are dropped
+  // without error; the exporter doesn't need regs/wires/nodes/whens/ops.
+  private val PortRe = """^\s+(input|output)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+  private val InstRe = """^\s+inst\s+([\w$]+)\s+of\s+([\w$]+)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   // Chisel 7 emits `connect lhs, rhs` (was `lhs <= rhs` in older versions).
   // We accept both for portability.
-  private val ConnRe1 = """^\s+connect\s+(.+?)\s*,\s*(.+?)\s*(@\[[^\]]*\])?\s*$""".r
-  private val ConnRe2 = """^\s+(.+?)\s*<=\s*(.+?)\s*(@\[[^\]]*\])?\s*$""".r
+  private val ConnRe1 = """^\s+connect\s+(.+?)\s*,\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+  private val ConnRe2 = """^\s+(.+?)\s*<=\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
 
   private def parseStmt(line: String): Option[AnyRef] = line match {
     case PortRe(dir, name, typeStr, srcOpt) =>
@@ -111,10 +121,11 @@ object ChirrtlParser {
   }
 
   // ── @[file line:col] markers ───────────────────────────────────────────────
+  // Multi-marker lines (Chisel macro expansions) get the FIRST one — that's
+  // the innermost call site, which is typically the user's own Scala source.
   private val SrcRe = """@\[([^\s\]]+)\s+(\d+):(\d+)\]""".r
-  private def parseSrc(opt: Option[String]): Option[SrcInfo] = opt.flatMap {
-    case SrcRe(file, l, c) => Some(SrcInfo(file, l.toInt, c.toInt))
-    case _                 => None
+  private def parseSrc(opt: Option[String]): Option[SrcInfo] = opt.flatMap { s =>
+    SrcRe.findFirstMatchIn(s).map(m => SrcInfo(m.group(1), m.group(2).toInt, m.group(3).toInt))
   }
 
   // ── Type parser ────────────────────────────────────────────────────────────
