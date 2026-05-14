@@ -2309,17 +2309,24 @@ function BenchModuleBox({
           {Object.entries(subLayout.boxes).map(([cInst, cb]) => {
             const cChild = B_MODULES[child.type]?.children.find((c) => c.name === cInst);
             if (!cChild) return null;
+            const cPath = `${inst}.${cInst}`;
+            const cSelected = selectedSig === cPath || (selectedSig && selectedSig.startsWith(cPath + '.'));
             return (
               <div key={cInst}
+                onClick={(e) => { e.stopPropagation(); setSelectedSig(cPath); }}
+                onMouseEnter={() => setHoveredSig(cPath)}
+                onMouseLeave={() => setHoveredSig(null)}
                 style={{
                   position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
-                  background: 'white',
-                  border: `1px solid ${benchTokens.borderSoft}`,
+                  background: cSelected ? benchTokens.accentBg : 'white',
+                  border: `1px solid ${cSelected ? benchTokens.accent : benchTokens.borderSoft}`,
                   borderRadius: 4,
                   padding: 6,
                   fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
                   display: 'flex', flexDirection: 'column', gap: 3,
                   overflow: 'hidden',
+                  cursor: 'pointer',
+                  transition: 'background .12s, border-color .12s',
                 }}
               >
                 <span style={{ fontWeight: 600, color: benchTokens.ink }}>{cInst}</span>
