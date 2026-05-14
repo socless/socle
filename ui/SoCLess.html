@@ -2258,13 +2258,15 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       out[inst] = cache[cacheKey];
     }
     return out;
+    // tweaks.bundleMode is in the deps because Task 8 reads sub-wires from the
+    // same cache and renders channel ribbons when it's "expanded".
   }, [expandedModules, mod, path, tweaks.layout, tweaks.bundleMode]);
 
   const layoutResult = useMemo(() => {
     const heightFor = (inst) => {
       const sub = subLayouts[inst];
       if (!sub) return NODE_H;
-      return HEADER_H + sub.totalH + EXPAND_PAD;
+      return Math.max(NODE_H, HEADER_H + sub.totalH + EXPAND_PAD);
     };
     const widthFor = (inst) => {
       const sub = subLayouts[inst];
