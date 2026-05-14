@@ -1913,8 +1913,8 @@ const NODE_W = 220, NODE_H = 84;
 const CHILD_NODE_W = 160;
 const CHILD_NODE_H = 56;
 const HEADER_H     = 28;  // expanded-box title row
-const EXPAND_PAD   = 16;  // vertical padding total
-const INNER_PAD    = 10;  // horizontal padding per side
+const EXPAND_PAD   = 40;  // vertical padding total (20 top + 20 bottom)
+const INNER_PAD    = 24;  // horizontal padding per side
 
 // Build forward/reverse adjacency on instance names from a module's wires.
 function bBuildAdj(mod) {
@@ -2304,7 +2304,7 @@ function BenchModuleBox({
         <div style={{
           position: 'relative',
           flex: 1,
-          margin: `0 ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
+          margin: `${EXPAND_PAD / 2}px ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
           minHeight: subLayout.totalH,
         }}>
           {/* HIT layer (under child boxes) */}
