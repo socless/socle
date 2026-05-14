@@ -2766,6 +2766,24 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           </div>
         </div>
         <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto' }}>
+          <button
+            onClick={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
+            title="Open tweaks panel"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: benchTokens.panel,
+              border: `1px solid ${benchTokens.border}`,
+              borderRadius: 5,
+              padding: '4px 10px',
+              fontFamily: benchTokens.mono, fontSize: 10.5,
+              color: benchTokens.ink3,
+              cursor: 'pointer',
+              pointerEvents: 'auto',
+            }}
+          >
+            <span>⚙</span>
+            <span>tweaks</span>
+          </button>
           <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5, alignItems: 'center' }}>
             <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>zoom</span>
             <span style={{ padding: '3px 4px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{Math.round(zoom * 100)}%</span>
