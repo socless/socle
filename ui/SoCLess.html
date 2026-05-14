@@ -1910,6 +1910,11 @@ function ModuleGlyph({ type, active }) {
 // expanded (channel ribbons always on).
 
 const NODE_W = 220, NODE_H = 84;
+const CHILD_NODE_W = 160;
+const CHILD_NODE_H = 56;
+const HEADER_H     = 28;  // expanded-box title row
+const EXPAND_PAD   = 16;  // vertical padding total
+const INNER_PAD    = 10;  // horizontal padding per side
 
 // Build forward/reverse adjacency on instance names from a module's wires.
 function bBuildAdj(mod) {
@@ -2231,10 +2236,43 @@ function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, ex
 }
 
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
-  const layoutResult = useMemo(
-    () => bComputeLayout(mod, path, tweaks.layout),
-    [mod, path, tweaks.layout],
-  );
+  // Per-expanded-instance sub-layouts. Keyed by *type* so two instances of the
+  // same module reuse the same sub-layout.
+  const subLayouts = useMemo(() => {
+    const out = {};
+    const cache = {};
+    for (const inst of expandedModules) {
+      const child = mod.children.find((c) => c.name === inst);
+      if (!child) continue;
+      const subMod = B_MODULES[child.type];
+      if (!subMod || subMod.children.length === 0) continue;
+      const cacheKey = `${child.type}|${tweaks.layout}|${tweaks.bundleMode}`;
+      if (!cache[cacheKey]) {
+        cache[cacheKey] = bComputeLayout(
+          subMod,
+          [...path, inst],
+          tweaks.layout,
+          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 32, rowGap: 18 },
+        );
+      }
+      out[inst] = cache[cacheKey];
+    }
+    return out;
+  }, [expandedModules, mod, path, tweaks.layout, tweaks.bundleMode]);
+
+  const layoutResult = useMemo(() => {
+    const heightFor = (inst) => {
+      const sub = subLayouts[inst];
+      if (!sub) return NODE_H;
+      return HEADER_H + sub.totalH + EXPAND_PAD;
+    };
+    const widthFor = (inst) => {
+      const sub = subLayouts[inst];
+      if (!sub) return NODE_W;
+      return Math.max(NODE_W, sub.totalW + 2 * INNER_PAD);
+    };
+    return bComputeLayout(mod, path, tweaks.layout, { heightFor, widthFor });
+  }, [mod, path, tweaks.layout, subLayouts]);
   const { boxes: layoutBoxes, totalW, totalH, columnLabels, routingStyle } = layoutResult;
   const containerH = totalH + 40;
 
