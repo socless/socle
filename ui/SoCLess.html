@@ -2184,7 +2184,7 @@ function bRouteMidpoint(w, routingStyle) {
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
 }
 
-function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, expanded, drillInto, toggleExpandModule }) {
+function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, expanded, drillInto, toggleExpandModule, subLayout }) {
   const [hover, setHover] = useState(false);
   return (
     <div
@@ -2224,13 +2224,46 @@ function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, ex
           )}
         </div>
       </div>
-      <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
-        {child.doc}
-      </div>
-      <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
-        <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
-        {drillable && <span style={{ color: benchTokens.accent }}>↕ peek · ↵ open</span>}
-      </div>
+      {(expanded && subLayout) ? (
+        <div style={{
+          position: 'relative',
+          flex: 1,
+          margin: `0 ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
+          minHeight: subLayout.totalH,
+        }}>
+          {Object.entries(subLayout.boxes).map(([cInst, cb]) => {
+            const cChild = B_MODULES[child.type]?.children.find((c) => c.name === cInst);
+            if (!cChild) return null;
+            return (
+              <div key={cInst}
+                style={{
+                  position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
+                  background: 'white',
+                  border: `1px solid ${benchTokens.borderSoft}`,
+                  borderRadius: 4,
+                  padding: 6,
+                  fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
+                  display: 'flex', flexDirection: 'column', gap: 3,
+                  overflow: 'hidden',
+                }}
+              >
+                <span style={{ fontWeight: 600, color: benchTokens.ink }}>{cInst}</span>
+                <span style={{ color: benchTokens.ink3, fontSize: 9.5 }}>{cChild.type}</span>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <>
+          <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
+            {child.doc}
+          </div>
+          <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
+            <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
+            {drillable && <span style={{ color: benchTokens.accent }}>↕ peek · ↵ open</span>}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -2424,6 +2457,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 wiresOnMe={wiresOnMe} selectedHere={selectedHere}
                 drillable={drillable} expanded={expanded}
                 drillInto={drillInto} toggleExpandModule={toggleExpandModule}
+                subLayout={subLayouts[inst]}
               />
             );
           })}
