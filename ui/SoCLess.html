@@ -1950,24 +1950,41 @@ function bTopoRanks(mod) {
 
 // Place a column list into {boxes, totalW, totalH}.
 function bPlaceColumns(cols, opts) {
-  const { colW = NODE_W, colGap = 80, rowGap = 28, modH = NODE_H } = opts || {};
+  const o = opts || {};
+  const colW    = o.colW    ?? NODE_W;
+  const colGap  = o.colGap  ?? 80;
+  const rowGap  = o.rowGap  ?? 28;
+  // Per-instance callbacks. Scalar fallbacks preserve existing behaviour.
+  const heightFor = o.heightFor || ((_inst) => o.modH ?? NODE_H);
+  const widthFor  = o.widthFor  || ((_inst) => colW);
+
   const boxes = {};
-  cols.forEach((col, ci) => {
-    const x = ci * (colW + colGap);
-    col.instances.forEach((inst, ri) => {
-      boxes[inst] = { x, y: ri * (modH + rowGap), w: colW, h: modH };
+  let runningX = 0;
+  cols.forEach((col) => {
+    const w = Math.max(colW, ...col.instances.map((i) => widthFor(i)));
+    let y = 0;
+    col.instances.forEach((inst) => {
+      const h = heightFor(inst);
+      boxes[inst] = { x: runningX, y, w, h };
+      y += h + rowGap;
     });
+    runningX += w + colGap;
   });
-  const totalW = Math.max(1, cols.length) * colW + Math.max(0, cols.length - 1) * colGap;
-  const maxRows = Math.max(1, ...cols.map((c) => c.instances.length));
-  const totalH = maxRows * modH + (maxRows - 1) * rowGap;
+
+  const totalW = runningX > 0 ? runningX - colGap : 0;
+  const totalH = Math.max(
+    0,
+    ...cols.map((col) =>
+      col.instances.reduce((acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0), 0),
+    ),
+  );
   return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label) };
 }
 
 // Layout 1: hier — TOP_LAYOUT at root (Masters | Fabric | Slaves), topo at depth.
 // TOP_LAYOUT is design-specific (the bundled AXI demo defines one); other
 // designs fall through to the topo-rank layout below so they still render.
-function bLayoutHier(mod, path) {
+function bLayoutHier(mod, path, dims) {
   let cols;
   const topLayout = B_TOP_LAYOUT && B_TOP_LAYOUT.columns;
   const topLayoutMatches = topLayout
@@ -1991,11 +2008,11 @@ function bLayoutHier(mod, path) {
       if (insts.length) cols.push({ label: `Layer ${r}`, instances: insts });
     }
   }
-  return { ...bPlaceColumns(cols), routingStyle: 'orth' };
+  return { ...bPlaceColumns(cols, dims), routingStyle: 'orth' };
 }
 
 // Layout 2: orth — pure topo rank, tight spacing, no tier labels.
-function bLayoutOrth(mod) {
+function bLayoutOrth(mod, _path, dims) {
   const ranks = bTopoRanks(mod);
   const maxR = Math.max(0, ...Object.values(ranks));
   const cols = [];
@@ -2003,13 +2020,15 @@ function bLayoutOrth(mod) {
     const insts = mod.children.map((c) => c.name).filter((n) => ranks[n] === r);
     if (insts.length) cols.push({ label: '', instances: insts });
   }
-  const placed = bPlaceColumns(cols, { colW: 200, colGap: 56, modH: 80, rowGap: 22 });
+  const placed = bPlaceColumns(cols, { colW: 200, colGap: 56, modH: 80, rowGap: 22, ...dims });
   return { ...placed, columnLabels: [], routingStyle: 'orth' };
 }
 
 // Layout 3: dataflow — force-directed simulation. Deterministic seed so the
 // layout is stable across rerenders (no jiggle as React re-renders).
-function bLayoutForce(mod) {
+function bLayoutForce(mod, _path, dims) {
+  const heightFor = (dims && dims.heightFor) || ((_i) => NODE_H);
+  const widthFor  = (dims && dims.widthFor)  || ((_i) => NODE_W);
   const insts = mod.children.map((c) => c.name);
   const N = insts.length;
   if (N === 0) return { boxes: {}, totalW: 1, totalH: 1, columnLabels: [], routingStyle: 'curve' };
@@ -2086,17 +2105,17 @@ function bLayoutForce(mod) {
   const minX = Math.min(...xs), minY = Math.min(...ys);
   const boxes = {};
   for (const n of insts) {
-    boxes[n] = { x: pos[n].x - minX + PAD, y: pos[n].y - minY + PAD, w: NODE_W, h: NODE_H };
+    boxes[n] = { x: pos[n].x - minX + PAD, y: pos[n].y - minY + PAD, w: widthFor(n), h: heightFor(n) };
   }
   const totalW = Math.max(...insts.map((n) => boxes[n].x + boxes[n].w)) + PAD;
   const totalH = Math.max(...insts.map((n) => boxes[n].y + boxes[n].h)) + PAD;
   return { boxes, totalW, totalH, columnLabels: [], routingStyle: 'curve' };
 }
 
-function bComputeLayout(mod, path, mode) {
-  if (mode === 'orth')     return bLayoutOrth(mod);
-  if (mode === 'dataflow') return bLayoutForce(mod);
-  return bLayoutHier(mod, path);
+function bComputeLayout(mod, path, mode, dims) {
+  if (mode === 'orth')     return bLayoutOrth(mod, path, dims);
+  if (mode === 'dataflow') return bLayoutForce(mod, path, dims);
+  return bLayoutHier(mod, path, dims);
 }
 
 // Pick which side of each box a wire enters from based on the relative box
