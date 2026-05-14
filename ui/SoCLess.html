@@ -2268,6 +2268,125 @@ function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, ex
   );
 }
 
+function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, setHoveredSig }) {
+  return (
+    <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, overflow: 'visible' }}>
+      {wires.map((w) => {
+        const d = bRoutePath(w, routingStyle);
+        return (
+          <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
+            style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+            onClick={() => setSelectedSig(w.fromPath)}
+            onMouseEnter={() => setHoveredSig(w.fromPath)}
+            onMouseLeave={() => setHoveredSig(null)}
+          />
+        );
+      })}
+    </svg>
+  );
+}
+
+function WireVisualLayer({
+  wires, totalW, totalH, routingStyle,
+  selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
+  showWidths,
+}) {
+  const isHl = (w) =>
+    selectedSig && (w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
+      || selectedSig.startsWith(w.fromPath) || selectedSig.startsWith(w.toPath));
+  const isHov = (w) =>
+    hoveredSig && (w.fromPath.startsWith(hoveredSig) || w.toPath.startsWith(hoveredSig));
+
+  return (
+    <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, pointerEvents: 'none', overflow: 'visible' }}>
+      <defs>
+        {Object.entries(B_CHAN).map(([k, v]) => (
+          <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+            <path d="M0 0 L8 4 L0 8 Z" fill={v} />
+          </marker>
+        ))}
+        <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
+        </marker>
+      </defs>
+      {wires.map((w) => {
+        const hl = isHl(w);
+        const hov = isHov(w);
+        const dim = selectedSig && !hl;
+        const expanded = globalExpanded || expandedBundles.has(w.fromPath);
+        const stroke = dim ? benchTokens.ink4 : (hl || hov ? benchTokens.accent : benchTokens.ink2);
+        const sw = expanded ? 1.4 : (hl ? 4 : 3);
+        const d = bRoutePath(w, routingStyle);
+        const mid = bRouteMidpoint(w, routingStyle);
+        const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
+        return (
+          <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
+            {!expanded && (
+              <path d={d} stroke={stroke} strokeWidth={sw + 4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.12} />
+            )}
+            {expanded && channels.length > 0 && (
+              <g>
+                {channels.map((ch, ci) => {
+                  // For curve routing, fan channels by offsetting their control points.
+                  // For orth, offset the entire bend line.
+                  if (routingStyle === 'curve') {
+                    const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
+                    const horiz = Math.abs(dxw) >= Math.abs(dyw);
+                    const off = (ci - (channels.length - 1) / 2) * 4;
+                    let dd;
+                    if (horiz) {
+                      const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
+                      dd = `M ${w.x1} ${w.y1 + off} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + off}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + off}, ${w.x2} ${w.y2 + off}`;
+                    } else {
+                      const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
+                      dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
+                    }
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
+                  }
+                  const offset = (ci - (channels.length - 1) / 2) * 5;
+                  const yo1 = w.y1 + offset;
+                  const yo2 = w.y2 + offset;
+                  const mx = (w.x1 + w.x2) / 2 + offset * 2;
+                  const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
+                })}
+              </g>
+            )}
+            {!expanded && (
+              <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
+                strokeLinecap="round" strokeLinejoin="round"
+                markerEnd="url(#arr-default)"
+                markerStart={w.bidir ? 'url(#arr-default)' : undefined}
+              />
+            )}
+            {showWidths && (
+              <g transform={`translate(${mid.x}, ${mid.y - 8})`}>
+                <rect x={-30} y={-9} width={60} height={18} rx={3}
+                  fill={benchTokens.panel} stroke={hl ? benchTokens.accent : benchTokens.border} strokeWidth={1} />
+                <text x={0} y={3} textAnchor="middle"
+                  fontFamily={benchTokens.mono} fontSize={9}
+                  fill={hl ? benchTokens.accent : benchTokens.ink2}>
+                  {w.bundle} · {bTotalWidth(w.bundle)}b
+                </text>
+              </g>
+            )}
+            {!globalExpanded && (
+              <g transform={`translate(${mid.x - 10}, ${mid.y + 14})`}
+                 style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+                 onClick={() => toggleBundle(w.fromPath)}>
+                <rect x={-2} y={-7} width={24} height={14} rx={7} fill={benchTokens.panel} stroke={benchTokens.border} />
+                <text x={10} y={3} textAnchor="middle" fontFamily={benchTokens.mono} fontSize={9} fill={benchTokens.ink3}>
+                  {expanded ? '−' : '+' + (channels.length || 5)}
+                </text>
+              </g>
+            )}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
   // Per-expanded-instance sub-layouts. Keyed by *type* so two instances of the
   // same module reuse the same sub-layout.
@@ -2380,16 +2499,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     }).filter(Boolean);
   }, [displayWires, layoutBoxes]);
 
-  const isHighlighted = (wire) => {
-    if (!selectedSig) return false;
-    return wire.fromPath.startsWith(selectedSig) || wire.toPath.startsWith(selectedSig) ||
-           selectedSig.startsWith(wire.fromPath) || selectedSig.startsWith(wire.toPath);
-  };
-  const isHovered = (wire) => {
-    if (!hoveredSig) return false;
-    return wire.fromPath.startsWith(hoveredSig) || wire.toPath.startsWith(hoveredSig);
-  };
-
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
   const globalExpanded = tweaks.bundleMode === 'expanded';
@@ -2427,19 +2536,11 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           ))}
 
           {/* Wire hit-target layer (under boxes) — transparent fat strokes only */}
-          <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, overflow: 'visible' }}>
-            {wires.map((w) => {
-              const d = bRoutePath(w, routingStyle);
-              return (
-                <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
-                  style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                  onClick={() => setSelectedSig(w.fromPath)}
-                  onMouseEnter={() => setHoveredSig(w.fromPath)}
-                  onMouseLeave={() => setHoveredSig(null)}
-                />
-              );
-            })}
-          </svg>
+          <WireHitLayer
+            wires={wires} totalW={totalW} totalH={containerH}
+            routingStyle={routingStyle}
+            setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
+          />
 
           {/* Module boxes */}
           {Object.entries(layoutBoxes).map(([inst, b]) => {
@@ -2463,92 +2564,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           })}
 
           {/* Wire visual layer (over boxes) — strokes, arrowheads, labels, bundle pills */}
-          <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, pointerEvents: 'none', overflow: 'visible' }}>
-            <defs>
-              {Object.entries(B_CHAN).map(([k, v]) => (
-                <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                  <path d="M0 0 L8 4 L0 8 Z" fill={v} />
-                </marker>
-              ))}
-              <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-                <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
-              </marker>
-            </defs>
-            {wires.map((w) => {
-              const hl = isHighlighted(w);
-              const hov = isHovered(w);
-              const dim = selectedSig && !hl;
-              const expanded = globalExpanded || expandedBundles.has(w.fromPath);
-              const stroke = dim ? benchTokens.ink4 : (hl || hov ? benchTokens.accent : benchTokens.ink2);
-              const sw = expanded ? 1.4 : (hl ? 4 : 3);
-              const d = bRoutePath(w, routingStyle);
-              const mid = bRouteMidpoint(w, routingStyle);
-              const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
-              return (
-                <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
-                  {!expanded && (
-                    <path d={d} stroke={stroke} strokeWidth={sw + 4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.12} />
-                  )}
-                  {expanded && channels.length > 0 && (
-                    <g>
-                      {channels.map((ch, ci) => {
-                        // For curve routing, fan channels by offsetting their control points.
-                        // For orth, offset the entire bend line.
-                        if (routingStyle === 'curve') {
-                          const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
-                          const horiz = Math.abs(dxw) >= Math.abs(dyw);
-                          const off = (ci - (channels.length - 1) / 2) * 4;
-                          let dd;
-                          if (horiz) {
-                            const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                            dd = `M ${w.x1} ${w.y1 + off} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + off}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + off}, ${w.x2} ${w.y2 + off}`;
-                          } else {
-                            const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                            dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
-                          }
-                          return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
-                        }
-                        const offset = (ci - (channels.length - 1) / 2) * 5;
-                        const yo1 = w.y1 + offset;
-                        const yo2 = w.y2 + offset;
-                        const mx = (w.x1 + w.x2) / 2 + offset * 2;
-                        const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
-                        return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
-                      })}
-                    </g>
-                  )}
-                  {!expanded && (
-                    <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
-                      strokeLinecap="round" strokeLinejoin="round"
-                      markerEnd="url(#arr-default)"
-                      markerStart={w.bidir ? 'url(#arr-default)' : undefined}
-                    />
-                  )}
-                  {tweaks.showWidths && (
-                    <g transform={`translate(${mid.x}, ${mid.y - 8})`}>
-                      <rect x={-30} y={-9} width={60} height={18} rx={3}
-                        fill={benchTokens.panel} stroke={hl ? benchTokens.accent : benchTokens.border} strokeWidth={1} />
-                      <text x={0} y={3} textAnchor="middle"
-                        fontFamily={benchTokens.mono} fontSize={9}
-                        fill={hl ? benchTokens.accent : benchTokens.ink2}>
-                        {w.bundle} · {bTotalWidth(w.bundle)}b
-                      </text>
-                    </g>
-                  )}
-                  {!globalExpanded && (
-                    <g transform={`translate(${mid.x - 10}, ${mid.y + 14})`}
-                       style={{ cursor: 'pointer', pointerEvents: 'auto' }}
-                       onClick={() => toggleBundle(w.fromPath)}>
-                      <rect x={-2} y={-7} width={24} height={14} rx={7} fill={benchTokens.panel} stroke={benchTokens.border} />
-                      <text x={10} y={3} textAnchor="middle" fontFamily={benchTokens.mono} fontSize={9} fill={benchTokens.ink3}>
-                        {expanded ? '−' : '+' + (channels.length || 5)}
-                      </text>
-                    </g>
-                  )}
-                </g>
-              );
-            })}
-          </svg>
+          <WireVisualLayer
+            wires={wires} totalW={totalW} totalH={containerH}
+            routingStyle={routingStyle}
+            selectedSig={selectedSig} hoveredSig={hoveredSig}
+            expandedBundles={expandedBundles} toggleBundle={toggleBundle}
+            globalExpanded={globalExpanded}
+            showWidths={tweaks.showWidths}
+          />
         </div>
       </div>
     </div>
