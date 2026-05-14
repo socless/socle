@@ -58,7 +58,9 @@
     "density": "comfortable",
     "showWidths": true,
     "layout": "hier",
-    "bundleMode": "collapsed"
+    "bundleMode": "collapsed",
+    "collapseBidir": true,
+    "clickToNavigate": true
   }/*EDITMODE-END*/;
 </script>
 
@@ -405,7 +407,7 @@ const CHANNEL_COLOR = {
   b:  'oklch(0.58 0.18 25)',    // red
 };
 
-window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidth, bundleFields };
+window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidth, bundleFields, SOURCES: {} };
 
 </script>
 
@@ -492,6 +494,11 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       }
       mutateAssign(window.DESIGN.BUNDLES, bs);
     }
+    // Source text per file (`{ "src/main/scala/Foo.scala": "...\n..." }`),
+    // mutated in place so module-scope captures stay live across reloads
+    // (same trick as MODULES/BUNDLES above).
+    if (!window.DESIGN.SOURCES) window.DESIGN.SOURCES = {};
+    mutateAssign(window.DESIGN.SOURCES, (j.sources && typeof j.sources === 'object') ? j.sources : {});
     const declared = j.top;
     const resolved = resolveTop(declared, window.DESIGN.MODULES);
     window.DESIGN.TOP = resolved;
@@ -1379,6 +1386,8 @@ function BenchApp({ tweaks }) {
             hoveredSig={hoveredSig} setHoveredSig={setHoveredSig}
             height={drawerHeight} setHeight={setDrawerHeight}
             density={density}
+            drillInto={drillInto}
+            clickToNavigate={tweaks.clickToNavigate !== false}
           />
         </div>
         <BenchInspector
@@ -2145,18 +2154,58 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const { boxes: layoutBoxes, totalW, totalH, columnLabels, routingStyle } = layoutResult;
   const containerH = totalH + 40;
 
+  // CHIRRTL emits both directions of every Decoupled handshake (bits forward,
+  // ready back), so the coalesced wire list almost always has matched pairs
+  // A→B and B→A. We fold them into one bidirectional wire (rendered as a
+  // double-headed arrow) so the schematic reads as Chisel-level connects, not
+  // ground-signal flow. Same-direction same-pair wires are kept (only true
+  // reverse pairs collapse).
+  const displayWires = useMemo(() => {
+    if (tweaks.collapseBidir === false) return mod.wires;
+    const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
+    const seen = new Map();   // pairKey -> array of wires in that bucket
+    const out  = [];
+    const getCount = (label) => {
+      const m = /(\d+)\s*\u00d7/.exec(label || '');
+      return m ? parseInt(m[1], 10) : 1;
+    };
+    for (const w of mod.wires) {
+      const a = (w.from || '').split('.')[0];
+      const b = (w.to   || '').split('.')[0];
+      if (!a || !b || a === b) { out.push(w); continue; }
+      const k = pairKey(a, b);
+      const peers = seen.get(k) || [];
+      // Look for a peer wire pointing the opposite direction.
+      const reverse = peers.find((p) => p.from.split('.')[0] === b && p.to.split('.')[0] === a);
+      if (reverse) {
+        // Promote the existing wire to bidirectional + accumulate ground count.
+        reverse.bidir  = true;
+        reverse.count  = (reverse.count || getCount(reverse.label)) + getCount(w.label);
+        // Prefer the more specific bundle name over the generic "Wire"
+        if (reverse.bundle === 'Wire' && w.bundle && w.bundle !== 'Wire') reverse.bundle = w.bundle;
+        reverse.label  = reverse.count > 1 ? reverse.count + '\u00d7 ground (bidir)' : 'bidirectional';
+        continue;
+      }
+      const fresh = { ...w };
+      peers.push(fresh);
+      seen.set(k, peers);
+      out.push(fresh);
+    }
+    return out;
+  }, [mod.wires, tweaks.collapseBidir]);
+
   // Wires with absolute endpoints. We compute per-instance fan-out indexing
   // so wires sharing a face are staggered (avoids overlap on dense modules).
   const wires = useMemo(() => {
     // Count wires per (instance, role) to compute stagger offsets.
     const fanOut = {}, fanIn = {};
-    mod.wires.forEach((w) => {
+    displayWires.forEach((w) => {
       const a = w.from.split('.')[0], b = w.to.split('.')[0];
       fanOut[a] = (fanOut[a] || 0) + 1;
       fanIn[b]  = (fanIn[b]  || 0) + 1;
     });
     const idxOut = {}, idxIn = {};
-    return mod.wires.map((w, i) => {
+    return displayWires.map((w, i) => {
       const fromInst = w.from.split('.')[0];
       const toInst   = w.to.split('.')[0];
       const ba = layoutBoxes[fromInst];
@@ -2172,7 +2221,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         ...pts,
       };
     }).filter(Boolean);
-  }, [mod, layoutBoxes]);
+  }, [displayWires, layoutBoxes]);
 
   const isHighlighted = (wire) => {
     if (!selectedSig) return false;
@@ -2224,11 +2273,11 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: containerH, pointerEvents: 'none', overflow: 'visible' }}>
             <defs>
               {Object.entries(B_CHAN).map(([k, v]) => (
-                <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+                <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                   <path d="M0 0 L8 4 L0 8 Z" fill={v} />
                 </marker>
               ))}
-              <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
                 <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
               </marker>
             </defs>
@@ -2279,6 +2328,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
                       strokeLinecap="round" strokeLinejoin="round"
                       markerEnd="url(#arr-default)"
+                      markerStart={w.bidir ? 'url(#arr-default)' : undefined}
                     />
                   )}
                   {/* Click target */}
@@ -2488,7 +2538,7 @@ function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
 }
 
 // ─── Bottom drawer: source / waveform / ports ────────────────────────────────
-function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, setHeight, density }) {
+function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, setHeight, density, drillInto, clickToNavigate }) {
   const tabs = [
     { id: 'source', label: 'Source',  icon: '⌥' },
     { id: 'wave',   label: 'Waveform', icon: '∿' },
@@ -2520,7 +2570,7 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-        {tab === 'source' && <SourceView mod={mod} selectedSig={selectedSig} setSelectedSig={setSelectedSig} hoveredSig={hoveredSig} />}
+        {tab === 'source' && <SourceView mod={mod} selectedSig={selectedSig} setSelectedSig={setSelectedSig} hoveredSig={hoveredSig} drillInto={drillInto} clickToNavigate={clickToNavigate} />}
         {tab === 'wave'   && <WaveformView selectedSig={selectedSig} setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig} />}
         {tab === 'ports'  && <PortsView mod={mod} setSelectedSig={setSelectedSig} />}
       </div>
@@ -2532,80 +2582,129 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
 // If the source code text wasn't embedded (i.e. the design was loaded from a
 // real exporter that only knows file:line:col, not the full text), fall back
 // to a locator-only view that points at the originating .scala file.
-function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig }) {
-  if (!mod.source.code) {
+function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, clickToNavigate }) {
+  // Source resolution order:
+  //   1. mod.source.code — explicit per-module text (bundled demo embeds these)
+  //   2. window.DESIGN.SOURCES[file] — top-level map populated by the exporter
+  //      when run with --source-root. This is the real-design path.
+  //   3. Locator-only placeholder when neither is available.
+  const file = mod.source.file;
+  const fileText =
+    mod.source.code ??
+    (window.DESIGN.SOURCES && file ? window.DESIGN.SOURCES[file] : undefined);
+  const scrollRef = React.useRef(null);
+  const targetLine = mod.source.line || 0;
+
+  // Auto-scroll the file to the originating line on mount / module change.
+  // Place it ~1/4 from the top so the user gets some leading context.
+  React.useEffect(() => {
+    if (!scrollRef.current || !targetLine) return;
+    const el = scrollRef.current.querySelector(`[data-line="${targetLine}"]`);
+    if (!el) return;
+    const parent = scrollRef.current;
+    const offset = el.offsetTop - parent.clientHeight / 4;
+    parent.scrollTop = Math.max(0, offset);
+  }, [fileText, targetLine, file]);
+
+  if (!fileText) {
     return (
       <div style={{ padding: '20px 22px', fontFamily: benchTokens.sans, fontSize: 12, color: benchTokens.ink2, lineHeight: 1.55, maxWidth: 520 }}>
         <div style={{ fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink, marginBottom: 6 }}>
-          {mod.source.file}{mod.source.line ? `:${mod.source.line}` : ''}{mod.source.col ? `:${mod.source.col}` : ''}
+          {file || '(no source recorded)'}{mod.source.line ? `:${mod.source.line}` : ''}{mod.source.col ? `:${mod.source.col}` : ''}
         </div>
         <div style={{ color: benchTokens.ink3 }}>
           Source text was not embedded in <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>design.json</code>.
-          The SoCLess exporter only records the originating <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>file:line:col</code> — open the file in your editor to view it.
+          Re-run elaboration with <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>--source-root</code> (or use the Mill plugin) — the exporter will read the
+          files relative to that root and include them. Until then, open
+          <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}> {file || '(unknown)'}</code> in your editor.
         </div>
       </div>
     );
   }
-  const code = mod.source.code.split('\n');
-  // Highlight lines that mention the selected wire's instance / port
+
+  const code = fileText.split('\n');
+  // Highlight lines mentioning the selected wire's instance / port — kept from
+  // the demo path so signal-driven exploration still works on real designs.
   const selInst = selectedSig ? selectedSig.split('.')[0] : null;
   const selPort = selectedSig ? selectedSig.split('.').slice(0, 2).join('.') : null;
+  // Instance names whose tokens become clickable. Drill-in is gated by
+  // clickToNavigate so users can disable when it gets in the way of selection.
+  const childInstSet = React.useMemo(
+    () => new Set((mod.children || []).map((c) => c.name)),
+    [mod.children],
+  );
+  const navToken = clickToNavigate && drillInto ? drillInto : null;
 
   return (
-    <div style={{ fontFamily: benchTokens.mono, fontSize: 11.5, lineHeight: 1.6, padding: '8px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12 }}>
-      {code.map((line, i) => {
-        const matchInst = selInst && line.indexOf(selInst) >= 0;
-        const matchPort = selPort && line.indexOf(selPort) >= 0;
-        const isHighlight = matchInst || matchPort;
-        return (
-          <React.Fragment key={i}>
-            <div style={{
-              textAlign: 'right', padding: '0 4px', userSelect: 'none',
-              color: isHighlight ? benchTokens.accent : benchTokens.ink4,
-              background: isHighlight ? benchTokens.accentBg : 'transparent',
-              fontVariantNumeric: 'tabular-nums',
-            }}>{i + 1}</div>
-            <div style={{
-              padding: '0 14px 0 0',
-              background: isHighlight ? benchTokens.accentBg : 'transparent',
-              borderLeft: isHighlight ? `2px solid ${benchTokens.accent}` : '2px solid transparent',
-              paddingLeft: 6,
-              whiteSpace: 'pre',
-              color: benchTokens.ink2,
-            }}>{tokenizeScala(line, selInst, selPort, setSelectedSig)}</div>
-          </React.Fragment>
-        );
-      })}
+    <div ref={scrollRef} style={{ height: '100%', overflow: 'auto' }}>
+      <div style={{ fontFamily: benchTokens.mono, fontSize: 11.5, lineHeight: 1.6, padding: '8px 0', display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 12 }}>
+        {code.map((line, i) => {
+          const lineNo = i + 1;
+          const matchInst = selInst && line.indexOf(selInst) >= 0;
+          const matchPort = selPort && line.indexOf(selPort) >= 0;
+          const isTarget = lineNo === targetLine;
+          const isHighlight = matchInst || matchPort || isTarget;
+          return (
+            <React.Fragment key={i}>
+              <div data-line={lineNo} style={{
+                textAlign: 'right', padding: '0 4px', userSelect: 'none',
+                color: isTarget ? benchTokens.accent : (isHighlight ? benchTokens.accent : benchTokens.ink4),
+                background: isHighlight ? benchTokens.accentBg : 'transparent',
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: isTarget ? 600 : 400,
+              }}>{lineNo}</div>
+              <div style={{
+                padding: '0 14px 0 6px',
+                background: isHighlight ? benchTokens.accentBg : 'transparent',
+                borderLeft: isTarget
+                  ? `2px solid ${benchTokens.accent}`
+                  : (isHighlight ? `2px solid ${benchTokens.accent}` : '2px solid transparent'),
+                whiteSpace: 'pre',
+                color: benchTokens.ink2,
+              }}>{tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, navToken)}</div>
+            </React.Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-function tokenizeScala(line, selInst, selPort, setSelectedSig) {
-  // Very lightweight: highlight Chisel keywords + types + instance refs
-  const KW = /\b(class|extends|val|def|Module|IO|new|Bundle|Vec|Flipped|for|until|true|false)\b/g;
-  const NUM = /\b(\d+)\b/g;
-  const STR = /"[^"]*"/g;
-  const out = [];
-  let rest = line;
-  let i = 0;
-  // simple pass — split by whitespace boundaries to preserve spacing
+function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, drillInto) {
+  // Very lightweight: highlight Chisel keywords + types + instance refs +
+  // make instance names clickable when drillInto is available.
   const parts = line.split(/(\s+|[(){}.,;])/);
   return parts.map((p, idx) => {
     if (!p) return null;
     if (/^\s+$/.test(p) || /^[(){}.,;]$/.test(p)) return <span key={idx}>{p}</span>;
-    if (/^(class|extends|val|def|new|for|until)$/.test(p))
+    if (/^(class|extends|val|def|new|for|until|object|trait|case|match|if|else|when|otherwise)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.5 0.15 290)', fontWeight: 500 }}>{p}</span>;
-    if (/^(Module|IO|Bundle|Vec|Flipped|Queue|RRArbiter|AddrDec|RRouter|Backend|IdAllocator|AXI4|AXIMaster|AXISlave|AXISystem|AXICrossbar|TxReq|AR|R)$/.test(p))
+    if (/^(Module|IO|Bundle|Vec|Flipped|Decoupled|Queue|RRArbiter|AddrDec|RRouter|Backend|IdAllocator|AXI4|AXIMaster|AXISlave|AXISystem|AXICrossbar|TxReq|AR|R|UInt|SInt|Bool|Clock|Reset|Reg|RegInit|Mem|DontCare)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.5 0.13 200)' }}>{p}</span>;
     if (/^(true|false)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.55 0.15 30)' }}>{p}</span>;
     if (/^\d+$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.55 0.15 30)' }}>{p}</span>;
-    if (selInst && p === selInst)
-      return <span key={idx} style={{ background: 'oklch(0.95 0.1 90)', borderRadius: 2, padding: '0 1px', cursor: 'pointer', color: benchTokens.ink }} onClick={() => setSelectedSig(p)}>{p}</span>;
-    // comments
+    // Comments
     if (/^\/\//.test(p))
       return <span key={idx} style={{ color: benchTokens.ink4, fontStyle: 'italic' }}>{p}</span>;
+    // Instance names — drill-in on click when available, else select-signal.
+    if (childInstSet && childInstSet.has(p)) {
+      return (
+        <span key={idx} onClick={() => drillInto ? drillInto(p) : setSelectedSig(p)}
+          title={drillInto ? `Open ${p}` : p}
+          style={{
+            background: 'oklch(0.95 0.08 200)', color: 'oklch(0.4 0.15 250)',
+            borderRadius: 2, padding: '0 2px', cursor: 'pointer',
+            textDecoration: drillInto ? 'underline dotted' : 'none',
+            textDecorationColor: 'oklch(0.55 0.15 250 / 0.45)',
+            textUnderlineOffset: 2,
+          }}>{p}</span>
+      );
+    }
+    // Selected-signal highlight stays as before
+    if (selInst && p === selInst)
+      return <span key={idx} style={{ background: 'oklch(0.95 0.1 90)', borderRadius: 2, padding: '0 1px', cursor: 'pointer', color: benchTokens.ink }} onClick={() => setSelectedSig(p)}>{p}</span>;
     return <span key={idx}>{p}</span>;
   });
 }
@@ -2766,6 +2865,10 @@ function App() {
               { value: 'collapsed', label: 'Collapsed' },
               { value: 'expanded',  label: 'Expanded' },
             ]} />
+          <TweakToggle label="Collapse bidirectional handshakes" value={tweaks.collapseBidir}
+            onChange={(v) => setTweak('collapseBidir', v)} />
+          <TweakToggle label="Click identifiers in source to navigate" value={tweaks.clickToNavigate}
+            onChange={(v) => setTweak('clickToNavigate', v)} />
         </TweakSection>
       </TweaksPanel>
     </div>

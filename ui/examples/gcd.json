@@ -4,12 +4,29 @@
     "Decoupled_in": {
       "name": "Decoupled_in",
       "kind": "Decoupled",
-      "fields": [["a", 16, "out"], ["b", 16, "out"]]
+      "fields": [
+        [
+          "a",
+          16,
+          "out"
+        ],
+        [
+          "b",
+          16,
+          "out"
+        ]
+      ]
     },
     "Decoupled_out": {
       "name": "Decoupled_out",
       "kind": "Decoupled",
-      "fields": [["result", 16, "out"]]
+      "fields": [
+        [
+          "result",
+          16,
+          "out"
+        ]
+      ]
     }
   },
   "modules": [
@@ -17,14 +34,45 @@
       "name": "GCD",
       "type": "GCD",
       "doc": "Iterative Euclidean GCD — accepts (a,b), emits gcd(a,b).",
-      "source": { "file": "GCD.scala", "line": 8, "col": 1 },
+      "source": {
+        "file": "GCD.scala",
+        "line": 8,
+        "col": 1
+      },
       "ports": [
-        { "name": "in",  "dir": "slave",  "bundle": "Decoupled_in",  "doc": "operand pair", "source": { "file": "GCD.scala", "line": 9, "col": 9 } },
-        { "name": "out", "dir": "master", "bundle": "Decoupled_out", "doc": "result",       "source": { "file": "GCD.scala", "line": 10, "col": 9 } }
+        {
+          "name": "in",
+          "dir": "slave",
+          "bundle": "Decoupled_in",
+          "doc": "operand pair",
+          "source": {
+            "file": "GCD.scala",
+            "line": 9,
+            "col": 9
+          }
+        },
+        {
+          "name": "out",
+          "dir": "master",
+          "bundle": "Decoupled_out",
+          "doc": "result",
+          "source": {
+            "file": "GCD.scala",
+            "line": 10,
+            "col": 9
+          }
+        }
       ],
       "children": [],
       "wires": [],
-      "metrics": { "registers": 3, "wires": 6, "lines": 24 }
+      "metrics": {
+        "registers": 3,
+        "wires": 6,
+        "lines": 24
+      }
     }
-  ]
+  ],
+  "sources": {
+    "GCD.scala": "package gcd\n\nimport chisel3._\nimport chisel3.util._\n\n// ── A classic Chisel demo: iterative Euclidean GCD ───────────────────────────\n// One module, one Decoupled in, one Decoupled out, three registers.\n//\n// Functionally: pull (a, b) when idle, run x/y until equal, then emit on out.\n// The exporter sees:\n//   • Two ports (in: Flipped(Decoupled(...)), out: Decoupled(...))\n//   • No submodules\n//   • Connect statements for io.in.ready / io.out.valid / io.out.bits.result\n\nclass GCDInput extends Bundle {\n  val a = UInt(16.W)\n  val b = UInt(16.W)\n}\n\nclass GCDOutput extends Bundle {\n  val result = UInt(16.W)\n}\n\nclass GCD extends Module {\n  val io = IO(new Bundle {\n    val in  = Flipped(Decoupled(new GCDInput))\n    val out = Decoupled(new GCDOutput)\n  })\n\n  val x    = RegInit(0.U(16.W))\n  val y    = RegInit(0.U(16.W))\n  val busy = RegInit(false.B)\n\n  // Accept a new pair when idle.\n  io.in.ready := !busy\n  when(io.in.fire) {\n    x    := io.in.bits.a\n    y    := io.in.bits.b\n    busy := true.B\n  }\n\n  // Subtractive step.\n  when(busy && x =/= y) {\n    when(x > y) { x := x - y }.otherwise { y := y - x }\n  }\n\n  // Emit when converged.\n  io.out.valid       := busy && (x === y)\n  io.out.bits.result := x\n  when(io.out.fire) { busy := false.B }\n}\n"
+  }
 }

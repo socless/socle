@@ -22,10 +22,13 @@ object Launcher {
 
   def main(args: Array[String]): Unit = {
     val top = arg(args, "--top").getOrElse {
-      Console.err.println("usage: socless.Launcher --top <fqcn> [--output <path>]")
+      Console.err.println("usage: socless.Launcher --top <fqcn> [--output <path>] [--source-root <path>]")
       sys.exit(2)
     }
-    val output = arg(args, "--output").map(Path(_, os.pwd)).getOrElse(os.pwd / "design.json")
+    val output     = arg(args, "--output").map(Path(_, os.pwd)).getOrElse(os.pwd / "design.json")
+    // `--source-root <dir>` enables source-text embedding in the design.json
+    // (Mill plugin passes this; direct CLI users can omit to skip).
+    val sourceRoot = arg(args, "--source-root").map(Path(_, os.pwd))
 
     val cls =
       try Class.forName(top)
@@ -44,7 +47,7 @@ object Launcher {
       }
 
     val gen: () => RawModule = () => ctor.newInstance().asInstanceOf[RawModule]
-    SoclessExporter.export(gen, output)
+    SoclessExporter.export(gen, output, sourceRoot = sourceRoot)
   }
 
   private def arg(args: Array[String], name: String): Option[String] = {

@@ -112,6 +112,10 @@ object example extends ChiselToolchain {
       "socless.Launcher",
       "--top", top,
       "--output", out.toString,
+      // Workspace root → exporter resolves SourceRefs against it for the
+      // Source tab in the UI. Without this, design.json carries only
+      // file:line:col and the UI shows a "open file in editor" placeholder.
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = dest, check = false)
     if (rc.exitCode != 0) throw new RuntimeException(s"launcher exited ${rc.exitCode} for top=$top")
     log.info(s"[socless] $top → $out")

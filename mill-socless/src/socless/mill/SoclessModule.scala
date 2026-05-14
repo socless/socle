@@ -76,6 +76,10 @@ trait SoclessModule extends ScalaModule {
       "socless.Launcher",
       "--top", soclessTop(),
       "--output", out.toString,
+      // Workspace root → exporter resolves SourceRefs (`src/main/scala/...`)
+      // against it and embeds the file contents in design.json so the UI's
+      // Source tab can show real code instead of just file:line:col.
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(
       stdout = os.Inherit,
       stderr = os.Inherit,

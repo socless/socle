@@ -15,6 +15,11 @@ case class Design(
   top:     String,
   bundles: Map[String, BundleDef],
   modules: Seq[ModuleDef],
+  // Source text keyed by file path (as written in module/port/wire SourceRefs).
+  // Filled in by the exporter when a source-root is configured; the UI slices
+  // out the relevant lines per module. Empty if files weren't readable or
+  // source embedding was disabled.
+  sources: Map[String, String] = Map.empty,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 
