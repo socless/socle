@@ -2161,6 +2161,68 @@ function bWireEndpoints(ba, bb, fromIdx, toIdx, total) {
   return { x1: ax, y1: ay, x2: bx, y2: by };
 }
 
+// Returns mod.wires with bidirectional CHIRRTL pairs collapsed into one
+// bidir-labeled wire. `collapse` is consulted only for `tweaks.collapseBidir`.
+function bCoalesceBidir(wires, collapse) {
+  if (collapse === false) return wires;
+  const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
+  const seen = new Map();
+  const out  = [];
+  const getCount = (label) => {
+    const m = /(\d+)\s*×/.exec(label || '');
+    return m ? parseInt(m[1], 10) : 1;
+  };
+  for (const w of wires) {
+    const a = (w.from || '').split('.')[0];
+    const b = (w.to   || '').split('.')[0];
+    if (!a || !b || a === b) { out.push(w); continue; }
+    const k = pairKey(a, b);
+    const peers = seen.get(k) || [];
+    const reverse = peers.find((p) => p.from.split('.')[0] === b && p.to.split('.')[0] === a);
+    if (reverse) {
+      reverse.bidir  = true;
+      reverse.count  = (reverse.count || getCount(reverse.label)) + getCount(w.label);
+      if (reverse.bundle === 'Wire' && w.bundle && w.bundle !== 'Wire') reverse.bundle = w.bundle;
+      reverse.label  = reverse.count > 1 ? reverse.count + '× ground (bidir)' : 'bidirectional';
+      continue;
+    }
+    const fresh = { ...w };
+    peers.push(fresh);
+    seen.set(k, peers);
+    out.push(fresh);
+  }
+  return out;
+}
+
+// Convert coalesced wires to absolute-coordinate render objects with
+// per-instance fan-out indexing so wires sharing a face get staggered.
+// `idPrefix` lets callers namespace ids when multiple wire layers coexist.
+function bPlaceWires(wires, boxes, idPrefix = 'w') {
+  const fanOut = {}, fanIn = {};
+  wires.forEach((w) => {
+    const a = w.from.split('.')[0], b = w.to.split('.')[0];
+    fanOut[a] = (fanOut[a] || 0) + 1;
+    fanIn[b]  = (fanIn[b]  || 0) + 1;
+  });
+  const idxOut = {}, idxIn = {};
+  return wires.map((w, i) => {
+    const fromInst = w.from.split('.')[0];
+    const toInst   = w.to.split('.')[0];
+    const ba = boxes[fromInst];
+    const bb = boxes[toInst];
+    if (!ba || !bb) return null;
+    const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
+    const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
+    return {
+      id: `${idPrefix}-${i}`,
+      ...w,
+      fromInst, toInst,
+      fromPath: w.from, toPath: w.to,
+      ...pts,
+    };
+  }).filter(Boolean);
+}
+
 function bRoutePath(w, routingStyle) {
   if (routingStyle === 'curve') {
     const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
@@ -2461,68 +2523,17 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // double-headed arrow) so the schematic reads as Chisel-level connects, not
   // ground-signal flow. Same-direction same-pair wires are kept (only true
   // reverse pairs collapse).
-  const displayWires = useMemo(() => {
-    if (tweaks.collapseBidir === false) return mod.wires;
-    const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
-    const seen = new Map();   // pairKey -> array of wires in that bucket
-    const out  = [];
-    const getCount = (label) => {
-      const m = /(\d+)\s*\u00d7/.exec(label || '');
-      return m ? parseInt(m[1], 10) : 1;
-    };
-    for (const w of mod.wires) {
-      const a = (w.from || '').split('.')[0];
-      const b = (w.to   || '').split('.')[0];
-      if (!a || !b || a === b) { out.push(w); continue; }
-      const k = pairKey(a, b);
-      const peers = seen.get(k) || [];
-      // Look for a peer wire pointing the opposite direction.
-      const reverse = peers.find((p) => p.from.split('.')[0] === b && p.to.split('.')[0] === a);
-      if (reverse) {
-        // Promote the existing wire to bidirectional + accumulate ground count.
-        reverse.bidir  = true;
-        reverse.count  = (reverse.count || getCount(reverse.label)) + getCount(w.label);
-        // Prefer the more specific bundle name over the generic "Wire"
-        if (reverse.bundle === 'Wire' && w.bundle && w.bundle !== 'Wire') reverse.bundle = w.bundle;
-        reverse.label  = reverse.count > 1 ? reverse.count + '\u00d7 ground (bidir)' : 'bidirectional';
-        continue;
-      }
-      const fresh = { ...w };
-      peers.push(fresh);
-      seen.set(k, peers);
-      out.push(fresh);
-    }
-    return out;
-  }, [mod.wires, tweaks.collapseBidir]);
+  const displayWires = useMemo(
+    () => bCoalesceBidir(mod.wires, tweaks.collapseBidir),
+    [mod.wires, tweaks.collapseBidir],
+  );
 
   // Wires with absolute endpoints. We compute per-instance fan-out indexing
   // so wires sharing a face are staggered (avoids overlap on dense modules).
-  const wires = useMemo(() => {
-    // Count wires per (instance, role) to compute stagger offsets.
-    const fanOut = {}, fanIn = {};
-    displayWires.forEach((w) => {
-      const a = w.from.split('.')[0], b = w.to.split('.')[0];
-      fanOut[a] = (fanOut[a] || 0) + 1;
-      fanIn[b]  = (fanIn[b]  || 0) + 1;
-    });
-    const idxOut = {}, idxIn = {};
-    return displayWires.map((w, i) => {
-      const fromInst = w.from.split('.')[0];
-      const toInst   = w.to.split('.')[0];
-      const ba = layoutBoxes[fromInst];
-      const bb = layoutBoxes[toInst];
-      if (!ba || !bb) return null;
-      const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
-      const tIdx = (idxIn[toInst]   = (idxIn[toInst]   || 0) + 1) - 1;
-      const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
-      return {
-        id: `w${i}`, ...w,
-        fromInst, toInst,
-        fromPath: w.from, toPath: w.to,
-        ...pts,
-      };
-    }).filter(Boolean);
-  }, [displayWires, layoutBoxes]);
+  const wires = useMemo(
+    () => bPlaceWires(displayWires, layoutBoxes, 'w'),
+    [displayWires, layoutBoxes],
+  );
 
   // Internal wires for each expanded instance, in absolute sub-layout coordinates.
   const subWires = useMemo(() => {
@@ -2531,30 +2542,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       const sub = subLayouts[inst];
       if (!sub) continue;
       const child = mod.children.find((c) => c.name === inst);
+      if (!child) continue;
       const subMod = B_MODULES[child.type];
       if (!subMod || !subMod.wires) continue;
+      const coalesced = bCoalesceBidir(subMod.wires, tweaks.collapseBidir);
+      const placed = bPlaceWires(coalesced, sub.boxes, `sub-${inst}-w`);
       const prefix = inst + '.';
-      const wiresHere = subMod.wires.map((w, i) => {
-        const fromInst = w.from.split('.')[0];
-        const toInst   = w.to.split('.')[0];
-        const ba = sub.boxes[fromInst];
-        const bb = sub.boxes[toInst];
-        if (!ba || !bb) return null;
-        const pts = bWireEndpoints(ba, bb, 0, 1);
-        return {
-          id: `sub-${inst}-w${i}`, ...w,
-          fromInst, toInst,
-          // Namespace the paths so the existing startsWith() highlighting
-          // matches top-level wires touching the parent module.
-          fromPath: prefix + w.from,
-          toPath:   prefix + w.to,
-          ...pts,
-        };
-      }).filter(Boolean);
-      out[inst] = wiresHere;
+      // Namespace the paths so the existing startsWith() highlighting
+      // matches top-level wires touching the parent module.
+      out[inst] = placed.map((w) => ({
+        ...w,
+        fromPath: prefix + w.fromPath,
+        toPath:   prefix + w.toPath,
+      }));
     }
     return out;
-  }, [expandedModules, subLayouts, mod]);
+  }, [expandedModules, subLayouts, mod, tweaks.collapseBidir]);
 
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
