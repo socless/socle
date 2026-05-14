@@ -1971,13 +1971,15 @@ function bPlaceColumns(cols, opts) {
     runningX += w + colGap;
   });
 
-  const totalW = runningX > 0 ? runningX - colGap : 0;
-  const totalH = Math.max(
-    0,
-    ...cols.map((col) =>
-      col.instances.reduce((acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0), 0),
-    ),
-  );
+  const totalW = runningX > 0 ? runningX - colGap : NODE_W;
+  const totalH = cols.length === 0
+    ? NODE_H
+    : Math.max(
+        0,
+        ...cols.map((col) =>
+          col.instances.reduce((acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0), 0),
+        ),
+      );
   return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label) };
 }
 
