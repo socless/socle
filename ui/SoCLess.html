@@ -2624,6 +2624,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     };
   }, []);
 
+  // Reset zoom and pan whenever the user navigates (drill in, breadcrumb, palette).
+  useEffect(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, [path]);
+
   const onWheel = useCallback((e) => {
     // Only zoom — don't intercept regular vertical scroll the user might want
     // when zoom is 1 (TODO: revisit if it's annoying).
@@ -2683,9 +2689,23 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             {mod.children.length} inst · {mod.wires.length} wires
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5 }}>
-          <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>layout</span>
-          <span style={{ padding: '3px 8px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{tweaks.layout}</span>
+        <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto' }}>
+          <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5, alignItems: 'center' }}>
+            <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>zoom</span>
+            <span style={{ padding: '3px 4px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+              title="Reset zoom and pan"
+              style={{
+                border: 'none', background: 'transparent', color: benchTokens.ink3,
+                cursor: 'pointer', padding: '2px 6px', borderRadius: 3, fontSize: 11, lineHeight: 1,
+              }}
+            >⟲</button>
+          </div>
+          <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5 }}>
+            <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>layout</span>
+            <span style={{ padding: '3px 8px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{tweaks.layout}</span>
+          </div>
         </div>
       </div>
 
