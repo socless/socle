@@ -2594,9 +2594,35 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // canvas); zoom is a uniform scale factor clamped to [0.25, 3].
   const [zoom, setZoom] = useState(1);
   const [pan,  setPan]  = useState({ x: 0, y: 0 });
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const [dragging,  setDragging]  = useState(null);
+  // dragging shape when active: { startMouseX, startMouseY, startPan: { x, y } }
   const canvasWrapRef = useRef(null);
 
   const clampZoom = (z) => Math.min(3, Math.max(0.25, z));
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.code === 'Space' && !e.repeat) {
+        // Suppress only when the schematic is what the user is interacting with —
+        // i.e. body or one of our canvas children has focus. Avoid eating Space
+        // when the search palette or any input is focused.
+        const tag = document.activeElement?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+        e.preventDefault();
+        setSpaceHeld(true);
+      }
+    };
+    const onKeyUp = (e) => {
+      if (e.code === 'Space') setSpaceHeld(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
 
   const onWheel = useCallback((e) => {
     // Only zoom — don't intercept regular vertical scroll the user might want
@@ -2619,6 +2645,31 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     });
   }, []);
 
+  const onMouseDown = useCallback((e) => {
+    // Middle-button OR Space+left-button starts a pan drag.
+    const isMiddle = e.button === 1;
+    const isSpaceLeft = e.button === 0 && spaceHeld;
+    if (!isMiddle && !isSpaceLeft) return;
+    e.preventDefault();
+    setDragging({
+      startMouseX: e.clientX,
+      startMouseY: e.clientY,
+      startPan: pan,
+    });
+  }, [pan, spaceHeld]);
+
+  const onMouseMove = useCallback((e) => {
+    if (!dragging) return;
+    setPan({
+      x: dragging.startPan.x + (e.clientX - dragging.startMouseX),
+      y: dragging.startPan.y + (e.clientY - dragging.startMouseY),
+    });
+  }, [dragging]);
+
+  const onMouseUp = useCallback(() => {
+    if (dragging) setDragging(null);
+  }, [dragging]);
+
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
       {/* Canvas chrome */}
@@ -2638,7 +2689,18 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         </div>
       </div>
 
-      <div ref={canvasWrapRef} onWheel={onWheel} style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto' }}>
+      <div
+        ref={canvasWrapRef}
+        onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        style={{
+          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto',
+          cursor: dragging ? 'grabbing' : (spaceHeld ? 'grab' : 'default'),
+        }}
+      >
         <div style={{
           position: 'relative',
           width: totalW,
