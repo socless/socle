@@ -2314,6 +2314,7 @@ function BenchModuleBox({
             return (
               <div key={cInst}
                 onClick={(e) => { e.stopPropagation(); setSelectedSig(cPath); }}
+                onDoubleClick={(e) => e.stopPropagation()}
                 onMouseEnter={() => setHoveredSig(cPath)}
                 onMouseLeave={() => setHoveredSig(null)}
                 style={{
