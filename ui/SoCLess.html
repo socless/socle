@@ -2261,8 +2261,12 @@ function BenchModuleBox({
       onMouseLeave={() => setHover(false)}
       style={{
         position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
-        background: benchTokens.panel,
-        border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
+        background: expanded ? '#f6f4ff' : benchTokens.panel,
+        border: `${expanded ? 1.5 : 1}px solid ${
+          expanded
+            ? (selectedHere ? benchTokens.accent : '#b3a8f0')
+            : (selectedHere ? benchTokens.accent : benchTokens.border)
+        }`,
         borderRadius: 6,
         boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
         cursor: drillable ? 'pointer' : 'default',
@@ -2320,7 +2324,7 @@ function BenchModuleBox({
                 style={{
                   position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
                   background: cSelected ? benchTokens.accentBg : 'white',
-                  border: `1px solid ${cSelected ? benchTokens.accent : benchTokens.borderSoft}`,
+                  border: `1px solid ${cSelected ? benchTokens.accent : '#d6cffa'}`,
                   borderRadius: 4,
                   padding: 6,
                   fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
