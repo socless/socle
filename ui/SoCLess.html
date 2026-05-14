@@ -2184,7 +2184,13 @@ function bRouteMidpoint(w, routingStyle) {
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
 }
 
-function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, expanded, drillInto, toggleExpandModule, subLayout }) {
+function BenchModuleBox({
+  inst, b, child, wiresOnMe, selectedHere, drillable, expanded,
+  drillInto, toggleExpandModule, subLayout,
+  subWires, setSelectedSig, setHoveredSig,
+  selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
+  showWidths,
+}) {
   const [hover, setHover] = useState(false);
   return (
     <div
@@ -2231,6 +2237,13 @@ function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, ex
           margin: `0 ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
           minHeight: subLayout.totalH,
         }}>
+          {/* HIT layer (under child boxes) */}
+          <WireHitLayer
+            wires={subWires || []}
+            totalW={subLayout.totalW} totalH={subLayout.totalH}
+            routingStyle={subLayout.routingStyle}
+            setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
+          />
           {Object.entries(subLayout.boxes).map(([cInst, cb]) => {
             const cChild = B_MODULES[child.type]?.children.find((c) => c.name === cInst);
             if (!cChild) return null;
@@ -2252,6 +2265,17 @@ function BenchModuleBox({ inst, b, child, wiresOnMe, selectedHere, drillable, ex
               </div>
             );
           })}
+          {/* VISUAL layer (over child boxes) */}
+          <WireVisualLayer
+            wires={subWires || []}
+            totalW={subLayout.totalW} totalH={subLayout.totalH}
+            routingStyle={subLayout.routingStyle}
+            selectedSig={selectedSig} hoveredSig={hoveredSig}
+            expandedBundles={expandedBundles} toggleBundle={toggleBundle}
+            globalExpanded={globalExpanded}
+            showWidths={showWidths}
+            layerId={`sub-${inst}`}
+          />
         </div>
       ) : (
         <>
@@ -2290,6 +2314,7 @@ function WireVisualLayer({
   wires, totalW, totalH, routingStyle,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
   showWidths,
+  layerId = 'top',
 }) {
   const isHl = (w) =>
     selectedSig && (w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
@@ -2301,11 +2326,11 @@ function WireVisualLayer({
     <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {Object.entries(B_CHAN).map(([k, v]) => (
-          <marker key={k} id={`arr-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker key={k} id={`arr-${layerId}-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
             <path d="M0 0 L8 4 L0 8 Z" fill={v} />
           </marker>
         ))}
-        <marker id="arr-default" viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <marker id={`arr-${layerId}-default`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
           <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
         </marker>
       </defs>
@@ -2341,22 +2366,22 @@ function WireVisualLayer({
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
                       dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
                     }
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${layerId}-${ch.name})`} />;
                   }
                   const offset = (ci - (channels.length - 1) / 2) * 5;
                   const yo1 = w.y1 + offset;
                   const yo2 = w.y2 + offset;
                   const mx = (w.x1 + w.x2) / 2 + offset * 2;
                   const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
-                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ch.name})`} />;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${layerId}-${ch.name})`} />;
                 })}
               </g>
             )}
             {!expanded && (
               <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
                 strokeLinecap="round" strokeLinejoin="round"
-                markerEnd="url(#arr-default)"
-                markerStart={w.bidir ? 'url(#arr-default)' : undefined}
+                markerEnd={`url(#arr-${layerId}-default)`}
+                markerStart={w.bidir ? `url(#arr-${layerId}-default)` : undefined}
               />
             )}
             {showWidths && (
@@ -2499,6 +2524,38 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     }).filter(Boolean);
   }, [displayWires, layoutBoxes]);
 
+  // Internal wires for each expanded instance, in absolute sub-layout coordinates.
+  const subWires = useMemo(() => {
+    const out = {};
+    for (const inst of expandedModules) {
+      const sub = subLayouts[inst];
+      if (!sub) continue;
+      const child = mod.children.find((c) => c.name === inst);
+      const subMod = B_MODULES[child.type];
+      if (!subMod || !subMod.wires) continue;
+      const prefix = inst + '.';
+      const wiresHere = subMod.wires.map((w, i) => {
+        const fromInst = w.from.split('.')[0];
+        const toInst   = w.to.split('.')[0];
+        const ba = sub.boxes[fromInst];
+        const bb = sub.boxes[toInst];
+        if (!ba || !bb) return null;
+        const pts = bWireEndpoints(ba, bb, 0, 1);
+        return {
+          id: `sub-${inst}-w${i}`, ...w,
+          fromInst, toInst,
+          // Namespace the paths so the existing startsWith() highlighting
+          // matches top-level wires touching the parent module.
+          fromPath: prefix + w.from,
+          toPath:   prefix + w.to,
+          ...pts,
+        };
+      }).filter(Boolean);
+      out[inst] = wiresHere;
+    }
+    return out;
+  }, [expandedModules, subLayouts, mod]);
+
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
   const globalExpanded = tweaks.bundleMode === 'expanded';
@@ -2559,6 +2616,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 drillable={drillable} expanded={expanded}
                 drillInto={drillInto} toggleExpandModule={toggleExpandModule}
                 subLayout={subLayouts[inst]}
+                subWires={subWires[inst]}
+                setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
+                selectedSig={selectedSig} hoveredSig={hoveredSig}
+                expandedBundles={expandedBundles} toggleBundle={toggleBundle}
+                globalExpanded={globalExpanded}
+                showWidths={tweaks.showWidths}
               />
             );
           })}
@@ -2571,6 +2634,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             globalExpanded={globalExpanded}
             showWidths={tweaks.showWidths}
+            layerId="top"
           />
         </div>
       </div>
