@@ -164,6 +164,16 @@ object IrWalk {
     * unfolds to ~30 connects. We coalesce by reducing each endpoint to its
     * `<inst>.<port>` prefix and deduping. The label embeds counts so the UI
     * shows "31× ground connects coalesced".
+    *
+    * Sub-bundle granularity: when a port's type carries *named* sub-bundles
+    * (e.g. `io.a: Decoupled[...]`, `io.b: Decoupled[...]`), we drop into the
+    * third segment so each named child of `io` becomes its own coalesced
+    * wire instead of collapsing into one opaque `<inst>.io` blob. Ports
+    * that bottom out at ground signals stay at two-segment depth as before.
+    *
+    * Internal-net connects (`_T_42 <= ...` between synthesized wires) are
+    * filtered out at this stage: only edges with at least one endpoint on an
+    * instance port or this module's own port are kept.
     */
   private def coalesceWires(
     m:       Mod,
@@ -174,26 +184,81 @@ object IrWalk {
     val groups = mutable.LinkedHashMap.empty[(String, String), Group]
     val instSet = m.insts.map(_.name).toSet
     val portSet = m.ports.map(_.name).toSet
+    val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
+
+    def stripIdx(s: String): String = {
+      val i = s.indexOf('[')
+      if (i < 0) s else s.substring(0, i)
+    }
+
+    /** True if `t` is itself an aggregate (Bundle or Vec of Bundle) — used to
+      * decide whether a path's sub-segment is worth keeping as its own wire,
+      * versus collapsing into the parent port.
+      */
+    def isAggregate(t: CType): Boolean = t match {
+      case BundleT(_) => true
+      case VecT(elem, _) => isAggregate(elem)
+      case _ => false
+    }
+
+    /** Type of the port reached by descending one segment into `path` from the
+      * top scope of this module, or None if `path` doesn't start at a known
+      * instance port or module-own port.
+      */
+    def portTypeAt(path: String): Option[CType] = {
+      val parts = path.split('.').toIndexedSeq.map(stripIdx)
+      if (parts.isEmpty) return None
+      val head = parts.head
+      if (instSet.contains(head) && parts.length >= 2) {
+        for {
+          ofMod <- instMap.get(head)
+          mod   <- byName.get(ofMod)
+          port  <- mod.ports.find(_.name == parts(1))
+        } yield port.tpe
+      } else if (portSet.contains(head)) {
+        m.ports.find(_.name == head).map(_.tpe)
+      } else None
+    }
+
+    /** Endpoint reaches the IO boundary somewhere — either it's an instance
+      * port or it's one of this module's own ports. Used to drop
+      * internal-net connects (wire-to-wire signals like `_oHot_WIRE`).
+      */
+    def isExternalEndpoint(path: String): Boolean = {
+      val head = stripIdx(path.split('.').headOption.getOrElse(""))
+      instSet.contains(head) || portSet.contains(head)
+    }
 
     def trim(path: String): String = {
-      val parts = path.split('.')
-      if (parts.isEmpty) return path
-      val head = parts.head
-      // <instance>.<port>   → keep first two segments
-      if (instSet.contains(head) && parts.length >= 2) s"${parts(0)}.${parts(1)}"
-      // <port>.<...>        → port name is at top level, keep first segment
-      else if (portSet.contains(head)) head
-      else parts.head
+      val rawParts = path.split('.').toIndexedSeq
+      if (rawParts.isEmpty) return path
+      val head = stripIdx(rawParts.head)
+      if (instSet.contains(head) && rawParts.length >= 2) {
+        // <inst>.<port>[.<sub>] — descend into named sub-bundle when present.
+        val descend = rawParts.length >= 3 &&
+          portTypeAt(path).flatMap(t => descendField(t, stripIdx(rawParts(2)))).exists(isAggregate)
+        if (descend) s"${rawParts(0)}.${rawParts(1)}.${rawParts(2)}"
+        else         s"${rawParts(0)}.${rawParts(1)}"
+      } else if (portSet.contains(head)) {
+        // bare <port>[.<sub>] on this module — same descent rule.
+        val descend = rawParts.length >= 2 &&
+          portTypeAt(path).flatMap(t => descendField(t, stripIdx(rawParts(1)))).exists(isAggregate)
+        if (descend) s"${rawParts(0)}.${rawParts(1)}"
+        else         rawParts(0)
+      } else rawParts.head
     }
 
     for (c <- m.conns) {
-      val from = trim(c.lhs)
-      val to   = trim(c.rhs)
-      // Skip self-loops on the same port (these are the in-bundle subfield connects)
-      if (from != to) {
-        val k = (from, to)
-        val g = groups.get(k)
-        groups(k) = Group(from, to, g.flatMap(_.src).orElse(c.src), g.map(_.count).getOrElse(0) + 1)
+      // Drop pure internal-net connects; the schematic only renders port-to-port wires.
+      if (isExternalEndpoint(c.lhs) || isExternalEndpoint(c.rhs)) {
+        val from = trim(c.lhs)
+        val to   = trim(c.rhs)
+        // Skip self-loops on the same port (these are the in-bundle subfield connects)
+        if (from != to) {
+          val k = (from, to)
+          val g = groups.get(k)
+          groups(k) = Group(from, to, g.flatMap(_.src).orElse(c.src), g.map(_.count).getOrElse(0) + 1)
+        }
       }
     }
     groups.values.toSeq.map { g =>
@@ -236,24 +301,30 @@ object IrWalk {
     }
 
     def resolveOnInst(path: String): Option[String] = {
-      val parts = path.split('.')
+      val parts = path.split('.').toIndexedSeq.map(stripIdx)
       if (parts.length < 2) return None
-      val instName = stripIdx(parts(0))
-      val portName = stripIdx(parts(1))
       for {
-        ofMod <- instMap.get(instName)
+        ofMod <- instMap.get(parts(0))
         mod   <- byName.get(ofMod)
-        port  <- mod.ports.find(_.name == portName)
+        port  <- mod.ports.find(_.name == parts(1))
       } yield {
-        val (k, _) = registerType(port.tpe, port.dir, port.name, bundles)
+        // Descend into the named sub-bundle when the path carries a third segment.
+        val (effTpe, hint) =
+          if (parts.length >= 3) descendField(port.tpe, parts(2)).map(t => (t, s"${port.name}_${parts(2)}")).getOrElse((port.tpe, port.name))
+          else (port.tpe, port.name)
+        val (k, _) = registerType(effTpe, port.dir, hint, bundles)
         k
       }
     }
 
     def resolveOnSelf(path: String): Option[String] = {
-      val portName = stripIdx(path.split('.').head)
-      m.ports.find(_.name == portName).map { p =>
-        val (k, _) = registerType(p.tpe, p.dir, p.name, bundles)
+      val parts = path.split('.').toIndexedSeq.map(stripIdx)
+      if (parts.isEmpty) return None
+      m.ports.find(_.name == parts(0)).map { p =>
+        val (effTpe, hint) =
+          if (parts.length >= 2) descendField(p.tpe, parts(1)).map(t => (t, s"${p.name}_${parts(1)}")).getOrElse((p.tpe, p.name))
+          else (p.tpe, p.name)
+        val (k, _) = registerType(effTpe, p.dir, hint, bundles)
         k
       }
     }
@@ -270,6 +341,16 @@ object IrWalk {
     val all = (m.src ++ m.ports.flatMap(_.src) ++ m.insts.flatMap(_.src) ++ m.conns.flatMap(_.src))
       .map(_.line).toSeq
     if (all.isEmpty) 0 else (all.max - all.min + 1)
+  }
+
+  /** Look up a named field inside an aggregate type. None if the type isn't a
+    * bundle (or Vec of bundle) or the field name doesn't exist. Used to
+    * descend `<inst>.<port>.<sub>` paths into the named sub-bundle of a port.
+    */
+  private def descendField(t: CType, fieldName: String): Option[CType] = t match {
+    case BundleT(fs)   => fs.find(_.name == fieldName).map(_.tpe)
+    case VecT(elem, _) => descendField(elem, fieldName)
+    case _             => None
   }
 
   private def toRef(s: SrcInfo): SourceRef = SourceRef(s.file, s.line, s.col)

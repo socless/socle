@@ -79,18 +79,7 @@ object SoclessExporter {
       val read = candidates.iterator.flatMap { p =>
         try if (os.exists(p) && os.isFile(p)) Some(os.read(p)) else None
         catch { case _: Throwable => None }
-      }.toSeq.headOption.orElse {
-        // CHIRRTL often emits just the basename (e.g. "GCD.scala") rather than
-        // a full relative path. When the path has no directory component, fall
-        // back to a recursive search under sourceRoot.
-        if (!rel.contains('/') && !rel.contains(java.io.File.separator))
-          try {
-            os.walk(sourceRoot, skip = p => p.last.startsWith(".") || p.last == "out")
-              .find(p => os.isFile(p) && p.last == rel)
-              .flatMap(p => try Some(os.read(p)) catch { case _: Throwable => None })
-          } catch { case _: Throwable => None }
-        else None
-      }
+      }.toSeq.headOption
       read match {
         case Some(text) => out(rel) = text
         case None       => missing += 1

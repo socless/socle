@@ -1289,6 +1289,13 @@ const DENSITY = {
   comfortable:{ pad: 10, row: 28, font: 13 },
 };
 
+// Shared style for the schematic's zoom/fit chrome buttons.
+const zoomBtnStyle = {
+  border: 'none', background: 'transparent', color: benchTokens.ink3,
+  cursor: 'pointer', padding: '3px 6px', fontFamily: benchTokens.mono,
+  fontSize: 11, borderRadius: 3, lineHeight: 1,
+};
+
 // ─── Module catalog helper ───────────────────────────────────────────────────
 function getModuleByPath(path) {
   // path = ['AXISystem'] or ['AXISystem', 'xbar'] (instance names after top)
@@ -1320,7 +1327,7 @@ function BenchApp({ tweaks }) {
   const [selectedSig, setSelectedSig] = useState(null); // 'cpu.io.ar' or 'cpu.io.ar.bits.addr'
   const [hoveredSig, setHoveredSig] = useState(null);
   const [expandedBundles, setExpandedBundles] = useState(new Set()); // bundle paths expanded
-  const [expandedModules, setExpandedModules] = useState(new Set()); // child instance names expanded inline
+  const [expandedModules, setExpandedModules] = useState(new Set()); // child insts "peeked" inline
   const [bottomTab, setBottomTab] = useState('source');
   const [drawerHeight, setDrawerHeight] = useState(240);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -1398,8 +1405,7 @@ function BenchApp({ tweaks }) {
             hoveredSig={hoveredSig} setHoveredSig={setHoveredSig}
             height={drawerHeight} setHeight={setDrawerHeight}
             density={density}
-            drillInto={drillInto}
-            clickToNavigate={tweaks.clickToNavigate !== false}
+            drillInto={drillInto} tweaks={tweaks}
           />
         </div>
         <BenchInspector
@@ -1910,11 +1916,15 @@ function ModuleGlyph({ type, active }) {
 // expanded (channel ribbons always on).
 
 const NODE_W = 220, NODE_H = 84;
+
+// Inline-expansion sizing. When the user peeks inside a module, the module box
+// grows to host a miniature copy of its children laid out via the same
+// algorithm at a smaller node size.
 const CHILD_NODE_W = 160;
 const CHILD_NODE_H = 56;
-const HEADER_H     = 28;  // expanded-box title row
-const EXPAND_PAD   = 40;  // vertical padding total (20 top + 20 bottom)
-const INNER_PAD    = 24;  // horizontal padding per side
+const HEADER_H     = 36;  // name/type/↕ row at the top of an expanded box
+const EXPAND_PAD   = 16;  // vertical padding inside expanded body (top + bottom combined)
+const INNER_PAD    = 10;  // horizontal padding per side
 
 // Build forward/reverse adjacency on instance names from a module's wires.
 function bBuildAdj(mod) {
@@ -1966,23 +1976,24 @@ function bTopoRanks(mod) {
 }
 
 // Place a column list into {boxes, totalW, totalH}.
+//
+// Accepts per-instance dimension callbacks so expanded modules can occupy
+// taller / wider slots than their siblings. With no callbacks the result is
+// byte-identical to the old uniform-grid layout.
 function bPlaceColumns(cols, opts) {
   const o = opts || {};
-  const colW    = o.colW    ?? NODE_W;
-  const colGap  = o.colGap  ?? 160;
-  const rowGap  = o.rowGap  ?? 56;
-  // Per-instance callbacks. Scalar fallbacks preserve existing behaviour.
+  const colW   = o.colW   ?? NODE_W;
+  const colGap = o.colGap ?? 80;
+  const rowGap = o.rowGap ?? 28;
+  // Per-instance callbacks. Scalar `modH` is the legacy fallback.
   const heightFor = o.heightFor || ((_inst) => o.modH ?? NODE_H);
   const widthFor  = o.widthFor  || ((_inst) => colW);
 
   const boxes = {};
   let runningX = 0;
-  const columnXs = [];
-  const columnWs = [];
   cols.forEach((col) => {
-    const w = Math.max(colW, ...col.instances.map((i) => widthFor(i)));
-    columnXs.push(runningX);
-    columnWs.push(w);
+    // Column width = max of nominal colW and any oversized member.
+    const w = Math.max(colW, ...col.instances.map((inst) => widthFor(inst)));
     let y = 0;
     col.instances.forEach((inst) => {
       const h = heightFor(inst);
@@ -1992,16 +2003,17 @@ function bPlaceColumns(cols, opts) {
     runningX += w + colGap;
   });
 
-  const totalW = runningX > 0 ? runningX - colGap : NODE_W;
-  const totalH = cols.length === 0
-    ? NODE_H
-    : Math.max(
+  const totalW = cols.length > 0 ? Math.max(1, runningX - colGap) : 1;
+  const totalH = Math.max(
+    1,
+    ...cols.map((col) =>
+      col.instances.reduce(
+        (acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0),
         0,
-        ...cols.map((col) =>
-          col.instances.reduce((acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0), 0),
-        ),
-      );
-  return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label), columnXs, columnWs };
+      ),
+    ),
+  );
+  return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label) };
 }
 
 // Layout 1: hier — TOP_LAYOUT at root (Masters | Fabric | Slaves), topo at depth.
@@ -2043,15 +2055,15 @@ function bLayoutOrth(mod, _path, dims) {
     const insts = mod.children.map((c) => c.name).filter((n) => ranks[n] === r);
     if (insts.length) cols.push({ label: '', instances: insts });
   }
-  const placed = bPlaceColumns(cols, { colW: 200, colGap: 112, modH: 80, rowGap: 44, ...dims });
+  const placed = bPlaceColumns(cols, { colW: 200, colGap: 56, modH: 80, rowGap: 22, ...dims });
   return { ...placed, columnLabels: [], routingStyle: 'orth' };
 }
 
 // Layout 3: dataflow — force-directed simulation. Deterministic seed so the
 // layout is stable across rerenders (no jiggle as React re-renders).
 function bLayoutForce(mod, _path, dims) {
-  const heightFor = (dims && dims.heightFor) || ((_i) => NODE_H);
-  const widthFor  = (dims && dims.widthFor)  || ((_i) => NODE_W);
+  const heightFor = (dims && dims.heightFor) || ((_inst) => NODE_H);
+  const widthFor  = (dims && dims.widthFor)  || ((_inst) => NODE_W);
   const insts = mod.children.map((c) => c.name);
   const N = insts.length;
   if (N === 0) return { boxes: {}, totalW: 1, totalH: 1, columnLabels: [], routingStyle: 'curve' };
@@ -2165,68 +2177,6 @@ function bWireEndpoints(ba, bb, fromIdx, toIdx, total) {
   return { x1: ax, y1: ay, x2: bx, y2: by };
 }
 
-// Returns mod.wires with bidirectional CHIRRTL pairs collapsed into one
-// bidir-labeled wire. `collapse` is consulted only for `tweaks.collapseBidir`.
-function bCoalesceBidir(wires, collapse) {
-  if (collapse === false) return wires;
-  const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
-  const seen = new Map();
-  const out  = [];
-  const getCount = (label) => {
-    const m = /(\d+)\s*×/.exec(label || '');
-    return m ? parseInt(m[1], 10) : 1;
-  };
-  for (const w of wires) {
-    const a = (w.from || '').split('.')[0];
-    const b = (w.to   || '').split('.')[0];
-    if (!a || !b || a === b) { out.push(w); continue; }
-    const k = pairKey(a, b);
-    const peers = seen.get(k) || [];
-    const reverse = peers.find((p) => p.from.split('.')[0] === b && p.to.split('.')[0] === a);
-    if (reverse) {
-      reverse.bidir  = true;
-      reverse.count  = (reverse.count || getCount(reverse.label)) + getCount(w.label);
-      if (reverse.bundle === 'Wire' && w.bundle && w.bundle !== 'Wire') reverse.bundle = w.bundle;
-      reverse.label  = reverse.count > 1 ? reverse.count + '× ground (bidir)' : 'bidirectional';
-      continue;
-    }
-    const fresh = { ...w };
-    peers.push(fresh);
-    seen.set(k, peers);
-    out.push(fresh);
-  }
-  return out;
-}
-
-// Convert coalesced wires to absolute-coordinate render objects with
-// per-instance fan-out indexing so wires sharing a face get staggered.
-// `idPrefix` lets callers namespace ids when multiple wire layers coexist.
-function bPlaceWires(wires, boxes, idPrefix = 'w') {
-  const fanOut = {}, fanIn = {};
-  wires.forEach((w) => {
-    const a = w.from.split('.')[0], b = w.to.split('.')[0];
-    fanOut[a] = (fanOut[a] || 0) + 1;
-    fanIn[b]  = (fanIn[b]  || 0) + 1;
-  });
-  const idxOut = {}, idxIn = {};
-  return wires.map((w, i) => {
-    const fromInst = w.from.split('.')[0];
-    const toInst   = w.to.split('.')[0];
-    const ba = boxes[fromInst];
-    const bb = boxes[toInst];
-    if (!ba || !bb) return null;
-    const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
-    const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
-    return {
-      id: `${idPrefix}-${i}`,
-      ...w,
-      fromInst, toInst,
-      fromPath: w.from, toPath: w.to,
-      ...pts,
-    };
-  }).filter(Boolean);
-}
-
 function bRoutePath(w, routingStyle) {
   if (routingStyle === 'curve') {
     const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
@@ -2250,126 +2200,10 @@ function bRouteMidpoint(w, routingStyle) {
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
 }
 
-function BenchModuleBox({
-  inst, b, child, wiresOnMe, selectedHere, drillable, expanded,
-  drillInto, toggleExpandModule, subLayout,
-  subWires, setSelectedSig, setHoveredSig,
-  selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
-  showWidths,
-}) {
-  const [hover, setHover] = useState(false);
-  return (
-    <div
-      onDoubleClick={() => drillable && drillInto(inst)}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      style={{
-        position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
-        background: expanded ? '#f6f4ff' : benchTokens.panel,
-        border: `${expanded ? 1.5 : 1}px solid ${
-          expanded
-            ? (selectedHere ? benchTokens.accent : '#b3a8f0')
-            : (selectedHere ? benchTokens.accent : benchTokens.border)
-        }`,
-        borderRadius: 6,
-        boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
-        cursor: drillable ? 'pointer' : 'default',
-        display: 'flex', flexDirection: 'column',
-        overflow: 'hidden',
-        transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), width .35s cubic-bezier(.4,.2,.2,1), height .35s cubic-bezier(.4,.2,.2,1), box-shadow .12s, border-color .12s',
-      }}
-    >
-      <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
-        <ModuleGlyph type={child.type} active={selectedHere} />
-        <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
-          {drillable && (
-            <button
-              onClick={(e) => { e.stopPropagation(); toggleExpandModule(inst); }}
-              onDoubleClick={(e) => e.stopPropagation()}
-              title={expanded ? 'Collapse' : 'Peek inside'}
-              style={{
-                border: `1px solid ${benchTokens.borderSoft}`, background: benchTokens.panel,
-                color: benchTokens.ink3, fontSize: 11, lineHeight: 1, padding: '2px 5px',
-                borderRadius: 4, cursor: 'pointer',
-                opacity: (hover || expanded) ? 1 : 0,
-                transition: 'opacity .12s',
-              }}
-            >↕</button>
-          )}
-        </div>
-      </div>
-      {(expanded && subLayout) ? (
-        <div style={{
-          position: 'relative',
-          flex: 1,
-          margin: `${EXPAND_PAD / 2}px ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
-          minHeight: subLayout.totalH,
-        }}>
-          {/* HIT layer (under child boxes) */}
-          <WireHitLayer
-            wires={subWires || []}
-            totalW={subLayout.totalW} totalH={subLayout.totalH}
-            routingStyle={subLayout.routingStyle}
-            setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
-          />
-          {Object.entries(subLayout.boxes).map(([cInst, cb]) => {
-            const cChild = B_MODULES[child.type]?.children.find((c) => c.name === cInst);
-            if (!cChild) return null;
-            const cPath = `${inst}.${cInst}`;
-            const cSelected = selectedSig === cPath || (selectedSig && selectedSig.startsWith(cPath + '.'));
-            return (
-              <div key={cInst}
-                onClick={(e) => { e.stopPropagation(); setSelectedSig(cPath); }}
-                onDoubleClick={(e) => e.stopPropagation()}
-                onMouseEnter={() => setHoveredSig(cPath)}
-                onMouseLeave={() => setHoveredSig(null)}
-                style={{
-                  position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
-                  background: cSelected ? benchTokens.accentBg : 'white',
-                  border: `1px solid ${cSelected ? benchTokens.accent : '#d6cffa'}`,
-                  borderRadius: 4,
-                  padding: 6,
-                  fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
-                  display: 'flex', flexDirection: 'column', gap: 3,
-                  overflow: 'hidden',
-                  cursor: 'pointer',
-                  transition: 'background .12s, border-color .12s',
-                }}
-              >
-                <span style={{ fontWeight: 600, color: benchTokens.ink }}>{cInst}</span>
-                <span style={{ color: benchTokens.ink3, fontSize: 9.5 }}>{cChild.type}</span>
-              </div>
-            );
-          })}
-          {/* VISUAL layer (over child boxes) */}
-          <WireVisualLayer
-            wires={subWires || []}
-            totalW={subLayout.totalW} totalH={subLayout.totalH}
-            routingStyle={subLayout.routingStyle}
-            selectedSig={selectedSig} hoveredSig={hoveredSig}
-            expandedBundles={expandedBundles} toggleBundle={toggleBundle}
-            globalExpanded={globalExpanded}
-            showWidths={showWidths}
-            layerId={`sub-${inst}`}
-          />
-        </div>
-      ) : (
-        <>
-          <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
-            {child.doc}
-          </div>
-          <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
-            <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
-            {drillable && <span style={{ color: benchTokens.accent }}>↕ peek · ↵ open</span>}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
+// Wire layers — split into hit-target (under boxes, captures clicks) and
+// visual (above boxes, paints stroke+arrowheads). Reusable so the same code
+// drives both the top-level schematic and the mini-schematics rendered inside
+// expanded module bodies (Task 7 of the inline-expansion plan).
 function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, setHoveredSig }) {
   return (
     <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, overflow: 'visible' }}>
@@ -2377,6 +2211,7 @@ function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, set
         const d = bRoutePath(w, routingStyle);
         return (
           <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
+            data-pan-block="1"
             style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
             onClick={() => setSelectedSig(w.fromPath)}
             onMouseEnter={() => setHoveredSig(w.fromPath)}
@@ -2391,48 +2226,50 @@ function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, set
 function WireVisualLayer({
   wires, totalW, totalH, routingStyle,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
-  showWidths,
-  layerId = 'top',
-  expandedModules = null,
+  showWidths, expandedModules, markerScope,
 }) {
-  const isHl = (w) =>
-    selectedSig && (w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
-      || selectedSig.startsWith(w.fromPath) || selectedSig.startsWith(w.toPath));
-  const isHov = (w) =>
-    hoveredSig && (w.fromPath.startsWith(hoveredSig) || w.toPath.startsWith(hoveredSig));
-
+  const isHl = (w) => {
+    if (!selectedSig) return false;
+    return w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
+      || selectedSig.startsWith(w.fromPath) || selectedSig.startsWith(w.toPath);
+  };
+  const isHov = (w) => {
+    if (!hoveredSig) return false;
+    return w.fromPath.startsWith(hoveredSig) || w.toPath.startsWith(hoveredSig);
+  };
+  // markerScope namespaces the <marker> ids so nested SVGs don't collide with
+  // the outer SVG's markers. Defaults to 'top'.
+  const ms = markerScope || 'top';
   return (
     <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, pointerEvents: 'none', overflow: 'visible' }}>
       <defs>
         {Object.entries(B_CHAN).map(([k, v]) => (
-          <marker key={k} id={`arr-${layerId}-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+          <marker key={k} id={`arr-${ms}-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
             <path d="M0 0 L8 4 L0 8 Z" fill={v} />
           </marker>
         ))}
-        <marker id={`arr-${layerId}-default`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+        <marker id={`arr-${ms}-default`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
           <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
         </marker>
       </defs>
       {wires.map((w) => {
-        const hl = isHl(w);
+        const hl  = isHl(w);
         const hov = isHov(w);
         const dim = selectedSig && !hl;
-        const expanded = globalExpanded || expandedBundles.has(w.fromPath);
+        const exp = globalExpanded || (expandedBundles && expandedBundles.has(w.fromPath));
         const stroke = dim ? benchTokens.ink4 : (hl || hov ? benchTokens.accent : benchTokens.ink2);
-        const sw = expanded ? 1.4 : (hl ? 4 : 3);
-        const d = bRoutePath(w, routingStyle);
+        const sw  = exp ? 1.4 : (hl ? 4 : 3);
+        const d   = bRoutePath(w, routingStyle);
         const mid = bRouteMidpoint(w, routingStyle);
         const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
         return (
           <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
-            {!expanded && (
+            {!exp && (
               <path d={d} stroke={stroke} strokeWidth={sw + 4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.12} />
             )}
-            {expanded && channels.length > 0 && (
+            {exp && channels.length > 0 && (
               <g>
                 {channels.map((ch, ci) => {
-                  // For curve routing, fan channels by offsetting their control points.
-                  // For orth, offset the entire bend line.
                   if (routingStyle === 'curve') {
                     const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
                     const horiz = Math.abs(dxw) >= Math.abs(dyw);
@@ -2445,22 +2282,22 @@ function WireVisualLayer({
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
                       dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
                     }
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${layerId}-${ch.name})`} />;
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
                   }
                   const offset = (ci - (channels.length - 1) / 2) * 5;
                   const yo1 = w.y1 + offset;
                   const yo2 = w.y2 + offset;
                   const mx = (w.x1 + w.x2) / 2 + offset * 2;
                   const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
-                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${layerId}-${ch.name})`} />;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
                 })}
               </g>
             )}
-            {!expanded && (
+            {!exp && (
               <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
                 strokeLinecap="round" strokeLinejoin="round"
-                markerEnd={`url(#arr-${layerId}-default)`}
-                markerStart={w.bidir ? `url(#arr-${layerId}-default)` : undefined}
+                markerEnd={`url(#arr-${ms}-default)`}
+                markerStart={w.bidir ? `url(#arr-${ms}-default)` : undefined}
               />
             )}
             {showWidths && (
@@ -2474,92 +2311,43 @@ function WireVisualLayer({
                 </text>
               </g>
             )}
-            {!globalExpanded && (
+            {!globalExpanded && channels.length > 0 && (
               <g transform={`translate(${mid.x - 10}, ${mid.y + 14})`}
+                 data-pan-block="1"
                  style={{ cursor: 'pointer', pointerEvents: 'auto' }}
                  onClick={() => toggleBundle(w.fromPath)}>
                 <rect x={-2} y={-7} width={24} height={14} rx={7} fill={benchTokens.panel} stroke={benchTokens.border} />
                 <text x={10} y={3} textAnchor="middle" fontFamily={benchTokens.mono} fontSize={9} fill={benchTokens.ink3}>
-                  {expanded ? '−' : '+' + (channels.length || 5)}
+                  {exp ? '−' : '+' + channels.length}
                 </text>
               </g>
             )}
           </g>
         );
       })}
-      {expandedModules && (
-        <g>
-          {wires.flatMap((w) => {
-            const dots = [];
-            if (expandedModules.has(w.fromInst)) dots.push({ x: w.x1, y: w.y1, key: `${w.id}-from` });
-            if (expandedModules.has(w.toInst))   dots.push({ x: w.x2, y: w.y2, key: `${w.id}-to` });
-            return dots.map((d) => <circle key={d.key} cx={d.x} cy={d.y} r={4} fill="#b3a8f0" />);
-          })}
-        </g>
-      )}
+      {/* Port dots at expanded module boundaries (Task 9 of the plan). */}
+      {expandedModules && wires.flatMap((w) => {
+        const dots = [];
+        if (expandedModules.has(w.fromInst)) dots.push(<circle key={`${w.id}-d-from`} cx={w.x1} cy={w.y1} r={4} fill="#b3a8f0" />);
+        if (expandedModules.has(w.toInst))   dots.push(<circle key={`${w.id}-d-to`}   cx={w.x2} cy={w.y2} r={4} fill="#b3a8f0" />);
+        return dots;
+      })}
     </svg>
   );
 }
 
-function PortDot({ port, side, pos, selectedSig, setSelectedSig, hoveredSig, setHoveredSig }) {
-  const [hover, setHover] = useState(false);
-  const selected = selectedSig === port.name;
-  const isHover  = hoveredSig === port.name || hover;
-
-  // Position on the chosen edge.
-  const sty = {
-    position: 'absolute',
-    width: 10, height: 10, borderRadius: '50%',
-    background: selected ? benchTokens.accent : '#b3a8f0',
-    border: '2px solid white',
-    boxShadow: isHover ? `0 0 0 4px ${benchTokens.accentBg}` : '0 0 0 0 transparent',
-    transition: 'box-shadow .12s, background .12s',
-    cursor: 'pointer',
-    pointerEvents: 'auto',
-  };
-  if (side === 'left')   { sty.left = 6;    sty.top   = `calc(${pos * 100}% - 5px)`; }
-  if (side === 'right')  { sty.right = 6;   sty.top   = `calc(${pos * 100}% - 5px)`; }
-  if (side === 'top')    { sty.top  = 6;    sty.left  = `calc(${pos * 100}% - 5px)`; }
-  if (side === 'bottom') { sty.bottom = 6;  sty.left  = `calc(${pos * 100}% - 5px)`; }
-
-  const tip = {
-    position: 'absolute',
-    padding: '4px 8px',
-    background: benchTokens.panel,
-    border: `1px solid ${benchTokens.border}`,
-    borderRadius: 4,
-    fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink,
-    whiteSpace: 'nowrap',
-    pointerEvents: 'none',
-    boxShadow: '0 4px 12px rgba(0,0,0,.08)',
-  };
-  if (side === 'left')   { tip.left = 24;   tip.top  = `calc(${pos * 100}% - 12px)`; }
-  if (side === 'right')  { tip.right = 24;  tip.top  = `calc(${pos * 100}% - 12px)`; }
-  if (side === 'top')    { tip.top  = 24;   tip.left = `calc(${pos * 100}% - 60px)`; }
-  if (side === 'bottom') { tip.bottom = 24; tip.left = `calc(${pos * 100}% - 60px)`; }
-
-  return (
-    <>
-      <div style={sty}
-        title={port.name}
-        onClick={() => setSelectedSig(port.name)}
-        onMouseEnter={() => { setHover(true);  setHoveredSig(port.name); }}
-        onMouseLeave={() => { setHover(false); setHoveredSig(null); }}
-      />
-      {isHover && (
-        <div style={tip}>
-          <span style={{ fontWeight: 600 }}>{port.name}</span>
-          <span style={{ color: benchTokens.ink3 }}> : {port.bundle}</span>
-          <span style={{ color: benchTokens.ink4 }}> ({port.dir})</span>
-        </div>
-      )}
-    </>
-  );
-}
-
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
+  const [hoveredInst, setHoveredInst] = useState(null);
+  // Pan + zoom on the schematic canvas. Wheel = zoom around cursor;
+  // drag-on-background = pan; auto-fit on path / layout change so any size
+  // design lands in view at first paint.
+  const viewportRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan]   = useState({ x: 0, y: 0 });
+  const dragRef = useRef(null);
+
   // Per-expanded-instance sub-layouts. Keyed by *type* so two instances of the
-  // same module reuse the same sub-layout.
+  // same module reuse the same sub-layout result.
   const subLayouts = useMemo(() => {
     const out = {};
     const cache = {};
@@ -2571,34 +2359,152 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       const cacheKey = `${child.type}|${tweaks.layout}|${tweaks.bundleMode}`;
       if (!cache[cacheKey]) {
         cache[cacheKey] = bComputeLayout(
-          subMod,
-          [...path, inst],
-          tweaks.layout,
-          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 64, rowGap: 36 },
+          subMod, [...path, inst], tweaks.layout,
+          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 32, rowGap: 18 },
         );
       }
       out[inst] = cache[cacheKey];
     }
     return out;
-    // tweaks.bundleMode is in the deps because Task 8 reads sub-wires from the
-    // same cache and renders channel ribbons when it's "expanded".
   }, [expandedModules, mod, path, tweaks.layout, tweaks.bundleMode]);
 
-  const layoutResult = useMemo(() => {
-    const heightFor = (inst) => {
+  // For each expanded module, compute its internal wire list with absolute
+  // endpoints (in sub-layout coordinates). Paths are prefixed with the parent
+  // inst so they namespace cleanly with the top-level selection / highlighting.
+  const subWires = useMemo(() => {
+    const out = {};
+    for (const inst of expandedModules) {
       const sub = subLayouts[inst];
-      if (!sub) return NODE_H;
-      return Math.max(NODE_H, HEADER_H + sub.totalH + EXPAND_PAD);
-    };
-    const widthFor = (inst) => {
-      const sub = subLayouts[inst];
-      if (!sub) return NODE_W;
-      return Math.max(NODE_W, sub.totalW + 2 * INNER_PAD);
-    };
-    return bComputeLayout(mod, path, tweaks.layout, { heightFor, widthFor });
-  }, [mod, path, tweaks.layout, subLayouts]);
-  const { boxes: layoutBoxes, totalW, totalH, columnLabels, columnXs = [], columnWs = [], routingStyle } = layoutResult;
+      if (!sub) continue;
+      const child = mod.children.find((c) => c.name === inst);
+      const subMod = B_MODULES[child.type];
+      const prefix = `${inst}.`;
+      const fanOut = {}, fanIn = {};
+      subMod.wires.forEach((w) => {
+        const a = w.from.split('.')[0], b = w.to.split('.')[0];
+        fanOut[a] = (fanOut[a] || 0) + 1;
+        fanIn[b]  = (fanIn[b]  || 0) + 1;
+      });
+      const idxOut = {}, idxIn = {};
+      out[inst] = subMod.wires.map((w, i) => {
+        const fromInst = w.from.split('.')[0];
+        const toInst   = w.to.split('.')[0];
+        const ba = sub.boxes[fromInst];
+        const bb = sub.boxes[toInst];
+        if (!ba || !bb) return null;
+        const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
+        const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
+        return {
+          id: `sub-${inst}-w${i}`, ...w,
+          fromInst, toInst,
+          fromPath: prefix + w.from,
+          toPath:   prefix + w.to,
+          ...pts,
+        };
+      }).filter(Boolean);
+    }
+    return out;
+  }, [expandedModules, subLayouts, mod]);
+
+  const layoutResult = useMemo(
+    () => {
+      const heightFor = (inst) => {
+        const sub = subLayouts[inst];
+        if (!sub) return NODE_H;
+        return HEADER_H + sub.totalH + EXPAND_PAD;
+      };
+      const widthFor = (inst) => {
+        const sub = subLayouts[inst];
+        if (!sub) return NODE_W;
+        return Math.max(NODE_W, sub.totalW + 2 * INNER_PAD);
+      };
+      return bComputeLayout(mod, path, tweaks.layout, { heightFor, widthFor });
+    },
+    [mod, path, tweaks.layout, subLayouts],
+  );
+  const { boxes: layoutBoxes, totalW, totalH, columnLabels, routingStyle } = layoutResult;
   const containerH = totalH + 40;
+
+  // Auto-fit when the design's bounding box changes (drill in/out, layout swap).
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp || totalW <= 0 || containerH <= 0) return;
+    const margin = 40;
+    const w = vp.clientWidth, h = vp.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / containerH);
+    setZoom(z);
+    setPan({ x: (w - totalW * z) / 2, y: (h - containerH * z) / 2 });
+  }, [totalW, containerH, mod.type, path.length]);
+
+  // Wheel-to-zoom anchored at the cursor. Attached non-passively so we can
+  // preventDefault and stop the page from scrolling under the schematic.
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const onWheel = (e) => {
+      e.preventDefault();
+      const rect = vp.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      setZoom((z) => {
+        const newZ = Math.max(0.08, Math.min(4, z * Math.exp(-e.deltaY * 0.0015)));
+        const ratio = newZ / z;
+        setPan((p) => ({ x: mx - (mx - p.x) * ratio, y: my - (my - p.y) * ratio }));
+        return newZ;
+      });
+    };
+    vp.addEventListener('wheel', onWheel, { passive: false });
+    return () => vp.removeEventListener('wheel', onWheel);
+  }, []);
+
+  // Drag-to-pan. Triggers on left-click background OR any middle-click.
+  // A `data-pan-block` attribute on boxes / wire hit-paths / bundle pills
+  // keeps their own clicks intact (they don't bubble into pan).
+  const handlePanStart = (e) => {
+    const isMiddle = e.button === 1;
+    const isLeftOnBg = e.button === 0 && !(e.target.closest && e.target.closest('[data-pan-block]'));
+    if (!isMiddle && !isLeftOnBg) return;
+    e.preventDefault();
+    const start = { x: e.clientX, y: e.clientY, panX: pan.x, panY: pan.y };
+    dragRef.current = start;
+    const vp = viewportRef.current;
+    if (vp) vp.style.cursor = 'grabbing';
+    const onMove = (ev) => {
+      if (!dragRef.current) return;
+      setPan({ x: start.panX + (ev.clientX - start.x), y: start.panY + (ev.clientY - start.y) });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      if (vp) vp.style.cursor = '';
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const fitToView = useCallback(() => {
+    const vp = viewportRef.current;
+    if (!vp || totalW <= 0 || containerH <= 0) return;
+    const margin = 40;
+    const w = vp.clientWidth, h = vp.clientHeight;
+    const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / containerH);
+    setZoom(z);
+    setPan({ x: (w - totalW * z) / 2, y: (h - containerH * z) / 2 });
+  }, [totalW, containerH]);
+
+  const zoomBy = (factor) => {
+    const vp = viewportRef.current;
+    if (!vp) { setZoom((z) => Math.max(0.08, Math.min(4, z * factor))); return; }
+    const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+    setZoom((z) => {
+      const newZ = Math.max(0.08, Math.min(4, z * factor));
+      const ratio = newZ / z;
+      setPan((p) => ({ x: cx - (cx - p.x) * ratio, y: cy - (cy - p.y) * ratio }));
+      return newZ;
+    });
+  };
 
   // CHIRRTL emits both directions of every Decoupled handshake (bits forward,
   // ready back), so the coalesced wire list almost always has matched pairs
@@ -2606,151 +2512,82 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // double-headed arrow) so the schematic reads as Chisel-level connects, not
   // ground-signal flow. Same-direction same-pair wires are kept (only true
   // reverse pairs collapse).
-  const displayWires = useMemo(
-    () => bCoalesceBidir(mod.wires, tweaks.collapseBidir),
-    [mod.wires, tweaks.collapseBidir],
-  );
+  const displayWires = useMemo(() => {
+    if (tweaks.collapseBidir === false) return mod.wires;
+    const pairKey = (a, b) => (a < b ? a + '|' + b : b + '|' + a);
+    const seen = new Map();   // pairKey -> array of wires in that bucket
+    const out  = [];
+    const getCount = (label) => {
+      const m = /(\d+)\s*\u00d7/.exec(label || '');
+      return m ? parseInt(m[1], 10) : 1;
+    };
+    for (const w of mod.wires) {
+      const a = (w.from || '').split('.')[0];
+      const b = (w.to   || '').split('.')[0];
+      if (!a || !b || a === b) { out.push(w); continue; }
+      const k = pairKey(a, b);
+      const peers = seen.get(k) || [];
+      // Look for a peer wire pointing the opposite direction.
+      const reverse = peers.find((p) => p.from.split('.')[0] === b && p.to.split('.')[0] === a);
+      if (reverse) {
+        // Promote the existing wire to bidirectional + accumulate ground count.
+        reverse.bidir  = true;
+        reverse.count  = (reverse.count || getCount(reverse.label)) + getCount(w.label);
+        // Prefer the more specific bundle name over the generic "Wire"
+        if (reverse.bundle === 'Wire' && w.bundle && w.bundle !== 'Wire') reverse.bundle = w.bundle;
+        reverse.label  = reverse.count > 1 ? reverse.count + '\u00d7 ground (bidir)' : 'bidirectional';
+        continue;
+      }
+      const fresh = { ...w };
+      peers.push(fresh);
+      seen.set(k, peers);
+      out.push(fresh);
+    }
+    return out;
+  }, [mod.wires, tweaks.collapseBidir]);
 
   // Wires with absolute endpoints. We compute per-instance fan-out indexing
   // so wires sharing a face are staggered (avoids overlap on dense modules).
-  const wires = useMemo(
-    () => bPlaceWires(displayWires, layoutBoxes, 'w'),
-    [displayWires, layoutBoxes],
-  );
+  const wires = useMemo(() => {
+    // Count wires per (instance, role) to compute stagger offsets.
+    const fanOut = {}, fanIn = {};
+    displayWires.forEach((w) => {
+      const a = w.from.split('.')[0], b = w.to.split('.')[0];
+      fanOut[a] = (fanOut[a] || 0) + 1;
+      fanIn[b]  = (fanIn[b]  || 0) + 1;
+    });
+    const idxOut = {}, idxIn = {};
+    return displayWires.map((w, i) => {
+      const fromInst = w.from.split('.')[0];
+      const toInst   = w.to.split('.')[0];
+      const ba = layoutBoxes[fromInst];
+      const bb = layoutBoxes[toInst];
+      if (!ba || !bb) return null;
+      const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
+      const tIdx = (idxIn[toInst]   = (idxIn[toInst]   || 0) + 1) - 1;
+      const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
+      return {
+        id: `w${i}`, ...w,
+        fromInst, toInst,
+        fromPath: w.from, toPath: w.to,
+        ...pts,
+      };
+    }).filter(Boolean);
+  }, [displayWires, layoutBoxes]);
 
-  // Internal wires for each expanded instance, in absolute sub-layout coordinates.
-  const subWires = useMemo(() => {
-    const out = {};
-    for (const inst of expandedModules) {
-      const sub = subLayouts[inst];
-      if (!sub) continue;
-      const child = mod.children.find((c) => c.name === inst);
-      if (!child) continue;
-      const subMod = B_MODULES[child.type];
-      if (!subMod || !subMod.wires) continue;
-      const coalesced = bCoalesceBidir(subMod.wires, tweaks.collapseBidir);
-      const placed = bPlaceWires(coalesced, sub.boxes, `sub-${inst}-w`);
-      const prefix = inst + '.';
-      // Namespace the paths so the existing startsWith() highlighting
-      // matches top-level wires touching the parent module.
-      out[inst] = placed.map((w) => ({
-        ...w,
-        fromPath: prefix + w.fromPath,
-        toPath:   prefix + w.toPath,
-      }));
-    }
-    return out;
-  }, [expandedModules, subLayouts, mod, tweaks.collapseBidir]);
-
-  // Split mod.ports by direction. dir is one of: 'in', 'out', 'master', 'slave', 'inout'.
-  const edgePorts = useMemo(() => {
-    const left  = [];
-    const right = [];
-    const top   = [];
-    for (const p of (mod.ports || [])) {
-      const d = (p.dir || '').toLowerCase();
-      if (d === 'in' || d === 'slave')       left.push(p);
-      else if (d === 'out' || d === 'master') right.push(p);
-      else                                    top.push(p);   // 'inout' / unknown
-    }
-    return { left, right, top };
-  }, [mod.ports]);
+  const isHighlighted = (wire) => {
+    if (!selectedSig) return false;
+    return wire.fromPath.startsWith(selectedSig) || wire.toPath.startsWith(selectedSig) ||
+           selectedSig.startsWith(wire.fromPath) || selectedSig.startsWith(wire.toPath);
+  };
+  const isHovered = (wire) => {
+    if (!hoveredSig) return false;
+    return wire.fromPath.startsWith(hoveredSig) || wire.toPath.startsWith(hoveredSig);
+  };
 
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
   const globalExpanded = tweaks.bundleMode === 'expanded';
-
-  // Pan/zoom state. Pan is in viewport pixels (pre-scale offset on the inner
-  // canvas); zoom is a uniform scale factor clamped to [0.25, 3].
-  const [zoom, setZoom] = useState(1);
-  const [pan,  setPan]  = useState({ x: 0, y: 0 });
-  const [spaceHeld, setSpaceHeld] = useState(false);
-  const [dragging,  setDragging]  = useState(null);
-  // dragging shape when active: { startMouseX, startMouseY, startPan: { x, y } }
-  const canvasWrapRef = useRef(null);
-
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if (e.code === 'Space' && !e.repeat) {
-        // Suppress only when the schematic is what the user is interacting with —
-        // i.e. body or one of our canvas children has focus. Avoid eating Space
-        // when the search palette or any input is focused.
-        const tag = document.activeElement?.tagName;
-        if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-        e.preventDefault();
-        setSpaceHeld(true);
-      }
-    };
-    const onKeyUp = (e) => {
-      if (e.code === 'Space') setSpaceHeld(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, []);
-
-  // Reset zoom and pan whenever the user navigates (drill in, breadcrumb, palette).
-  useEffect(() => {
-    setZoom(1);
-    setPan({ x: 0, y: 0 });
-  }, [path]);
-
-  // React's JSX onWheel is attached as a passive listener since React 17, so
-  // e.preventDefault() inside it silently no-ops. Register a non-passive
-  // 'wheel' listener directly on the wrapper DOM node instead.
-  useEffect(() => {
-    const node = canvasWrapRef.current;
-    if (!node) return;
-    const handler = (e) => {
-      // Only zoom — don't intercept regular vertical scroll the user might want
-      // when zoom is 1 (TODO: revisit if it's annoying).
-      e.preventDefault();
-      const rect = node.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      setZoom((z) => {
-        const factor = Math.exp(-e.deltaY * 0.0015); // smooth multiplicative zoom
-        const newZ   = Math.min(3, Math.max(0.25, z * factor));
-        // Update pan so the world point under the cursor stays fixed.
-        setPan((p) => {
-          const wx = (mx - p.x) / z;
-          const wy = (my - p.y) / z;
-          return { x: mx - wx * newZ, y: my - wy * newZ };
-        });
-        return newZ;
-      });
-    };
-    node.addEventListener('wheel', handler, { passive: false });
-    return () => node.removeEventListener('wheel', handler);
-  }, []);
-
-  const onMouseDown = useCallback((e) => {
-    // Middle-button OR Space+left-button starts a pan drag.
-    const isMiddle = e.button === 1;
-    const isSpaceLeft = e.button === 0 && spaceHeld;
-    if (!isMiddle && !isSpaceLeft) return;
-    e.preventDefault();
-    setDragging({
-      startMouseX: e.clientX,
-      startMouseY: e.clientY,
-      startPan: pan,
-    });
-  }, [pan, spaceHeld]);
-
-  const onMouseMove = useCallback((e) => {
-    if (!dragging) return;
-    setPan({
-      x: dragging.startPan.x + (e.clientX - dragging.startMouseX),
-      y: dragging.startPan.y + (e.clientY - dragging.startMouseY),
-    });
-  }, [dragging]);
-
-  const onMouseUp = useCallback(() => {
-    if (dragging) setDragging(null);
-  }, [dragging]);
 
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
@@ -2765,75 +2602,38 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             {mod.children.length} inst · {mod.wires.length} wires
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto' }}>
-          <button
-            onClick={() => window.postMessage({ type: '__activate_edit_mode' }, '*')}
-            title="Open tweaks panel"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: benchTokens.panel,
-              border: `1px solid ${benchTokens.border}`,
-              borderRadius: 5,
-              padding: '4px 10px',
-              fontFamily: benchTokens.mono, fontSize: 10.5,
-              color: benchTokens.ink3,
-              cursor: 'pointer',
-              pointerEvents: 'auto',
-            }}
-          >
-            <span>⚙</span>
-            <span>tweaks</span>
-          </button>
-          <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5, alignItems: 'center' }}>
-            <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>zoom</span>
-            <span style={{ padding: '3px 4px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{Math.round(zoom * 100)}%</span>
-            <button
-              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
-              title="Reset zoom and pan"
-              style={{
-                border: 'none', background: 'transparent', color: benchTokens.ink3,
-                cursor: 'pointer', padding: '2px 6px', borderRadius: 3, fontSize: 11, lineHeight: 1,
-              }}
-            >⟲</button>
-          </div>
-          <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5 }}>
-            <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>layout</span>
-            <span style={{ padding: '3px 8px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{tweaks.layout}</span>
-          </div>
+        <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5 }}>
+          <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>layout</span>
+          <span style={{ padding: '3px 8px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{tweaks.layout}</span>
         </div>
       </div>
 
-      <div
-        ref={canvasWrapRef}
-        onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
-        style={{
-          position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 40, overflow: 'auto',
-          cursor: dragging ? 'grabbing' : (spaceHeld ? 'grab' : 'default'),
-        }}
-      >
+      <div ref={viewportRef}
+           onMouseDown={handlePanStart}
+           style={{
+             position: 'absolute', inset: 0, overflow: 'hidden',
+             cursor: dragRef.current ? 'grabbing' : 'grab',
+             touchAction: 'none',
+           }}>
         <div style={{
-          position: 'relative',
-          width: totalW,
-          height: containerH,
-          transition: 'width .3s, height .3s',
+          position: 'absolute', left: 0, top: 0,
+          width: totalW, height: containerH,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
+          transition: 'width .3s, height .3s',
         }}>
           {/* Column labels (hier only) */}
           {columnLabels.length > 0 && columnLabels.map((label, ci) => (
             label ? (
               <div key={ci} style={{
-                position: 'absolute', left: columnXs[ci], top: -28, width: columnWs[ci],
+                position: 'absolute', left: ci * (NODE_W + 80), top: -28, width: NODE_W,
                 fontSize: 10, fontFamily: benchTokens.mono, color: benchTokens.ink3,
                 textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
               }}>{label}</div>
             ) : null
           ))}
 
-          {/* Wire hit-target layer (under boxes) — transparent fat strokes only */}
+          {/* Wires — HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
           <WireHitLayer
             wires={wires} totalW={totalW} totalH={containerH}
             routingStyle={routingStyle}
@@ -2846,28 +2646,125 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             if (!child) return null;
             const childMod = B_MODULES[child.type];
             const drillable = !!childMod && childMod.children.length > 0;
-            const expanded = expandedModules.has(inst);
+            const expandable = drillable;
+            const expanded = expandedModules && expandedModules.has(inst);
+            const showExpandBtn = expandable && (hoveredInst === inst || expanded);
             const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
             const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
             return (
-              <BenchModuleBox
-                key={inst}
-                inst={inst} b={b} child={child}
-                wiresOnMe={wiresOnMe} selectedHere={selectedHere}
-                drillable={drillable} expanded={expanded}
-                drillInto={drillInto} toggleExpandModule={toggleExpandModule}
-                subLayout={subLayouts[inst]}
-                subWires={subWires[inst]}
-                setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
-                selectedSig={selectedSig} hoveredSig={hoveredSig}
-                expandedBundles={expandedBundles} toggleBundle={toggleBundle}
-                globalExpanded={globalExpanded}
-                showWidths={tweaks.showWidths}
-              />
+              <div key={inst}
+                data-pan-block="1"
+                onMouseEnter={() => setHoveredInst(inst)}
+                onMouseLeave={() => setHoveredInst((cur) => (cur === inst ? null : cur))}
+                onDoubleClick={() => drillable && drillInto(inst)}
+                style={{
+                  position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
+                  background: expanded ? '#f6f4ff' : benchTokens.panel,
+                  border: `${expanded ? 1.5 : 1}px solid ${
+                    selectedHere ? benchTokens.accent
+                                 : (expanded ? '#b3a8f0' : benchTokens.border)
+                  }`,
+                  borderRadius: 6,
+                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
+                  cursor: drillable ? 'pointer' : 'default',
+                  display: 'flex', flexDirection: 'column',
+                  overflow: 'hidden',
+                  transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), width .35s cubic-bezier(.4,.2,.2,1), height .35s cubic-bezier(.4,.2,.2,1), background .2s, box-shadow .12s, border-color .12s',
+                }}
+              >
+                <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
+                  <ModuleGlyph type={child.type} active={selectedHere} />
+                  <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
+                    {expandable && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleExpandModule(inst); }}
+                        title={expanded ? 'Collapse' : 'Peek inside'}
+                        style={{
+                          border: `1px solid ${benchTokens.borderSoft}`,
+                          background: expanded ? benchTokens.accentBg : benchTokens.panel,
+                          color: expanded ? benchTokens.accent : benchTokens.ink3,
+                          fontSize: 11, lineHeight: 1, padding: '2px 5px',
+                          borderRadius: 4, cursor: 'pointer',
+                          opacity: showExpandBtn ? 1 : 0,
+                          transition: 'opacity .12s, background .12s, color .12s',
+                        }}
+                      >↕</button>
+                    )}
+                  </div>
+                </div>
+                {expanded && subLayouts[inst] ? (
+                  /* Expanded body: nested child boxes + internal wires. */
+                  <div style={{
+                    position: 'relative', flex: 1,
+                    margin: `0 ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
+                    minHeight: subLayouts[inst].totalH,
+                  }}>
+                    <WireHitLayer
+                      wires={subWires[inst] || []}
+                      totalW={subLayouts[inst].totalW} totalH={subLayouts[inst].totalH}
+                      routingStyle={subLayouts[inst].routingStyle}
+                      setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
+                    />
+                    {Object.entries(subLayouts[inst].boxes).map(([cInst, cb]) => {
+                      const cChild = B_MODULES[child.type].children.find((c) => c.name === cInst);
+                      if (!cChild) return null;
+                      const cSel = selectedSig === `${inst}.${cInst}` || (selectedSig && selectedSig.startsWith(`${inst}.${cInst}.`));
+                      return (
+                        <div key={cInst}
+                          data-pan-block="1"
+                          onClick={(e) => { e.stopPropagation(); setSelectedSig(`${inst}.${cInst}`); }}
+                          onMouseEnter={() => setHoveredSig(`${inst}.${cInst}`)}
+                          onMouseLeave={() => setHoveredSig(null)}
+                          title={`${cInst} : ${cChild.type}`}
+                          style={{
+                            position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
+                            background: benchTokens.panel,
+                            border: `1px solid ${cSel ? benchTokens.accent : '#d6cffa'}`,
+                            borderRadius: 4,
+                            padding: 6,
+                            fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
+                            display: 'flex', flexDirection: 'column', gap: 3,
+                            overflow: 'hidden', cursor: 'pointer',
+                            boxShadow: cSel ? `0 0 0 2px ${benchTokens.accentBg}` : 'none',
+                          }}>
+                          <span style={{ fontWeight: 600, color: benchTokens.ink }}>{cInst}</span>
+                          <span style={{ color: benchTokens.ink3, fontSize: 9.5 }}>{cChild.type}</span>
+                        </div>
+                      );
+                    })}
+                    <WireVisualLayer
+                      wires={subWires[inst] || []}
+                      totalW={subLayouts[inst].totalW} totalH={subLayouts[inst].totalH}
+                      routingStyle={subLayouts[inst].routingStyle}
+                      selectedSig={selectedSig} hoveredSig={hoveredSig}
+                      expandedBundles={expandedBundles} toggleBundle={toggleBundle}
+                      globalExpanded={globalExpanded}
+                      showWidths={tweaks.showWidths}
+                      markerScope={`sub-${inst}`}
+                    />
+                  </div>
+                ) : (
+                  <React.Fragment>
+                    <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
+                      {child.doc}
+                    </div>
+                    <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
+                      <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
+                      {drillable && (
+                        <span style={{ color: benchTokens.accent }}>
+                          {expandable ? '↕ peek · ↵ open' : '↵ open'}
+                        </span>
+                      )}
+                    </div>
+                  </React.Fragment>
+                )}
+              </div>
             );
           })}
 
-          {/* Wire visual layer (over boxes) — strokes, arrowheads, labels, bundle pills */}
+          {/* Wires — VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
           <WireVisualLayer
             wires={wires} totalW={totalW} totalH={containerH}
             routingStyle={routingStyle}
@@ -2875,32 +2772,24 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             globalExpanded={globalExpanded}
             showWidths={tweaks.showWidths}
-            layerId="top"
             expandedModules={expandedModules}
+            markerScope="top"
           />
         </div>
+      </div>
 
-        {/* Module-port dots on the viewport edges — pinned, not pan/zoom-transformed */}
-        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-          {edgePorts.left.map((p, i) => (
-            <PortDot key={`L-${p.name}`} port={p} side="left"
-              pos={(i + 1) / (edgePorts.left.length + 1)}
-              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
-              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
-          ))}
-          {edgePorts.right.map((p, i) => (
-            <PortDot key={`R-${p.name}`} port={p} side="right"
-              pos={(i + 1) / (edgePorts.right.length + 1)}
-              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
-              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
-          ))}
-          {edgePorts.top.map((p, i) => (
-            <PortDot key={`T-${p.name}`} port={p} side="top"
-              pos={(i + 1) / (edgePorts.top.length + 1)}
-              selectedSig={selectedSig} setSelectedSig={setSelectedSig}
-              hoveredSig={hoveredSig} setHoveredSig={setHoveredSig} />
-          ))}
-        </div>
+      {/* Zoom controls (bottom-right, outside the pan/zoom viewport so they don't transform). */}
+      <div style={{
+        position: 'absolute', bottom: 12, right: 12, zIndex: 3,
+        display: 'flex', alignItems: 'center', gap: 2,
+        background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
+        borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 11,
+      }}>
+        <button onClick={fitToView} title="Fit to view" style={zoomBtnStyle}>fit</button>
+        <button onClick={() => zoomBy(0.8)} title="Zoom out (or mouse wheel down)" style={zoomBtnStyle}>−</button>
+        <span style={{ padding: '3px 6px', color: benchTokens.ink2, minWidth: 38, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+        <button onClick={() => zoomBy(1.25)} title="Zoom in (or mouse wheel up)" style={zoomBtnStyle}>+</button>
+        <button onClick={() => { setZoom(1); setPan({ x: 40, y: 40 }); }} title="Reset to 100%" style={zoomBtnStyle}>1:1</button>
       </div>
     </div>
   );
@@ -3036,7 +2925,7 @@ function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
 }
 
 // ─── Bottom drawer: source / waveform / ports ────────────────────────────────
-function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, setHeight, density, drillInto, clickToNavigate }) {
+function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, setHeight, density, drillInto, tweaks }) {
   const tabs = [
     { id: 'source', label: 'Source',  icon: '⌥' },
     { id: 'wave',   label: 'Waveform', icon: '∿' },
@@ -3068,7 +2957,7 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
         </div>
       </div>
       <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-        {tab === 'source' && <SourceView mod={mod} selectedSig={selectedSig} setSelectedSig={setSelectedSig} hoveredSig={hoveredSig} drillInto={drillInto} clickToNavigate={clickToNavigate} />}
+        {tab === 'source' && <SourceView mod={mod} selectedSig={selectedSig} setSelectedSig={setSelectedSig} hoveredSig={hoveredSig} drillInto={drillInto} clickToNavigate={tweaks.clickToNavigate !== false} />}
         {tab === 'wave'   && <WaveformView selectedSig={selectedSig} setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig} />}
         {tab === 'ports'  && <PortsView mod={mod} setSelectedSig={setSelectedSig} />}
       </div>
