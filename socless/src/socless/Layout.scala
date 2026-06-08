@@ -5,8 +5,10 @@ import org.eclipse.elk.core.data.LayoutMetaDataService
 import org.eclipse.elk.core.options.{CoreOptions, Direction, EdgeRouting, PortConstraints, PortSide}
 import org.eclipse.elk.core.util.BasicProgressMonitor
 import org.eclipse.elk.alg.layered.options.{LayeredMetaDataProvider, LayeredOptions}
-import org.eclipse.elk.graph.{ElkNode, ElkPort}
+import org.eclipse.elk.graph.{ElkEdge, ElkNode, ElkPort}
 import org.eclipse.elk.graph.util.ElkGraphUtil
+
+import scala.jdk.CollectionConverters._
 
 /** Backend schematic layout via the Eclipse Layout Kernel (ELK).
   *
@@ -87,6 +89,116 @@ object Layout {
 
   private def isInterfaceBundle(bundle: String, design: Design): Boolean =
     design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
+
+  private val NodeW    = 160.0
+  private val PortStep = 22.0
+  private val PortPad  = 18.0
+
+  private def nodeHeight(westN: Int, eastN: Int): Double = {
+    val maxPorts = math.max(1, math.max(westN, eastN))
+    math.max(72.0, 2 * PortPad + (maxPorts - 1) * PortStep)
+  }
+
+  /** Lay out `module`'s schematic: child instances + boundary ports as boxes,
+    * coalesced wires as orthogonally-routed edges. */
+  def layout(module: ModuleDef, design: Design): ModuleLayout = {
+    val root = newGraph()
+
+    // 1. Resolve every wire endpoint; keep only wires whose BOTH ends resolve.
+    case class E(w: WireDef, from: Endpoint, to: Endpoint)
+    val resolved: Seq[E] = module.wires.flatMap { w =>
+      for { f <- classify(w.from, module, design); t <- classify(w.to, module, design) }
+        yield E(w, f, t)
+    }
+
+    // 2. Group pins per node (distinct path), preserving first-seen order.
+    case class PinSpec(path: String, side: String, interface: Boolean)
+    val nodePins = scala.collection.mutable.LinkedHashMap.empty[(String, String), scala.collection.mutable.LinkedHashMap[String, PinSpec]]
+    def register(ep: Endpoint): Unit = {
+      val pins = nodePins.getOrElseUpdate((ep.nodeId, ep.kind), scala.collection.mutable.LinkedHashMap.empty)
+      pins.getOrElseUpdate(ep.path, PinSpec(ep.path, ep.side, ep.interface))
+    }
+    resolved.foreach { e => register(e.from); register(e.to) }
+    // Ensure instances with no resolved wires still appear as empty boxes.
+    module.children.foreach { c =>
+      nodePins.getOrElseUpdate((c.name, "inst"), scala.collection.mutable.LinkedHashMap.empty)
+    }
+
+    // 3. Create ELK nodes + ports. Track ELK port handles by path.
+    val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
+    val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
+    nodePins.foreach { case ((id, kind), pins) =>
+      val west = pins.values.count(_.side == "WEST")
+      val east = pins.values.count(_.side == "EAST")
+      val n = addNode(root, NodeW, nodeHeight(west, east))
+      elkNode((id, kind)) = n
+      pins.values.foreach { p =>
+        val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST
+        elkPort(p.path) = addPort(n, side)
+      }
+    }
+
+    // 4. Create edges, oriented source->sink for correct left-to-right layering.
+    //    WireDef.from is the SINK and WireDef.to is the SOURCE, so the ELK edge
+    //    runs from e.to (source) to e.from (sink).
+    resolved.foreach { e =>
+      for { src <- elkPort.get(e.to.path); dst <- elkPort.get(e.from.path) }
+        ElkGraphUtil.createSimpleEdge(src, dst)
+    }
+
+    // 5. Run layout.
+    new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
+
+    // 6. Extract geometry.
+    val laidNodes = nodePins.map { case ((id, kind), pins) =>
+      val n = elkNode((id, kind))
+      val nx = n.getX; val ny = n.getY
+      val laidPorts = pins.values.toSeq.map { p =>
+        val ep = elkPort(p.path)
+        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface)
+      }
+      LaidNode(id, kind, nx.toInt, ny.toInt, n.getWidth.toInt, n.getHeight.toInt, laidPorts)
+    }.toSeq
+
+    // Build a lookup from (srcPort, dstPort) to the created ElkEdge.
+    // allOutgoingEdges takes ElkNode, not ElkPort; instead iterate root.getContainedEdges().
+    val edgeByPortPair = root.getContainedEdges.asScala.map { ed =>
+      val src = ed.getSources.asScala.headOption.flatMap {
+        case p: ElkPort => Some(p)
+        case _          => None
+      }
+      val dst = ed.getTargets.asScala.headOption.flatMap {
+        case p: ElkPort => Some(p)
+        case _          => None
+      }
+      (src, dst, ed)
+    }.collect { case (Some(s), Some(d), ed) => (s, d) -> ed }.toMap
+
+    val laidEdges = resolved.flatMap { e =>
+      // Edge was created source->sink, i.e. from the e.to port to the e.from port.
+      val src = elkPort.get(e.to.path)
+      val dst = elkPort.get(e.from.path)
+      (src, dst) match {
+        case (Some(s), Some(d)) =>
+          edgeByPortPair.get((s, d)).map { ed =>
+            val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
+            val sections = ed.getSections
+            if (!sections.isEmpty) {
+              val sec = sections.get(0)
+              pts += ((sec.getStartX.toInt, sec.getStartY.toInt))
+              sec.getBendPoints.asScala.foreach(bp => pts += ((bp.getX.toInt, bp.getY.toInt)))
+              pts += ((sec.getEndX.toInt, sec.getEndY.toInt))
+            }
+            // points run source->sink (e.to -> e.from); from/to keep WireDef
+            // semantics so the UI looks up the polyline by (w.from, w.to).
+            RoutedEdge(e.from.path, e.to.path, pts.toSeq, e.w.label)
+          }
+        case _ => None
+      }
+    }
+
+    ModuleLayout(laidNodes, laidEdges, root.getWidth.toInt.max(1), root.getHeight.toInt.max(1))
+  }
 
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
     * heads (those endpoints are dropped, as in IrWalk). */
