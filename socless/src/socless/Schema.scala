@@ -129,21 +129,28 @@ object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
   * "boundary" (one of this module's own ports, drawn as a port stub). `id` is
   * the instance name for "inst", or the bare port name for "boundary".
   */
-case class LaidNode(id: String, kind: String, x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort])
+case class LaidNode(
+  id: String, kind: String,   // "inst" | "boundary"
+  x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort],
+)
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }
 
 /** A pin on a box. `path` is the coalesced endpoint path it represents
   * (e.g. "cpu.io", "xbar.in[0].ar", "s_axi"); `side` is "WEST"/"EAST"; and
   * `interface` is true when the pin carries an aggregate bundle (drawn fat).
   */
-case class LaidPort(path: String, x: Int, y: Int, side: String, interface: Boolean)
+case class LaidPort(
+  path: String, x: Int, y: Int,
+  side: String,               // "WEST" | "EAST"
+  interface: Boolean,
+)
 object LaidPort { implicit val rw: ReadWriter[LaidPort] = macroRW }
 
 /** A routed wire as an absolute-coordinate polyline. `from`/`to` are the
   * coalesced endpoint paths (matching `WireDef.from`/`.to`). `points` includes
   * the start, every bend, and the end.
   */
-case class RoutedEdge(from: String, to: String, points: Seq[(Int, Int)], label: String)
+case class RoutedEdge(from: String, to: String, points: Seq[(Int, Int)], label: String = "")
 object RoutedEdge {
   implicit val rw: ReadWriter[RoutedEdge] = macroRW
 }
