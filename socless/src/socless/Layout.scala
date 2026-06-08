@@ -209,6 +209,20 @@ object Layout {
     ModuleLayout(laidNodes, laidEdges, root.getWidth.toInt.max(1), root.getHeight.toInt.max(1))
   }
 
+  /** Compute a layout for every module and attach them to the design. A module
+    * that fails to lay out is skipped with a stderr note (mirrors
+    * SoclessExporter.collectSources' skip-and-warn policy) so one bad module
+    * never aborts the export. */
+  def withLayouts(design: Design): Design = {
+    var failed = 0
+    val layouts = design.modules.flatMap { m =>
+      try Some(m.name -> layout(m, design))
+      catch { case t: Throwable => failed += 1; Console.err.println(s"[socless] layout failed for ${m.name}: ${t.getMessage}"); None }
+    }.toMap
+    if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
+    design.copy(layouts = layouts)
+  }
+
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
     * heads (those endpoints are dropped, as in IrWalk). */
   def classify(path: String, module: ModuleDef, design: Design): Option[Endpoint] = {
