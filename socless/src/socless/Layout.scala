@@ -52,8 +52,10 @@ object Layout {
   /** Smoke fixture used by ElkSmokeTest: two nodes, one edge A->B. */
   def smokeTwoNodes(): (Box, Box) = {
     val root = newGraph()
-    val a = addNode(root, 160, 80); val ap = addPort(a, PortSide.EAST)
-    val b = addNode(root, 160, 80); val bp = addPort(b, PortSide.WEST)
+    val a = addNode(root, 160, 80)
+    val ap = addPort(a, PortSide.EAST)
+    val b = addNode(root, 160, 80)
+    val bp = addPort(b, PortSide.WEST)
     ElkGraphUtil.createSimpleEdge(ap, bp)
     new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
     (Box(a.getX.toInt, a.getY.toInt, a.getWidth.toInt, a.getHeight.toInt),
