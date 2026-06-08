@@ -63,4 +63,46 @@ object Layout {
   }
 
   case class Box(x: Int, y: Int, w: Int, h: Int)
+
+  /** A resolved wire endpoint. `nodeId` is the box that owns the pin (instance
+    * name, or bare port name for a boundary), `kind` is "inst" or "boundary",
+    * `path` is the full endpoint path used as the pin id, `side` is
+    * "WEST"/"EAST", and `interface` flags aggregate bundles. */
+  case class Endpoint(nodeId: String, kind: String, path: String, side: String, interface: Boolean)
+
+  private def stripIdx(s: String): String = {
+    val i = s.indexOf('[')
+    if (i < 0) s else s.substring(0, i)
+  }
+
+  /** A pin sits on the EAST (right) side when its port *drives* the wire from
+    * this box: instance outputs/masters. Everything else is WEST. */
+  private def sideFor(kind: String, dir: String): String = (kind, dir) match {
+    case ("inst", "output") | ("inst", "master") => "EAST"
+    case _                                         => "WEST"
+  }
+
+  private def isInterfaceBundle(bundle: String, design: Design): Boolean =
+    design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
+
+  /** Resolve `path` against `module`. Returns None for internal nets / unknown
+    * heads (those endpoints are dropped, as in IrWalk). */
+  def classify(path: String, module: ModuleDef, design: Design): Option[Endpoint] = {
+    val parts = path.split('.').toIndexedSeq
+    if (parts.isEmpty) return None
+    val head = stripIdx(parts.head)
+    val instOf = module.children.find(_.name == head)
+    if (instOf.isDefined && parts.length >= 2) {
+      val childMod = design.modules.find(_.name == instOf.get.`type`)
+      val portName = stripIdx(parts(1))
+      val portDef  = childMod.flatMap(_.ports.find(_.name == portName))
+      val dir      = portDef.map(_.dir).getOrElse("input")
+      val bundle   = portDef.map(_.bundle).getOrElse("Wire")
+      Some(Endpoint(head, "inst", path, sideFor("inst", dir), isInterfaceBundle(bundle, design)))
+    } else {
+      module.ports.find(_.name == head).map { p =>
+        Endpoint(head, "boundary", path, sideFor("boundary", p.dir), isInterfaceBundle(p.bundle, design))
+      }
+    }
+  }
 }
