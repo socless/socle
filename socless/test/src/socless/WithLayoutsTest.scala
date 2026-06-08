@@ -18,6 +18,9 @@ object WithLayoutsTest extends TestSuite {
     }
     test("a failing module does not abort the whole export") {
       // a wire referencing a child whose module is absent must not throw
+      // ghost.x/ghost.y classify as None (unknown head "ghost" not in children),
+      // so the wire is filtered before ELK runs. The try/catch in withLayouts
+      // guards ELK-internal throws; that path isn't reachable from this input.
       val broken = topMod.copy(wires = Seq(WireDef("ghost.x", "ghost.y", "Wire", "", SourceRef.unknown)))
       val d2 = design.copy(modules = Seq(broken, cpuMod))
       val out = Layout.withLayouts(d2)         // must not throw

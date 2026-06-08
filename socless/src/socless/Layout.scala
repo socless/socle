@@ -217,7 +217,12 @@ object Layout {
     var failed = 0
     val layouts = design.modules.flatMap { m =>
       try Some(m.name -> layout(m, design))
-      catch { case t: Throwable => failed += 1; Console.err.println(s"[socless] layout failed for ${m.name}: ${t.getMessage}"); None }
+      catch {
+        case t: Throwable =>
+          failed += 1
+          Console.err.println(s"[socless] layout failed for ${m.name}: ${t.getMessage}")
+          None
+      }
     }.toMap
     if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
     design.copy(layouts = layouts)
