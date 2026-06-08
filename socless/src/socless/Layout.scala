@@ -75,10 +75,13 @@ object Layout {
     if (i < 0) s else s.substring(0, i)
   }
 
-  /** A pin sits on the EAST (right) side when its port *drives* the wire from
-    * this box: instance outputs/masters. Everything else is WEST. */
+  /** A pin sits on the EAST (right/driving) side when its port drives signals
+    * rightward in the left-to-right schematic: instance outputs/masters, and
+    * this module's own boundary INPUTS (which drive signals into the design).
+    * Receiving pins (instance inputs/slaves, boundary outputs) sit on WEST. */
   private def sideFor(kind: String, dir: String): String = (kind, dir) match {
     case ("inst", "output") | ("inst", "master") => "EAST"
+    case ("boundary", "input")                    => "EAST"
     case _                                         => "WEST"
   }
 

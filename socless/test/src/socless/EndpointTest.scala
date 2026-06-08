@@ -30,10 +30,10 @@ object EndpointTest extends TestSuite {
       assert(e.side == "EAST")
       assert(e.interface)
     }
-    test("module boundary input is a boundary node on WEST") {
+    test("module boundary input is a boundary node on EAST (drives into design)") {
       val e = Layout.classify("clk", topMod, design).get
       assert(e.nodeId == "clk" && e.kind == "boundary")
-      assert(e.side == "WEST")
+      assert(e.side == "EAST")
       assert(!e.interface)
     }
     test("unknown endpoint returns None") {
