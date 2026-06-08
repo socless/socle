@@ -162,7 +162,13 @@ object Layout {
 
     // Build a lookup from (srcPort, dstPort) to the created ElkEdge.
     // allOutgoingEdges takes ElkNode, not ElkPort; instead iterate root.getContainedEdges().
-    val edgeByPortPair = root.getContainedEdges.asScala.map { ed =>
+    // Parallel edges between the same port pair share a route; one representative
+    // polyline is sufficient, so collapse duplicates deterministically.
+    val edgeByPortPair = root.getContainedEdges.asScala.flatMap { ed =>
+      // All edges are simple (one source, one target) because we only call
+      // createSimpleEdge above; assert here to catch any future regression.
+      assert(ed.getSources.size == 1 && ed.getTargets.size == 1,
+        "Layout expects simple edges only (createSimpleEdge); hyperedges unsupported")
       val src = ed.getSources.asScala.headOption.flatMap {
         case p: ElkPort => Some(p)
         case _          => None
@@ -171,8 +177,11 @@ object Layout {
         case p: ElkPort => Some(p)
         case _          => None
       }
-      (src, dst, ed)
-    }.collect { case (Some(s), Some(d), ed) => (s, d) -> ed }.toMap
+      (src, dst) match {
+        case (Some(s), Some(d)) => Some((s, d) -> ed)
+        case _                  => None
+      }
+    }.groupBy(_._1).view.mapValues(_.head._2).toMap
 
     val laidEdges = resolved.flatMap { e =>
       // Edge was created source->sink, i.e. from the e.to port to the e.from port.
