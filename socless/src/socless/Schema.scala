@@ -20,6 +20,9 @@ case class Design(
   // out the relevant lines per module. Empty if files weren't readable or
   // source embedding was disabled.
   sources: Map[String, String] = Map.empty,
+  // Baked schematic geometry, keyed by module name. Empty when layout was
+  // skipped or failed; the UI falls back to its built-in layout in that case.
+  layouts: Map[String, ModuleLayout] = Map.empty,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 
@@ -112,6 +115,38 @@ case class ChannelDef(
   flip: Boolean,
 )
 object ChannelDef { implicit val rw: ReadWriter[ChannelDef] = macroRW }
+
+// ── Baked schematic layout ───────────────────────────────────────────────────
+
+/** One module's schematic geometry: instance/boundary boxes and routed wires.
+  * Coordinates are absolute within a `w` x `h` canvas. Produced by the Scala
+  * `Layout` object (ELK), consumed verbatim by the UI renderer.
+  */
+case class ModuleLayout(nodes: Seq[LaidNode], edges: Seq[RoutedEdge], w: Int, h: Int)
+object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
+
+/** A laid-out box. `kind` is "inst" (a child instance, drilled/expandable) or
+  * "boundary" (one of this module's own ports, drawn as a port stub). `id` is
+  * the instance name for "inst", or the bare port name for "boundary".
+  */
+case class LaidNode(id: String, kind: String, x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort])
+object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }
+
+/** A pin on a box. `path` is the coalesced endpoint path it represents
+  * (e.g. "cpu.io", "xbar.in[0].ar", "s_axi"); `side` is "WEST"/"EAST"; and
+  * `interface` is true when the pin carries an aggregate bundle (drawn fat).
+  */
+case class LaidPort(path: String, x: Int, y: Int, side: String, interface: Boolean)
+object LaidPort { implicit val rw: ReadWriter[LaidPort] = macroRW }
+
+/** A routed wire as an absolute-coordinate polyline. `from`/`to` are the
+  * coalesced endpoint paths (matching `WireDef.from`/`.to`). `points` includes
+  * the start, every bend, and the end.
+  */
+case class RoutedEdge(from: String, to: String, points: Seq[(Int, Int)], label: String)
+object RoutedEdge {
+  implicit val rw: ReadWriter[RoutedEdge] = macroRW
+}
 
 // ── Source info ─────────────────────────────────────────────────────────────
 
