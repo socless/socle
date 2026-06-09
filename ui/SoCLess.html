@@ -761,7 +761,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       try {
         j = JSON.parse(text);
       } catch (e) {
-        const msg = 'design.json: malformed JSON — ' + (e.message || e);
+        const msg = 'design.json: malformed JSON - ' + (e.message || e);
         console.error('[socless]', msg);
         toast(msg, 'err', 5000);
         window.DESIGN.VERSION = 1;
