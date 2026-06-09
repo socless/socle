@@ -1556,17 +1556,20 @@ function BenchTopBar({ path, navTo, mod, onOpenPalette }) {
         <DesignPicker />
       </div>
       {/* breadcrumb */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, marginLeft: 8, color: benchTokens.ink2 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, marginLeft: 8, color: benchTokens.ink2, minWidth: 0, overflow: 'hidden' }}>
         {path.map((p, i) => (
           <React.Fragment key={i}>
-            {i > 0 && <span style={{ color: benchTokens.ink4 }}>›</span>}
+            {i > 0 && <span style={{ color: benchTokens.ink4, flexShrink: 0 }}>›</span>}
             <button
               onClick={() => navTo(i)}
+              title={path.slice(0, i + 1).join(' > ')}
               style={{
                 border: 'none', background: 'transparent', cursor: 'pointer',
                 color: i === path.length - 1 ? benchTokens.ink : benchTokens.ink2,
                 fontFamily: benchTokens.mono, fontSize: 11, padding: '3px 6px',
                 borderRadius: 4, fontWeight: i === path.length - 1 ? 600 : 400,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                maxWidth: 160, flexShrink: i === path.length - 1 ? 0 : 1,
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = benchTokens.panelAlt}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
@@ -1905,8 +1908,8 @@ function CommandPalette({ open, onClose, onNavigate }) {
                   border: `1px solid ${benchTokens.borderSoft}`, textTransform: 'uppercase',
                   letterSpacing: 0.4, minWidth: 60, textAlign: 'center',
                 }}>{r.kind}</span>
-                <span style={{ fontFamily: benchTokens.mono, fontSize: 12, color: active ? benchTokens.accent : benchTokens.ink, fontWeight: active ? 600 : 400 }}>{r.label}</span>
-                <span style={{ fontSize: 11, color: benchTokens.ink3, marginLeft: 'auto', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 240 }}>{r.sub}</span>
+                <span title={r.label} style={{ fontFamily: benchTokens.mono, fontSize: 12, color: active ? benchTokens.accent : benchTokens.ink, fontWeight: active ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.label}</span>
+                <span title={r.sub} style={{ fontSize: 11, color: benchTokens.ink3, marginLeft: 'auto', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 240 }}>{r.sub}</span>
               </button>
             );
           })}
@@ -1966,11 +1969,12 @@ function BenchHierarchy({ path, setPath, density }) {
             <div
               key={r.id}
               onClick={() => setPath(r.path)}
+              title={r.path.join(' > ')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 4,
                 height: density.row, padding: '0 4px 0 0',
                 paddingLeft: 4 + r.depth * 14,
-                cursor: 'pointer',
+                cursor: 'pointer', minWidth: 0, overflow: 'hidden',
                 background: isActive ? benchTokens.accentBg : 'transparent',
                 borderLeft: `2px solid ${isActive ? benchTokens.accent : 'transparent'}`,
                 color: isActive ? benchTokens.accent : (isAncestor ? benchTokens.ink : benchTokens.ink2),
@@ -1991,8 +1995,8 @@ function BenchHierarchy({ path, setPath, density }) {
                 ) : null}
               </span>
               <ModuleGlyph type={r.type} active={isActive} />
-              <span style={{ fontFamily: benchTokens.mono, fontSize: density.font - 1 }}>{r.label}</span>
-              <span style={{ marginLeft: 'auto', color: benchTokens.ink4, fontSize: 10.5, fontFamily: benchTokens.mono }}>{r.type}</span>
+              <span title={r.label} style={{ fontFamily: benchTokens.mono, fontSize: density.font - 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.label}</span>
+              <span title={r.type} style={{ marginLeft: 'auto', flexShrink: 0, color: benchTokens.ink4, fontSize: 10.5, fontFamily: benchTokens.mono, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>{r.type}</span>
             </div>
           );
         })}
@@ -2704,7 +2708,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                       }}
                         onClick={row.isExpandable ? (e) => { e.stopPropagation(); togglePort(row.path); } : undefined}
                       >
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
+                        <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
                         {row.isExpandable && (
                           <span style={{ flexShrink: 0, color: chevronColor, fontSize: 8, lineHeight: 1 }}>
                             {expandedPorts.has(row.path) ? '−' : '+'}
@@ -2737,7 +2741,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     >
                       {/* Color dot for known channel names */}
                       {hasChannelColor && <span style={{ width: 5, height: 5, borderRadius: '50%', background: chColor, flexShrink: 0 }} />}
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
+                      <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
                       {row.isExpandable && (
                         <span style={{ flexShrink: 0, color: benchTokens.ink4, fontSize: 8 }}>
                           {expandedPorts.has(row.path) ? '−' : '+'}
@@ -2774,11 +2778,11 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   transition: 'box-shadow .12s, border-color .12s',
                 }}
               >
-                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0 }}>
+                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
                   <ModuleGlyph type={child.type} active={selectedHere} />
-                  <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
-                  <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
+                  <span title={inst} style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{inst}</span>
+                  <div style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span title={child.type} style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>{child.type}</span>
                     {drillable && (
                       <span style={{ fontFamily: benchTokens.mono, fontSize: 9, color: benchTokens.accent }}>{'↵'}</span>
                     )}
@@ -2933,11 +2937,11 @@ function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelected
     <div style={{ padding: '12px 14px', fontSize: 12, overflow: 'auto' }}>
       <div style={{ marginBottom: 10 }}>
         <div style={{ fontFamily: benchTokens.mono, fontSize: 12, fontWeight: 600, color: benchTokens.ink, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.from}</span>
+          <span title={wire.from} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.from}</span>
           <CopyPathBtn path={wire.from} />
         </div>
         <div style={{ fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink3, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>↓</span><span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.to}</span>
+          <span>↓</span><span title={wire.to} style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.to}</span>
           <CopyPathBtn path={wire.to} />
         </div>
       </div>
@@ -3216,7 +3220,7 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
                 display: 'flex', alignItems: 'center', gap: 8,
               }}>
               <span style={{ color: benchTokens.ink4, fontSize: 9 }}>{tr.type}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{tr.path}</span>
+              <span title={tr.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{tr.path}</span>
             </div>
           );
         })}
