@@ -120,8 +120,15 @@ object IrWalk {
     if (names == Set("ar", "aw", "w", "r", "b")) return "AXI4"
     if (names == Set("ready", "valid", "bits"))  return s"Decoupled_$hint"
     if (names == Set("ready", "valid"))           return s"ReadyValid_$hint"
-    // Otherwise, hint-based with fingerprint suffix
-    s"${capitalize(hint)}_${fingerprint.hashCode.toHexString.take(6)}"
+    // Otherwise, hint-based with a deterministic fingerprint suffix.
+    // We use SHA-1 over the UTF-8 fingerprint bytes so the key is a pure
+    // function of the bundle's structural shape — stable across JVM versions
+    // and implementations (unlike String.hashCode, which is not guaranteed
+    // stable outside the same JVM run).
+    val digest = java.security.MessageDigest.getInstance("SHA-1")
+      .digest(fingerprint.getBytes("UTF-8"))
+    val hex = digest.map("%02x".format(_)).mkString.take(6)
+    s"${capitalize(hint)}_$hex"
   }
 
   private def bundleDef(
