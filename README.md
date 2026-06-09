@@ -5,22 +5,26 @@ SoCLess UI consumes. Tested against Chisel 7.x and Mill 1.1.6 (the latest
 release in the 1.1.x line; anything `>= 1.1, <= 1.1.6` should work).
 
 ```
-chisel/
-  build.mill                 # Mill 1.1.x — builds + publishes both artifacts
-  socless/                   # runtime library (Scala 2.13)
-    src/socless/
-      Schema.scala           # JSON case classes (matches data.js)
-      SoclessExporter.scala  # public entry: SoclessExporter.export(gen, path)
-      ChirrtlParser.scala    # CHIRRTL text → typed AST
-      IrWalk.scala           # AST → Design (UI JSON shape)
-      Launcher.scala         # reflection-based main the plugin invokes
-  mill-socless/              # Mill plugin (Scala 3)
-    src/socless/mill/
-      SoclessModule.scala    # the trait users mix in
-  example/                   # bundled AXI4 demo — moduleDeps, no publishLocal
-    src/axisystem/
-      AXIBundles.scala
-      AXISystem.scala
+build.mill                 # Mill 1.1.x — builds + publishes both artifacts
+socless/                   # runtime library (Scala 2.13)
+  src/socless/
+    Schema.scala           # JSON case classes (contract with the UI)
+    SoclessExporter.scala  # public entry: SoclessExporter.export(gen, path)
+    ChirrtlParser.scala    # CHIRRTL text -> typed AST
+    IrWalk.scala           # AST -> Design (UI JSON shape)
+    Launcher.scala         # reflection-based main the plugin invokes
+  test/src/socless/        # utest suite (./mill socless.test)
+mill-socless/              # Mill plugin (Scala 3)
+  src/socless/mill/
+    SoclessModule.scala    # the trait users mix in
+example/                   # bundled demos — moduleDeps, no publishLocal
+  src/
+    axisystem/             # AXI4 interconnect (AXISystem)
+    gcd/                   # simple GCD
+    rvpipeline/            # 4-stage RISC-V pipeline
+    deephier/              # deep hierarchy (DeepSoc)
+    iobundles/             # vec-of-bundle ports (Interconnect)
+    regheavy/              # register-heavy design (Datapath)
 ```
 
 ## Seamless Mill plugin (preferred flow)
@@ -28,7 +32,6 @@ chisel/
 **One-time: build + publish to your local Maven cache.**
 
 ```bash
-cd chisel
 mill socless.publishLocal
 mill mill-socless.publishLocal
 ```
@@ -97,17 +100,20 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 
 No `chisel3.internal.*` imports anywhere — survives Chisel patch updates.
 
-## Trying the bundled demo
+## Trying the bundled demos
 
 ```bash
-cd chisel
-mill example.socless
-mill show example.socless          # prints JSON path
+mill example.soclessRun          # AXISystem (default)
+mill example.soclessRunGcd       # GCD
+mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
+mill example.soclessRunDeepSoc   # deep hierarchy
+mill example.soclessRunIoBundles # vec-of-bundle ports
+mill example.soclessRunRegHeavy  # register-heavy design
+mill show example.soclessRun     # prints the JSON path
 ```
 
 The `example/` module is wired with `moduleDeps = Seq(socless)` instead of
-the plugin, so it works without `publishLocal`. The emitted JSON is the
-AXI4 interconnect from `example/src/axisystem/AXISystem.scala`.
+the plugin, so it works without `publishLocal`.
 
 ## Compatibility notes
 
