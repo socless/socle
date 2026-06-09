@@ -161,4 +161,35 @@ object example extends ChiselToolchain {
   def soclessRunRegHeavy: T[PathRef] = Task {
     PathRef(runFor("regheavy.Datapath", Task.dest, Task.log, runClasspath()))
   }
+
+  /** Dump CHIRRTL for all example tops into socless/test/resources/chirrtl/.
+    * Committed fixtures let PipelineRobustnessTest run without Chisel at test time.
+    * Usage: mill example.dumpChirrtlFixtures
+    * This is a Command (not a Task) so it can write outside Task.dest.
+    */
+  def dumpChirrtlFixtures(): Command[Unit] = Task.Command {
+    val fixtures = Seq(
+      "axisystem.AXISystem"    -> "axisystem.fir",
+      "gcd.GCD"                -> "gcd.fir",
+      "rvpipeline.RVPipeline"  -> "rvpipeline.fir",
+      "deephier.DeepSoc"       -> "deepsoc.fir",
+      "iobundles.Interconnect" -> "interconnect.fir",
+      "regheavy.Datapath"      -> "regheavy.fir",
+    )
+    val outDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "chirrtl"
+    os.makeDir.all(outDir)
+    val cp = runClasspath()
+    fixtures.foreach { case (top, fname) =>
+      val dest = outDir / fname
+      val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
+      val rc = os.proc(
+        "java", "-cp", cpStr,
+        "socless.Launcher",
+        "--top", top,
+        "--chirrtl-out", dest.toString,
+      ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
+      if (rc.exitCode != 0) throw new RuntimeException(s"CHIRRTL dump failed for top=$top")
+      Task.log.info(s"[socless] $top -> $dest")
+    }
+  }
 }
