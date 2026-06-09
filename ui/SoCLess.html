@@ -501,6 +501,13 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
       mutateAssign(window.DESIGN.layouts, j.layouts);
     }
+    // Waves: splice the live array in-place so module-scope B_WAVES captures stay valid.
+    // When the loaded design has no waves, clear to [] so WaveformView shows the empty-state.
+    const newWaves = (Array.isArray(j.waves) && j.waves.length > 0) ? j.waves : [];
+    window.DESIGN.WAVES.splice(0, window.DESIGN.WAVES.length, ...newWaves);
+    window.DESIGN.WAVE_CYCLES = newWaves.length > 0
+      ? (j.waveCycles || (newWaves[0].values && newWaves[0].values.length) || 0)
+      : 0;
     const declared = j.top;
     const resolved = resolveTop(declared, window.DESIGN.MODULES);
     window.DESIGN.TOP = resolved;
@@ -1975,10 +1982,55 @@ function bRoutePath(w, routingStyle) {
 
 function bRouteMidpoint(w, routingStyle) {
   // Where to anchor labels / expand toggles on a routed wire.
+  // When the wire has a baked polyline, return a point ON the polyline:
+  // pick the vertex pair around the middle index and return their midpoint.
+  if (w.points && w.points.length >= 2) {
+    const pts = w.points;
+    const mid = Math.floor(pts.length / 2);
+    // For even lengths, average the two middle vertices; for odd, use the middle vertex.
+    const a = pts[mid - (pts.length % 2 === 0 ? 1 : 0)];
+    const b = pts[mid];
+    return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
+  }
   if (routingStyle === 'curve') {
     return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
   }
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
+}
+
+// Offset a polyline by a perpendicular distance `o` (px).
+// For each interior vertex, averages the normals of the incoming and outgoing segments.
+// For endpoints, uses the single adjacent segment's normal.
+// Perpendicular of segment (dx,dy): normal = (-dy, dx) normalized.
+function offsetPolyline(pts, o) {
+  if (!pts || pts.length < 2) return pts;
+  const n = pts.length;
+  // Compute per-segment unit normals
+  const segNormals = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1][0] - pts[i][0];
+    const dy = pts[i + 1][1] - pts[i][1];
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-9) { segNormals.push([0, 0]); continue; }
+    segNormals.push([-dy / len, dx / len]);
+  }
+  return pts.map((p, i) => {
+    let nx, ny;
+    if (i === 0) {
+      [nx, ny] = segNormals[0];
+    } else if (i === n - 1) {
+      [nx, ny] = segNormals[n - 2];
+    } else {
+      // Average adjacent segment normals
+      const [nx0, ny0] = segNormals[i - 1];
+      const [nx1, ny1] = segNormals[i];
+      const ax = (nx0 + nx1) / 2, ay = (ny0 + ny1) / 2;
+      const al = Math.sqrt(ax * ax + ay * ay);
+      if (al < 1e-9) { nx = nx0; ny = ny0; }
+      else { nx = ax / al; ny = ay / al; }
+    }
+    return [p[0] + nx * o, p[1] + ny * o];
+  });
 }
 
 // Wire layers — split into hit-target (under boxes, captures clicks) and
@@ -2051,26 +2103,34 @@ function WireVisualLayer({
             {exp && channels.length > 0 && (
               <g>
                 {channels.map((ch, ci) => {
+                  const o = (ci - (channels.length - 1) / 2) * 4;
+                  const chColor = B_CHAN[ch.name] || benchTokens.ink3;
+                  const markerHref = B_CHAN[ch.name] ? `url(#arr-${ms}-${ch.name})` : `url(#arr-${ms}-default)`;
+                  // When the wire has baked polyline points, offset the polyline perpendicularly
+                  if (w.points && w.points.length >= 2) {
+                    const offsetPts = offsetPolyline(w.points, o);
+                    const dd = 'M ' + offsetPts.map((p) => `${p[0]} ${p[1]}`).join(' L ');
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : (hl || hov ? 1 : 0.85)} markerEnd={markerHref} />;
+                  }
+                  // Fallback for non-baked wires
                   if (routingStyle === 'curve') {
                     const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
                     const horiz = Math.abs(dxw) >= Math.abs(dyw);
-                    const off = (ci - (channels.length - 1) / 2) * 4;
                     let dd;
                     if (horiz) {
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1} ${w.y1 + off} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + off}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + off}, ${w.x2} ${w.y2 + off}`;
+                      dd = `M ${w.x1} ${w.y1 + o} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + o}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + o}, ${w.x2} ${w.y2 + o}`;
                     } else {
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
+                      dd = `M ${w.x1 + o} ${w.y1} C ${w.x1 + o} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2}`;
                     }
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
                   }
-                  const offset = (ci - (channels.length - 1) / 2) * 5;
-                  const yo1 = w.y1 + offset;
-                  const yo2 = w.y2 + offset;
-                  const mx = (w.x1 + w.x2) / 2 + offset * 2;
-                  const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
-                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
+                  const yo1 = w.y1 + o;
+                  const yo2 = w.y2 + o;
+                  const mxo = (w.x1 + w.x2) / 2 + o * 2;
+                  const dd = `M ${w.x1} ${yo1} L ${mxo} ${yo1} L ${mxo} ${yo2} L ${w.x2} ${yo2}`;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
                 })}
               </g>
             )}
@@ -2670,7 +2730,7 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontFamily: benchTokens.mono, color: benchTokens.ink4 }}>
           {tab === 'source' && mod.source.file}
-          {tab === 'wave' && `${B_WAVE_CYCLES} cycles · 100 MHz`}
+          {tab === 'wave' && (B_WAVES && B_WAVES.length > 0 ? `${window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES} cycles · 100 MHz` : 'no waveform data')}
           {tab === 'ports' && `${mod.children.length} instances`}
         </div>
       </div>
@@ -2817,11 +2877,20 @@ function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, dri
 // — Waveform view: track names + per-cycle cells
 function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
   const cellW = 28;
+  const waves = B_WAVES && B_WAVES.length > 0 ? B_WAVES : null;
+  const waveCycles = window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES || 0;
+  if (!waves) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: benchTokens.sans, fontSize: 12, color: benchTokens.ink4, padding: 24, textAlign: 'center' }}>
+        No waveform data - run a simulation to populate this view.
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', fontFamily: benchTokens.mono, fontSize: 10.5 }}>
       <div style={{ borderRight: `1px solid ${benchTokens.borderSoft}` }}>
         <div style={{ padding: '6px 10px', height: 26, background: benchTokens.panelAlt, borderBottom: `1px solid ${benchTokens.borderSoft}`, fontSize: 10, color: benchTokens.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center' }}>Signal</div>
-        {B_WAVES.map((tr) => {
+        {waves.map((tr) => {
           const sel = selectedSig === tr.path || (selectedSig && tr.path.startsWith(selectedSig));
           return (
             <div key={tr.path}
@@ -2845,11 +2914,11 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
       <div style={{ overflowX: 'auto' }}>
         {/* cycle ruler */}
         <div style={{ display: 'flex', height: 26, background: benchTokens.panelAlt, borderBottom: `1px solid ${benchTokens.borderSoft}`, fontSize: 9.5, color: benchTokens.ink4 }}>
-          {Array.from({ length: B_WAVE_CYCLES }, (_, i) => (
+          {Array.from({ length: waveCycles }, (_, i) => (
             <div key={i} style={{ width: cellW, minWidth: cellW, textAlign: 'center', borderRight: `1px solid ${benchTokens.borderSoft}`, padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>{i}</div>
           ))}
         </div>
-        {B_WAVES.map((tr) => {
+        {waves.map((tr) => {
           const sel = selectedSig === tr.path;
           return (
             <div key={tr.path} style={{ display: 'flex', height: 26, borderBottom: `1px solid ${benchTokens.borderSoft}`, background: sel ? benchTokens.accentBg : 'transparent' }}>
