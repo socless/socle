@@ -2425,21 +2425,52 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const [pan, setPan]   = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
 
+  // Per-path view-state memory: pathKey -> { zoom, pan }.
+  // Mirrors of the current zoom/pan as refs so the save-on-navigate effect can
+  // read their latest values synchronously (React state reads in effects see the
+  // value at the time the effect was scheduled, not at cleanup time).
+  const viewStateMapRef = useRef(new Map());
+  const zoomRef = useRef(zoom);
+  const panRef  = useRef(pan);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { panRef.current  = pan;  }, [pan]);
+
   const layoutResult = useMemo(() => bBakedLayout(mod), [mod]);
   const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, routingStyle, edges: bakedEdges } = layoutResult || { boxes: {}, ports: {}, totalW: 1, totalH: 1, routingStyle: 'baked', edges: {} };
   const containerH = totalH + 40;
 
-  // Auto-fit when the design's bounding box changes (drill in/out, layout swap).
+  // On path change: save the old path's zoom/pan, then restore or auto-fit for
+  // the new path. First visit auto-fits; revisit restores the saved state.
+  const pathKey = path.join('/');
+  const prevPathKeyRef = useRef(null);
   useEffect(() => {
     const vp = viewportRef.current;
     if (!vp || totalW <= 0 || containerH <= 0) return;
-    const margin = 40;
-    const w = vp.clientWidth, h = vp.clientHeight;
-    if (w <= 0 || h <= 0) return;
-    const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / containerH);
-    setZoom(z);
-    setPan({ x: (w - totalW * z) / 2, y: (h - containerH * z) / 2 });
-  }, [totalW, containerH, mod.type, path.length]);
+
+    // Save departing path's view state (skip on the very first render where
+    // there is no previous path yet).
+    const prev = prevPathKeyRef.current;
+    if (prev !== null && prev !== pathKey) {
+      viewStateMapRef.current.set(prev, { zoom: zoomRef.current, pan: panRef.current });
+    }
+    prevPathKeyRef.current = pathKey;
+
+    const saved = viewStateMapRef.current.get(pathKey);
+    if (saved) {
+      // Revisit: restore the previously saved view state.
+      setZoom(saved.zoom);
+      setPan(saved.pan);
+    } else {
+      // First visit: auto-fit so any size design lands in view.
+      const w = vp.clientWidth, h = vp.clientHeight;
+      if (w <= 0 || h <= 0) return;
+      const margin = 40;
+      const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / containerH);
+      setZoom(z);
+      setPan({ x: (w - totalW * z) / 2, y: (h - containerH * z) / 2 });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathKey, totalW, containerH]);
 
   // Wheel-to-zoom anchored at the cursor. Attached non-passively so we can
   // preventDefault and stop the page from scrolling under the schematic.
