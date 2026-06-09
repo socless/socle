@@ -2699,19 +2699,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     pointerEvents: 'none',
                   }}>
                   <span style={{ padding: '0 6px', textAlign: 'center', wordBreak: 'break-all' }}>{inst}</span>
-                  {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => (
-                    <div key={p.path}
-                      title={p.path}
-                      style={{
-                        position: 'absolute',
-                        left: p.x - b.x - (p.side === 'WEST' ? 7 : 0),
-                        top:  p.y - b.y - (p.interface ? 5 : 2),
-                        width: p.interface ? 7 : 5,
-                        height: p.interface ? 10 : 4,
-                        background: p.interface ? benchTokens.accent : benchTokens.ink4,
-                        borderRadius: p.interface ? 2 : 1,
-                      }} />
-                  ))}
+                  {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
+                    const pw = p.interface ? 8 : 5;
+                    const ph = p.interface ? 10 : 4;
+                    return (
+                      <div key={p.path}
+                        title={p.path}
+                        style={{
+                          position: 'absolute',
+                          left: (p.x - b.x) - pw / 2,
+                          top:  (p.y - b.y) - ph / 2,
+                          width: pw, height: ph,
+                          background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                          borderRadius: p.interface ? 2 : 1,
+                        }} />
+                    );
+                  })}
                 </div>
               );
             }
@@ -2831,19 +2834,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     </div>
                   </React.Fragment>
                 )}
-                {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => (
-                  <div key={p.path}
-                    title={p.path}
-                    style={{
-                      position: 'absolute',
-                      left: p.x - b.x - (p.side === 'WEST' ? 7 : 0),
-                      top:  p.y - b.y - (p.interface ? 5 : 2),
-                      width: p.interface ? 7 : 5,
-                      height: p.interface ? 10 : 4,
-                      background: p.interface ? benchTokens.accent : benchTokens.ink4,
-                      borderRadius: p.interface ? 2 : 1,
-                    }} />
-                ))}
+                {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
+                  const pw = p.interface ? 8 : 5;
+                  const ph = p.interface ? 10 : 4;
+                  return (
+                    <div key={p.path}
+                      title={p.path}
+                      style={{
+                        position: 'absolute',
+                        left: (p.x - b.x) - pw / 2,
+                        top:  (p.y - b.y) - ph / 2,
+                        width: pw, height: ph,
+                        background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                        borderRadius: p.interface ? 2 : 1,
+                      }} />
+                  );
+                })}
               </div>
             );
           })}
@@ -2860,6 +2866,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             markerScope="top"
           />
         </div>
+
+        {/* Leaf-module placeholder — outside transform div so it fills the full viewport */}
+        {mod.children.length === 0 && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <span style={{
+              fontFamily: benchTokens.mono, fontSize: 12,
+              color: benchTokens.ink4,
+              letterSpacing: 0.3,
+              whiteSpace: 'nowrap',
+            }}>This is a leaf module - no sub-instances to display.</span>
+          </div>
+        )}
       </div>
 
       {/* Zoom controls (bottom-right, outside the pan/zoom viewport so they don't transform). */}
