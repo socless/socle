@@ -2863,6 +2863,37 @@ function InspectorMeta({ mod }) {
   );
 }
 
+function CopyPathBtn({ path }) {
+  const [copied, setCopied] = React.useState(false);
+  function handleCopy(e) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(path).then(() => {
+      setCopied(true);
+      if (window.__soclessToast) window.__soclessToast('✓ Copied: ' + path, 'ok', 1800);
+      setTimeout(() => setCopied(false), 1400);
+    }).catch(() => {
+      if (window.__soclessToast) window.__soclessToast('Copy failed', 'err', 1800);
+    });
+  }
+  return (
+    <button
+      onClick={handleCopy}
+      title={'Copy path: ' + path}
+      style={{
+        border: 'none', background: 'transparent', cursor: 'pointer',
+        padding: '1px 3px', borderRadius: 3, lineHeight: 1,
+        color: copied ? benchTokens.ok : benchTokens.ink4,
+        fontSize: 10, flexShrink: 0,
+        transition: 'color .15s',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.color = copied ? benchTokens.ok : benchTokens.ink2; e.currentTarget.style.background = benchTokens.panelAlt; }}
+      onMouseLeave={(e) => { e.currentTarget.style.color = copied ? benchTokens.ok : benchTokens.ink4; e.currentTarget.style.background = 'transparent'; }}
+    >
+      {copied ? '✓' : '\u{1F4CB}'}
+    </button>
+  );
+}
+
 function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelectedSig }) {
   const expanded = expandedBundles.has(wire.from);
   const fields = bBundleFields(wire.bundle);
@@ -2880,9 +2911,13 @@ function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelected
   return (
     <div style={{ padding: '12px 14px', fontSize: 12, overflow: 'auto' }}>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontFamily: benchTokens.mono, fontSize: 12, fontWeight: 600, color: benchTokens.ink, marginBottom: 2 }}>{wire.from}</div>
+        <div style={{ fontFamily: benchTokens.mono, fontSize: 12, fontWeight: 600, color: benchTokens.ink, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.from}</span>
+          <CopyPathBtn path={wire.from} />
+        </div>
         <div style={{ fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink3, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>↓</span><span>{wire.to}</span>
+          <span>↓</span><span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{wire.to}</span>
+          <CopyPathBtn path={wire.to} />
         </div>
       </div>
       <div style={{ background: benchTokens.panelAlt, padding: '8px 10px', borderRadius: 5, marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: benchTokens.mono, fontSize: 11 }}>
@@ -2926,16 +2961,27 @@ function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8,
                   padding: '3px 8px 3px 22px', fontFamily: benchTokens.mono, fontSize: 10.5,
-                  cursor: 'pointer',
+                  cursor: 'pointer', position: 'relative',
                   background: isSel ? benchTokens.accentBg : 'transparent',
                   color: isSel ? benchTokens.accent : benchTokens.ink2,
                 }}
-                onMouseEnter={(e) => { if (!isSel) e.currentTarget.style.background = benchTokens.panelAlt; }}
-                onMouseLeave={(e) => { if (!isSel) e.currentTarget.style.background = 'transparent'; }}
+                onMouseEnter={(e) => {
+                  if (!isSel) e.currentTarget.style.background = benchTokens.panelAlt;
+                  const btn = e.currentTarget.querySelector('.copy-btn');
+                  if (btn) btn.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isSel) e.currentTarget.style.background = 'transparent';
+                  const btn = e.currentTarget.querySelector('.copy-btn');
+                  if (btn) btn.style.opacity = '0';
+                }}
               >
                 <span style={{ width: 12, color: benchTokens.ink4, fontSize: 9 }}>{f.dir === 'out' ? '→' : '←'}</span>
                 <span>{f.name}</span>
                 <span style={{ marginLeft: 'auto', color: benchTokens.ink4 }}>{f.width}b</span>
+                <span className="copy-btn" style={{ opacity: 0, transition: 'opacity .1s' }}>
+                  <CopyPathBtn path={fullPath} />
+                </span>
               </div>
             );
           })}
