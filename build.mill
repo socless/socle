@@ -146,4 +146,19 @@ object example extends ChiselToolchain {
   def soclessRunPipeline: T[PathRef] = Task {
     PathRef(runFor("rvpipeline.RVPipeline", Task.dest, Task.log, runClasspath()))
   }
+
+  /** Deep hierarchy (>= 3 levels): DeepSoc > Cluster > Vec[Core] > (ALU, RegFile). */
+  def soclessRunDeepSoc: T[PathRef] = Task {
+    PathRef(runFor("deephier.DeepSoc", Task.dest, Task.log, runClasspath()))
+  }
+
+  /** Vec-of-bundle ports + nested/mixed-direction bundles: Interconnect. */
+  def soclessRunIoBundles: T[PathRef] = Task {
+    PathRef(runFor("iobundles.Interconnect", Task.dest, Task.log, runClasspath()))
+  }
+
+  /** Register-heavy datapath: dense reg/when/elsewhen/otherwise CHIRRTL. */
+  def soclessRunRegHeavy: T[PathRef] = Task {
+    PathRef(runFor("regheavy.Datapath", Task.dest, Task.log, runClasspath()))
+  }
 }
