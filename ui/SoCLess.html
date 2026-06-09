@@ -1426,6 +1426,124 @@ function parseEndpoint(s) {
   return { inst: parts[0], port: parts[1] || null, chan: parts[2] || null, full: s };
 }
 
+// ─── Keyboard shortcuts (single source of truth) ────────────────────────────
+const SHORTCUTS = [
+  { category: 'Navigation',
+    rows: [
+      { keys: ['D'],            desc: 'Toggle design picker'         },
+      { keys: ['⌘K', 'Ctrl K'], desc: 'Open command palette / search' },
+      { keys: ['↑ ↓'],          desc: 'Move selection in palette'    },
+      { keys: ['↵'],            desc: 'Navigate to selected result'  },
+      { keys: ['Esc'],          desc: 'Close palette / picker / overlay' },
+    ]
+  },
+  { category: 'Schematic',
+    rows: [
+      { keys: ['dbl-click'],    desc: 'Drill into module instance'   },
+      { keys: ['breadcrumb'],   desc: 'Navigate up the hierarchy'    },
+    ]
+  },
+  { category: 'Help',
+    rows: [
+      { keys: ['?'],            desc: 'Open this overlay'            },
+    ]
+  },
+];
+
+// ─── Keyboard help overlay ───────────────────────────────────────────────────
+function KeyboardHelp({ open, onClose }) {
+  if (!open) return null;
+  const isMac = typeof navigator !== 'undefined' && /Mac|iP(hone|ad|od)/.test(navigator.platform);
+  const rows = SHORTCUTS.flatMap((s) => s.rows.map((r) => ({ ...r, category: s.category })));
+  // Collapse Mac-only key variants when on Mac (show ⌘K) or non-Mac (show Ctrl K).
+  const displayKey = (k) => {
+    if (isMac && k === 'Ctrl K') return null;
+    if (!isMac && k === '⌘K')   return null;
+    return k;
+  };
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.38)',
+        display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
+        paddingTop: '10vh', zIndex: 200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Keyboard shortcuts"
+        style={{
+          width: 420, maxWidth: '90vw',
+          background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
+          borderRadius: 10, boxShadow: '0 24px 60px rgba(0,0,0,0.22)',
+          overflow: 'hidden',
+        }}
+      >
+        {/* header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '11px 16px', borderBottom: `1px solid ${benchTokens.borderSoft}`,
+        }}>
+          <span style={{ fontFamily: benchTokens.sans, fontWeight: 600, fontSize: 13, color: benchTokens.ink }}>
+            Keyboard shortcuts
+          </span>
+          <button
+            onClick={onClose}
+            aria-label="Close help"
+            style={{
+              border: 'none', background: 'transparent', cursor: 'pointer',
+              color: benchTokens.ink3, padding: '2px 4px', borderRadius: 4,
+              fontFamily: benchTokens.mono, fontSize: 11, lineHeight: 1,
+            }}
+          >Esc</button>
+        </div>
+        {/* body */}
+        <div style={{ padding: '4px 0 8px' }}>
+          {SHORTCUTS.map((section) => (
+            <div key={section.category}>
+              <div style={{
+                padding: '8px 16px 3px',
+                fontFamily: benchTokens.sans, fontWeight: 600, fontSize: 10,
+                color: benchTokens.ink4, textTransform: 'uppercase', letterSpacing: 0.6,
+              }}>{section.category}</div>
+              {section.rows.map((row) => {
+                const visibleKeys = row.keys.map(displayKey).filter(Boolean);
+                return (
+                  <div
+                    key={row.desc}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '4px 16px',
+                    }}
+                  >
+                    <span style={{ fontFamily: benchTokens.sans, fontSize: 12, color: benchTokens.ink2 }}>
+                      {row.desc}
+                    </span>
+                    <span style={{ display: 'flex', gap: 4, flexShrink: 0, marginLeft: 12 }}>
+                      {visibleKeys.map((k) => (
+                        <kbd key={k} style={{
+                          fontFamily: benchTokens.mono, fontSize: 10.5,
+                          padding: '1px 6px', borderRadius: 4,
+                          background: benchTokens.panelAlt,
+                          border: `1px solid ${benchTokens.border}`,
+                          color: benchTokens.ink2, lineHeight: 1.6,
+                        }}>{k}</kbd>
+                      ))}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── App root ────────────────────────────────────────────────────────────────
 function BenchApp({ tweaks }) {
   // Default to the loaded design's top, fall back to the bundled demo top.
@@ -1440,19 +1558,29 @@ function BenchApp({ tweaks }) {
   const [bottomTab, setBottomTab] = useState('source');
   const [drawerHeight, setDrawerHeight] = useState(240);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // ⌘K / Ctrl-K opens the command palette. Also ⌘P as a VSCode-ish alias.
+  // `?` toggles the keyboard-shortcut help overlay.
   useEffect(() => {
     const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
       const mod = e.metaKey || e.ctrlKey;
       if (mod && (e.key === 'k' || e.key === 'K' || e.key === 'p' || e.key === 'P')) {
         e.preventDefault();
+        setHelpOpen(false);
         setPaletteOpen(true);
+      } else if (!typing && !mod && e.key === '?') {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+      } else if (e.key === 'Escape' && helpOpen) {
+        setHelpOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [helpOpen]);
 
   const mod = getModuleByPath(path) || { name: path[path.length - 1], type: '?', ports: [], children: [], wires: [], metrics: {}, source: { file: '', line: 0, col: 0 } };
   const density = DENSITY[tweaks.density] || DENSITY.comfortable;
@@ -1493,7 +1621,7 @@ function BenchApp({ tweaks }) {
       color: benchTokens.ink, fontFamily: benchTokens.sans, fontSize: density.font,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
-      <BenchTopBar path={path} navTo={navTo} mod={mod} onOpenPalette={() => setPaletteOpen(true)} />
+      <BenchTopBar path={path} navTo={navTo} mod={mod} onOpenPalette={() => setPaletteOpen(true)} onOpenHelp={() => setHelpOpen(true)} />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <BenchHierarchy path={path} setPath={setPath} density={density} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderLeft: `1px solid ${benchTokens.border}`, borderRight: `1px solid ${benchTokens.border}` }}>
@@ -1531,12 +1659,13 @@ function BenchApp({ tweaks }) {
       onClose={() => setPaletteOpen(false)}
       onNavigate={(payload) => { setPath(payload); setSelectedSig(null); }}
     />
+    <KeyboardHelp open={helpOpen} onClose={() => setHelpOpen(false)} />
     </>
   );
 }
 
 // ─── Top bar ─────────────────────────────────────────────────────────────────
-function BenchTopBar({ path, navTo, mod, onOpenPalette }) {
+function BenchTopBar({ path, navTo, mod, onOpenPalette, onOpenHelp }) {
   const metrics = (mod && mod.metrics) || {};
   const source  = window.DESIGN.SOURCE_LABEL || 'demo';
   const isLive  = window.DESIGN.SOURCE === 'live';
@@ -1602,6 +1731,21 @@ function BenchTopBar({ path, navTo, mod, onOpenPalette }) {
           {source}
         </span>
       </div>
+      {/* help affordance */}
+      <button
+        onClick={onOpenHelp}
+        title="Keyboard shortcuts (?)"
+        aria-label="Show keyboard shortcuts"
+        style={{
+          border: `1px solid ${benchTokens.border}`, background: 'transparent',
+          cursor: 'pointer', color: benchTokens.ink3, borderRadius: '50%',
+          width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: benchTokens.sans, fontSize: 11, fontWeight: 600, lineHeight: 1,
+          flexShrink: 0, padding: 0,
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = benchTokens.panelAlt; e.currentTarget.style.color = benchTokens.ink; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = benchTokens.ink3; }}
+      >?</button>
     </div>
   );
 }
