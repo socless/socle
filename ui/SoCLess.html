@@ -2197,20 +2197,26 @@ function WireVisualLayer({
       </defs>
       {wires.map((w) => {
         const hl  = isHl(w);
-        const hov = isHov(w);
+        const hov = isHov(w) && !hl; // hover is only meaningful when not already selected
         const dim = selectedSig && !hl;
         // Fan-out ribbons show when: global expanded, OR either endpoint pin is expanded in the schematic.
         const exp = globalExpanded ||
           (expandedPorts && (expandedPorts.has(w.fromPath) || expandedPorts.has(w.toPath)));
-        const stroke = dim ? benchTokens.ink4 : (hl || hov ? benchTokens.accent : benchTokens.ink2);
-        const sw  = exp ? 1.4 : (hl ? 4 : 3);
+        // Distinct stroke colors: selection = accent (persistent, strong); hover = ink (transient cue); normal = ink2
+        const stroke = dim ? benchTokens.ink4 : hl ? benchTokens.accent : hov ? benchTokens.ink : benchTokens.ink2;
+        // Distinct stroke widths: selection = 4 (thick); hover = 3.5 (modest bump); normal = 3
+        const sw  = exp ? 1.4 : hl ? 4 : hov ? 3.5 : 3;
+        // Halo: selection gets accent glow; hover gets soft ink halo; default is near-invisible
+        const haloColor   = hl ? benchTokens.accent : hov ? benchTokens.ink : benchTokens.ink2;
+        const haloOpacity = hl ? 0.18 : hov ? 0.10 : 0.07;
         const d   = bRoutePath(w, routingStyle);
         const mid = bRouteMidpoint(w, routingStyle);
         const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
         return (
           <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
             {!exp && (
-              <path d={d} stroke={stroke} strokeWidth={sw + 4} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.12} />
+              // Halo/glow behind the wire stroke - accent for selected, soft ink for hovered, faint for default
+              <path d={d} stroke={haloColor} strokeWidth={sw + 6} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={haloOpacity} />
             )}
             {exp && channels.length > 0 && (
               <g>
@@ -2596,8 +2602,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   }}>
                   <span style={{ padding: '0 6px', textAlign: 'center', wordBreak: 'break-all' }}>{inst}</span>
                   {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
-                    const pw = p.interface ? 8 : 5;
-                    const ph = p.interface ? 10 : 4;
+                    // Interface pins: fat connector glyph (accent, 8x12, rounded); ground pins: thin tick (ink4, 3x6)
+                    const pw = p.interface ? 8 : 3;
+                    const ph = p.interface ? 12 : 6;
                     const lbl = p.label || '';
                     const isWest = p.side === 'WEST';
                     return (
@@ -2610,7 +2617,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                             top:  (p.y - b.y) - ph / 2,
                             width: pw, height: ph,
                             background: p.interface ? benchTokens.accent : benchTokens.ink4,
-                            borderRadius: p.interface ? 2 : 1,
+                            borderRadius: p.interface ? 3 : 1,
+                            outline: p.interface ? `1.5px solid ${benchTokens.accentLine}` : 'none',
+                            outlineOffset: p.interface ? '1px' : '0',
                           }} />
                         {lbl && (
                           <span style={{
@@ -2652,18 +2661,30 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 const chevronColor = row.isExpandable ? benchTokens.ink2 : benchTokens.ink4;
                 if (row.isTopLevel) {
                   // Top-level port: edge pin glyph + label + optional chevron
-                  const pw = 8, ph = 10;
+                  // Interface (aggregate/bundle) pins = fat connector; ground (scalar) pins = thin tick
+                  const isInterface = row.isExpandable;
+                  const pw = isInterface ? 8 : 3;
+                  const ph = isInterface ? 12 : 6;
                   const pinAbsX = isWest ? 0 : b.w;
                   const pinLeft = pinAbsX - pw / 2;
+                  // Pin highlight when its wire is selected or hovered
+                  const pinSelected = selectedSig && (row.path.startsWith(selectedSig) || selectedSig.startsWith(row.path));
+                  const pinHovered  = !pinSelected && hoveredSig && (row.path.startsWith(hoveredSig) || hoveredSig.startsWith(row.path));
+                  const pinBg = pinSelected ? benchTokens.accent
+                    : pinHovered ? benchTokens.ink
+                    : isInterface ? benchTokens.accent : benchTokens.ink3;
                   return (
                     <React.Fragment key={row.path}>
-                      {/* Edge pin glyph */}
+                      {/* Edge pin glyph - interface = fat connector; ground = thin tick */}
                       <div title={row.path} style={{
                         position: 'absolute',
                         left: pinLeft, top: rowY - ph / 2,
                         width: pw, height: ph,
-                        background: benchTokens.accent,
-                        borderRadius: 2,
+                        background: pinBg,
+                        borderRadius: isInterface ? 3 : 1,
+                        outline: isInterface ? `1.5px solid ${benchTokens.accentLine}` : 'none',
+                        outlineOffset: isInterface ? '1px' : '0',
+                        transition: 'background .12s',
                       }} />
                       {/* Label + optional chevron */}
                       <div data-pan-block="1" style={{
