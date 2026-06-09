@@ -26,6 +26,12 @@ object Layout {
     true
   }
 
+  // Serialize all ELK calls: LayoutMetaDataService is a JVM-wide singleton and
+  // RecursiveGraphLayoutEngine mutates shared algorithm state during a run.
+  // Without this lock, concurrent calls from parallel test classes produce
+  // slightly different coordinates for identical inputs (issue #55).
+  private val elkLock = new Object()
+
   private def newGraph(): ElkNode = {
     require(registered)
     val root = ElkGraphUtil.createGraph()
@@ -52,7 +58,7 @@ object Layout {
   }
 
   /** Smoke fixture used by ElkSmokeTest: two nodes, one edge A->B. */
-  def smokeTwoNodes(): (Box, Box) = {
+  def smokeTwoNodes(): (Box, Box) = elkLock.synchronized {
     val root = newGraph()
     val a = addNode(root, 160, 80)
     val ap = addPort(a, PortSide.EAST)
@@ -113,7 +119,7 @@ object Layout {
 
   /** Lay out `module`'s schematic: child instances + boundary ports as boxes,
     * coalesced wires as orthogonally-routed edges. */
-  def layout(module: ModuleDef, design: Design): ModuleLayout = {
+  def layout(module: ModuleDef, design: Design): ModuleLayout = elkLock.synchronized {
     val root = newGraph()
 
     // 1. Resolve every wire endpoint; keep only wires whose BOTH ends resolve.
