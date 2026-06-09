@@ -2953,7 +2953,7 @@ function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
       {open && (
         <div>
           {fields.map((f) => {
-            const fullPath = `${wireFrom}.${ch}.${f.name}`;
+            const fullPath = `${wireFrom}.${f.name}`;
             const isSel = sig === fullPath;
             return (
               <div key={f.name}
