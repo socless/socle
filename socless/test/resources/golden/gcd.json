@@ -1,0 +1,185 @@
+{
+  "top": "GCD",
+  "bundles": {
+    "Decoupled_io_out": {
+      "name": "Decoupled_io_out",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          16,
+          "out"
+        ]
+      ]
+    },
+    "Decoupled_in": {
+      "name": "Decoupled_in",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "a",
+          16,
+          "out"
+        ],
+        [
+          "b",
+          16,
+          "out"
+        ]
+      ]
+    },
+    "Decoupled_out": {
+      "name": "Decoupled_out",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          16,
+          "out"
+        ]
+      ]
+    },
+    "Decoupled_io_in": {
+      "name": "Decoupled_io_in",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "a",
+          16,
+          "out"
+        ],
+        [
+          "b",
+          16,
+          "out"
+        ]
+      ]
+    },
+    "Io_892115": {
+      "name": "Io_892115",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_out",
+          "flip": false
+        }
+      ]
+    }
+  },
+  "modules": [
+    {
+      "name": "GCD",
+      "type": "GCD",
+      "doc": "",
+      "source": {
+        "file": "example/src/gcd/GCD.scala",
+        "line": 24,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 24,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "UInt<1>",
+          "doc": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 24,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_892115",
+          "doc": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 25,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.in",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 35,
+            "col": 15
+          }
+        },
+        {
+          "from": "x",
+          "to": "io.in",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 37,
+            "col": 10
+          }
+        },
+        {
+          "from": "y",
+          "to": "io.in",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 38,
+            "col": 10
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_valid_T_1",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 48,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "x",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 49,
+            "col": 22
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 9,
+        "lines": 27
+      }
+    }
+  ]
+}

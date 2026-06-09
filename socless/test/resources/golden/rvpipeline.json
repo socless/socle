@@ -1,0 +1,1345 @@
+{
+  "top": "RVPipeline",
+  "bundles": {
+    "Imem_f5707c": {
+      "name": "Imem_f5707c",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "resp",
+          "type": "Decoupled_resp",
+          "flip": true
+        }
+      ]
+    },
+    "Io_wr_dc69b2": {
+      "name": "Io_wr_dc69b2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "waddr",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "wdata",
+          "type": "UInt<32>",
+          "flip": false
+        },
+        {
+          "name": "wen",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Io_rf_5f1233": {
+      "name": "Io_rf_5f1233",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "raddr1",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "raddr2",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "rdata1",
+          "type": "UInt<32>",
+          "flip": true
+        },
+        {
+          "name": "rdata2",
+          "type": "UInt<32>",
+          "flip": true
+        }
+      ]
+    },
+    "Rf_5f1233": {
+      "name": "Rf_5f1233",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "raddr1",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "raddr2",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "rdata1",
+          "type": "UInt<32>",
+          "flip": true
+        },
+        {
+          "name": "rdata2",
+          "type": "UInt<32>",
+          "flip": true
+        }
+      ]
+    },
+    "Io_rd_5f1233": {
+      "name": "Io_rd_5f1233",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "raddr1",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "raddr2",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "rdata1",
+          "type": "UInt<32>",
+          "flip": true
+        },
+        {
+          "name": "rdata2",
+          "type": "UInt<32>",
+          "flip": true
+        }
+      ]
+    },
+    "Io_75a75c": {
+      "name": "Io_75a75c",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "dmem",
+          "type": "Dmem_f5707c",
+          "flip": false
+        },
+        {
+          "name": "rf",
+          "type": "Rf_dc69b2",
+          "flip": false
+        }
+      ]
+    },
+    "Io_3ab96b": {
+      "name": "Io_3ab96b",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_out",
+          "flip": false
+        },
+        {
+          "name": "rf",
+          "type": "Rf_5f1233",
+          "flip": false
+        }
+      ]
+    },
+    "Io_rf_dc69b2": {
+      "name": "Io_rf_dc69b2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "waddr",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "wdata",
+          "type": "UInt<32>",
+          "flip": false
+        },
+        {
+          "name": "wen",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Io_0e9fed": {
+      "name": "Io_0e9fed",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "imem",
+          "type": "Imem_f5707c",
+          "flip": false
+        },
+        {
+          "name": "dmem",
+          "type": "Dmem_f5707c",
+          "flip": false
+        }
+      ]
+    },
+    "Io_892115": {
+      "name": "Io_892115",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_out",
+          "flip": false
+        }
+      ]
+    },
+    "Io_imem_f5707c": {
+      "name": "Io_imem_f5707c",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "resp",
+          "type": "Decoupled_resp",
+          "flip": true
+        }
+      ]
+    },
+    "Decoupled_req": {
+      "name": "Decoupled_req",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "addr",
+          32,
+          "out"
+        ],
+        [
+          "wdata",
+          32,
+          "out"
+        ],
+        [
+          "wen",
+          1,
+          "out"
+        ]
+      ]
+    },
+    "Rf_dc69b2": {
+      "name": "Rf_dc69b2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "waddr",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "wdata",
+          "type": "UInt<32>",
+          "flip": false
+        },
+        {
+          "name": "wen",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Rd_5f1233": {
+      "name": "Rd_5f1233",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "raddr1",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "raddr2",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "rdata1",
+          "type": "UInt<32>",
+          "flip": true
+        },
+        {
+          "name": "rdata2",
+          "type": "UInt<32>",
+          "flip": true
+        }
+      ]
+    },
+    "Decoupled_io_out": {
+      "name": "Decoupled_io_out",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          32,
+          "out"
+        ],
+        [
+          "rd",
+          5,
+          "out"
+        ],
+        [
+          "wen",
+          1,
+          "out"
+        ]
+      ]
+    },
+    "Io_dmem_f5707c": {
+      "name": "Io_dmem_f5707c",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "resp",
+          "type": "Decoupled_resp",
+          "flip": true
+        }
+      ]
+    },
+    "Dmem_f5707c": {
+      "name": "Dmem_f5707c",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "resp",
+          "type": "Decoupled_resp",
+          "flip": true
+        }
+      ]
+    },
+    "Io_a888fb": {
+      "name": "Io_a888fb",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "imem",
+          "type": "Imem_f5707c",
+          "flip": false
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_out",
+          "flip": false
+        }
+      ]
+    },
+    "Decoupled_in": {
+      "name": "Decoupled_in",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          32,
+          "out"
+        ],
+        [
+          "rd",
+          5,
+          "out"
+        ],
+        [
+          "wen",
+          1,
+          "out"
+        ]
+      ]
+    },
+    "Decoupled_resp": {
+      "name": "Decoupled_resp",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "rdata",
+          32,
+          "out"
+        ]
+      ]
+    },
+    "Decoupled_out": {
+      "name": "Decoupled_out",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          32,
+          "out"
+        ],
+        [
+          "rd",
+          5,
+          "out"
+        ],
+        [
+          "wen",
+          1,
+          "out"
+        ]
+      ]
+    },
+    "Wr_dc69b2": {
+      "name": "Wr_dc69b2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "waddr",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "wdata",
+          "type": "UInt<32>",
+          "flip": false
+        },
+        {
+          "name": "wen",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Decoupled_io_in": {
+      "name": "Decoupled_io_in",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "result",
+          32,
+          "out"
+        ],
+        [
+          "rd",
+          5,
+          "out"
+        ],
+        [
+          "wen",
+          1,
+          "out"
+        ]
+      ]
+    },
+    "Io_c27cc6": {
+      "name": "Io_c27cc6",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "rd",
+          "type": "Rd_5f1233",
+          "flip": true
+        },
+        {
+          "name": "wr",
+          "type": "Wr_dc69b2",
+          "flip": true
+        }
+      ]
+    }
+  },
+  "modules": [
+    {
+      "name": "Fetch",
+      "type": "Fetch",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 60,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 60,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "Reset",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 60,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_a888fb",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 61,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.imem",
+          "to": "io.out",
+          "bundle": "Io_imem_f5707c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 66,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.imem",
+          "to": "pc",
+          "bundle": "Io_imem_f5707c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 67,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.imem",
+          "to": "UInt<1>(0h0)",
+          "bundle": "Io_imem_f5707c",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 68,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.imem",
+          "to": "UInt<1>(0h1)",
+          "bundle": "Io_imem_f5707c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 70,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "io.imem",
+          "bundle": "Decoupled_io_out",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 71,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "pc",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 72,
+            "col": 25
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 9,
+        "lines": 15
+      }
+    },
+    {
+      "name": "Decode",
+      "type": "Decode",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 77,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 77,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "Reset",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 77,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_3ab96b",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 78,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.rf",
+          "to": "_io_rf_raddr1_T",
+          "bundle": "Io_rf_5f1233",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 83,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.rf",
+          "to": "_io_rf_raddr2_T",
+          "bundle": "Io_rf_5f1233",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 84,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.in",
+          "to": "io.out",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 86,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "io.in",
+          "bundle": "Decoupled_io_out",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 87,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_bits_op_T",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 89,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "io.rf",
+          "bundle": "Decoupled_io_out",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 90,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_bits_imm_T",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 92,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_bits_rd_T",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 93,
+            "col": 22
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 10,
+        "lines": 17
+      }
+    },
+    {
+      "name": "Exec",
+      "type": "Exec",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 96,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 96,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "Reset",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 96,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_892115",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 97,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.in",
+          "to": "io.out",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 101,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "io.in",
+          "bundle": "Decoupled_io_out",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 102,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_bits_result_T_1",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 104,
+            "col": 22
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_bits_wen_T",
+          "bundle": "Decoupled_io_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 106,
+            "col": 22
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 5,
+        "lines": 11
+      }
+    },
+    {
+      "name": "WB",
+      "type": "WB",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 109,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 109,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "Reset",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 109,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_75a75c",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 110,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.in",
+          "to": "UInt<1>(0h1)",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 115,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.dmem",
+          "to": "UInt<1>(0h0)",
+          "bundle": "Io_dmem_f5707c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 117,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.dmem",
+          "to": "UInt<1>(0h1)",
+          "bundle": "Io_dmem_f5707c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 119,
+            "col": 25
+          }
+        },
+        {
+          "from": "io.rf",
+          "to": "io.in",
+          "bundle": "Io_rf_dc69b2",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 120,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.rf",
+          "to": "_io_rf_wen_T",
+          "bundle": "Io_rf_dc69b2",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 122,
+            "col": 15
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 6,
+        "lines": 14
+      }
+    },
+    {
+      "name": "RegFile",
+      "type": "RegFile",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 125,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 125,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "Reset",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 125,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_c27cc6",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 126,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "io.rd",
+          "to": "io_rd_rdata1_MPORT",
+          "bundle": "Io_rd_5f1233",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 131,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.rd",
+          "to": "io_rd_rdata2_MPORT",
+          "bundle": "Io_rd_5f1233",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 132,
+            "col": 16
+          }
+        },
+        {
+          "from": "MPORT",
+          "to": "io.wr",
+          "bundle": "Io_wr_dc69b2",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 134,
+            "col": 23
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 3,
+        "lines": 10
+      }
+    },
+    {
+      "name": "RVPipeline",
+      "type": "RVPipeline",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 140,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "input",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 140,
+            "col": 7
+          }
+        },
+        {
+          "name": "reset",
+          "dir": "input",
+          "bundle": "UInt<1>",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 140,
+            "col": 7
+          }
+        },
+        {
+          "name": "io",
+          "dir": "output",
+          "bundle": "Io_0e9fed",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 141,
+            "col": 14
+          }
+        }
+      ],
+      "children": [
+        {
+          "name": "fetch",
+          "type": "Fetch",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 146,
+            "col": 22
+          }
+        },
+        {
+          "name": "decode",
+          "type": "Decode",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 147,
+            "col": 22
+          }
+        },
+        {
+          "name": "exec",
+          "type": "Exec",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 148,
+            "col": 22
+          }
+        },
+        {
+          "name": "wb",
+          "type": "WB",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 149,
+            "col": 22
+          }
+        },
+        {
+          "name": "rf",
+          "type": "RegFile",
+          "doc": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 150,
+            "col": 22
+          }
+        }
+      ],
+      "wires": [
+        {
+          "from": "fetch.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fetch.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "decode.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "decode.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "exec.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "exec.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wb.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wb.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "rf.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "rf.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fetch.io.imem",
+          "to": "io.imem",
+          "bundle": "Io_imem_f5707c",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 152,
+            "col": 18
+          }
+        },
+        {
+          "from": "io.imem",
+          "to": "fetch.io.imem",
+          "bundle": "Io_imem_f5707c",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 152,
+            "col": 18
+          }
+        },
+        {
+          "from": "wb.io.dmem",
+          "to": "io.dmem",
+          "bundle": "Io_dmem_f5707c",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 153,
+            "col": 18
+          }
+        },
+        {
+          "from": "io.dmem",
+          "to": "wb.io.dmem",
+          "bundle": "Io_dmem_f5707c",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 153,
+            "col": 18
+          }
+        },
+        {
+          "from": "decode.io.in",
+          "to": "fetch.io.out",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 154,
+            "col": 18
+          }
+        },
+        {
+          "from": "exec.io.in",
+          "to": "decode.io.out",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 155,
+            "col": 18
+          }
+        },
+        {
+          "from": "wb.io.in",
+          "to": "exec.io.out",
+          "bundle": "Decoupled_io_in",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 156,
+            "col": 18
+          }
+        },
+        {
+          "from": "rf.io.rd",
+          "to": "decode.io.rf",
+          "bundle": "Io_rd_5f1233",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 157,
+            "col": 18
+          }
+        },
+        {
+          "from": "rf.io.wr",
+          "to": "wb.io.rf",
+          "bundle": "Io_wr_dc69b2",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 158,
+            "col": 18
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 23,
+        "lines": 19
+      }
+    }
+  ]
+}
