@@ -6,3 +6,12 @@ ui/design.json
 *.class
 *.tasty
 mill.*.lock
+# IDE
+.idea/
+# Build artifacts
+target/
+# Release archives
+SoCLess.zip
+# Local tooling
+.superpowers/
+.claude/

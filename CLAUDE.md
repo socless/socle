@@ -15,10 +15,16 @@ Pipeline: Chisel design → `ChiselStage.emitCHIRRTL` → CHIRRTL text → typed
 mill socless.publishLocal        # Scala 2.13 runtime library
 mill mill-socless.publishLocal   # Scala 3 Mill plugin
 
+# Run tests
+./mill socless.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, ...)
+
 # Run bundled examples (no publishLocal needed)
 mill example.soclessRun          # AXISystem design
 mill example.soclessRunGcd       # GCD module
 mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
+mill example.soclessRunDeepSoc   # Deep hierarchy (DeepSoc)
+mill example.soclessRunIoBundles # Vec-of-bundle ports (Interconnect)
+mill example.soclessRunRegHeavy  # Register-heavy design (Datapath)
 mill show example.soclessRun     # Print path to emitted design.json
 
 # In user projects after publishing
@@ -27,7 +33,7 @@ mill myDesign.soclessUI           # Serve UI locally (default port 8765)
 mill myDesign.soclessUI --port 9000
 ```
 
-There is no dedicated test suite. Validation is done by elaborating examples and inspecting the emitted `design.json` against `ui/examples/` reference JSONs.
+Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, and WithLayoutsTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against `ui/examples/` reference JSONs.
 
 ## Module Architecture
 
@@ -45,7 +51,10 @@ mill-socless/src/socless/mill/
 example/src/
   gcd/                   # Single-module, Decoupled I/O (simplest case)
   rvpipeline/            # Multi-module, mixed bundle types
-  axisystem/             # 2-master, 2×2 crossbar, 2-slave AXI4 interconnect (most complex)
+  axisystem/             # 2-master, 2x2 crossbar, 2-slave AXI4 interconnect (most complex)
+  deephier/              # Deep hierarchy: DeepSoc > Cluster > Vec[Core] > (ALU, RegFile)
+  iobundles/             # Vec-of-bundle ports and nested/mixed-direction bundles: Interconnect
+  regheavy/              # Register-heavy design: Datapath
 
 ui/
   SoCLess.html           # Single-file bundled web UI; embedded in socless JAR at build time
