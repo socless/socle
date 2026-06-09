@@ -30,7 +30,7 @@ object LayoutPolishTest extends TestSuite {
   //   - boundary port `clk`  (Clock,  input)  -- should be dropped
   //   - boundary port `done` (UInt<1>, output) -- should appear as compact stub
   //   - instance `cpu` (Cpu) and `mem` (Mem)
-  //   - data wire: cpu.io -> mem.io            -- kept
+  //   - data wire: cpu.io -> mem.io (cpu drives)  -- kept
   //   - clock wire: cpu.clock <- clk           -- dropped
   private val topMod = ModuleDef("Top", "Top", "", SourceRef.unknown,
     ports = Seq(
@@ -42,8 +42,8 @@ object LayoutPolishTest extends TestSuite {
       InstanceDef("mem", "Mem", "", SourceRef.unknown),
     ),
     wires = Seq(
-      // data wire (kept)
-      WireDef("cpu.io",    "mem.io", "AXI4",    "",         SourceRef.unknown),
+      // data wire (kept): cpu drives mem (from=sink mem.io, to=source cpu.io)
+      WireDef("mem.io",    "cpu.io", "AXI4",    "",         SourceRef.unknown),
       // wire that triggers the `done` boundary node (kept)
       WireDef("mem.io",    "done",   "UInt<1>", "",         SourceRef.unknown),
       // clock wire (dropped)
@@ -119,7 +119,8 @@ object LayoutPolishTest extends TestSuite {
     }
 
     test("data AXI edge is still present") {
-      val axiEdge = L.edges.find(e => e.from == "cpu.io" && e.to == "mem.io")
+      // from=sink (mem.io), to=source (cpu.io): cpu drives mem
+      val axiEdge = L.edges.find(e => e.from == "mem.io" && e.to == "cpu.io")
       assert(axiEdge.isDefined)
     }
 

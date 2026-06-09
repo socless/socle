@@ -202,9 +202,15 @@ object Layout {
         if (grp.size == 1) grp.head
         else {
           // Anti-parallel (or duplicate) pair: prefer the edge whose source
-          // (e.to) sits on EAST -- that is the driver pin. Fall back to
-          // lexicographic source-path order for a stable deterministic choice.
-          grp.find(_.to.side == "EAST")
+          // (e.to) is the driver by VOTE -- eastVotes >= westVotes for that pin.
+          // Do NOT use e.to.side from classify/sideFor; that uses declared
+          // direction which is unreliable for shared AXI4 bundles (C2 regression).
+          // Fall back to lexicographic source-path order for a stable deterministic choice.
+          def isEastByVote(ep: Endpoint): Boolean = {
+            val k = (ep.nodeId, ep.kind, ep.path)
+            eastVotes(k) >= westVotes(k)
+          }
+          grp.find(e => isEastByVote(e.to))
             .orElse(grp.sortBy(_.to.path).headOption)
             .getOrElse(grp.head)
         }
