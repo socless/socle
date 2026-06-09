@@ -76,13 +76,23 @@ object IrWalk {
   }
 
   /** Direction at a port boundary, AXI-aware. Default to in/out from the
-    * `input`/`output` keyword; if the type is a Bundle whose outer flips
-    * match an AXI master pattern (ar+aw+r), surface "master"/"slave".
+    * `input`/`output` keyword; if the type is a Bundle whose field-name set
+    * matches an AXI4 shape (ar + aw + w + r + b), surface "master"/"slave"
+    * based on the port-level direction keyword:
+    *
+    *   output io  =>  master  (module drives the request channels)
+    *   input  io  =>  slave   (module receives the request channels)
+    *
+    * This is the correct mapping because CHIRRTL (and Chisel Flipped) applies
+    * the outer flip to the entire bundle: an AXI slave uses `Flipped(AXI4())`,
+    * which in CHIRRTL is emitted as `input io : { ... }`.  The inner field
+    * flip pattern (e.g. `flip r`) is identical across both sides, so relying
+    * on inner flips (the old approach) cannot distinguish master from slave.
     */
   private def portRole(dir: String, tpe: CType): String = tpe match {
-    case BundleT(fs) if fs.exists(_.name == "ar") && fs.exists(_.name == "r") =>
-      // R is flipped on a master, so if `r` is `flip` we are a master.
-      if (fs.find(_.name == "r").exists(_.flip)) "master" else "slave"
+    case BundleT(fs)
+        if fs.exists(_.name == "ar") && fs.exists(_.name == "r") =>
+      if (dir == "output") "master" else "slave"
     case _ => dir // "input" or "output"
   }
 

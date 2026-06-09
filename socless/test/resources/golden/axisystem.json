@@ -1316,7 +1316,7 @@
         },
         {
           "name": "io",
-          "dir": "master",
+          "dir": "slave",
           "bundle": "AXI4",
           "doc": "",
           "source": {
@@ -1620,7 +1620,7 @@
         },
         {
           "name": "io",
-          "dir": "master",
+          "dir": "slave",
           "bundle": "AXI4",
           "doc": "",
           "source": {
