@@ -2325,7 +2325,7 @@ function WireVisualLayer({
                 markerStart={w.bidir ? `url(#arr-${ms}-default)` : undefined}
               />
             )}
-            {showWidths && (
+            {showWidths && routingStyle !== 'baked' && (
               <g transform={`translate(${mid.x}, ${mid.y - 8})`}>
                 <rect x={-30} y={-9} width={60} height={18} rx={3}
                   fill={benchTokens.panel} stroke={hl ? benchTokens.accent : benchTokens.border} strokeWidth={1} />
