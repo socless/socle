@@ -56,8 +56,6 @@
 <script>
   window.__TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
     "density": "comfortable",
-    "showWidths": true,
-    "layout": "hier",
     "bundleMode": "collapsed",
     "collapseBidir": true,
     "clickToNavigate": true
@@ -503,6 +501,13 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
       mutateAssign(window.DESIGN.layouts, j.layouts);
     }
+    // Waves: splice the live array in-place so module-scope B_WAVES captures stay valid.
+    // When the loaded design has no waves, clear to [] so WaveformView shows the empty-state.
+    const newWaves = (Array.isArray(j.waves) && j.waves.length > 0) ? j.waves : [];
+    window.DESIGN.WAVES.splice(0, window.DESIGN.WAVES.length, ...newWaves);
+    window.DESIGN.WAVE_CYCLES = newWaves.length > 0
+      ? (j.waveCycles || (newWaves[0].values && newWaves[0].values.length) || 0)
+      : 0;
     const declared = j.top;
     const resolved = resolveTop(declared, window.DESIGN.MODULES);
     window.DESIGN.TOP = resolved;
@@ -655,13 +660,20 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
 
   // Initial load: read manifest, then pick a source.
   window.__DESIGN_READY = (async () => {
-    // (1) manifest (best-effort — fixtures only work over HTTP)
-    try { window.DESIGN.MANIFEST = (await fetchJson('examples/manifest.json')).designs || []; }
-    catch { window.DESIGN.MANIFEST = []; }
-
-    // (2) URL param
+    // (2) URL param (read first so we know if a manifest lookup is needed)
     const params = new URLSearchParams(window.location.search);
     const want = params.get('design');
+
+    // (1) manifest — only fetch when a ?design= param is present (avoids a
+    // browser-level 404 console error in normal use where no fixture server
+    // is running). Falls back to [] if absent or non-OK.
+    window.DESIGN.MANIFEST = [];
+    if (want) {
+      try {
+        const r = await fetch('examples/manifest.json', { cache: 'no-store' });
+        if (r.ok) window.DESIGN.MANIFEST = (await r.json()).designs || [];
+      } catch { /* no fixture server — leave MANIFEST empty */ }
+    }
     if (want) {
       const ok = await window.__soclessLoadDesign(want, { pushUrl: false });
       if (ok) return true;
@@ -1259,7 +1271,6 @@ Object.assign(window, {
 const { useState, useEffect, useMemo, useRef, useCallback } = React;
 const B_MODULES  = window.DESIGN.MODULES;
 const B_BUNDLES  = window.DESIGN.BUNDLES;
-const B_TOP_LAYOUT = window.DESIGN.TOP_LAYOUT;
 const B_WAVES    = window.DESIGN.WAVES;
 const B_WAVE_CYCLES = window.DESIGN.WAVE_CYCLES;
 const B_CHAN     = window.DESIGN.CHANNEL_COLOR;
@@ -1331,7 +1342,6 @@ function BenchApp({ tweaks }) {
   const [selectedSig, setSelectedSig] = useState(null); // 'cpu.io.ar' or 'cpu.io.ar.bits.addr'
   const [hoveredSig, setHoveredSig] = useState(null);
   const [expandedBundles, setExpandedBundles] = useState(new Set()); // bundle paths expanded
-  const [expandedModules, setExpandedModules] = useState(new Set()); // child insts "peeked" inline
   const [bottomTab, setBottomTab] = useState('source');
   const [drawerHeight, setDrawerHeight] = useState(240);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -1358,27 +1368,17 @@ function BenchApp({ tweaks }) {
     if (!B_MODULES[child.type]) return; // leaf module — no internals
     setPath((p) => [...p, inst]);
     setSelectedSig(null);
-    setExpandedModules(new Set());
   }, [mod]);
 
   const navTo = useCallback((idx) => {
     setPath((p) => p.slice(0, idx + 1));
     setSelectedSig(null);
-    setExpandedModules(new Set());
   }, []);
 
   const toggleBundle = useCallback((bpath) => {
     setExpandedBundles((s) => {
       const n = new Set(s);
       if (n.has(bpath)) n.delete(bpath); else n.add(bpath);
-      return n;
-    });
-  }, []);
-
-  const toggleExpandModule = useCallback((inst) => {
-    setExpandedModules((s) => {
-      const n = new Set(s);
-      if (n.has(inst)) n.delete(inst); else n.add(inst);
       return n;
     });
   }, []);
@@ -1400,7 +1400,6 @@ function BenchApp({ tweaks }) {
             hoveredSig={hoveredSig} setHoveredSig={setHoveredSig}
             drillInto={drillInto}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
-            expandedModules={expandedModules} toggleExpandModule={toggleExpandModule}
             tweaks={tweaks}
           />
           <BenchBottomPanel
@@ -1426,7 +1425,7 @@ function BenchApp({ tweaks }) {
     <CommandPalette
       open={paletteOpen}
       onClose={() => setPaletteOpen(false)}
-      onNavigate={(payload) => { setPath(payload); setSelectedSig(null); setExpandedModules(new Set()); }}
+      onNavigate={(payload) => { setPath(payload); setSelectedSig(null); }}
     />
     </>
   );
@@ -1921,245 +1920,9 @@ function ModuleGlyph({ type, active }) {
 
 const NODE_W = 220, NODE_H = 84;
 
-// Inline-expansion sizing. When the user peeks inside a module, the module box
-// grows to host a miniature copy of its children laid out via the same
-// algorithm at a smaller node size.
-const CHILD_NODE_W = 160;
-const CHILD_NODE_H = 56;
-const HEADER_H     = 36;  // name/type/↕ row at the top of an expanded box
-const EXPAND_PAD   = 16;  // vertical padding inside expanded body (top + bottom combined)
-const INNER_PAD    = 10;  // horizontal padding per side
-
-// Build forward/reverse adjacency on instance names from a module's wires.
-function bBuildAdj(mod) {
-  const fwd = {}, rev = {};
-  for (const c of mod.children) { fwd[c.name] = new Set(); rev[c.name] = new Set(); }
-  for (const w of mod.wires) {
-    const a = (w.from || '').split('.')[0];
-    const b = (w.to   || '').split('.')[0];
-    if (!fwd[a] || !fwd[b]) continue;
-    fwd[a].add(b); rev[b].add(a);
-  }
-  return { fwd, rev };
-}
-
-// Longest-path topological rank — ground-truth source for column placement.
-//
-// IMPORTANT: bundle wires in CHIRRTL go both directions on the same handshake
-// (forward bits + reverse ready/valid), so the coalesced adjacency is almost
-// always cyclic. A naive longest-path BFS would loop forever incrementing
-// ranks in a cycle. We use Kahn's: rank goes monotonically up as in-degree
-// drains. Anything still unranked at the end is inside a cycle; we lump
-// those into a "back-edge" column past the DAG so the layout still terminates.
-function bTopoRanks(mod) {
-  const { fwd, rev } = bBuildAdj(mod);
-  const ranks = {};
-  const insts = mod.children.map((c) => c.name);
-  const inDeg = {};
-  for (const n of insts) inDeg[n] = rev[n].size;
-
-  // Sources first (in-degree 0).
-  const q = [];
-  for (const n of insts) if (inDeg[n] === 0) { ranks[n] = 0; q.push(n); }
-  while (q.length) {
-    const n = q.shift();
-    const r = (ranks[n] || 0) + 1;
-    for (const m of fwd[n] || []) {
-      // Update rank optimistically each time we reach m from a longer path.
-      if (ranks[m] == null || ranks[m] < r) ranks[m] = r;
-      if (--inDeg[m] === 0) q.push(m);
-    }
-  }
-
-  // Cycle members never reached in-degree 0. Pin them just past the DAG.
-  let maxR = -1;
-  for (const r of Object.values(ranks)) if (r > maxR) maxR = r;
-  const cycleRank = maxR + 1;
-  for (const n of insts) if (ranks[n] == null) ranks[n] = cycleRank;
-  return ranks;
-}
-
-// Place a column list into {boxes, totalW, totalH}.
-//
-// Accepts per-instance dimension callbacks so expanded modules can occupy
-// taller / wider slots than their siblings. With no callbacks the result is
-// byte-identical to the old uniform-grid layout.
-function bPlaceColumns(cols, opts) {
-  const o = opts || {};
-  const colW   = o.colW   ?? NODE_W;
-  const colGap = o.colGap ?? 80;
-  const rowGap = o.rowGap ?? 28;
-  // Per-instance callbacks. Scalar `modH` is the legacy fallback.
-  const heightFor = o.heightFor || ((_inst) => o.modH ?? NODE_H);
-  const widthFor  = o.widthFor  || ((_inst) => colW);
-
-  const boxes = {};
-  let runningX = 0;
-  cols.forEach((col) => {
-    // Column width = max of nominal colW and any oversized member.
-    const w = Math.max(colW, ...col.instances.map((inst) => widthFor(inst)));
-    let y = 0;
-    col.instances.forEach((inst) => {
-      const h = heightFor(inst);
-      boxes[inst] = { x: runningX, y, w, h };
-      y += h + rowGap;
-    });
-    runningX += w + colGap;
-  });
-
-  const totalW = cols.length > 0 ? Math.max(1, runningX - colGap) : 1;
-  const totalH = Math.max(
-    1,
-    ...cols.map((col) =>
-      col.instances.reduce(
-        (acc, inst, i) => acc + heightFor(inst) + (i > 0 ? rowGap : 0),
-        0,
-      ),
-    ),
-  );
-  return { boxes, totalW, totalH, columnLabels: cols.map((c) => c.label) };
-}
-
-// Layout 1: hier — TOP_LAYOUT at root (Masters | Fabric | Slaves), topo at depth.
-// TOP_LAYOUT is design-specific (the bundled AXI demo defines one); other
-// designs fall through to the topo-rank layout below so they still render.
-function bLayoutHier(mod, path, dims) {
-  let cols;
-  const topLayout = B_TOP_LAYOUT && B_TOP_LAYOUT.columns;
-  const topLayoutMatches = topLayout
-    ? topLayout.some((col) => col.modules.some((m) => mod.children.find((c) => c.name === m)))
-    : false;
-  if (path.length === 1 && topLayoutMatches) {
-    cols = topLayout.map((col) => ({
-      label: col.label,
-      instances: col.modules.filter((m) => mod.children.find((c) => c.name === m)),
-    }));
-    // Append anything TOP_LAYOUT doesn't cover (e.g. user-added instances)
-    const covered = new Set(cols.flatMap((c) => c.instances));
-    const rest = mod.children.map((c) => c.name).filter((n) => !covered.has(n));
-    if (rest.length) cols.push({ label: 'Other', instances: rest });
-  } else {
-    const ranks = bTopoRanks(mod);
-    const maxR = Math.max(0, ...Object.values(ranks));
-    cols = [];
-    for (let r = 0; r <= maxR; r++) {
-      const insts = mod.children.map((c) => c.name).filter((n) => ranks[n] === r);
-      if (insts.length) cols.push({ label: `Layer ${r}`, instances: insts });
-    }
-  }
-  return { ...bPlaceColumns(cols, dims), routingStyle: 'orth' };
-}
-
-// Layout 2: orth — pure topo rank, tight spacing, no tier labels.
-function bLayoutOrth(mod, _path, dims) {
-  const ranks = bTopoRanks(mod);
-  const maxR = Math.max(0, ...Object.values(ranks));
-  const cols = [];
-  for (let r = 0; r <= maxR; r++) {
-    const insts = mod.children.map((c) => c.name).filter((n) => ranks[n] === r);
-    if (insts.length) cols.push({ label: '', instances: insts });
-  }
-  const placed = bPlaceColumns(cols, { colW: 200, colGap: 56, modH: 80, rowGap: 22, ...dims });
-  return { ...placed, columnLabels: [], routingStyle: 'orth' };
-}
-
-// Layout 3: dataflow — force-directed simulation. Deterministic seed so the
-// layout is stable across rerenders (no jiggle as React re-renders).
-function bLayoutForce(mod, _path, dims) {
-  const heightFor = (dims && dims.heightFor) || ((_inst) => NODE_H);
-  const widthFor  = (dims && dims.widthFor)  || ((_inst) => NODE_W);
-  const insts = mod.children.map((c) => c.name);
-  const N = insts.length;
-  if (N === 0) return { boxes: {}, totalW: 1, totalH: 1, columnLabels: [], routingStyle: 'curve' };
-
-  // Seeded RNG (mulberry32) so identical input → identical layout
-  const seed = insts.join('').split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7);
-  let s = seed >>> 0;
-  const rand = () => { s |= 0; s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-
-  // Place in a circle to start
-  const pos = {}, vel = {};
-  insts.forEach((inst, i) => {
-    const a = (i / N) * Math.PI * 2 + rand() * 0.4;
-    pos[inst] = { x: 400 + Math.cos(a) * (180 + rand() * 60), y: 280 + Math.sin(a) * (140 + rand() * 40) };
-    vel[inst] = { x: 0, y: 0 };
-  });
-
-  const edges = mod.wires.map((w) => [w.from.split('.')[0], w.to.split('.')[0]])
-    .filter(([a, b]) => pos[a] && pos[b] && a !== b);
-
-  const ITER = 320;
-  const REP = 60000;
-  const SPR_K = 0.04;
-  const SPR_L = 260;
-  const DAMP = 0.82;
-  const DT = 0.12;
-  const GRAVITY = 0.0025; // pull toward center to keep cluster compact
-
-  for (let iter = 0; iter < ITER; iter++) {
-    // Anneal: stronger forces early, gentler later
-    const cool = 1 - iter / ITER;
-    // Repulsion
-    for (let i = 0; i < N; i++) {
-      for (let j = i + 1; j < N; j++) {
-        const a = insts[i], b = insts[j];
-        const dx = pos[b].x - pos[a].x;
-        const dy = pos[b].y - pos[a].y;
-        const d2 = Math.max(dx * dx + dy * dy, 400);
-        const d = Math.sqrt(d2);
-        const f = REP / d2;
-        const fx = (dx / d) * f;
-        const fy = (dy / d) * f;
-        vel[a].x -= fx; vel[a].y -= fy;
-        vel[b].x += fx; vel[b].y += fy;
-      }
-    }
-    // Springs
-    for (const [a, b] of edges) {
-      const dx = pos[b].x - pos[a].x;
-      const dy = pos[b].y - pos[a].y;
-      const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const f = SPR_K * (d - SPR_L);
-      const fx = (dx / d) * f;
-      const fy = (dy / d) * f;
-      vel[a].x += fx; vel[a].y += fy;
-      vel[b].x -= fx; vel[b].y -= fy;
-    }
-    // Gravity to center (400, 280)
-    for (const n of insts) {
-      vel[n].x += (400 - pos[n].x) * GRAVITY;
-      vel[n].y += (280 - pos[n].y) * GRAVITY;
-    }
-    // Integrate
-    for (const n of insts) {
-      pos[n].x += vel[n].x * DT * cool;
-      pos[n].y += vel[n].y * DT * cool;
-      vel[n].x *= DAMP; vel[n].y *= DAMP;
-    }
-  }
-
-  // Normalize: translate to origin + padding
-  const PAD = 20;
-  const xs = insts.map((n) => pos[n].x), ys = insts.map((n) => pos[n].y);
-  const minX = Math.min(...xs), minY = Math.min(...ys);
-  const boxes = {};
-  for (const n of insts) {
-    boxes[n] = { x: pos[n].x - minX + PAD, y: pos[n].y - minY + PAD, w: widthFor(n), h: heightFor(n) };
-  }
-  const totalW = Math.max(...insts.map((n) => boxes[n].x + boxes[n].w)) + PAD;
-  const totalH = Math.max(...insts.map((n) => boxes[n].y + boxes[n].h)) + PAD;
-  return { boxes, totalW, totalH, columnLabels: [], routingStyle: 'curve' };
-}
-
-function bComputeLayout(mod, path, mode, dims) {
-  if (mode === 'orth')     return bLayoutOrth(mod, path, dims);
-  if (mode === 'dataflow') return bLayoutForce(mod, path, dims);
-  return bLayoutHier(mod, path, dims);
-}
-
-// Baked layout from the backend (ELK). Returns the same shape bComputeLayout
-// produces, plus per-node `ports` and a `routingStyle: 'baked'` marker so the
-// wire layer routes along the backend polylines.
+// Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H
+// and a `routingStyle: 'baked'` marker so the wire layer routes along the
+// backend polylines.
 function bBakedLayout(mod) {
   const all = window.DESIGN && window.DESIGN.layouts;
   const L = all && all[mod.name];
@@ -2219,10 +1982,55 @@ function bRoutePath(w, routingStyle) {
 
 function bRouteMidpoint(w, routingStyle) {
   // Where to anchor labels / expand toggles on a routed wire.
+  // When the wire has a baked polyline, return a point ON the polyline:
+  // pick the vertex pair around the middle index and return their midpoint.
+  if (w.points && w.points.length >= 2) {
+    const pts = w.points;
+    const mid = Math.floor(pts.length / 2);
+    // For even lengths, average the two middle vertices; for odd, use the middle vertex.
+    const a = pts[mid - (pts.length % 2 === 0 ? 1 : 0)];
+    const b = pts[mid];
+    return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
+  }
   if (routingStyle === 'curve') {
     return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
   }
   return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
+}
+
+// Offset a polyline by a perpendicular distance `o` (px).
+// For each interior vertex, averages the normals of the incoming and outgoing segments.
+// For endpoints, uses the single adjacent segment's normal.
+// Perpendicular of segment (dx,dy): normal = (-dy, dx) normalized.
+function offsetPolyline(pts, o) {
+  if (!pts || pts.length < 2) return pts;
+  const n = pts.length;
+  // Compute per-segment unit normals
+  const segNormals = [];
+  for (let i = 0; i < n - 1; i++) {
+    const dx = pts[i + 1][0] - pts[i][0];
+    const dy = pts[i + 1][1] - pts[i][1];
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 1e-9) { segNormals.push([0, 0]); continue; }
+    segNormals.push([-dy / len, dx / len]);
+  }
+  return pts.map((p, i) => {
+    let nx, ny;
+    if (i === 0) {
+      [nx, ny] = segNormals[0];
+    } else if (i === n - 1) {
+      [nx, ny] = segNormals[n - 2];
+    } else {
+      // Average adjacent segment normals
+      const [nx0, ny0] = segNormals[i - 1];
+      const [nx1, ny1] = segNormals[i];
+      const ax = (nx0 + nx1) / 2, ay = (ny0 + ny1) / 2;
+      const al = Math.sqrt(ax * ax + ay * ay);
+      if (al < 1e-9) { nx = nx0; ny = ny0; }
+      else { nx = ax / al; ny = ay / al; }
+    }
+    return [p[0] + nx * o, p[1] + ny * o];
+  });
 }
 
 // Wire layers — split into hit-target (under boxes, captures clicks) and
@@ -2251,7 +2059,7 @@ function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, set
 function WireVisualLayer({
   wires, totalW, totalH, routingStyle,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, globalExpanded,
-  showWidths, expandedModules, markerScope,
+  markerScope,
 }) {
   const isHl = (w) => {
     if (!selectedSig) return false;
@@ -2295,26 +2103,34 @@ function WireVisualLayer({
             {exp && channels.length > 0 && (
               <g>
                 {channels.map((ch, ci) => {
+                  const o = (ci - (channels.length - 1) / 2) * 4;
+                  const chColor = B_CHAN[ch.name] || benchTokens.ink3;
+                  const markerHref = B_CHAN[ch.name] ? `url(#arr-${ms}-${ch.name})` : `url(#arr-${ms}-default)`;
+                  // When the wire has baked polyline points, offset the polyline perpendicularly
+                  if (w.points && w.points.length >= 2) {
+                    const offsetPts = offsetPolyline(w.points, o);
+                    const dd = 'M ' + offsetPts.map((p) => `${p[0]} ${p[1]}`).join(' L ');
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : (hl || hov ? 1 : 0.85)} markerEnd={markerHref} />;
+                  }
+                  // Fallback for non-baked wires
                   if (routingStyle === 'curve') {
                     const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
                     const horiz = Math.abs(dxw) >= Math.abs(dyw);
-                    const off = (ci - (channels.length - 1) / 2) * 4;
                     let dd;
                     if (horiz) {
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1} ${w.y1 + off} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + off}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + off}, ${w.x2} ${w.y2 + off}`;
+                      dd = `M ${w.x1} ${w.y1 + o} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + o}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + o}, ${w.x2} ${w.y2 + o}`;
                     } else {
                       const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1 + off} ${w.y1} C ${w.x1 + off} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + off} ${w.y2}`;
+                      dd = `M ${w.x1 + o} ${w.y1} C ${w.x1 + o} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2}`;
                     }
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
                   }
-                  const offset = (ci - (channels.length - 1) / 2) * 5;
-                  const yo1 = w.y1 + offset;
-                  const yo2 = w.y2 + offset;
-                  const mx = (w.x1 + w.x2) / 2 + offset * 2;
-                  const dd = `M ${w.x1} ${yo1} L ${mx} ${yo1} L ${mx} ${yo2} L ${w.x2} ${yo2}`;
-                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : B_CHAN[ch.name]} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={`url(#arr-${ms}-${ch.name})`} />;
+                  const yo1 = w.y1 + o;
+                  const yo2 = w.y2 + o;
+                  const mxo = (w.x1 + w.x2) / 2 + o * 2;
+                  const dd = `M ${w.x1} ${yo1} L ${mxo} ${yo1} L ${mxo} ${yo2} L ${w.x2} ${yo2}`;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
                 })}
               </g>
             )}
@@ -2324,17 +2140,6 @@ function WireVisualLayer({
                 markerEnd={`url(#arr-${ms}-default)`}
                 markerStart={w.bidir ? `url(#arr-${ms}-default)` : undefined}
               />
-            )}
-            {showWidths && routingStyle !== 'baked' && (
-              <g transform={`translate(${mid.x}, ${mid.y - 8})`}>
-                <rect x={-30} y={-9} width={60} height={18} rx={3}
-                  fill={benchTokens.panel} stroke={hl ? benchTokens.accent : benchTokens.border} strokeWidth={1} />
-                <text x={0} y={3} textAnchor="middle"
-                  fontFamily={benchTokens.mono} fontSize={9}
-                  fill={hl ? benchTokens.accent : benchTokens.ink2}>
-                  {w.bundle} · {bTotalWidth(w.bundle)}b
-                </text>
-              </g>
             )}
             {!globalExpanded && channels.length > 0 && (
               <g transform={`translate(${mid.x - 10}, ${mid.y + 14})`}
@@ -2350,18 +2155,11 @@ function WireVisualLayer({
           </g>
         );
       })}
-      {/* Port dots at expanded module boundaries (Task 9 of the plan). */}
-      {expandedModules && wires.flatMap((w) => {
-        const dots = [];
-        if (expandedModules.has(w.fromInst)) dots.push(<circle key={`${w.id}-d-from`} cx={w.x1} cy={w.y1} r={4} fill="#b3a8f0" />);
-        if (expandedModules.has(w.toInst))   dots.push(<circle key={`${w.id}-d-to`}   cx={w.x2} cy={w.y2} r={4} fill="#b3a8f0" />);
-        return dots;
-      })}
     </svg>
   );
 }
 
-function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedModules, toggleExpandModule, tweaks }) {
+function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, tweaks }) {
   const [hoveredInst, setHoveredInst] = useState(null);
   // Pan + zoom on the schematic canvas. Wheel = zoom around cursor;
   // drag-on-background = pan; auto-fit on path / layout change so any size
@@ -2371,85 +2169,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const [pan, setPan]   = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
 
-  // Per-expanded-instance sub-layouts. Keyed by *type* so two instances of the
-  // same module reuse the same sub-layout result.
-  const subLayouts = useMemo(() => {
-    const out = {};
-    const cache = {};
-    for (const inst of expandedModules) {
-      const child = mod.children.find((c) => c.name === inst);
-      if (!child) continue;
-      const subMod = B_MODULES[child.type];
-      if (!subMod || subMod.children.length === 0) continue;
-      const cacheKey = `${child.type}|${tweaks.layout}|${tweaks.bundleMode}`;
-      if (!cache[cacheKey]) {
-        cache[cacheKey] = bComputeLayout(
-          subMod, [...path, inst], tweaks.layout,
-          { colW: CHILD_NODE_W, modH: CHILD_NODE_H, colGap: 32, rowGap: 18 },
-        );
-      }
-      out[inst] = cache[cacheKey];
-    }
-    return out;
-  }, [expandedModules, mod, path, tweaks.layout, tweaks.bundleMode]);
-
-  // For each expanded module, compute its internal wire list with absolute
-  // endpoints (in sub-layout coordinates). Paths are prefixed with the parent
-  // inst so they namespace cleanly with the top-level selection / highlighting.
-  const subWires = useMemo(() => {
-    const out = {};
-    for (const inst of expandedModules) {
-      const sub = subLayouts[inst];
-      if (!sub) continue;
-      const child = mod.children.find((c) => c.name === inst);
-      const subMod = B_MODULES[child.type];
-      const prefix = `${inst}.`;
-      const fanOut = {}, fanIn = {};
-      subMod.wires.forEach((w) => {
-        const a = w.from.split('.')[0], b = w.to.split('.')[0];
-        fanOut[a] = (fanOut[a] || 0) + 1;
-        fanIn[b]  = (fanIn[b]  || 0) + 1;
-      });
-      const idxOut = {}, idxIn = {};
-      out[inst] = subMod.wires.map((w, i) => {
-        const fromInst = w.from.split('.')[0];
-        const toInst   = w.to.split('.')[0];
-        const ba = sub.boxes[fromInst];
-        const bb = sub.boxes[toInst];
-        if (!ba || !bb) return null;
-        const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
-        const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
-        return {
-          id: `sub-${inst}-w${i}`, ...w,
-          fromInst, toInst,
-          fromPath: prefix + w.from,
-          toPath:   prefix + w.to,
-          ...pts,
-        };
-      }).filter(Boolean);
-    }
-    return out;
-  }, [expandedModules, subLayouts, mod]);
-
-  const layoutResult = useMemo(
-    () => {
-      const baked = bBakedLayout(mod);
-      if (baked) return baked;
-      const heightFor = (inst) => {
-        const sub = subLayouts[inst];
-        if (!sub) return NODE_H;
-        return HEADER_H + sub.totalH + EXPAND_PAD;
-      };
-      const widthFor = (inst) => {
-        const sub = subLayouts[inst];
-        if (!sub) return NODE_W;
-        return Math.max(NODE_W, sub.totalW + 2 * INNER_PAD);
-      };
-      return bComputeLayout(mod, path, tweaks.layout, { heightFor, widthFor });
-    },
-    [mod, path, tweaks.layout, subLayouts],
-  );
-  const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, columnLabels, routingStyle, edges: bakedEdges } = layoutResult;
+  const layoutResult = useMemo(() => bBakedLayout(mod), [mod]);
+  const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, routingStyle, edges: bakedEdges } = layoutResult || { boxes: {}, ports: {}, totalW: 1, totalH: 1, routingStyle: 'baked', edges: {} };
   const containerH = totalH + 40;
 
   // Auto-fit when the design's bounding box changes (drill in/out, layout swap).
@@ -2640,10 +2361,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             {mod.children.length} inst · {mod.wires.length} wires
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 0, pointerEvents: 'auto', background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 10.5 }}>
-          <span style={{ padding: '3px 8px', color: benchTokens.ink4 }}>layout</span>
-          <span style={{ padding: '3px 8px 3px 2px', color: benchTokens.ink, fontWeight: 600 }}>{tweaks.layout}</span>
-        </div>
       </div>
 
       <div ref={viewportRef}
@@ -2660,17 +2377,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           transformOrigin: '0 0',
           transition: 'width .3s, height .3s',
         }}>
-          {/* Column labels (hier only) */}
-          {columnLabels.length > 0 && columnLabels.map((label, ci) => (
-            label ? (
-              <div key={ci} style={{
-                position: 'absolute', left: ci * (NODE_W + 80), top: -28, width: NODE_W,
-                fontSize: 10, fontFamily: benchTokens.mono, color: benchTokens.ink3,
-                textTransform: 'uppercase', letterSpacing: 0.8, fontWeight: 600,
-              }}>{label}</div>
-            ) : null
-          ))}
-
           {/* Wires — HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
           <WireHitLayer
             wires={wires} totalW={totalW} totalH={containerH}
@@ -2742,9 +2448,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             }
             const childMod = B_MODULES[child.type];
             const drillable = !!childMod && childMod.children.length > 0;
-            const expandable = drillable;
-            const expanded = expandedModules && expandedModules.has(inst);
-            const showExpandBtn = expandable && (hoveredInst === inst || expanded);
             const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
             const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
             return (
@@ -2755,17 +2458,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 onDoubleClick={() => drillable && drillInto(inst)}
                 style={{
                   position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
-                  background: expanded ? '#f6f4ff' : benchTokens.panel,
-                  border: `${expanded ? 1.5 : 1}px solid ${
-                    selectedHere ? benchTokens.accent
-                                 : (expanded ? '#b3a8f0' : benchTokens.border)
-                  }`,
+                  background: benchTokens.panel,
+                  border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
                   borderRadius: 6,
                   boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
                   cursor: drillable ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
-                  overflow: routingStyle === 'baked' ? 'visible' : 'hidden',
-                  transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), width .35s cubic-bezier(.4,.2,.2,1), height .35s cubic-bezier(.4,.2,.2,1), background .2s, box-shadow .12s, border-color .12s',
+                  overflow: 'visible',
+                  transition: 'box-shadow .12s, border-color .12s',
                 }}
               >
                 <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
@@ -2773,89 +2473,19 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3 }}>{child.type}</span>
-                    {expandable && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); toggleExpandModule(inst); }}
-                        title={expanded ? 'Collapse' : 'Peek inside'}
-                        style={{
-                          border: `1px solid ${benchTokens.borderSoft}`,
-                          background: expanded ? benchTokens.accentBg : benchTokens.panel,
-                          color: expanded ? benchTokens.accent : benchTokens.ink3,
-                          fontSize: 11, lineHeight: 1, padding: '2px 5px',
-                          borderRadius: 4, cursor: 'pointer',
-                          opacity: showExpandBtn ? 1 : 0,
-                          transition: 'opacity .12s, background .12s, color .12s',
-                        }}
-                      >↕</button>
-                    )}
                   </div>
                 </div>
-                {expanded && subLayouts[inst] ? (
-                  /* Expanded body: nested child boxes + internal wires. */
-                  <div style={{
-                    position: 'relative', flex: 1,
-                    margin: `0 ${INNER_PAD}px ${EXPAND_PAD / 2}px ${INNER_PAD}px`,
-                    minHeight: subLayouts[inst].totalH,
-                  }}>
-                    <WireHitLayer
-                      wires={subWires[inst] || []}
-                      totalW={subLayouts[inst].totalW} totalH={subLayouts[inst].totalH}
-                      routingStyle={subLayouts[inst].routingStyle}
-                      setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
-                    />
-                    {Object.entries(subLayouts[inst].boxes).map(([cInst, cb]) => {
-                      const cChild = B_MODULES[child.type].children.find((c) => c.name === cInst);
-                      if (!cChild) return null;
-                      const cSel = selectedSig === `${inst}.${cInst}` || (selectedSig && selectedSig.startsWith(`${inst}.${cInst}.`));
-                      return (
-                        <div key={cInst}
-                          data-pan-block="1"
-                          onClick={(e) => { e.stopPropagation(); setSelectedSig(`${inst}.${cInst}`); }}
-                          onMouseEnter={() => setHoveredSig(`${inst}.${cInst}`)}
-                          onMouseLeave={() => setHoveredSig(null)}
-                          title={`${cInst} : ${cChild.type}`}
-                          style={{
-                            position: 'absolute', left: cb.x, top: cb.y, width: cb.w, height: cb.h,
-                            background: benchTokens.panel,
-                            border: `1px solid ${cSel ? benchTokens.accent : '#d6cffa'}`,
-                            borderRadius: 4,
-                            padding: 6,
-                            fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
-                            display: 'flex', flexDirection: 'column', gap: 3,
-                            overflow: 'hidden', cursor: 'pointer',
-                            boxShadow: cSel ? `0 0 0 2px ${benchTokens.accentBg}` : 'none',
-                          }}>
-                          <span style={{ fontWeight: 600, color: benchTokens.ink }}>{cInst}</span>
-                          <span style={{ color: benchTokens.ink3, fontSize: 9.5 }}>{cChild.type}</span>
-                        </div>
-                      );
-                    })}
-                    <WireVisualLayer
-                      wires={subWires[inst] || []}
-                      totalW={subLayouts[inst].totalW} totalH={subLayouts[inst].totalH}
-                      routingStyle={subLayouts[inst].routingStyle}
-                      selectedSig={selectedSig} hoveredSig={hoveredSig}
-                      expandedBundles={expandedBundles} toggleBundle={toggleBundle}
-                      globalExpanded={globalExpanded}
-                      showWidths={tweaks.showWidths}
-                      markerScope={`sub-${inst}`}
-                    />
+                <React.Fragment>
+                  <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
+                    {child.doc}
                   </div>
-                ) : (
-                  <React.Fragment>
-                    <div style={{ flex: 1, padding: '6px 10px', fontSize: 10.5, color: benchTokens.ink3, lineHeight: 1.45 }}>
-                      {child.doc}
-                    </div>
-                    <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
-                      <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
-                      {drillable && (
-                        <span style={{ color: benchTokens.accent }}>
-                          {expandable ? '↕ peek · ↵ open' : '↵ open'}
-                        </span>
-                      )}
-                    </div>
-                  </React.Fragment>
-                )}
+                  <div style={{ padding: '4px 10px', borderTop: `1px solid ${benchTokens.borderSoft}`, display: 'flex', justifyContent: 'space-between', fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink4 }}>
+                    <span>{wiresOnMe.length} port{wiresOnMe.length !== 1 ? 's' : ''}</span>
+                    {drillable && (
+                      <span style={{ color: benchTokens.accent }}>{'↵ open'}</span>
+                    )}
+                  </div>
+                </React.Fragment>
                 {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
                   const pw = p.interface ? 8 : 5;
                   const ph = p.interface ? 10 : 4;
@@ -2905,8 +2535,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             selectedSig={selectedSig} hoveredSig={hoveredSig}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             globalExpanded={globalExpanded}
-            showWidths={tweaks.showWidths}
-            expandedModules={expandedModules}
             markerScope="top"
           />
         </div>
@@ -3102,7 +2730,7 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontFamily: benchTokens.mono, color: benchTokens.ink4 }}>
           {tab === 'source' && mod.source.file}
-          {tab === 'wave' && `${B_WAVE_CYCLES} cycles · 100 MHz`}
+          {tab === 'wave' && (B_WAVES && B_WAVES.length > 0 ? `${window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES} cycles · 100 MHz` : 'no waveform data')}
           {tab === 'ports' && `${mod.children.length} instances`}
         </div>
       </div>
@@ -3249,11 +2877,20 @@ function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, dri
 // — Waveform view: track names + per-cycle cells
 function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
   const cellW = 28;
+  const waves = B_WAVES && B_WAVES.length > 0 ? B_WAVES : null;
+  const waveCycles = window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES || 0;
+  if (!waves) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontFamily: benchTokens.sans, fontSize: 12, color: benchTokens.ink4, padding: 24, textAlign: 'center' }}>
+        No waveform data - run a simulation to populate this view.
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', fontFamily: benchTokens.mono, fontSize: 10.5 }}>
       <div style={{ borderRight: `1px solid ${benchTokens.borderSoft}` }}>
         <div style={{ padding: '6px 10px', height: 26, background: benchTokens.panelAlt, borderBottom: `1px solid ${benchTokens.borderSoft}`, fontSize: 10, color: benchTokens.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, display: 'flex', alignItems: 'center' }}>Signal</div>
-        {B_WAVES.map((tr) => {
+        {waves.map((tr) => {
           const sel = selectedSig === tr.path || (selectedSig && tr.path.startsWith(selectedSig));
           return (
             <div key={tr.path}
@@ -3277,11 +2914,11 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
       <div style={{ overflowX: 'auto' }}>
         {/* cycle ruler */}
         <div style={{ display: 'flex', height: 26, background: benchTokens.panelAlt, borderBottom: `1px solid ${benchTokens.borderSoft}`, fontSize: 9.5, color: benchTokens.ink4 }}>
-          {Array.from({ length: B_WAVE_CYCLES }, (_, i) => (
+          {Array.from({ length: waveCycles }, (_, i) => (
             <div key={i} style={{ width: cellW, minWidth: cellW, textAlign: 'center', borderRight: `1px solid ${benchTokens.borderSoft}`, padding: '6px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>{i}</div>
           ))}
         </div>
-        {B_WAVES.map((tr) => {
+        {waves.map((tr) => {
           const sel = selectedSig === tr.path;
           return (
             <div key={tr.path} style={{ display: 'flex', height: 26, borderBottom: `1px solid ${benchTokens.borderSoft}`, background: sel ? benchTokens.accentBg : 'transparent' }}>
@@ -3385,17 +3022,8 @@ function App() {
           <TweakRadio label="Density" value={tweaks.density}
             onChange={(v) => setTweak('density', v)}
             options={[{ value: 'compact', label: 'Compact' }, { value: 'comfortable', label: 'Comfort' }]} />
-          <TweakToggle label="Show widths & types inline" value={tweaks.showWidths}
-            onChange={(v) => setTweak('showWidths', v)} />
         </TweakSection>
         <TweakSection label="Netlist">
-          <TweakSelect label="Layout algorithm" value={tweaks.layout}
-            onChange={(v) => setTweak('layout', v)}
-            options={[
-              { value: 'hier', label: 'Hierarchical (tiered)' },
-              { value: 'orth', label: 'Orthogonal (topo rank)' },
-              { value: 'dataflow', label: 'Dataflow (force)' },
-            ]} />
           <TweakRadio label="Bundle display" value={tweaks.bundleMode}
             onChange={(v) => setTweak('bundleMode', v)}
             options={[
