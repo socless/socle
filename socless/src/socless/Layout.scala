@@ -119,16 +119,44 @@ object Layout {
     }
 
     // 2. Group pins per node (distinct path), preserving first-seen order.
+    //    Pin side is determined by dataflow role, not declared direction:
+    //    - SOURCE endpoint (e.to) votes EAST  (it drives rightward)
+    //    - SINK   endpoint (e.from) votes WEST (it receives)
+    //    A pin that appears in multiple wires may get votes for both sides;
+    //    final side = EAST when eastVotes >= westVotes (tie -> EAST).
     case class PinSpec(path: String, side: String, interface: Boolean)
-    val nodePins = scala.collection.mutable.LinkedHashMap.empty[(String, String), scala.collection.mutable.LinkedHashMap[String, PinSpec]]
-    def register(ep: Endpoint): Unit = {
-      val pins = nodePins.getOrElseUpdate((ep.nodeId, ep.kind), scala.collection.mutable.LinkedHashMap.empty)
-      pins.getOrElseUpdate(ep.path, PinSpec(ep.path, ep.side, ep.interface))
+    type PinMap = scala.collection.mutable.LinkedHashMap[String, PinSpec]
+
+    // Tally votes: (nodeId, kind, path) -> (eastVotes, westVotes, interface)
+    val eastVotes  = scala.collection.mutable.Map.empty[(String, String, String), Int].withDefaultValue(0)
+    val westVotes  = scala.collection.mutable.Map.empty[(String, String, String), Int].withDefaultValue(0)
+    val ifaceOf    = scala.collection.mutable.Map.empty[(String, String, String), Boolean].withDefaultValue(false)
+    // Ordered paths per (nodeId, kind) to preserve first-seen insertion order.
+    val pinOrder   = scala.collection.mutable.LinkedHashMap.empty[(String, String), scala.collection.mutable.LinkedHashSet[String]]
+
+    def vote(ep: Endpoint, isSource: Boolean): Unit = {
+      val k = (ep.nodeId, ep.kind, ep.path)
+      if (isSource) eastVotes(k) += 1 else westVotes(k) += 1
+      ifaceOf(k) = ifaceOf(k) || ep.interface
+      pinOrder.getOrElseUpdate((ep.nodeId, ep.kind), scala.collection.mutable.LinkedHashSet.empty) += ep.path
     }
-    resolved.foreach { e => register(e.from); register(e.to) }
+    // e.to is SOURCE; e.from is SINK.
+    resolved.foreach { e => vote(e.to, isSource = true); vote(e.from, isSource = false) }
     // Ensure instances with no resolved wires still appear as empty boxes.
     module.children.foreach { c =>
-      nodePins.getOrElseUpdate((c.name, "inst"), scala.collection.mutable.LinkedHashMap.empty)
+      pinOrder.getOrElseUpdate((c.name, "inst"), scala.collection.mutable.LinkedHashSet.empty)
+    }
+
+    // Build nodePins from the vote tallies.
+    val nodePins = scala.collection.mutable.LinkedHashMap.empty[(String, String), PinMap]
+    pinOrder.foreach { case ((nodeId, kind), paths) =>
+      val pins: PinMap = scala.collection.mutable.LinkedHashMap.empty
+      paths.foreach { path =>
+        val k    = (nodeId, kind, path)
+        val side = if (eastVotes(k) >= westVotes(k)) "EAST" else "WEST"
+        pins(path) = PinSpec(path, side, ifaceOf(k))
+      }
+      nodePins((nodeId, kind)) = pins
     }
 
     // 3. Create ELK nodes + ports. Track ELK port handles by path.
