@@ -16,7 +16,9 @@ mill socless.publishLocal        # Scala 2.13 runtime library
 mill mill-socless.publishLocal   # Scala 3 Mill plugin
 
 # Run tests
-./mill socless.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, ...)
+./mill socless.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, GoldenDesign, ...)
+./mill socless.regenerateGoldens  # Regenerate golden JSON snapshots after intentional pipeline changes
+# (alternative) SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
 
 # Run bundled examples (no publishLocal needed)
 mill example.soclessRun          # AXISystem design
@@ -33,7 +35,9 @@ mill myDesign.soclessUI           # Serve UI locally (default port 8765)
 mill myDesign.soclessUI --port 9000
 ```
 
-Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, and WithLayoutsTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against `ui/examples/` reference JSONs.
+Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, WithLayoutsTest, and GoldenDesignTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against `ui/examples/` reference JSONs.
+
+**Golden/snapshot tests**: `GoldenDesignTest` compares the IrWalk-pipeline output (parse+design, no layout) against committed golden files in `socless/test/resources/golden/`. When you intentionally change the emitted schema, regenerate the goldens with `./mill socless.regenerateGoldens`, then `git diff` to review and commit.
 
 ## Module Architecture
 

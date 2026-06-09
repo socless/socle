@@ -82,6 +82,39 @@ object socless extends ChiselToolchain with SoclessPublish {
       mvn"com.lihaoyi::utest:${V.utest}",
     )
   }
+
+  /** Regenerate committed golden design.json snapshots from the CHIRRTL fixtures.
+    *
+    * Run this whenever an intentional pipeline change alters the emitted JSON:
+    *
+    *   ./mill socless.regenerateGoldens
+    *
+    * The task sets SOCLESS_REGENERATE=1 and re-runs GoldenDesignTest, which
+    * writes (or overwrites) socless/test/resources/golden/<name>.json in the
+    * source tree rather than asserting.  After regenerating, review the diff
+    * with `git diff socless/test/resources/golden/` before committing.
+    *
+    * Alternative (equivalent):
+    *   SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
+    */
+  def regenerateGoldens(): Command[Unit] = Task.Command {
+    // Build a classpath for the test JVM.  test.runClasspath() includes the
+    // compiled test classes, so GoldenWriter and the pipeline are all present.
+    val cp = test.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    // Golden files live in the source tree, not in Task.dest, so they get committed.
+    val goldenDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "golden"
+    os.makeDir.all(goldenDir)
+    val rc = os.proc(
+      Seq("java") ++ test.forkArgs() ++
+      Seq("-cp", cp, "socless.GoldenWriter", goldenDir.toString)
+    ).call(
+      stdout = os.Inherit, stderr = os.Inherit,
+      cwd = mill.api.BuildCtx.workspaceRoot,
+      check = false,
+    )
+    if (rc.exitCode != 0) throw new RuntimeException(s"regenerateGoldens failed (exit ${rc.exitCode})")
+    Task.log.info("[socless] Goldens regenerated — review 'git diff socless/test/resources/golden/' before committing.")
+  }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────
