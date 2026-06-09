@@ -1937,6 +1937,25 @@ function DesignPicker() {
   );
 }
 
+// Highlight matched chars in a string given a fuzzy needle.
+// Returns an array of {text, hi} spans.
+function fuzzyHighlight(label, needle) {
+  if (!needle) return [{ text: label, hi: false }];
+  const lo = label.toLowerCase(), nlo = needle.toLowerCase();
+  const spans = [];
+  let ni = 0, lastEnd = 0;
+  for (let i = 0; i < lo.length && ni < nlo.length; i++) {
+    if (lo[i] === nlo[ni]) {
+      if (i > lastEnd) spans.push({ text: label.slice(lastEnd, i), hi: false });
+      spans.push({ text: label[i], hi: true });
+      lastEnd = i + 1;
+      ni++;
+    }
+  }
+  if (lastEnd < label.length) spans.push({ text: label.slice(lastEnd), hi: false });
+  return spans;
+}
+
 // ─── Command palette ─ ⌘K search over modules + instances + ports ─────────
 function CommandPalette({ open, onClose, onNavigate }) {
   const [q, setQ] = useState('');
@@ -1975,9 +1994,39 @@ function CommandPalette({ open, onClose, onNavigate }) {
     const needle = q.toLowerCase();
     const scored = [];
     for (const it of items) {
-      const hay = (it.label + ' ' + (it.sub || '')).toLowerCase();
-      const idx = hay.indexOf(needle);
-      if (idx >= 0) scored.push({ ...it, score: idx + (it.kind === 'module' ? 0 : 0.5) });
+      const target = (it.label + ' ' + (it.sub || '')).toLowerCase();
+      // Fuzzy subsequence match with scoring:
+      //   score = lower is better
+      //   - substring match earns a large bonus (subtract 1000)
+      //   - start-of-word match earns a smaller bonus (subtract 200)
+      //   - contiguity: penalise gaps between matched chars
+      //   - kind bonus: modules rank first (0 extra), others +1
+      let ni = 0, score = 0, lastHit = -1;
+      let allHit = true, contiguousRun = 0;
+      for (let ti = 0; ti < target.length && ni < needle.length; ti++) {
+        if (target[ti] === needle[ni]) {
+          const gap = lastHit < 0 ? 0 : ti - lastHit - 1;
+          score += gap;                          // penalise gaps
+          if (gap === 0) contiguousRun++;        // reward contiguous chars
+          lastHit = ti;
+          ni++;
+        }
+      }
+      if (ni < needle.length) { allHit = false; }
+      if (!allHit) continue;
+      // Bonuses
+      if (target.indexOf(needle) >= 0) score -= 1000;           // exact substring wins
+      if (target.startsWith(needle) || target.startsWith(needle)) score -= 200; // leading match
+      // Word-start bonus: first char of needle matches a word boundary in target
+      if (needle.length > 0) {
+        const firstChar = needle[0];
+        if (target[0] === firstChar) score -= 100;
+        const wbIdx = target.search(new RegExp('(?:^|[\\s._/-])' + firstChar));
+        if (wbIdx >= 0) score -= 80;
+      }
+      score -= contiguousRun * 5;                               // reward long runs
+      score += it.kind === 'module' ? 0 : 1;                   // tiebreak: modules first
+      scored.push({ ...it, score, _matchTarget: target });
     }
     scored.sort((a, b) => a.score - b.score);
     return scored.slice(0, 100);
@@ -2052,7 +2101,13 @@ function CommandPalette({ open, onClose, onNavigate }) {
                   border: `1px solid ${benchTokens.borderSoft}`, textTransform: 'uppercase',
                   letterSpacing: 0.4, minWidth: 60, textAlign: 'center',
                 }}>{r.kind}</span>
-                <span title={r.label} style={{ fontFamily: benchTokens.mono, fontSize: 12, color: active ? benchTokens.accent : benchTokens.ink, fontWeight: active ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{r.label}</span>
+                <span title={r.label} style={{ fontFamily: benchTokens.mono, fontSize: 12, color: active ? benchTokens.accent : benchTokens.ink, fontWeight: active ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  {q.trim() ? fuzzyHighlight(r.label, q).map((s, si) =>
+                    s.hi
+                      ? <mark key={si} style={{ background: 'transparent', color: benchTokens.accent, fontWeight: 700 }}>{s.text}</mark>
+                      : <span key={si}>{s.text}</span>
+                  ) : r.label}
+                </span>
                 <span title={r.sub} style={{ fontSize: 11, color: benchTokens.ink3, marginLeft: 'auto', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', maxWidth: 240 }}>{r.sub}</span>
               </button>
             );
@@ -3095,18 +3150,8 @@ function CopyPathBtn({ path }) {
 }
 
 function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelectedSig }) {
-  const expanded = expandedBundles.has(wire.from);
-  const fields = bBundleFields(wire.bundle);
-  // Group by channel for AXI4
-  const channels = useMemo(() => {
-    const m = {};
-    for (const f of fields) {
-      const ch = f.channel || '_';
-      if (!m[ch]) m[ch] = [];
-      m[ch].push(f);
-    }
-    return m;
-  }, [fields]);
+  // Build the port tree from the wire's bundle type, rooted at wire.from.
+  const tree = useMemo(() => portTree(wire.bundle, null, wire.from), [wire.bundle, wire.from]);
 
   return (
     <div style={{ padding: '12px 14px', fontSize: 12, overflow: 'auto' }}>
@@ -3125,9 +3170,9 @@ function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelected
         <span style={{ color: benchTokens.ink2 }}>{bTotalWidth(wire.bundle)} bits</span>
       </div>
 
-      <div style={{ fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Channels</div>
-      {Object.entries(channels).map(([ch, fs]) => (
-        <BundleChannel key={ch} ch={ch} fields={fs} wireFrom={wire.from} setSelectedSig={setSelectedSig} sig={sig} />
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Fields</div>
+      {tree.children.map((child) => (
+        <InspectorTreeNode key={child.path} node={child} depth={0} sig={sig} setSelectedSig={setSelectedSig} expandedBundles={expandedBundles} toggleBundle={toggleBundle} />
       ))}
 
       <div style={{ marginTop: 14, fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Source</div>
@@ -3138,6 +3183,86 @@ function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelected
   );
 }
 
+// Recursive tree node for the inspector. Expandable nodes show a chevron and
+// can be toggled open/closed. Leaf nodes show name/dir/width and a copy-path button.
+function InspectorTreeNode({ node, depth, sig, setSelectedSig, expandedBundles, toggleBundle }) {
+  const key = node.path;
+  const isOpen = expandedBundles.has(key);
+  const isSel = sig === node.path;
+  const indent = depth * 14;
+  const color = B_CHAN[node.name] || null;
+
+  if (node.isExpandable) {
+    // Aggregate node (bundle, decoupled, vec) - shows a collapsible section.
+    return (
+      <div style={{ marginBottom: 3, border: `1px solid ${benchTokens.borderSoft}`, borderRadius: 5, overflow: 'hidden' }}>
+        <div
+          onClick={() => toggleBundle(key)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: `4px 8px 4px ${8 + indent}px`,
+            background: benchTokens.panelAlt, cursor: 'pointer',
+            fontFamily: benchTokens.mono, fontSize: 11,
+          }}
+        >
+          {color && <span style={{ width: 7, height: 7, borderRadius: 4, background: color, flexShrink: 0 }} />}
+          <span style={{ fontWeight: 600, color: isSel ? benchTokens.accent : benchTokens.ink2 }}>{node.name}</span>
+          <span style={{ color: benchTokens.ink4, fontSize: 9.5 }}>{node.bundleKey}</span>
+          {node.dir && (
+            <span style={{ color: benchTokens.ink4, fontSize: 9 }}>{node.dir === 'out' ? '→' : '←'}</span>
+          )}
+          <span style={{ marginLeft: 'auto', color: benchTokens.ink4, fontSize: 10 }}>
+            {node.children.length} fields
+          </span>
+          <span style={{ color: benchTokens.ink4, fontSize: 9, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform .12s', display: 'inline-block' }}>▶</span>
+        </div>
+        {isOpen && (
+          <div>
+            {node.children.map((child) => (
+              <InspectorTreeNode key={child.path} node={child} depth={depth + 1} sig={sig} setSelectedSig={setSelectedSig} expandedBundles={expandedBundles} toggleBundle={toggleBundle} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Leaf node - ground type signal.
+  return (
+    <div
+      onClick={() => setSelectedSig(node.path)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: `3px 8px 3px ${8 + 14 + indent}px`,
+        fontFamily: benchTokens.mono, fontSize: 10.5,
+        cursor: 'pointer', position: 'relative',
+        background: isSel ? benchTokens.accentBg : 'transparent',
+        color: isSel ? benchTokens.accent : benchTokens.ink2,
+      }}
+      onMouseEnter={(e) => {
+        if (!isSel) e.currentTarget.style.background = benchTokens.panelAlt;
+        const btn = e.currentTarget.querySelector('.copy-btn');
+        if (btn) btn.style.opacity = '1';
+      }}
+      onMouseLeave={(e) => {
+        if (!isSel) e.currentTarget.style.background = 'transparent';
+        const btn = e.currentTarget.querySelector('.copy-btn');
+        if (btn) btn.style.opacity = '0';
+      }}
+    >
+      <span style={{ width: 12, color: benchTokens.ink4, fontSize: 9, flexShrink: 0 }}>
+        {node.dir === 'out' ? '→' : '←'}
+      </span>
+      <span>{node.name}</span>
+      <span style={{ marginLeft: 'auto', color: benchTokens.ink4 }}>{node.width}b</span>
+      <span className="copy-btn" style={{ opacity: 0, transition: 'opacity .1s' }}>
+        <CopyPathBtn path={node.path} />
+      </span>
+    </div>
+  );
+}
+
+// BundleChannel kept for any other callers (ports panel, etc.) - not used by InspectorBundle anymore.
 function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
   const [open, setOpen] = useState(true);
   const color = B_CHAN[ch] || benchTokens.ink3;
