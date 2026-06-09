@@ -93,14 +93,16 @@ object Layout {
   private val NodeW      = 160.0
   private val PortStep   = 24.0
   private val PortPad    = 18.0
+  /** Height of the component header band (name + type). Must match HEADER_H in SoCLess.html (issue #38). */
+  val HeaderH            = 28.0
   private val BoundaryW  = 16.0
   private val BoundaryH  = 28.0
   private val LabelGap   = 24.0   // horizontal gap between widest WEST and EAST label columns
   private val MaxNodeW   = 520.0  // cap so layout doesn't explode on very long labels
 
   private def nodeHeight(westN: Int, eastN: Int): Double = {
-    val maxPorts = math.max(1, math.max(westN, eastN))
-    math.max(72.0, 2 * PortPad + (maxPorts - 1) * PortStep)
+    val maxRows = math.max(1, math.max(westN, eastN))
+    math.max(HeaderH + 2 * PortPad + PortStep, HeaderH + 2 * PortPad + maxRows * PortStep)
   }
 
   /** Estimate rendered pixel width of `text` in the UI's small monospace font. */
@@ -185,20 +187,28 @@ object Layout {
     }
 
     // 3. Create ELK nodes + ports. Track ELK port handles by path.
-    //    Boundary nodes are compact stubs; instance nodes use the full size,
-    //    grown to fit the widest label on each side.
+    //    Boundary nodes are compact stubs (FIXED_SIDE, no header).
+    //    Instance (component) nodes use FIXED_POS with a header band: ports are
+    //    placed in rows below the header at explicit (x, y) coordinates so the
+    //    name label never overlaps any pin (issue #28).
     val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
     val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
     nodePins.foreach { case ((id, kind), pins) =>
-      val n = if (kind == "boundary") {
+      if (kind == "boundary") {
         // Boundary: keep compact but at least wide enough for the label (if any).
         val maxLabelPx = pins.values.map { p =>
           val lbl = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
           labelPx(lbl)
         }.maxOption.getOrElse(0.0)
         val bw = math.max(BoundaryW, maxLabelPx)
-        addNode(root, bw, BoundaryH)
+        val n = addNode(root, bw, BoundaryH)
+        elkNode((id, kind)) = n
+        pins.values.foreach { p =>
+          val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST
+          elkPort(p.path) = addPort(n, side)
+        }
       } else {
+        // Instance (component) node: reserve HeaderH at top, place ports in rows below.
         val west = pins.values.count(_.side == "WEST")
         val east = pins.values.count(_.side == "EAST")
         val westMaxPx = pins.values.filter(_.side == "WEST").map { p =>
@@ -209,13 +219,28 @@ object Layout {
           val lbl = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
           labelPx(lbl)
         }.maxOption.getOrElse(0.0)
-        val w = math.min(MaxNodeW, math.max(NodeW, westMaxPx + LabelGap + eastMaxPx))
-        addNode(root, w, nodeHeight(west, east))
-      }
-      elkNode((id, kind)) = n
-      pins.values.foreach { p =>
-        val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST
-        elkPort(p.path) = addPort(n, side)
+        // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
+        val headerTextPx = id.length * 6.5 + 24.0
+        val w = math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
+        val node = ElkGraphUtil.createNode(root)
+        node.setWidth(w); node.setHeight(nodeHeight(west, east))
+        // FIXED_POS: ELK will honour our explicit per-port (x, y) values.
+        node.setProperty(CoreOptions.PORT_CONSTRAINTS, PortConstraints.FIXED_POS)
+        elkNode((id, kind)) = node
+        // Independent row counters per side so WEST and EAST ports start at row 0.
+        var westRow = 0; var eastRow = 0
+        pins.values.foreach { p =>
+          val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
+                       else                   { val r = eastRow; eastRow += 1; r }
+          val portY = HeaderH + PortPad + rowIdx * PortStep + PortStep / 2
+          val port = ElkGraphUtil.createPort(node)
+          port.setWidth(6); port.setHeight(6)
+          port.setX(if (p.side == "EAST") w else 0.0)
+          port.setY(portY)
+          // FIXED_POS still requires PORT_SIDE for ELK's edge-routing decisions.
+          port.setProperty(CoreOptions.PORT_SIDE, if (p.side == "EAST") PortSide.EAST else PortSide.WEST)
+          elkPort(p.path) = port
+        }
       }
     }
 
@@ -276,7 +301,7 @@ object Layout {
       val laidPorts = pins.values.toSeq.map { p =>
         val ep    = elkPort(p.path)
         val lbl   = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
-        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, lbl)
+        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, lbl, p.bundle)
       }
       LaidNode(id, kind, nx.toInt, ny.toInt, n.getWidth.toInt, n.getHeight.toInt, laidPorts)
     }.toSeq

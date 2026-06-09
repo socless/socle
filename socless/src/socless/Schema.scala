@@ -138,13 +138,17 @@ object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }
 /** A pin on a box. `path` is the coalesced endpoint path it represents
   * (e.g. "cpu.io", "xbar.in[0].ar", "s_axi"); `side` is "WEST"/"EAST";
   * `interface` is true when the pin carries an aggregate bundle (drawn fat);
-  * and `label` is the display text rendered inside the box next to the pin.
+  * `label` is the display text rendered inside the box next to the pin; and
+  * `bundle` is the bundle key (into Design.bundles) for this pin, enabling the
+  * UI to walk the bundle tree for expand/collapse (issue #29). Trailing default
+  * keeps existing positional constructions valid.
   */
 case class LaidPort(
   path: String, x: Int, y: Int,
   side: String,               // "WEST" | "EAST"
   interface: Boolean,
   label: String = "",
+  bundle: String = "",        // bundle key; "" for scalar/unknown pins
 )
 object LaidPort { implicit val rw: ReadWriter[LaidPort] = macroRW }
 

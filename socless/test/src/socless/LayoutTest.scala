@@ -207,6 +207,39 @@ object LayoutTest extends TestSuite {
       // Node A stays at NodeW, proving B genuinely grew (not just both at NodeW).
       assert(widthB > widthA)
     }
+
+    // ── Header-band tests (issue #28) ────────────────────────────────────────
+
+    test("component node height accounts for the header (>= HeaderH + something)") {
+      // nodeHeight formula: HeaderH + 2*PortPad + max(1,maxRows)*PortStep
+      // The cpu node has 1 port (EAST), so height >= HeaderH + 2*PortPad + 1*PortStep
+      val cpuNode = L.nodes.find(_.id == "cpu").get
+      assert(cpuNode.h >= Layout.HeaderH.toInt + 1)
+    }
+
+    test("every component LaidPort.y is >= node.y + HeaderH") {
+      // All ports on inst nodes must sit below the header band.
+      val HeaderH = Layout.HeaderH.toInt
+      L.nodes.filter(_.kind == "inst").foreach { node =>
+        node.ports.foreach { p =>
+          assert(p.y >= node.y + HeaderH)
+        }
+      }
+    }
+
+    test("LaidPort.bundle is populated for an interface pin") {
+      // cpu.io has bundle "AXI4" from the wire definition; it must be propagated to LaidPort.
+      val cpuPort = L.nodes.find(_.id == "cpu").get.ports.find(_.path == "cpu.io").get
+      assert(cpuPort.bundle == "AXI4")
+    }
+
+    test("LaidPort.bundle survives JSON round-trip") {
+      import upickle.default._
+      val cpuPort = L.nodes.find(_.id == "cpu").get.ports.find(_.path == "cpu.io").get
+      val json = write(cpuPort)
+      val back = read[LaidPort](json)
+      assert(back.bundle == "AXI4")
+    }
   }
 
   private implicit class EdgeOps(e: RoutedEdge) {

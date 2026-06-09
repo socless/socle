@@ -1919,6 +1919,9 @@ function ModuleGlyph({ type, active }) {
 // expanded (channel ribbons always on).
 
 const NODE_W = 220, NODE_H = 84;
+// Height of the component-box header band (name + type label).
+// MUST match Layout.scala HeaderH = 28.0 (issue #38 tracks removing this coupling).
+const HEADER_H = 28;
 
 // Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H
 // and a `routingStyle: 'baked'` marker so the wire layer routes along the
@@ -2468,7 +2471,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   transition: 'box-shadow .12s, border-color .12s',
                 }}
               >
-                <div style={{ padding: '7px 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt }}>
+                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0 }}>
                   <ModuleGlyph type={child.type} active={selectedHere} />
                   <span style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink }}>{inst}</span>
                   <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
