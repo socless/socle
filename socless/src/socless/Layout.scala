@@ -91,15 +91,20 @@ object Layout {
     design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
 
   private val NodeW      = 160.0
-  private val PortStep   = 22.0
+  private val PortStep   = 24.0
   private val PortPad    = 18.0
   private val BoundaryW  = 16.0
   private val BoundaryH  = 28.0
+  private val LabelGap   = 24.0   // horizontal gap between widest WEST and EAST label columns
+  private val MaxNodeW   = 520.0  // cap so layout doesn't explode on very long labels
 
   private def nodeHeight(westN: Int, eastN: Int): Double = {
     val maxPorts = math.max(1, math.max(westN, eastN))
     math.max(72.0, 2 * PortPad + (maxPorts - 1) * PortStep)
   }
+
+  /** Estimate rendered pixel width of `text` in the UI's small monospace font. */
+  private def labelPx(text: String): Double = text.length * 6.5 + 14.0
 
   private val ClockResetBundles = Set("Clock", "Reset", "AsyncReset")
   private def isClockReset(w: WireDef): Boolean = ClockResetBundles.contains(w.bundle)
@@ -124,27 +129,46 @@ object Layout {
     //    - SINK   endpoint (e.from) votes WEST (it receives)
     //    A pin that appears in multiple wires may get votes for both sides;
     //    final side = EAST when eastVotes >= westVotes (tie -> EAST).
-    case class PinSpec(path: String, side: String, interface: Boolean)
+    case class PinSpec(path: String, side: String, interface: Boolean, bundle: String)
     type PinMap = scala.collection.mutable.LinkedHashMap[String, PinSpec]
 
     // Tally votes: (nodeId, kind, path) -> (eastVotes, westVotes, interface)
     val eastVotes  = scala.collection.mutable.Map.empty[(String, String, String), Int].withDefaultValue(0)
     val westVotes  = scala.collection.mutable.Map.empty[(String, String, String), Int].withDefaultValue(0)
     val ifaceOf    = scala.collection.mutable.Map.empty[(String, String, String), Boolean].withDefaultValue(false)
+    val bundleOf   = scala.collection.mutable.Map.empty[(String, String, String), String]
     // Ordered paths per (nodeId, kind) to preserve first-seen insertion order.
     val pinOrder   = scala.collection.mutable.LinkedHashMap.empty[(String, String), scala.collection.mutable.LinkedHashSet[String]]
 
-    def vote(ep: Endpoint, isSource: Boolean): Unit = {
+    def vote(ep: Endpoint, isSource: Boolean, wireBundleName: String): Unit = {
       val k = (ep.nodeId, ep.kind, ep.path)
       if (isSource) eastVotes(k) += 1 else westVotes(k) += 1
       ifaceOf(k) = ifaceOf(k) || ep.interface
+      // First-seen bundle name wins (skip generic "Wire")
+      if (!bundleOf.contains(k) && wireBundleName.nonEmpty && wireBundleName != "Wire")
+        bundleOf(k) = wireBundleName
       pinOrder.getOrElseUpdate((ep.nodeId, ep.kind), scala.collection.mutable.LinkedHashSet.empty) += ep.path
     }
     // e.to is SOURCE; e.from is SINK.
-    resolved.foreach { e => vote(e.to, isSource = true); vote(e.from, isSource = false) }
+    resolved.foreach { e =>
+      vote(e.to,   isSource = true,  e.w.bundle)
+      vote(e.from, isSource = false, e.w.bundle)
+    }
     // Ensure instances with no resolved wires still appear as empty boxes.
     module.children.foreach { c =>
       pinOrder.getOrElseUpdate((c.name, "inst"), scala.collection.mutable.LinkedHashSet.empty)
+    }
+
+    /** Compute display label for a pin.
+      * shortPath = the endpoint path with the leading "<nodeId>." stripped.
+      * If the pin has a non-generic bundle, label = "shortPath: bundle";
+      * otherwise label = shortPath. */
+    def pinLabel(nodeId: String, path: String, bundle: Option[String]): String = {
+      val shortPath = if (path.startsWith(nodeId + ".")) path.drop(nodeId.length + 1) else path
+      bundle match {
+        case Some(b) if b.nonEmpty && b != "Wire" => s"$shortPath: $b"
+        case _                                     => shortPath
+      }
     }
 
     // Build nodePins from the vote tallies.
@@ -152,24 +176,41 @@ object Layout {
     pinOrder.foreach { case ((nodeId, kind), paths) =>
       val pins: PinMap = scala.collection.mutable.LinkedHashMap.empty
       paths.foreach { path =>
-        val k    = (nodeId, kind, path)
-        val side = if (eastVotes(k) >= westVotes(k)) "EAST" else "WEST"
-        pins(path) = PinSpec(path, side, ifaceOf(k))
+        val k      = (nodeId, kind, path)
+        val side   = if (eastVotes(k) >= westVotes(k)) "EAST" else "WEST"
+        val bundle = bundleOf.get(k)
+        pins(path) = PinSpec(path, side, ifaceOf(k), bundle.getOrElse(""))
       }
       nodePins((nodeId, kind)) = pins
     }
 
     // 3. Create ELK nodes + ports. Track ELK port handles by path.
-    //    Boundary nodes are compact stubs; instance nodes use the full size.
+    //    Boundary nodes are compact stubs; instance nodes use the full size,
+    //    grown to fit the widest label on each side.
     val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
     val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
     nodePins.foreach { case ((id, kind), pins) =>
       val n = if (kind == "boundary") {
-        addNode(root, BoundaryW, BoundaryH)
+        // Boundary: keep compact but at least wide enough for the label (if any).
+        val maxLabelPx = pins.values.map { p =>
+          val lbl = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+          labelPx(lbl)
+        }.maxOption.getOrElse(0.0)
+        val bw = math.max(BoundaryW, maxLabelPx)
+        addNode(root, bw, BoundaryH)
       } else {
         val west = pins.values.count(_.side == "WEST")
         val east = pins.values.count(_.side == "EAST")
-        addNode(root, NodeW, nodeHeight(west, east))
+        val westMaxPx = pins.values.filter(_.side == "WEST").map { p =>
+          val lbl = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+          labelPx(lbl)
+        }.maxOption.getOrElse(0.0)
+        val eastMaxPx = pins.values.filter(_.side == "EAST").map { p =>
+          val lbl = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+          labelPx(lbl)
+        }.maxOption.getOrElse(0.0)
+        val w = math.min(MaxNodeW, math.max(NodeW, westMaxPx + LabelGap + eastMaxPx))
+        addNode(root, w, nodeHeight(west, east))
       }
       elkNode((id, kind)) = n
       pins.values.foreach { p =>
@@ -233,8 +274,9 @@ object Layout {
       val n = elkNode((id, kind))
       val nx = n.getX; val ny = n.getY
       val laidPorts = pins.values.toSeq.map { p =>
-        val ep = elkPort(p.path)
-        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface)
+        val ep    = elkPort(p.path)
+        val lbl   = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, lbl)
       }
       LaidNode(id, kind, nx.toInt, ny.toInt, n.getWidth.toInt, n.getHeight.toInt, laidPorts)
     }.toSeq

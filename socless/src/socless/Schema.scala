@@ -136,13 +136,15 @@ case class LaidNode(
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }
 
 /** A pin on a box. `path` is the coalesced endpoint path it represents
-  * (e.g. "cpu.io", "xbar.in[0].ar", "s_axi"); `side` is "WEST"/"EAST"; and
-  * `interface` is true when the pin carries an aggregate bundle (drawn fat).
+  * (e.g. "cpu.io", "xbar.in[0].ar", "s_axi"); `side` is "WEST"/"EAST";
+  * `interface` is true when the pin carries an aggregate bundle (drawn fat);
+  * and `label` is the display text rendered inside the box next to the pin.
   */
 case class LaidPort(
   path: String, x: Int, y: Int,
   side: String,               // "WEST" | "EAST"
   interface: Boolean,
+  label: String = "",
 )
 object LaidPort { implicit val rw: ReadWriter[LaidPort] = macroRW }
 

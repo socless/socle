@@ -128,11 +128,11 @@ object LayoutPolishTest extends TestSuite {
       val doneNode = L.nodes.find(_.id == "done")
       assert(doneNode.isDefined)
       assert(doneNode.get.kind == "boundary")
-      // BoundaryW = 16, BoundaryH = 28 -- use a loose upper bound so the test
-      // is not brittle if the constants are tweaked slightly, but tight enough
-      // to confirm it is NOT the full NodeW (160) x nodeHeight (72+) size.
-      assert(doneNode.get.w <= 40)
+      // BoundaryH = 28 -- boundary height must stay compact (stub, not full nodeHeight >= 72).
+      // Width may grow beyond the original BoundaryW=16 when label-aware sizing expands it to
+      // fit the pin label, but it must remain strictly smaller than a full instance node (NodeW=160).
       assert(doneNode.get.h <= 40)
+      assert(doneNode.get.w < 160)
     }
 
     test("instance nodes are full-size (not compact)") {

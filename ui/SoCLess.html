@@ -2702,17 +2702,39 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
                     const pw = p.interface ? 8 : 5;
                     const ph = p.interface ? 10 : 4;
+                    const lbl = p.label || '';
+                    const isWest = p.side === 'WEST';
                     return (
-                      <div key={p.path}
-                        title={p.path}
-                        style={{
-                          position: 'absolute',
-                          left: (p.x - b.x) - pw / 2,
-                          top:  (p.y - b.y) - ph / 2,
-                          width: pw, height: ph,
-                          background: p.interface ? benchTokens.accent : benchTokens.ink4,
-                          borderRadius: p.interface ? 2 : 1,
-                        }} />
+                      <React.Fragment key={p.path}>
+                        <div
+                          title={p.path}
+                          style={{
+                            position: 'absolute',
+                            left: (p.x - b.x) - pw / 2,
+                            top:  (p.y - b.y) - ph / 2,
+                            width: pw, height: ph,
+                            background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                            borderRadius: p.interface ? 2 : 1,
+                          }} />
+                        {lbl && (
+                          <span style={{
+                            position: 'absolute',
+                            top:  (p.y - b.y) - 5,
+                            ...(isWest
+                              ? { left: pw + 3, textAlign: 'left' }
+                              : { right: pw + 3, textAlign: 'right' }),
+                            fontFamily: benchTokens.mono,
+                            fontSize: 8.5,
+                            color: p.interface ? benchTokens.ink2 : benchTokens.ink3,
+                            whiteSpace: 'nowrap',
+                            pointerEvents: 'none',
+                            maxWidth: b.w - pw - 8,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            lineHeight: '10px',
+                          }}>{lbl}</span>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </div>
@@ -2837,17 +2859,39 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
                   const pw = p.interface ? 8 : 5;
                   const ph = p.interface ? 10 : 4;
+                  const lbl = p.label || '';
+                  const isWest = p.side === 'WEST';
                   return (
-                    <div key={p.path}
-                      title={p.path}
-                      style={{
-                        position: 'absolute',
-                        left: (p.x - b.x) - pw / 2,
-                        top:  (p.y - b.y) - ph / 2,
-                        width: pw, height: ph,
-                        background: p.interface ? benchTokens.accent : benchTokens.ink4,
-                        borderRadius: p.interface ? 2 : 1,
-                      }} />
+                    <React.Fragment key={p.path}>
+                      <div
+                        title={p.path}
+                        style={{
+                          position: 'absolute',
+                          left: (p.x - b.x) - pw / 2,
+                          top:  (p.y - b.y) - ph / 2,
+                          width: pw, height: ph,
+                          background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                          borderRadius: p.interface ? 2 : 1,
+                        }} />
+                      {lbl && (
+                        <span style={{
+                          position: 'absolute',
+                          top:  (p.y - b.y) - 5,
+                          ...(isWest
+                            ? { left: pw + 3, textAlign: 'left' }
+                            : { right: pw + 3, textAlign: 'right' }),
+                          fontFamily: benchTokens.mono,
+                          fontSize: 8.5,
+                          color: p.interface ? benchTokens.ink2 : benchTokens.ink3,
+                          whiteSpace: 'nowrap',
+                          pointerEvents: 'none',
+                          maxWidth: b.w - pw - 8,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          lineHeight: '10px',
+                        }}>{lbl}</span>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </div>
