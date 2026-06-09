@@ -82,11 +82,17 @@ object ChirrtlParser {
           curKind = kind
           curSrc  = parseSrc(Option(srcOpt))
         case other if curMod.isDefined =>
-          parseStmt(other) match {
-            case Some(p: Port) => curPorts += p
-            case Some(i: Inst) => curInsts += i
-            case Some(c: Conn) => curConns += c
-            case _             => () // ignored stmt kind
+          // Wrap per-line parsing so a malformed statement never aborts the
+          // whole parse; we skip unrecognised / unparseable lines gracefully.
+          try {
+            parseStmt(other) match {
+              case Some(p: Port) => curPorts += p
+              case Some(i: Inst) => curInsts += i
+              case Some(c: Conn) => curConns += c
+              case _             => () // ignored stmt kind
+            }
+          } catch {
+            case _: Exception => () // skip malformed line, keep going
           }
         case _ => () // pre-module fluff
       }
@@ -125,7 +131,12 @@ object ChirrtlParser {
   // the innermost call site, which is typically the user's own Scala source.
   private val SrcRe = """@\[([^\s\]]+)\s+(\d+):(\d+)\]""".r
   private def parseSrc(opt: Option[String]): Option[SrcInfo] = opt.flatMap { s =>
-    SrcRe.findFirstMatchIn(s).map(m => SrcInfo(m.group(1), m.group(2).toInt, m.group(3).toInt))
+    SrcRe.findFirstMatchIn(s).flatMap { m =>
+      for {
+        line <- m.group(2).toIntOption
+        col  <- m.group(3).toIntOption
+      } yield SrcInfo(m.group(1), line, col)
+    }
   }
 
   // ── Type parser ────────────────────────────────────────────────────────────
@@ -155,13 +166,13 @@ object ChirrtlParser {
   }
 
   private def parseBundle(src: String): (Type, String) = {
-    assert(src.startsWith("{"))
+    if (!src.startsWith("{")) return (BundleT(Seq.empty), src)
     var rest = src.substring(1).trim
     val fields = mutable.Buffer.empty[Field]
     while (rest.nonEmpty && !rest.startsWith("}")) {
       val (flip, afterFlip) =
-        if (rest.startsWith("flip "))   (true,  rest.substring(5).trim)
-        else if (rest.startsWith("flip\t")) (true, rest.substring(5).trim)
+        if (rest.startsWith("flip") && rest.length > 4 && rest(4).isWhitespace)
+                                        (true,  rest.substring(4).trim)
         else                            (false, rest)
       // field name up to ':'
       val colon = afterFlip.indexOf(':')
@@ -178,6 +189,7 @@ object ChirrtlParser {
 
   private def parseGround(src: String): (Type, String) = {
     val s = src.trim
+    if (s.isEmpty) return (GroundT("", None), "")
     // Pull the first identifier
     val nameEnd = s.indexWhere(c => !(c.isLetterOrDigit || c == '_'), 1)
     val (name, after0) =
