@@ -499,6 +499,10 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     // (same trick as MODULES/BUNDLES above).
     if (!window.DESIGN.SOURCES) window.DESIGN.SOURCES = {};
     mutateAssign(window.DESIGN.SOURCES, (j.sources && typeof j.sources === 'object') ? j.sources : {});
+    if (j.layouts && typeof j.layouts === 'object') {
+      if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
+      mutateAssign(window.DESIGN.layouts, j.layouts);
+    }
     const declared = j.top;
     const resolved = resolveTop(declared, window.DESIGN.MODULES);
     window.DESIGN.TOP = resolved;
@@ -2153,6 +2157,24 @@ function bComputeLayout(mod, path, mode, dims) {
   return bLayoutHier(mod, path, dims);
 }
 
+// Baked layout from the backend (ELK). Returns the same shape bComputeLayout
+// produces, plus per-node `ports` and a `routingStyle: 'baked'` marker so the
+// wire layer routes along the backend polylines.
+function bBakedLayout(mod) {
+  const all = window.DESIGN && window.DESIGN.layouts;
+  const L = all && all[mod.name];
+  if (!L) return null;
+  const boxes = {};
+  const ports = {};
+  L.nodes.forEach((n) => {
+    boxes[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, kind: n.kind };
+    ports[n.id] = n.ports;
+  });
+  const edges = {};
+  L.edges.forEach((e) => { edges[e.from + ' ' + e.to] = e.points; });
+  return { boxes, ports, edges, totalW: L.w, totalH: L.h, columnLabels: [], routingStyle: 'baked' };
+}
+
 // Pick which side of each box a wire enters from based on the relative box
 // positions of the two endpoints (closest face). Used for force layouts where
 // boxes can be in any relative position.
@@ -2178,6 +2200,9 @@ function bWireEndpoints(ba, bb, fromIdx, toIdx, total) {
 }
 
 function bRoutePath(w, routingStyle) {
+  if (w.points && w.points.length >= 2) {
+    return 'M ' + w.points.map((p) => `${p[0]} ${p[1]}`).join(' L ');
+  }
   if (routingStyle === 'curve') {
     const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
     const horiz = Math.abs(dx) >= Math.abs(dy);
@@ -2408,6 +2433,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
   const layoutResult = useMemo(
     () => {
+      const baked = bBakedLayout(mod);
+      if (baked) return baked;
       const heightFor = (inst) => {
         const sub = subLayouts[inst];
         if (!sub) return NODE_H;
@@ -2422,7 +2449,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     },
     [mod, path, tweaks.layout, subLayouts],
   );
-  const { boxes: layoutBoxes, totalW, totalH, columnLabels, routingStyle } = layoutResult;
+  const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, columnLabels, routingStyle, edges: bakedEdges } = layoutResult;
   const containerH = totalH + 40;
 
   // Auto-fit when the design's bounding box changes (drill in/out, layout swap).
@@ -2560,6 +2587,17 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     return displayWires.map((w, i) => {
       const fromInst = w.from.split('.')[0];
       const toInst   = w.to.split('.')[0];
+      if (routingStyle === 'baked') {
+        const pts = bakedEdges && bakedEdges[w.from + ' ' + w.to];
+        if (!pts || pts.length < 2) return null;
+        return {
+          id: `w${i}`, ...w, fromInst, toInst,
+          fromPath: w.from, toPath: w.to,
+          points: pts,
+          x1: pts[0][0], y1: pts[0][1],
+          x2: pts[pts.length - 1][0], y2: pts[pts.length - 1][1],
+        };
+      }
       const ba = layoutBoxes[fromInst];
       const bb = layoutBoxes[toInst];
       if (!ba || !bb) return null;
@@ -2573,7 +2611,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         ...pts,
       };
     }).filter(Boolean);
-  }, [displayWires, layoutBoxes]);
+  }, [displayWires, layoutBoxes, bakedEdges, routingStyle]);
 
   const isHighlighted = (wire) => {
     if (!selectedSig) return false;
@@ -2643,7 +2681,65 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           {/* Module boxes */}
           {Object.entries(layoutBoxes).map(([inst, b]) => {
             const child = mod.children.find((c) => c.name === inst);
-            if (!child) return null;
+            // Boundary nodes (clock/reset/port stubs from baked layout) — render
+            // as a small labeled stub box rather than skipping them.
+            if (!child || b.kind === 'boundary') {
+              return (
+                <div key={inst}
+                  data-pan-block="1"
+                  title={inst}
+                  style={{
+                    position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
+                    background: benchTokens.panelAlt,
+                    border: `1px dashed ${benchTokens.border}`,
+                    borderRadius: 4,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink3,
+                    overflow: 'hidden',
+                    pointerEvents: 'none',
+                  }}>
+                  <span style={{ padding: '0 6px', textAlign: 'center', wordBreak: 'break-all' }}>{inst}</span>
+                  {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
+                    const pw = p.interface ? 8 : 5;
+                    const ph = p.interface ? 10 : 4;
+                    const lbl = p.label || '';
+                    const isWest = p.side === 'WEST';
+                    return (
+                      <React.Fragment key={p.path}>
+                        <div
+                          title={p.path}
+                          style={{
+                            position: 'absolute',
+                            left: (p.x - b.x) - pw / 2,
+                            top:  (p.y - b.y) - ph / 2,
+                            width: pw, height: ph,
+                            background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                            borderRadius: p.interface ? 2 : 1,
+                          }} />
+                        {lbl && (
+                          <span style={{
+                            position: 'absolute',
+                            top:  (p.y - b.y) - 5,
+                            ...(isWest
+                              ? { left: pw + 3, textAlign: 'left' }
+                              : { right: pw + 3, textAlign: 'right' }),
+                            fontFamily: benchTokens.mono,
+                            fontSize: 8.5,
+                            color: p.interface ? benchTokens.ink2 : benchTokens.ink3,
+                            whiteSpace: 'nowrap',
+                            pointerEvents: 'none',
+                            maxWidth: b.w - pw - 8,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            lineHeight: '10px',
+                          }}>{lbl}</span>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              );
+            }
             const childMod = B_MODULES[child.type];
             const drillable = !!childMod && childMod.children.length > 0;
             const expandable = drillable;
@@ -2668,7 +2764,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
                   cursor: drillable ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
-                  overflow: 'hidden',
+                  overflow: routingStyle === 'baked' ? 'visible' : 'hidden',
                   transition: 'left .35s cubic-bezier(.4,.2,.2,1), top .35s cubic-bezier(.4,.2,.2,1), width .35s cubic-bezier(.4,.2,.2,1), height .35s cubic-bezier(.4,.2,.2,1), background .2s, box-shadow .12s, border-color .12s',
                 }}
               >
@@ -2760,6 +2856,44 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     </div>
                   </React.Fragment>
                 )}
+                {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
+                  const pw = p.interface ? 8 : 5;
+                  const ph = p.interface ? 10 : 4;
+                  const lbl = p.label || '';
+                  const isWest = p.side === 'WEST';
+                  return (
+                    <React.Fragment key={p.path}>
+                      <div
+                        title={p.path}
+                        style={{
+                          position: 'absolute',
+                          left: (p.x - b.x) - pw / 2,
+                          top:  (p.y - b.y) - ph / 2,
+                          width: pw, height: ph,
+                          background: p.interface ? benchTokens.accent : benchTokens.ink4,
+                          borderRadius: p.interface ? 2 : 1,
+                        }} />
+                      {lbl && (
+                        <span style={{
+                          position: 'absolute',
+                          top:  (p.y - b.y) - 5,
+                          ...(isWest
+                            ? { left: pw + 3, textAlign: 'left' }
+                            : { right: pw + 3, textAlign: 'right' }),
+                          fontFamily: benchTokens.mono,
+                          fontSize: 8.5,
+                          color: p.interface ? benchTokens.ink2 : benchTokens.ink3,
+                          whiteSpace: 'nowrap',
+                          pointerEvents: 'none',
+                          maxWidth: b.w - pw - 8,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          lineHeight: '10px',
+                        }}>{lbl}</span>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </div>
             );
           })}
@@ -2776,6 +2910,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             markerScope="top"
           />
         </div>
+
+        {/* Leaf-module placeholder — outside transform div so it fills the full viewport */}
+        {mod.children.length === 0 && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <span style={{
+              fontFamily: benchTokens.mono, fontSize: 12,
+              color: benchTokens.ink4,
+              letterSpacing: 0.3,
+              whiteSpace: 'nowrap',
+            }}>This is a leaf module - no sub-instances to display.</span>
+          </div>
+        )}
       </div>
 
       {/* Zoom controls (bottom-right, outside the pan/zoom viewport so they don't transform). */}

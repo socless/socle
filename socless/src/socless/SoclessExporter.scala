@@ -36,13 +36,13 @@ object SoclessExporter {
     val parsed    = ChirrtlParser.parse(chirrtl)
     val core      = IrWalk.design(parsed)
     val sources   = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
-    val design    = core.copy(sources = sources)
+    val design    = Layout.withLayouts(core.copy(sources = sources))
     val json      = upickle.default.write(design, indent = indent)
     os.write.over(outputPath, json, createFolders = true)
     val sourceTxt = if (sources.isEmpty) "" else s", ${sources.size} sources"
     Console.err.println(
       s"[socless] wrote $outputPath — " +
-      s"${design.modules.size} modules, ${design.bundles.size} bundles$sourceTxt"
+      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt"
     )
     design
   }
@@ -74,7 +74,7 @@ object SoclessExporter {
       // paths) or relative to the build root. Try both.
       val candidates = Seq(
         if (rel.startsWith("/")) Some(Path(rel)) else None,
-        Some(sourceRoot / os.RelPath(rel)),
+        if (!rel.startsWith("/")) Some(sourceRoot / os.RelPath(rel)) else None,
       ).flatten
       val read = candidates.iterator.flatMap { p =>
         try if (os.exists(p) && os.isFile(p)) Some(os.read(p)) else None

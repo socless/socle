@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>d3-hwschematic bake-off</title>
+
+  <!-- d3-hwschematic UMD bundle attaches HwSchematic to global.d3 namespace -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <!-- elkjs must be loaded as global.ELK before d3-hwschematic -->
+  <script src="https://cdn.jsdelivr.net/npm/elkjs/lib/elk.bundled.js"></script>
+  <link  href="https://cdn.jsdelivr.net/npm/d3-hwschematic/dist/d3-hwschematic.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/d3-hwschematic/dist/d3-hwschematic.js"></script>
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: monospace; background: #1a1a2e; color: #eee; height: 100vh; display: flex; flex-direction: column; }
+    #header {
+      padding: 8px 16px;
+      background: #16213e;
+      border-bottom: 1px solid #444;
+      display: flex; align-items: center; gap: 16px;
+    }
+    #header h1 { font-size: 14px; color: #aaa; }
+    #status { font-size: 12px; color: #f90; }
+    #svg-container { flex: 1; overflow: hidden; }
+    #scheme-placeholder { width: 100%; height: 100%; display: block; }
+    /* d3-hwschematic expects a light background for its default CSS */
+    .d3-hwschematic { background: #fff; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>d3-hwschematic bake-off - Track B</h1>
+    <span id="status">Loading graph.json...</span>
+  </div>
+  <div id="svg-container">
+    <svg id="scheme-placeholder"></svg>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById('status');
+
+    function setStatus(msg, color) {
+      statusEl.textContent = msg;
+      if (color) statusEl.style.color = color;
+    }
+
+    async function main() {
+      // 1. Load graph.json from same directory
+      let graph;
+      try {
+        const resp = await fetch('./graph.json');
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        graph = await resp.json();
+        setStatus('graph.json loaded, running ELK layout...', '#ff0');
+      } catch (e) {
+        setStatus('ERROR loading graph.json: ' + e.message, '#f44');
+        console.error('Failed to load graph.json:', e);
+        return;
+      }
+
+      // 2. Set up SVG
+      const container = document.getElementById('svg-container');
+      const w = container.clientWidth || window.innerWidth;
+      const h = container.clientHeight || (window.innerHeight - 40);
+
+      const svg = d3.select('#scheme-placeholder')
+        .attr('width', w)
+        .attr('height', h);
+
+      // 3. Check d3.HwSchematic is available
+      if (typeof d3.HwSchematic !== 'function') {
+        setStatus('ERROR: d3.HwSchematic not found - library may not have loaded', '#f44');
+        console.error('d3 object:', Object.keys(d3));
+        return;
+      }
+
+      // 4. Instantiate HwSchematic
+      //    Per example.html: zoom behavior is attached to the svg element.
+      //    The constructor takes the svg D3 selection.
+      let hw;
+      try {
+        hw = new d3.HwSchematic(svg);
+        // Attach zoom for pan/zoom (d3v7: remove dblclick via selection.on not zoom.on)
+        const zoom = d3.zoom().on('zoom', (e) => {
+          svg.select('g').attr('transform', e.transform);
+        });
+        svg.call(zoom);
+        // Disable dblclick zoom so hw can intercept expand/collapse dblclick
+        svg.on('dblclick.zoom', null);
+      } catch (e) {
+        setStatus('ERROR constructing HwSchematic: ' + e.message, '#f44');
+        console.error(e);
+        return;
+      }
+
+      // 5. Bind data and render
+      try {
+        await hw.bindData(graph);
+        const name = graph.hwMeta?.name || graph.id || 'module';
+        setStatus(`Rendered: ${name} (${(graph.children||[]).length} nodes, ${(graph.edges||[]).length} edges)`, '#4f4');
+        console.log('d3-hwschematic render complete');
+      } catch (e) {
+        setStatus('ERROR in bindData: ' + e.message, '#f44');
+        console.error('bindData error:', e);
+        // Show partial render if any
+      }
+    }
+
+    // Wait for all scripts to load
+    window.addEventListener('load', main);
+  </script>
+</body>
+</html>
