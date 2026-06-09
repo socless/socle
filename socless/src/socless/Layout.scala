@@ -90,14 +90,19 @@ object Layout {
   private def isInterfaceBundle(bundle: String, design: Design): Boolean =
     design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
 
-  private val NodeW    = 160.0
-  private val PortStep = 22.0
-  private val PortPad  = 18.0
+  private val NodeW      = 160.0
+  private val PortStep   = 22.0
+  private val PortPad    = 18.0
+  private val BoundaryW  = 16.0
+  private val BoundaryH  = 28.0
 
   private def nodeHeight(westN: Int, eastN: Int): Double = {
     val maxPorts = math.max(1, math.max(westN, eastN))
     math.max(72.0, 2 * PortPad + (maxPorts - 1) * PortStep)
   }
+
+  private val ClockResetBundles = Set("Clock", "Reset", "AsyncReset")
+  private def isClockReset(w: WireDef): Boolean = ClockResetBundles.contains(w.bundle)
 
   /** Lay out `module`'s schematic: child instances + boundary ports as boxes,
     * coalesced wires as orthogonally-routed edges. */
@@ -105,8 +110,10 @@ object Layout {
     val root = newGraph()
 
     // 1. Resolve every wire endpoint; keep only wires whose BOTH ends resolve.
+    //    Drop clock/reset wires before resolution so their boundary stubs are
+    //    also excluded from the layout.
     case class E(w: WireDef, from: Endpoint, to: Endpoint)
-    val resolved: Seq[E] = module.wires.flatMap { w =>
+    val resolved: Seq[E] = module.wires.filterNot(isClockReset).flatMap { w =>
       for { f <- classify(w.from, module, design); t <- classify(w.to, module, design) }
         yield E(w, f, t)
     }
@@ -125,12 +132,17 @@ object Layout {
     }
 
     // 3. Create ELK nodes + ports. Track ELK port handles by path.
+    //    Boundary nodes are compact stubs; instance nodes use the full size.
     val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
     val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
     nodePins.foreach { case ((id, kind), pins) =>
-      val west = pins.values.count(_.side == "WEST")
-      val east = pins.values.count(_.side == "EAST")
-      val n = addNode(root, NodeW, nodeHeight(west, east))
+      val n = if (kind == "boundary") {
+        addNode(root, BoundaryW, BoundaryH)
+      } else {
+        val west = pins.values.count(_.side == "WEST")
+        val east = pins.values.count(_.side == "EAST")
+        addNode(root, NodeW, nodeHeight(west, east))
+      }
       elkNode((id, kind)) = n
       pins.values.foreach { p =>
         val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST
