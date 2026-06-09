@@ -150,10 +150,43 @@ object Layout {
       }
     }
 
-    // 4. Create edges, oriented source->sink for correct left-to-right layering.
-    //    WireDef.from is the SINK and WireDef.to is the SOURCE, so the ELK edge
-    //    runs from e.to (source) to e.from (sink).
-    resolved.foreach { e =>
+    // 4. Collapse anti-parallel wire pairs before creating ELK edges.
+    //    Two resolved wires form an anti-parallel pair when one drives port P->Q
+    //    and the other drives Q->P (same unordered port-path pair, opposite
+    //    direction). This happens for AXI-style bundles where master drives the
+    //    request channel and slave drives the response channel back. Feeding both
+    //    to ELK creates a 2-cycle that defeats the layered ranker, bunching nodes
+    //    in the same layer instead of flowing left-to-right. Collapse each pair
+    //    to the single edge whose SOURCE is the DRIVER (side == "EAST").
+    //
+    //    NOTE: node/pin registration above still uses ALL resolved endpoints, so
+    //    no pin is dropped by this dedup -- only the ELK edges and RoutedEdges are
+    //    deduplicated.
+    def antiParallelKey(e: E): (String, String) = {
+      val a = e.to.path   // source
+      val b = e.from.path // sink
+      if (a <= b) (a, b) else (b, a)
+    }
+    val edgesToDraw: Seq[E] = resolved
+      .groupBy(antiParallelKey)
+      .values
+      .map { grp =>
+        if (grp.size == 1) grp.head
+        else {
+          // Anti-parallel (or duplicate) pair: prefer the edge whose source
+          // (e.to) sits on EAST -- that is the driver pin. Fall back to
+          // lexicographic source-path order for a stable deterministic choice.
+          grp.find(_.to.side == "EAST")
+            .orElse(grp.sortBy(_.to.path).headOption)
+            .getOrElse(grp.head)
+        }
+      }
+      .toSeq
+
+    // Create edges, oriented source->sink for correct left-to-right layering.
+    // WireDef.from is the SINK and WireDef.to is the SOURCE, so the ELK edge
+    // runs from e.to (source) to e.from (sink).
+    edgesToDraw.foreach { e =>
       for { src <- elkPort.get(e.to.path); dst <- elkPort.get(e.from.path) }
         ElkGraphUtil.createSimpleEdge(src, dst)
     }
@@ -195,7 +228,7 @@ object Layout {
       }
     }.groupBy(_._1).view.mapValues(_.head._2).toMap
 
-    val laidEdges = resolved.flatMap { e =>
+    val laidEdges = edgesToDraw.flatMap { e =>
       // Edge was created source->sink, i.e. from the e.to port to the e.from port.
       val src = elkPort.get(e.to.path)
       val dst = elkPort.get(e.from.path)
