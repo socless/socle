@@ -161,6 +161,52 @@ object LayoutTest extends TestSuite {
       val memNode = L.nodes.find(_.id == "mem").get
       assert(memNode.w >= 160)
     }
+
+    test("label-aware node width grows strictly beyond NodeW for long bundle labels") {
+      // NodeW = 160, LabelGap = 24, labelPx(n) = n*6.5 + 14.
+      //
+      // Node A: ShortOut has one output port "io" with bundle "Wire".
+      //   Wire bundle -> no suffix -> label = "io" (2 chars) -> px = 2*6.5+14 = 27.
+      //   eastMaxPx=27, westMaxPx=0 -> 0+24+27=51 < 160 -> width = NodeW = 160.
+      //
+      // Node B: LongOut has one output port "io" with bundle "AXI4BundleVeryLongType" (22 chars).
+      //   Label = "io: AXI4BundleVeryLongType" (26 chars) -> px = 26*6.5+14 = 183.
+      //   eastMaxPx=183, westMaxPx=0 -> 0+24+183=207 > 160 -> width = 207 > NodeW.
+      //
+      // This proves the label-aware sizing path fires: if Layout ignored labels the
+      // assertion widthOf(B) > widthOf(A) would fail (both would stay at NodeW=160).
+      val shortOutMod = ModuleDef("ShortOut", "ShortOut", "", SourceRef.unknown,
+        Seq(PortDef("io", "output", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+      val longOutMod  = ModuleDef("LongOut", "LongOut", "", SourceRef.unknown,
+        Seq(PortDef("io", "output", "AXI4BundleVeryLongType", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+
+      // ShortTop: instance "s" of ShortOut; boundary port "out" receives s.io.
+      val shortTop = ModuleDef("ShortTop", "ShortTop", "", SourceRef.unknown,
+        ports    = Seq(PortDef("out", "output", "Wire", "", SourceRef.unknown)),
+        children = Seq(InstanceDef("s", "ShortOut", "", SourceRef.unknown)),
+        wires    = Seq(WireDef("out", "s.io", "Wire", "", SourceRef.unknown)),
+        metrics  = Metrics(0, 0, 0))
+      val shortDesign = Design("ShortTop", Map.empty, Seq(shortTop, shortOutMod))
+
+      // LongTop: instance "l" of LongOut; boundary port "out" receives l.io.
+      val longTop = ModuleDef("LongTop", "LongTop", "", SourceRef.unknown,
+        ports    = Seq(PortDef("out", "output", "AXI4BundleVeryLongType", "", SourceRef.unknown)),
+        children = Seq(InstanceDef("l", "LongOut", "", SourceRef.unknown)),
+        wires    = Seq(WireDef("out", "l.io", "AXI4BundleVeryLongType", "", SourceRef.unknown)),
+        metrics  = Metrics(0, 0, 0))
+      val longDesign = Design("LongTop", Map.empty, Seq(longTop, longOutMod))
+
+      val LA = Layout.layout(shortTop, shortDesign)
+      val LB = Layout.layout(longTop, longDesign)
+
+      val widthA = LA.nodes.find(_.id == "s").get.w
+      val widthB = LB.nodes.find(_.id == "l").get.w
+
+      // Node B's label is long enough that the sizing formula yields > 160.
+      assert(widthB > 160)
+      // Node A stays at NodeW, proving B genuinely grew (not just both at NodeW).
+      assert(widthB > widthA)
+    }
   }
 
   private implicit class EdgeOps(e: RoutedEdge) {
