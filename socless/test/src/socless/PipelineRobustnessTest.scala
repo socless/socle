@@ -156,36 +156,45 @@ object PipelineRobustnessTest extends TestSuite {
     }
 
     // 6: hub modules (multi-instance tops) individually show both EAST and WEST
-    test("AXISystem top module has both EAST and WEST pin sides") {
-      val (circ, design, laid) = pipeline("axisystem.fir")
+    //    on real instance-level pins. AXISystem's top has an empty io bundle so
+    //    its own boundary ports are absent; we assert on the xbar child instance
+    //    which has io.in[] sinks (WEST) and io.out[] sources (EAST). DeepSoc's
+    //    instances (cluster0, cluster1, pipe Queue) collectively carry both sides.
+
+    test("AXISystem xbar instance has both EAST and WEST pin sides") {
+      val (_, _, laid) = pipeline("axisystem.fir")
       val topLayout = laid.layouts.getOrElse(
-        circ.name,
-        throw new java.lang.RuntimeException(s"[axisystem] no layout for ${circ.name}")
+        "AXISystem",
+        throw new java.lang.RuntimeException("[axisystem] no layout for AXISystem")
       )
-      val sides   = topLayout.nodes.flatMap(_.ports).map(_.side).toSet
-      val hasPins = topLayout.nodes.exists(_.ports.nonEmpty)
-      if (hasPins) {
-        check(
-          sides.contains("EAST") && sides.contains("WEST"),
-          s"[axisystem] ${circ.name} layout has only sides: $sides (expected both EAST and WEST)"
+      val xbarNode = topLayout.nodes.find(_.id == "xbar").getOrElse(
+        throw new java.lang.RuntimeException(
+          s"[axisystem] xbar instance not found in AXISystem layout; nodes: ${topLayout.nodes.map(_.id)}"
         )
-      }
+      )
+      val sides = xbarNode.ports.map(_.side).toSet
+      check(
+        sides.contains("EAST") && sides.contains("WEST"),
+        s"[axisystem] xbar instance has only sides: $sides (expected EAST for io.out[] sources and WEST for io.in[] sinks)"
+      )
     }
 
-    test("DeepSoc top module has both EAST and WEST pin sides") {
-      val (circ, design, laid) = pipeline("deepsoc.fir")
+    test("DeepSoc top instance nodes collectively have both EAST and WEST pin sides") {
+      val (_, _, laid) = pipeline("deepsoc.fir")
       val topLayout = laid.layouts.getOrElse(
-        circ.name,
-        throw new java.lang.RuntimeException(s"[deepsoc] no layout for ${circ.name}")
+        "DeepSoc",
+        throw new java.lang.RuntimeException("[deepsoc] no layout for DeepSoc")
       )
-      val sides   = topLayout.nodes.flatMap(_.ports).map(_.side).toSet
-      val hasPins = topLayout.nodes.exists(_.ports.nonEmpty)
-      if (hasPins) {
-        check(
-          sides.contains("EAST") && sides.contains("WEST"),
-          s"[deepsoc] ${circ.name} layout has only sides: $sides (expected both EAST and WEST)"
-        )
-      }
+      val instNodes = topLayout.nodes.filter(_.kind == "inst")
+      check(
+        instNodes.nonEmpty,
+        s"[deepsoc] DeepSoc layout has no instance nodes"
+      )
+      val sides = instNodes.flatMap(_.ports).map(_.side).toSet
+      check(
+        sides.contains("EAST") && sides.contains("WEST"),
+        s"[deepsoc] DeepSoc instance nodes have only sides: $sides (expected both EAST and WEST across cluster0, cluster1, pipe)"
+      )
     }
   }
 }
