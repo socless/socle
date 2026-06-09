@@ -1,0 +1,18 @@
+# Dependabot configuration for SoCLess.
+#
+# Dependabot natively supports GitHub Actions version pins.
+# Mill/Scala dependencies are NOT supported by Dependabot; use Scala Steward
+# for those (see RELEASING.md for details).
+
+version: 2
+
+updates:
+  # Keep GitHub Actions up to date (weekly).
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "ci"
