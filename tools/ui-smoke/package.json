@@ -1,0 +1,8 @@
+{
+  "name": "socless-ui-smoke",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Headless interactivity smoke test for the SoCLess UI",
+  "type": "module",
+  "dependencies": { "playwright-core": "^1.50.0" }
+}

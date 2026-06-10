@@ -1,0 +1,115 @@
+// SoCLess UI interactivity smoke test.
+//
+// Drives the single-file UI in a headless browser and exercises the
+// interactive surface that unit tests cannot reach: switching designs,
+// drilling into every module in the hierarchy (including leaves), and
+// expanding every bundle port. It fails on any uncaught page exception or
+// console error, so regressions like "drilling into a leaf module blanks the
+// page" are caught automatically.
+//
+// Usage:
+//   node smoke.mjs --base http://localhost:8765 [--design <id>] [--shots <dir>]
+//
+// Requires a running server (see README) and a system Chromium. Override the
+// browser with CHROMIUM=/path/to/chromium.
+
+import { chromium } from 'playwright-core';
+import { existsSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+
+const args = Object.fromEntries(
+  process.argv.slice(2).join(' ').split('--').filter(Boolean).map((s) => {
+    const [k, ...v] = s.trim().split(/\s+/);
+    return [k, v.join(' ') || true];
+  }),
+);
+
+const BASE = args.base || 'http://localhost:8765';
+const ONLY = args.design || null;            // restrict to one design id
+const SHOTS = args.shots || null;            // screenshot dir (optional)
+const EXEC = process.env.CHROMIUM
+  || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable']
+       .find((p) => existsSync(p));
+
+if (!EXEC) { console.error('No chromium found; set CHROMIUM=/path/to/chromium'); process.exit(2); }
+if (SHOTS) await mkdir(SHOTS, { recursive: true });
+
+const failures = [];
+const note = (design, where, msg) => {
+  failures.push({ design, where, msg });
+  console.log(`  FAIL [${design}] ${where}: ${msg}`);
+};
+
+const browser = await chromium.launch({ executablePath: EXEC, args: ['--no-sandbox'] });
+
+// Discover designs from the manifest.
+const ctx0 = await browser.newContext();
+const p0 = await ctx0.newPage();
+await p0.goto(`${BASE}/examples/manifest.json`);
+const manifest = await p0.evaluate(() => JSON.parse(document.body.innerText));
+await ctx0.close();
+let designs = (manifest.designs || []).map((d) => d.id);
+if (ONLY) designs = designs.filter((d) => d === ONLY);
+console.log(`Designs: ${designs.join(', ')}`);
+
+for (const design of designs) {
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+
+  const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
+
+  await page.goto(`${BASE}/SoCLess.html?design=${design}`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).catch(() => {});
+  drain('initial load');
+
+  // Fully expand the hierarchy tree (repeat until row count is stable).
+  for (let i = 0; i < 12; i++) {
+    const before = await page.locator('[data-hier-path]').count();
+    const toggles = await page.locator('[data-hier-toggle]').all();
+    for (const t of toggles) { await t.click({ timeout: 1500 }).catch(() => {}); }
+    const after = await page.locator('[data-hier-path]').count();
+    if (after === before) break;
+  }
+
+  // Drill into every node in the hierarchy and check the app survives.
+  const paths = await page.locator('[data-hier-path]').evaluateAll(
+    (els) => els.map((e) => ({ path: e.getAttribute('data-hier-path'), leaf: e.getAttribute('data-hier-leaf') === '1' })),
+  );
+  console.log(`[${design}] ${paths.length} hierarchy nodes`);
+  for (const { path, leaf } of paths) {
+    await page.locator(`[data-hier-path="${path}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, `click ${path}`, e.message));
+    await page.waitForTimeout(120);
+    // App must still be mounted: the hierarchy panel and a schematic host stay present.
+    const alive = await page.locator('[data-hier-path]').count();
+    if (alive === 0) note(design, `drill ${path}${leaf ? ' (leaf)' : ''}`, 'app unmounted / blank page');
+    drain(`drill ${path}${leaf ? ' (leaf)' : ''}`);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
+  }
+
+  // Expand every bundle port in the current (last) view.
+  const toggles = await page.locator('[data-bundle-toggle]').all();
+  console.log(`[${design}] ${toggles.length} bundle toggles in last view`);
+  for (const t of toggles) {
+    await t.click({ timeout: 2000 }).catch((e) => note(design, 'bundle expand', e.message));
+    await page.waitForTimeout(80);
+    drain('bundle expand');
+  }
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__bundles-expanded.png` }).catch(() => {});
+
+  await ctx.close();
+}
+
+await browser.close();
+
+console.log('\n=== SMOKE SUMMARY ===');
+if (failures.length === 0) {
+  console.log('OK - no page errors, crashes, or console errors.');
+  process.exit(0);
+} else {
+  console.log(`${failures.length} problem(s):`);
+  for (const f of failures) console.log(`  [${f.design}] ${f.where}: ${f.msg}`);
+  process.exit(1);
+}

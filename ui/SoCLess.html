@@ -2216,6 +2216,8 @@ function BenchHierarchy({ path, setPath, density }) {
           return (
             <div
               key={r.id}
+              data-hier-path={r.id}
+              data-hier-leaf={r.isLeaf ? '1' : '0'}
               onClick={() => setPath(r.path)}
               title={r.path.join(' > ')}
               style={{
@@ -2233,6 +2235,7 @@ function BenchHierarchy({ path, setPath, density }) {
               onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
             >
               <span
+                data-hier-toggle={hasKids ? r.id : undefined}
                 onClick={(e) => { if (hasKids) { e.stopPropagation(); toggle(r.id); } }}
                 style={{ width: 12, display: 'inline-flex', justifyContent: 'center', color: benchTokens.ink4 }}
               >
@@ -2981,7 +2984,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                         transition: 'background .12s',
                       }} />
                       {/* Label + optional chevron */}
-                      <div data-pan-block="1" style={{
+                      <div data-pan-block="1"
+                        data-bundle-toggle={row.isExpandable ? row.path : undefined}
+                        style={{
                         position: 'absolute',
                         top: rowY - 8,
                         ...(isWest
@@ -3012,7 +3017,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   const chColor = B_CHAN[row.label] || benchTokens.ink3;
                   const hasChannelColor = !!B_CHAN[row.label];
                   return (
-                    <div key={row.path} data-pan-block="1" style={{
+                    <div key={row.path} data-pan-block="1"
+                      data-bundle-toggle={row.isExpandable ? row.path : undefined}
+                      style={{
                       position: 'absolute',
                       top: rowY - 8,
                       ...(isWest
@@ -3053,6 +3060,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             return (
               <div key={inst}
                 data-pan-block="1"
+                data-box-inst={inst}
+                data-box-drillable={drillable ? '1' : '0'}
                 onMouseEnter={() => setHoveredInst(inst)}
                 onMouseLeave={() => setHoveredInst((cur) => (cur === inst ? null : cur))}
                 onDoubleClick={() => drillable && drillInto(inst)}
