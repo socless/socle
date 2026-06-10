@@ -572,9 +572,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
@@ -779,7 +780,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 1,
         "wires": 18,
         "lines": 33
       }
@@ -887,9 +888,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
@@ -1094,7 +1096,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 1,
         "wires": 18,
         "lines": 33
       }
@@ -1277,9 +1279,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
@@ -1581,9 +1584,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {

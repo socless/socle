@@ -391,7 +391,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 2,
         "wires": 11,
         "lines": 39
       }
@@ -543,7 +543,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 5,
         "wires": 18,
         "lines": 41
       }
@@ -695,7 +695,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 5,
         "wires": 18,
         "lines": 41
       }
@@ -803,9 +803,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {

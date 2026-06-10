@@ -176,7 +176,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 9,
         "lines": 27
       }

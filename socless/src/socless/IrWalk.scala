@@ -43,10 +43,11 @@ object IrWalk {
     }
     val wires = coalesceWires(m, byName, bundles)
     val metrics = Metrics(
-      registers = 0,
+      registers = m.regs.size,
       wires     = m.conns.size,
       lines     = approxLines(m),
       gates     = None,
+      memories  = m.mems.size,
     )
     ModuleDef(
       name     = m.name,

@@ -90,6 +90,7 @@ case class Metrics(
   wires:     Int,
   lines:     Int,
   gates:     Option[Int] = None,   // filled by synthesis post-pass
+  memories:  Int         = 0,      // count of cmem/smem/mem declarations in this module
 )
 object Metrics { implicit val rw: ReadWriter[Metrics] = macroRW }
 

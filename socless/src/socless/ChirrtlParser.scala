@@ -10,12 +10,14 @@ import scala.collection.mutable
   * version-stable, and still has Bundle types intact.
   *
   * Scope (what we extract):
-  *   • module / extmodule names + their source-info markers
-  *   • ports (name, direction, type tree, source-info)
-  *   • submodule instances (name, of-module, source-info)
-  *   • connect statements (lhs, rhs, source-info)
+  *   - module / extmodule names + their source-info markers
+  *   - ports (name, direction, type tree, source-info)
+  *   - submodule instances (name, of-module, source-info)
+  *   - connect statements (lhs, rhs, source-info)
+  *   - register declarations (reg, regreset) counted per module
+  *   - memory declarations (mem, cmem, smem) counted per module
   *
-  * Out of scope (ignored without error): when blocks, regs/wires/nodes, ops.
+  * Out of scope (ignored without error): when blocks, wires/nodes, ops.
   * The exporter doesn't need them - they don't change topology.
   */
 object ChirrtlParser {
@@ -33,6 +35,23 @@ object ChirrtlParser {
   case class Inst(name: String, ofModule: String, src: Option[SrcInfo])
   case class Conn(lhs: String, rhs: String, src: Option[SrcInfo])
 
+  /** A register declaration inside a module body.
+    *
+    * CHIRRTL forms captured:
+    *   reg <name> : <type>, <clock>                        (plain reg, no reset)
+    *   regreset <name> : <type>, <clock>, <reset>, <init>  (reg with synchronous reset)
+    */
+  case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo])
+
+  /** A memory declaration inside a module body.
+    *
+    * CHIRRTL forms captured (all flavours produce a MemDecl):
+    *   cmem <name> : <type>[<depth>]    (combinational memory port)
+    *   smem <name> : <type>[<depth>]    (sequential memory port)
+    *   mem <name> :                     (structured-memory block; multi-line in old FIRRTL)
+    */
+  case class MemDecl(name: String, src: Option[SrcInfo])
+
   case class Mod(
     name: String,
     kind: String,    // "module" | "extmodule" | "intmodule"
@@ -40,6 +59,8 @@ object ChirrtlParser {
     insts: Seq[Inst],
     conns: Seq[Conn],
     src: Option[SrcInfo],
+    regs: Seq[RegDecl] = Seq.empty,
+    mems: Seq[MemDecl] = Seq.empty,
   )
   case class Circ(name: String, modules: Seq[Mod])
 
@@ -56,11 +77,18 @@ object ChirrtlParser {
     val curPorts                  = mutable.Buffer.empty[Port]
     val curInsts                  = mutable.Buffer.empty[Inst]
     val curConns                  = mutable.Buffer.empty[Conn]
+    val curRegs                   = mutable.Buffer.empty[RegDecl]
+    val curMems                   = mutable.Buffer.empty[MemDecl]
 
     def flush(): Unit = curMod.foreach { name =>
-      modules += Mod(name, curKind, curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc)
+      modules += Mod(
+        name, curKind,
+        curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
+        curRegs.toSeq, curMems.toSeq,
+      )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
+      curRegs.clear(); curMems.clear()
     }
 
     val Circuit  = """^\s*circuit\s+(\w+)\s*:.*$""".r
@@ -86,10 +114,12 @@ object ChirrtlParser {
           // whole parse; we skip unrecognised / unparseable lines gracefully.
           try {
             parseStmt(other) match {
-              case Some(p: Port) => curPorts += p
-              case Some(i: Inst) => curInsts += i
-              case Some(c: Conn) => curConns += c
-              case _             => () // ignored stmt kind
+              case Some(p: Port)    => curPorts += p
+              case Some(i: Inst)    => curInsts += i
+              case Some(c: Conn)    => curConns += c
+              case Some(r: RegDecl) => curRegs += r
+              case Some(m: MemDecl) => curMems += m
+              case _                => () // ignored stmt kind
             }
           } catch {
             case _: Exception => () // skip malformed line, keep going
@@ -105,13 +135,26 @@ object ChirrtlParser {
   // Each statement may carry one or more `@[...]` source markers - Chisel 7
   // attaches them per parent macro frame. We accept zero-or-more and parse
   // only the first (innermost). Stmt lines we don't recognize are dropped
-  // without error; the exporter doesn't need regs/wires/nodes/whens/ops.
+  // without error; the exporter doesn't need wires/nodes/whens/ops.
   private val PortRe = """^\s+(input|output)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   private val InstRe = """^\s+inst\s+([\w$]+)\s+of\s+([\w$]+)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   // Chisel 7 emits `connect lhs, rhs` (was `lhs <= rhs` in older versions).
   // We accept both for portability.
   private val ConnRe1 = """^\s+connect\s+(.+?)\s*,\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   private val ConnRe2 = """^\s+(.+?)\s*<=\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+
+  // Register declarations.
+  // Plain reg:      reg <name> : <type>, <clock>  @[...]
+  // Reset reg:  regreset <name> : <type>, <clock>, <reset>, <init>  @[...]
+  // Both match the same prefix: optional "regreset" or "reg" keyword, then name : type, rest.
+  private val RegRe =
+    """^\s+(?:regreset|reg)\s+([\w$]+)\s*:\s*(.+?)\s*,.*?((?:@\[[^\]]*\]\s*)*)$""".r
+
+  // Memory declarations: cmem, smem, mem (one-liner forms).
+  // cmem/smem: cmem <name> : <type>[<depth>]  @[...]
+  // mem (old FIRRTL structured block): mem <name> :   (no type on same line)
+  private val MemRe =
+    """^\s+(?:cmem|smem|mem)\s+([\w$]+)\s*[:\s](.*?)((?:@\[[^\]]*\]\s*)*)$""".r
 
   private def parseStmt(line: String): Option[AnyRef] = line match {
     case PortRe(dir, name, typeStr, srcOpt) =>
@@ -123,6 +166,12 @@ object ChirrtlParser {
       Some(Conn(lhs.trim, rhs.trim, parseSrc(Option(srcOpt))))
     case ConnRe2(lhs, rhs, srcOpt) if !line.contains("connect ") =>
       Some(Conn(lhs.trim, rhs.trim, parseSrc(Option(srcOpt))))
+    case RegRe(name, typeStr, srcOpt) =>
+      // Parse just the type prefix; ignore the clock/reset/init operands.
+      val (tpe, _) = parseType(typeStr.trim)
+      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt))))
+    case MemRe(name, _, srcOpt) =>
+      Some(MemDecl(name, parseSrc(Option(srcOpt))))
     case _ => None
   }
 
@@ -142,9 +191,9 @@ object ChirrtlParser {
   // ── Type parser ────────────────────────────────────────────────────────────
   /** Parse a CHIRRTL type prefix; returns (type, rest-of-string).
     *
-    *   UInt<8>                                     → GroundT("UInt", Some(8))
-    *   { flip ready : UInt<1>, valid : UInt<1> }   → BundleT(Seq(Field("ready", true, UInt<1>), ...))
-    *   UInt<32>[8]                                 → VecT(GroundT("UInt", 32), 8)
+    *   UInt<8>                                     -> GroundT("UInt", Some(8))
+    *   { flip ready : UInt<1>, valid : UInt<1> }   -> BundleT(Seq(Field("ready", true, UInt<1>), ...))
+    *   UInt<32>[8]                                 -> VecT(GroundT("UInt", 32), 8)
     *
     * The recursion handles arbitrarily nested bundles + vectors of bundles.
     */

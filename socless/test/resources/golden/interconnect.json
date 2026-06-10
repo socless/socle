@@ -540,7 +540,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 2,
         "wires": 6,
         "lines": 20
       }
@@ -626,7 +626,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 2,
         "wires": 6,
         "lines": 20
       }
@@ -712,7 +712,7 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 2,
         "wires": 6,
         "lines": 20
       }
@@ -961,9 +961,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
@@ -1069,9 +1070,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
@@ -1177,9 +1179,10 @@
         }
       ],
       "metrics": {
-        "registers": 0,
+        "registers": 3,
         "wires": 13,
-        "lines": 70
+        "lines": 70,
+        "memories": 1
       }
     },
     {
