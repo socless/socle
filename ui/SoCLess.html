@@ -2457,9 +2457,12 @@ function WireVisualLayer({
         const hl  = isHl(w);
         const hov = isHov(w) && !hl; // hover is only meaningful when not already selected
         const dim = selectedSig && !hl;
-        // Fan-out ribbons show when: global expanded, OR either endpoint pin is expanded in the schematic.
-        const exp = globalExpanded ||
-          (expandedPorts && (expandedPorts.has(w.fromPath) || expandedPorts.has(w.toPath)));
+        // Fan-out ribbons only in the global "Expanded" bundle-display mode.
+        // Per-pin expansion (the in-box + chevron) shows the bundle's sub-fields
+        // as a tree inside the box but keeps the SINGLE bundle-level wire: a `<>`
+        // connection is one connection, so its sub-fields ride one wire and are
+        // not individually re-routed (issue #72).
+        const exp = globalExpanded;
         // Distinct stroke colors: selection = accent (persistent, strong); hover = ink (transient cue); normal = ink2
         const stroke = dim ? benchTokens.ink4 : hl ? benchTokens.accent : hov ? benchTokens.ink : benchTokens.ink2;
         // Distinct stroke widths: selection = 4 (thick); hover = 3.5 (modest bump); normal = 3
