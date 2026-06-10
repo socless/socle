@@ -156,7 +156,7 @@ object GoldenDesignTest extends TestSuite {
         }
       }
       if (regenerate)
-        println(s"[golden] regenerated $regenerated golden(s) — review diff and commit.")
+        println(s"[golden] regenerated $regenerated golden(s) - review diff and commit.")
     }
 
   }

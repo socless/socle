@@ -6,7 +6,7 @@ import scala.collection.mutable
   *
   * We use this instead of `chisel3.internal.firrtl.ir.*` because the latter
   * is `private[chisel3]` and has churn between Chisel patch versions. CHIRRTL
-  * text — the output of `circt.stage.ChiselStage.emitCHIRRTL` — is public,
+  * text - the output of `circt.stage.ChiselStage.emitCHIRRTL` - is public,
   * version-stable, and still has Bundle types intact.
   *
   * Scope (what we extract):
@@ -16,7 +16,7 @@ import scala.collection.mutable
   *   • connect statements (lhs, rhs, source-info)
   *
   * Out of scope (ignored without error): when blocks, regs/wires/nodes, ops.
-  * The exporter doesn't need them — they don't change topology.
+  * The exporter doesn't need them - they don't change topology.
   */
 object ChirrtlParser {
 
@@ -68,7 +68,7 @@ object ChirrtlParser {
     // Older Chisel just emits `module Foo:`. We accept both, plus extmodule /
     // intmodule. Multiple `@[file line:col]` markers may appear on one line
     // (Chisel attaches a marker per parent macro expansion); we capture them
-    // as a single trailing block and only parse the first one — coalescing
+    // as a single trailing block and only parse the first one - coalescing
     // them all into one source ref would be lossy without buying anything.
     val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+(\w+)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
 
@@ -102,7 +102,7 @@ object ChirrtlParser {
   }
 
   // ── Statement-level parsing ────────────────────────────────────────────────
-  // Each statement may carry one or more `@[...]` source markers — Chisel 7
+  // Each statement may carry one or more `@[...]` source markers - Chisel 7
   // attaches them per parent macro frame. We accept zero-or-more and parse
   // only the first (innermost). Stmt lines we don't recognize are dropped
   // without error; the exporter doesn't need regs/wires/nodes/whens/ops.
@@ -127,7 +127,7 @@ object ChirrtlParser {
   }
 
   // ── @[file line:col] markers ───────────────────────────────────────────────
-  // Multi-marker lines (Chisel macro expansions) get the FIRST one — that's
+  // Multi-marker lines (Chisel macro expansions) get the FIRST one - that's
   // the innermost call site, which is typically the user's own Scala source.
   private val SrcRe = """@\[([^\s\]]+)\s+(\d+):(\d+)\]""".r
   private def parseSrc(opt: Option[String]): Option[SrcInfo] = opt.flatMap { s =>

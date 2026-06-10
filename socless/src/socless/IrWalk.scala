@@ -10,7 +10,7 @@ import ChirrtlParser.{
   *
   * Bundle types are de-duplicated by structural identity (two ports with the
   * same shape share one BundleDef entry). Decoupled handshakes are detected
-  * by structural match — `{ ready, valid, bits }` triggers the Decoupled
+  * by structural match - `{ ready, valid, bits }` triggers the Decoupled
   * rendering in the UI.
   */
 object IrWalk {
@@ -135,14 +135,14 @@ object IrWalk {
     */
   private def bundleKey(b: BundleT, hint: String): String = {
     val fingerprint = b.fields.map(f => s"${if (f.flip) "f" else ""}${f.name}").mkString("_")
-    // Recognized AXI shapes — give them friendly names.
+    // Recognized AXI shapes - give them friendly names.
     val names = b.fields.map(_.name).toSet
     if (names == Set("ar", "aw", "w", "r", "b")) return "AXI4"
     if (names == Set("ready", "valid", "bits"))  return s"Decoupled_$hint"
     if (names == Set("ready", "valid"))           return s"ReadyValid_$hint"
     // Otherwise, hint-based with a deterministic fingerprint suffix.
     // We use SHA-1 over the UTF-8 fingerprint bytes so the key is a pure
-    // function of the bundle's structural shape — stable across JVM versions
+    // function of the bundle's structural shape - stable across JVM versions
     // and implementations (unlike String.hashCode, which is not guaranteed
     // stable outside the same JVM run).
     val digest = java.security.MessageDigest.getInstance("SHA-1")
@@ -187,7 +187,7 @@ object IrWalk {
   }
 
   // ── Wires: coalesce connect statements back into bundle-level wires ───────
-  /** CHIRRTL emits one `connect` per ground signal — connecting two AXI ports
+  /** CHIRRTL emits one `connect` per ground signal - connecting two AXI ports
     * unfolds to ~30 connects. We coalesce by reducing each endpoint to its
     * `<inst>.<port>` prefix and deduping. The label embeds counts so the UI
     * shows "31× ground connects coalesced".
@@ -218,7 +218,7 @@ object IrWalk {
       if (i < 0) s else s.substring(0, i)
     }
 
-    /** True if `t` is itself an aggregate (Bundle or Vec of Bundle) — used to
+    /** True if `t` is itself an aggregate (Bundle or Vec of Bundle) - used to
       * decide whether a path's sub-segment is worth keeping as its own wire,
       * versus collapsing into the parent port.
       */
@@ -247,7 +247,7 @@ object IrWalk {
       } else None
     }
 
-    /** Endpoint reaches the IO boundary somewhere — either it's an instance
+    /** Endpoint reaches the IO boundary somewhere - either it's an instance
       * port or it's one of this module's own ports. Used to drop
       * internal-net connects (wire-to-wire signals like `_oHot_WIRE`).
       */
@@ -261,13 +261,13 @@ object IrWalk {
       if (rawParts.isEmpty) return path
       val head = stripIdx(rawParts.head)
       if (instSet.contains(head) && rawParts.length >= 2) {
-        // <inst>.<port>[.<sub>] — descend into named sub-bundle when present.
+        // <inst>.<port>[.<sub>] - descend into named sub-bundle when present.
         val descend = rawParts.length >= 3 &&
           portTypeAt(path).flatMap(t => descendField(t, stripIdx(rawParts(2)))).exists(isAggregate)
         if (descend) s"${rawParts(0)}.${rawParts(1)}.${rawParts(2)}"
         else         s"${rawParts(0)}.${rawParts(1)}"
       } else if (portSet.contains(head)) {
-        // bare <port>[.<sub>] on this module — same descent rule.
+        // bare <port>[.<sub>] on this module - same descent rule.
         val descend = rawParts.length >= 2 &&
           portTypeAt(path).flatMap(t => descendField(t, stripIdx(rawParts(1)))).exists(isAggregate)
         if (descend) s"${rawParts(0)}.${rawParts(1)}"
@@ -303,14 +303,14 @@ object IrWalk {
   /** Best-effort bundle type for a coalesced wire endpoint.
     *
     * Resolution order, trying each in turn:
-    *   1. `<inst>.<port>` on either side — look up `inst.ofModule` in the
+    *   1. `<inst>.<port>` on either side - look up `inst.ofModule` in the
     *      circuit and read its port type. Common case for inter-module
     *      wires (e.g. `cpu.io → xbar.in[0]`).
-    *   2. Bare `<port>` on either side — read this module's port type.
+    *   2. Bare `<port>` on either side - read this module's port type.
     *   3. Fallback to `"Wire"` so the UI still draws something.
     *
     * Vec subscripts (`xbar.in[0]`) are stripped so the port lookup works
-    * on the underlying bundle type. The first match wins — Chisel
+    * on the underlying bundle type. The first match wins - Chisel
     * structurally typechecks at connect time, so both sides agree.
     */
   private def inferBundle(

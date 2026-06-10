@@ -242,7 +242,7 @@ object ChirrtlParserHardeningTest extends TestSuite {
       val circ = parse(chirrtl)
       val m = mod(circ, "S")
       assert(m.ports.size == 1)
-      // src may be None (overflow) — that is fine
+      // src may be None (overflow) - that is fine
     }
 
     test("src marker with no digits returns None src without throwing") {

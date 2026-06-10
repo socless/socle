@@ -10,7 +10,7 @@ import scala.collection.mutable
   *
   * Implementation: we go through Chisel's public CHIRRTL emission path
   * (`ChiselStage.emitCHIRRTL`) rather than reaching into
-  * `chisel3.internal.*` — those internals are `private[chisel3]` since
+  * `chisel3.internal.*` - those internals are `private[chisel3]` since
   * Chisel 7 and shift between patch versions. CHIRRTL text preserves Bundle
   * types intact (lowering happens later, in firtool), so we still get the
   * bundle-aware view we want, with stable API surface.
@@ -41,7 +41,7 @@ object SoclessExporter {
     os.write.over(outputPath, json, createFolders = true)
     val sourceTxt = if (sources.isEmpty) "" else s", ${sources.size} sources"
     Console.err.println(
-      s"[socless] wrote $outputPath — " +
+      s"[socless] wrote $outputPath - " +
       s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt"
     )
     design
@@ -72,7 +72,7 @@ object SoclessExporter {
     val json   = upickle.default.write(design, indent = indent)
     os.write.over(outputPath, json, createFolders = true)
     Console.err.println(
-      s"[socless] wrote $outputPath — " +
+      s"[socless] wrote $outputPath - " +
       s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
     )
     design
@@ -80,7 +80,7 @@ object SoclessExporter {
 
   /** Gather all unique source.file paths referenced anywhere in the design
     * and read them from the filesystem (relative to `sourceRoot`). The
-    * resulting Map is the UI's lookup table — it slices out the relevant
+    * resulting Map is the UI's lookup table - it slices out the relevant
     * lines per module on display.
     *
     * Unreadable / missing files are skipped silently with a stderr note;

@@ -5,7 +5,7 @@ import upickle.default._
 /** SoCLess design-export schema.
   *
   * These case classes are the canonical JSON contract between the exporter
-  * and the UI. The UI's `data.js` shape mirrors this — any field added here
+  * and the UI. The UI's `data.js` shape mirrors this - any field added here
   * must also be consumed (or tolerated as `null`) on the JS side.
   *
   * Field naming follows the JSON conventions of the existing UI: camelCase,
@@ -97,9 +97,9 @@ object Metrics { implicit val rw: ReadWriter[Metrics] = macroRW }
 
 /** A bundle definition. Two kinds for the UI:
   *
-  *   - `"Bundle"`     — aggregate of named channels (e.g. AXI4)
-  *   - `"Decoupled"`  — handshake (valid/ready + bits sub-bundle)
-  *   - `"Aggregate"`  — any other Bundle (catch-all)
+  *   - `"Bundle"`     - aggregate of named channels (e.g. AXI4)
+  *   - `"Decoupled"`  - handshake (valid/ready + bits sub-bundle)
+  *   - `"Aggregate"`  - any other Bundle (catch-all)
   *
   * Decoupled is detected by structural match (has `valid`/`ready`/`bits`) so
   * the UI can render the handshake annotation specially.

@@ -90,7 +90,7 @@ object PipelineRobustnessTest extends TestSuite {
         val (_, design, laid) = pipeline(fname)
         check(
           laid.layouts.size == design.modules.size,
-          s"[$label] layouts.size ${laid.layouts.size} != modules.size ${design.modules.size} — some modules were skipped"
+          s"[$label] layouts.size ${laid.layouts.size} != modules.size ${design.modules.size} - some modules were skipped"
         )
       }
     }
@@ -141,7 +141,7 @@ object PipelineRobustnessTest extends TestSuite {
       }
     }
 
-    // 5: regression guard — both EAST and WEST sides exist across all layouts
+    // 5: regression guard - both EAST and WEST sides exist across all layouts
     test("both EAST and WEST pin sides occur across all fixture layouts") {
       val allSides = fixtures.flatMap { case (fname, _) =>
         val (_, design, laid) = pipeline(fname)

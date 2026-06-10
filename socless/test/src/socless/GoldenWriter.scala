@@ -6,7 +6,7 @@ import upickle.default._
   *
   * Writes (or overwrites) the committed golden JSON files in
   * `socless/test/resources/golden/` from the current pipeline output.
-  * Not intended to be called directly — use the Mill task instead:
+  * Not intended to be called directly - use the Mill task instead:
   *
   *   ./mill socless.regenerateGoldens
   *
