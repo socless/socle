@@ -97,10 +97,16 @@ object Layout {
     design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
 
   private val NodeW      = 160.0
-  private val PortStep   = 24.0
-  private val PortPad    = 18.0
-  /** Height of the component header band (name + type). Must match HEADER_H in SoCLess.html (issue #38). */
+  // PortStep/PortPad/HeaderH are the single numeric source of truth for the
+  // header+port-row geometry. They are emitted into design.json via `consts`
+  // so the UI reads them instead of duplicating the literals (issue #38).
+  val PortStep   = 24.0
+  val PortPad    = 18.0
+  /** Height of the component header band (name + type). Emitted to the UI via
+    * `consts` so it no longer has to hardcode a matching HEADER_H (issue #38). */
   val HeaderH            = 28.0
+  /** The header/port-row layout constants, packaged for the schema (issue #38). */
+  val consts: LayoutConsts = LayoutConsts(HeaderH, PortStep, PortPad)
   private val BoundaryW  = 16.0
   private val BoundaryH  = 28.0
   private val LabelGap   = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -377,7 +383,7 @@ object Layout {
       }
     }.toMap
     if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
-    design.copy(layouts = layouts)
+    design.copy(layouts = layouts, layoutConsts = consts)
   }
 
   /** Resolve `path` against `module`. Returns None for internal nets / unknown

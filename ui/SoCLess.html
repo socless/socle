@@ -562,6 +562,11 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
       mutateAssign(window.DESIGN.layouts, j.layouts);
     }
+    // Header/port-row layout constants (issue #38). Carried through so the
+    // schematic geometry can read them instead of duplicating the literals.
+    if (j.layoutConsts && typeof j.layoutConsts === 'object') {
+      window.DESIGN.layoutConsts = j.layoutConsts;
+    }
     // Waves: splice the live array in-place so module-scope B_WAVES captures stay valid.
     // When the loaded design has no waves, clear to [] so WaveformView shows the empty-state.
     const newWaves = (Array.isArray(j.waves) && j.waves.length > 0) ? j.waves : [];
@@ -1626,7 +1631,13 @@ function BenchApp({ tweaks }) {
   const drillInto = useCallback((inst) => {
     const child = mod.children.find((c) => c.name === inst);
     if (!child) return;
-    if (!B_MODULES[child.type]) return; // leaf module — no internals
+    const childMod = B_MODULES[child.type];
+    if (!childMod) return; // leaf module: no internals
+    // Blackboxes (extmodule/intmodule) have no internals to show (issue #20).
+    if (childMod.kind === 'external' || childMod.kind === 'intrinsic') {
+      if (window.__soclessToast) window.__soclessToast('blackbox ' + inst + ': no internals to drill into', 'info');
+      return;
+    }
     setPath((p) => [...p, inst]);
     setSelectedSig(null);
   }, [mod]);
@@ -2264,12 +2275,15 @@ function ModuleGlyph({ type, active }) {
 // expanded (channel ribbons always on).
 
 const NODE_W = 220, NODE_H = 84;
+// Header/port-row layout constants. The backend emits these in
+// design.json (layoutConsts) so the values stay in sync with Layout.scala
+// (issue #38); we fall back to the historical literals when an older
+// design.json without the block is loaded.
+const _LC = (window.DESIGN && window.DESIGN.layoutConsts) || {};
 // Height of the component-box header band (name + type label).
-// MUST match Layout.scala HeaderH = 28.0 (issue #38 tracks removing this coupling).
-const HEADER_H = 28;
-// Port layout constants - must match Layout.scala PortPad=18, PortStep=24.
-const PORT_PAD = 18;
-const PORT_STEP = 24;
+const HEADER_H = (typeof _LC.headerH === 'number') ? _LC.headerH : 28;
+const PORT_PAD = (typeof _LC.portPad === 'number') ? _LC.portPad : 18;
+const PORT_STEP = (typeof _LC.portStep === 'number') ? _LC.portStep : 24;
 
 // Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H
 // and a `routingStyle: 'baked'` marker so the wire layer routes along the
@@ -2918,7 +2932,10 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
               );
             }
             const childMod = B_MODULES[child.type];
-            const drillable = !!childMod && childMod.children.length > 0;
+            // Blackbox = external (extmodule) or intrinsic (intmodule): no
+            // internals, render distinctly and skip drilldown (issue #20).
+            const isBlackbox = !!childMod && (childMod.kind === 'external' || childMod.kind === 'intrinsic');
+            const drillable = !!childMod && !isBlackbox && childMod.children.length > 0;
             const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
             const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
             const boxInfo = boxRowsMap[inst] || { westRows: [], eastRows: [], boxH: b.h };
@@ -3037,7 +3054,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 style={{
                   position: 'absolute', left: b.x, top: b.y, width: b.w, height: effectiveH,
                   background: benchTokens.panel,
-                  border: `1px solid ${selectedHere ? benchTokens.accent : benchTokens.border}`,
+                  border: `1px ${isBlackbox ? 'dashed' : 'solid'} ${selectedHere ? benchTokens.accent : benchTokens.border}`,
                   borderRadius: 6,
                   boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
                   cursor: drillable ? 'pointer' : 'default',
@@ -3046,10 +3063,16 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   transition: 'box-shadow .12s, border-color .12s',
                 }}
               >
-                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px solid ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
+                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px ${isBlackbox ? 'dashed' : 'solid'} ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
                   <ModuleGlyph type={child.type} active={selectedHere} />
                   <span title={inst} style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{inst}</span>
                   <div style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {isBlackbox && (
+                      <span title={`${child.type} is a blackbox (${childMod.kind}): no internals`}
+                            style={{ fontFamily: benchTokens.mono, fontSize: 8, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: benchTokens.ink3, background: benchTokens.panel, border: `1px dashed ${benchTokens.border}`, borderRadius: 3, padding: '0 4px', lineHeight: '13px' }}>
+                        {childMod.kind === 'intrinsic' ? 'intrinsic' : 'ext'}
+                      </span>
+                    )}
                     <span title={child.type} style={{ fontFamily: benchTokens.mono, fontSize: 10, color: benchTokens.ink3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80 }}>{child.type}</span>
                     {drillable && (
                       <span style={{ fontFamily: benchTokens.mono, fontSize: 9, color: benchTokens.accent }}>{'↵'}</span>

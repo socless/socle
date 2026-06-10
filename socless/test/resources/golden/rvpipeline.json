@@ -1341,5 +1341,10 @@
         "lines": 19
       }
     }
-  ]
+  ],
+  "layoutConsts": {
+    "headerH": 28,
+    "portStep": 24,
+    "portPad": 18
+  }
 }

@@ -23,8 +23,22 @@ case class Design(
   // Baked schematic geometry, keyed by module name. Empty when layout was
   // skipped or failed; the UI falls back to its built-in layout in that case.
   layouts: Map[String, ModuleLayout] = Map.empty,
+  // Header/port-row layout constants, emitted so the UI reads them from the
+  // design instead of hardcoding a second copy (issue #38). The trailing
+  // default keeps older design.json (without this block) loadable; the
+  // serializeDefaults annotation forces it to always be written even though it
+  // usually equals the default, so the UI can rely on the field being present.
+  @upickle.implicits.serializeDefaults(true)
+  layoutConsts: LayoutConsts = LayoutConsts(28, 24, 18),
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
+
+/** Header/port-row geometry shared between the Scala backend ([[Layout]]) and
+  * the UI. The numeric source of truth lives in [[Layout]]; this struct just
+  * carries the values across into design.json (issue #38).
+  */
+case class LayoutConsts(headerH: Double, portStep: Double, portPad: Double)
+object LayoutConsts { implicit val rw: ReadWriter[LayoutConsts] = macroRW }
 
 // ── Modules ─────────────────────────────────────────────────────────────────
 
@@ -37,6 +51,11 @@ case class ModuleDef(
   children: Seq[InstanceDef],
   wires:    Seq[WireDef],
   metrics:  Metrics,
+  // Module kind: "internal" (normal module with internals), "external"
+  // (extmodule / blackbox, no internals), or "intrinsic" (intmodule).
+  // The UI renders external/intrinsic distinctly and skips drilldown (issue
+  // #20). Trailing default keeps older design.json loadable.
+  kind:     String = "internal",
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
 

@@ -57,7 +57,17 @@ object IrWalk {
       children = children,
       wires    = wires,
       metrics  = metrics,
+      kind     = moduleKind(m.kind),
     )
+  }
+
+  /** Map the raw CHIRRTL module keyword to the schema's module kind.
+    * extmodule (blackbox) -> "external", intmodule -> "intrinsic", else
+    * "internal" (issue #20). */
+  private def moduleKind(rawKind: String): String = rawKind match {
+    case "extmodule" => "external"
+    case "intmodule" => "intrinsic"
+    case _           => "internal"
   }
 
   // ── Ports ────────────────────────────────────────────────────────────────
