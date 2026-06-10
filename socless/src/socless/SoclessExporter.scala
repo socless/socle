@@ -47,6 +47,37 @@ object SoclessExporter {
     design
   }
 
+  /** Convert a CHIRRTL text string to a SoCLess `design.json` file.
+    *
+    * Unlike [[export]], this path does not require Chisel or a user class on
+    * the classpath: it feeds the CHIRRTL text directly into the parser /
+    * IrWalk / Layout pipeline.  Useful for processing `.fir` files that were
+    * captured separately (e.g. via `--chirrtl-out` or from third-party tools).
+    *
+    * {{{
+    *   SoclessExporter.fromChirrtl(
+    *     chirrtl    = os.read(os.Path("/path/to/design.fir")),
+    *     outputPath = os.pwd / "design.json",
+    *   )
+    * }}}
+    */
+  def fromChirrtl(
+    chirrtl:    String,
+    outputPath: Path,
+    indent:     Int = 2,
+  ): Design = {
+    val parsed = ChirrtlParser.parse(chirrtl)
+    val core   = IrWalk.design(parsed)
+    val design = Layout.withLayouts(core)
+    val json   = upickle.default.write(design, indent = indent)
+    os.write.over(outputPath, json, createFolders = true)
+    Console.err.println(
+      s"[socless] wrote $outputPath — " +
+      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
+    )
+    design
+  }
+
   /** Gather all unique source.file paths referenced anywhere in the design
     * and read them from the filesystem (relative to `sourceRoot`). The
     * resulting Map is the UI's lookup table — it slices out the relevant

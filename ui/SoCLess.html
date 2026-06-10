@@ -668,6 +668,42 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     }
   };
 
+  // Convert a CHIRRTL .fir file to design.json via POST /convert (served by
+  // the SoCLess standalone server).  Falls back to a helpful error if no
+  // server is running.
+  window.__soclessLoadFirFromFile = async function (file) {
+    const name = file.name || 'file';
+    toast('converting ' + name + '...', 'info', 30000);
+    try {
+      const text = await file.text();
+      let resp;
+      try {
+        resp = await fetch('/convert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+          body: text,
+        });
+      } catch (netErr) {
+        toast(
+          'POST /convert failed: no SoCLess server running. ' +
+          'Start one with: mill example.soclessServe',
+          'err', 8000,
+        );
+        return false;
+      }
+      if (!resp.ok) {
+        const msg = await resp.text().catch(() => resp.statusText);
+        toast('conversion failed (' + resp.status + '): ' + (msg || '').slice(0, 120), 'err', 6000);
+        return false;
+      }
+      const j = await resp.json();
+      return ingest(j, 'fir:' + name, name);
+    } catch (e) {
+      toast('couldn\'t load ' + name + ': ' + (e.message || e), 'err');
+      return false;
+    }
+  };
+
   // Browser history navigation (back/forward) should switch designs too.
   window.addEventListener('popstate', () => {
     const want = new URLSearchParams(window.location.search).get('design');
@@ -683,7 +719,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     if (dropEl) return dropEl;
     dropEl = document.createElement('div');
     dropEl.className = 'socless-dropzone';
-    dropEl.innerHTML = '<div class="socless-dropzone-card"><b>Drop a design.json</b>SoCLess will load it into the current view</div>';
+    dropEl.innerHTML = '<div class="socless-dropzone-card"><b>Drop a design.json or .fir file</b>SoCLess will load it into the current view (.fir requires a running server)</div>';
     document.body.appendChild(dropEl);
     return dropEl;
   }
@@ -717,11 +753,13 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     dragDepth = 0;
     if (dropEl) dropEl.dataset.on = '0';
     const f = e.dataTransfer.files[0];
-    if (!/\.json$/i.test(f.name)) {
-      toast('expected a .json file, got ' + f.name, 'err');
-      return;
+    if (/\.fir$/i.test(f.name)) {
+      window.__soclessLoadFirFromFile(f);
+    } else if (/\.json$/i.test(f.name)) {
+      window.__soclessLoadDesignFromFile(f);
+    } else {
+      toast('expected a .json or .fir file, got ' + f.name, 'err');
     }
-    window.__soclessLoadDesignFromFile(f);
   });
 
   // Initial load: read manifest, then pick a source.

@@ -5,8 +5,8 @@ import utest._
 /** Unit tests for [[Launcher.parseArgs]].
   *
   * Purely functional - no reflection, no Chisel elaboration, no file I/O.
-  * Tests cover the four happy-path arguments, all error branches, and the
-  * --help short-circuit.
+  * Tests cover all recognised flags (including --fir-input), all error
+  * branches, and the --help short-circuit.
   */
 object LauncherArgsTest extends TestSuite {
 
@@ -16,10 +16,10 @@ object LauncherArgsTest extends TestSuite {
   val tests = Tests {
 
     // -----------------------------------------------------------------------
-    // Happy path
+    // Happy path - Chisel mode (--top)
     // -----------------------------------------------------------------------
 
-    test("all flags provided returns Right(config)") {
+    test("all Chisel-mode flags provided returns Right(config)") {
       val result = Launcher.parseArgs(Array(
         "--top", "my.pkg.Top",
         "--output", "/tmp/design.json",
@@ -27,7 +27,8 @@ object LauncherArgsTest extends TestSuite {
         "--chirrtl-out", "/tmp/out.fir",
       ))
       assert(result == Right(Launcher.LauncherConfig(
-        top        = "my.pkg.Top",
+        top        = Some("my.pkg.Top"),
+        firInput   = None,
         output     = Some("/tmp/design.json"),
         sourceRoot = Some("/workspace"),
         chirrtlOut = Some("/tmp/out.fir"),
@@ -37,7 +38,8 @@ object LauncherArgsTest extends TestSuite {
     test("only --top provided: optional fields are None") {
       val result = Launcher.parseArgs(Array("--top", "a.b.MyModule"))
       assert(result == Right(Launcher.LauncherConfig(
-        top        = "a.b.MyModule",
+        top        = Some("a.b.MyModule"),
+        firInput   = None,
         output     = None,
         sourceRoot = None,
         chirrtlOut = None,
@@ -53,10 +55,41 @@ object LauncherArgsTest extends TestSuite {
       ))
       result match {
         case Right(cfg) =>
-          assert(cfg.top == "example.axisystem.AXISystem")
+          assert(cfg.top.contains("example.axisystem.AXISystem"))
+          assert(cfg.firInput.isEmpty)
           assert(cfg.output.contains("/mill/out/design.json"))
           assert(cfg.sourceRoot.contains("/workspace"))
           assert(cfg.chirrtlOut.isEmpty)
+        case Left(err) =>
+          fail(s"Expected Right but got Left($err)")
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Happy path - CHIRRTL file mode (--fir-input)
+    // -----------------------------------------------------------------------
+
+    test("--fir-input only returns Right(config) with top=None") {
+      val result = Launcher.parseArgs(Array("--fir-input", "/designs/foo.fir"))
+      assert(result == Right(Launcher.LauncherConfig(
+        top        = None,
+        firInput   = Some("/designs/foo.fir"),
+        output     = None,
+        sourceRoot = None,
+        chirrtlOut = None,
+      )))
+    }
+
+    test("--fir-input with --output") {
+      val result = Launcher.parseArgs(Array(
+        "--fir-input", "/designs/foo.fir",
+        "--output", "/tmp/design.json",
+      ))
+      result match {
+        case Right(cfg) =>
+          assert(cfg.top.isEmpty)
+          assert(cfg.firInput.contains("/designs/foo.fir"))
+          assert(cfg.output.contains("/tmp/design.json"))
         case Left(err) =>
           fail(s"Expected Right but got Left($err)")
       }
@@ -79,19 +112,30 @@ object LauncherArgsTest extends TestSuite {
     }
 
     // -----------------------------------------------------------------------
-    // Missing required --top
+    // Missing required flag
     // -----------------------------------------------------------------------
 
-    test("empty args returns Left with --top message") {
+    test("empty args returns Left mentioning --top or --fir-input") {
       Launcher.parseArgs(Array()) match {
-        case Left(msg) => assert(msg.contains("--top"))
+        case Left(msg) => assert(msg.contains("--top") || msg.contains("--fir-input"))
         case Right(_)  => fail("Expected Left but got Right")
       }
     }
 
-    test("no --top but other flags present returns Left") {
+    test("no --top and no --fir-input but other flags present returns Left") {
       Launcher.parseArgs(Array("--output", "/tmp/out.json")) match {
-        case Left(msg) => assert(msg.contains("--top"))
+        case Left(msg) => assert(msg.contains("--top") || msg.contains("--fir-input"))
+        case Right(_)  => fail("Expected Left but got Right")
+      }
+    }
+
+    // -----------------------------------------------------------------------
+    // Mutual exclusion: --top and --fir-input together
+    // -----------------------------------------------------------------------
+
+    test("--top and --fir-input together returns Left") {
+      Launcher.parseArgs(Array("--top", "pkg.Top", "--fir-input", "foo.fir")) match {
+        case Left(msg) => assert(msg.contains("mutually exclusive") || msg.contains("--fir-input"))
         case Right(_)  => fail("Expected Left but got Right")
       }
     }
@@ -125,6 +169,13 @@ object LauncherArgsTest extends TestSuite {
       }
     }
 
+    test("--fir-input at end of args with no value returns Left") {
+      Launcher.parseArgs(Array("--fir-input")) match {
+        case Left(msg) => assert(msg.contains("--fir-input") && msg.contains("value"))
+        case Right(_)  => fail("Expected Left but got Right")
+      }
+    }
+
     test("--output at end of args with no value returns Left") {
       Launcher.parseArgs(Array("--top", "pkg.Top", "--output")) match {
         case Left(msg) => assert(msg.contains("--output") && msg.contains("value"))
@@ -151,7 +202,7 @@ object LauncherArgsTest extends TestSuite {
     // Ordering independence
     // -----------------------------------------------------------------------
 
-    test("flags in any order still parse correctly") {
+    test("Chisel-mode flags in any order still parse correctly") {
       val result = Launcher.parseArgs(Array(
         "--source-root", "/src",
         "--chirrtl-out", "/fir/out.fir",
@@ -159,7 +210,8 @@ object LauncherArgsTest extends TestSuite {
         "--top", "com.example.Top",
       ))
       assert(result == Right(Launcher.LauncherConfig(
-        top        = "com.example.Top",
+        top        = Some("com.example.Top"),
+        firInput   = None,
         output     = Some("/out/design.json"),
         sourceRoot = Some("/src"),
         chirrtlOut = Some("/fir/out.fir"),
