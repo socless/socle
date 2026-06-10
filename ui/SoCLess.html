@@ -3448,6 +3448,16 @@ function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, c
     (window.DESIGN.SOURCES && file ? window.DESIGN.SOURCES[file] : undefined);
   const scrollRef = React.useRef(null);
   const targetLine = mod.source.line || 0;
+  // Instance names whose tokens become clickable. Drill-in is gated by
+  // clickToNavigate so users can disable when it gets in the way of selection.
+  // NOTE: this hook MUST run before any early return below - leaf modules with
+  // no embedded source hit the `if (!fileText)` branch, and a hook after that
+  // return would change the hook count between renders and crash React with
+  // "Rendered fewer hooks than expected" (issue #70).
+  const childInstSet = React.useMemo(
+    () => new Set((mod.children || []).map((c) => c.name)),
+    [mod.children],
+  );
 
   // Auto-scroll the file to the originating line on mount / module change.
   // Place it ~1/4 from the top so the user gets some leading context.
@@ -3481,12 +3491,6 @@ function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, c
   // the demo path so signal-driven exploration still works on real designs.
   const selInst = selectedSig ? selectedSig.split('.')[0] : null;
   const selPort = selectedSig ? selectedSig.split('.').slice(0, 2).join('.') : null;
-  // Instance names whose tokens become clickable. Drill-in is gated by
-  // clickToNavigate so users can disable when it gets in the way of selection.
-  const childInstSet = React.useMemo(
-    () => new Set((mod.children || []).map((c) => c.name)),
-    [mod.children],
-  );
   const navToken = clickToNavigate && drillInto ? drillInto : null;
 
   return (
@@ -3691,6 +3695,32 @@ window.BenchApp = BenchApp;
 <div id="root"><div class="socless-loading">elaborating…</div></div>
 
 <script type="text/babel">
+// Catch render errors in the app subtree so one bad component (e.g. a drill-down
+// into an unusual module) shows a recoverable message instead of unmounting the
+// whole page to blank (issue #70). Resetting remounts the app at the top module.
+class ErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error('[socless] UI error:', error, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: '28px 32px', fontFamily: 'system-ui, sans-serif', color: '#333', maxWidth: 640 }}>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Something went wrong rendering this view.</div>
+          <pre style={{ fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#f5f5f5', padding: '8px 10px', borderRadius: 4, whiteSpace: 'pre-wrap' }}>
+            {String(this.state.error && this.state.error.message || this.state.error)}
+          </pre>
+          <button onClick={() => { this.setState({ error: null }); this.props.onReset && this.props.onReset(); }}
+            style={{ marginTop: 10, padding: '6px 14px', fontSize: 13, cursor: 'pointer', borderRadius: 4, border: '1px solid #ccc', background: '#fff' }}>
+            Reset to top module
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   const [tweaks, setTweak] = useTweaks(window.__TWEAK_DEFAULTS);
   // Remount BenchApp on every design load so module-scope `const B_MODULES = ...`
@@ -3705,7 +3735,9 @@ function App() {
 
   return (
     <div style={{ height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      <BenchApp key={version} tweaks={tweaks} />
+      <ErrorBoundary key={version} onReset={() => setVersion((v) => v + 1)}>
+        <BenchApp key={version} tweaks={tweaks} />
+      </ErrorBoundary>
       <TweaksPanel title="Tweaks">
         <TweakSection label="Display">
           <TweakRadio label="Density" value={tweaks.density}

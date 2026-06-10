@@ -57,7 +57,19 @@ for (const design of designs) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push('console.error: ' + m.text()); });
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    const t = m.text();
+    // The generic "Failed to load resource" console line has no URL; real
+    // resource 404s are reported precisely by the response handler below.
+    if (/Failed to load resource/.test(t)) return;
+    errors.push('console.error: ' + t);
+  });
+  page.on('response', (r) => {
+    if (r.status() === 404 && !r.url().endsWith('/favicon.ico')) {
+      errors.push('http 404: ' + r.url());
+    }
+  });
 
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
