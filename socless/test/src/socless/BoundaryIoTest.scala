@@ -1,0 +1,125 @@
+package socless
+
+import utest._
+
+/** Regression tests for issue #68: a module's external I/O ports must not be
+  * collapsed into a single boundary node.
+  *
+  * Real Chisel modules wrap all their I/O in one `io` bundle, so every external
+  * interface used to share one boundary node. A single node occupies one ELK
+  * layer, so inputs could not sit on the left and outputs on the right; wires
+  * between the boundary and the interior (or between two boundary pins on a leaf
+  * module) routed backward or spanned the whole canvas ("broken arrows").
+  *
+  * The fix gives each external pin its own boundary node, so ELK ranks
+  * input-sources toward the left and output-sinks toward the right with
+  * forward-flowing wires.
+  */
+object BoundaryIoTest extends TestSuite {
+
+  // A leaf module (no child instances) whose only connection is between two of
+  // its own external interfaces: io.in drives io.rf. This is the shape that was
+  // visibly broken (the WB stage in RVPipeline): the wire ran right-to-left
+  // between two pins of a single shared boundary box.
+  private val leafMod = ModuleDef("Leaf", "Leaf", "", SourceRef.unknown,
+    ports = Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)),
+    children = Nil,
+    wires = Seq(
+      // from = sink (io.rf), to = source (io.in): io.in drives io.rf.
+      WireDef("io.rf", "io.in", "AXI4", "2x ground connects", SourceRef.unknown),
+    ),
+    metrics = Metrics(0, 0, 0))
+
+  private val leafDesign = Design("Leaf",
+    Map("AXI4" -> BundleDef("AXI4", "Bundle")),
+    Seq(leafMod))
+
+  // A hierarchical module: boundary input io.src drives an instance, the
+  // instance drives boundary output io.dst. Both external pins must be distinct
+  // boundary nodes, with the input toward the left and the output toward the right.
+  private val coreMod = ModuleDef("Core", "Core", "", SourceRef.unknown,
+    ports = Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)),
+    children = Nil, wires = Nil, metrics = Metrics(0, 0, 0))
+
+  private val topMod = ModuleDef("Top", "Top", "", SourceRef.unknown,
+    ports = Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)),
+    children = Seq(InstanceDef("core", "Core", "", SourceRef.unknown)),
+    wires = Seq(
+      // io.src drives core.io: from = sink (core.io), to = source (io.src).
+      WireDef("core.io", "io.src", "AXI4", "", SourceRef.unknown),
+      // core.io drives io.dst: from = sink (io.dst), to = source (core.io).
+      WireDef("io.dst", "core.io", "AXI4", "", SourceRef.unknown),
+    ),
+    metrics = Metrics(0, 0, 0))
+
+  private val topDesign = Design("Top",
+    Map("AXI4" -> BundleDef("AXI4", "Bundle")),
+    Seq(topMod, coreMod))
+
+  // A Decoupled/AXI output port carries data forward and `ready` back, so its
+  // boundary pin gets one source vote and one sink vote (a tie). The tie must
+  // break toward the port's declared direction (output -> WEST/right), not the
+  // default EAST, or the external output is misread as an input and lands on
+  // the left with a backward wire (the DeepSoc io.out regression in #68).
+  private val tieMod = ModuleDef("Tie", "Tie", "", SourceRef.unknown,
+    ports = Seq(PortDef("io", "output", "Decoupled_out", "", SourceRef.unknown)),
+    children = Seq(InstanceDef("u", "Core", "", SourceRef.unknown)),
+    wires = Seq(
+      // forward data: u drives io.out (from = sink io.out, to = source u.io)
+      WireDef("io.out", "u.io", "Decoupled_out", "", SourceRef.unknown),
+      // backward ready: io.out drives u (from = sink u.io, to = source io.out)
+      WireDef("u.io", "io.out", "Decoupled_out", "", SourceRef.unknown),
+    ),
+    metrics = Metrics(0, 0, 0))
+
+  private val tieDesign = Design("Tie",
+    Map("Decoupled_out" -> BundleDef("Decoupled_out", "Decoupled")),
+    Seq(tieMod, coreMod))
+
+  val tests = Tests {
+
+    test("each external pin is its own boundary node, not a shared 'io' node") {
+      val L = Layout.layout(leafMod, leafDesign)
+      val boundaryIds = L.nodes.filter(_.kind == "boundary").map(_.id).toSet
+      assert(boundaryIds == Set("io.in", "io.rf"))
+      // The collapsed-into-one-node bug would have produced a single "io" node.
+      assert(!L.nodes.exists(_.id == "io"))
+    }
+
+    test("leaf boundary-to-boundary wire flows forward (no backward arrow)") {
+      val L = Layout.layout(leafMod, leafDesign)
+      // Source is io.in (drives), sink is io.rf (receives).
+      val src = L.nodes.find(_.id == "io.in").get.ports.head
+      val dst = L.nodes.find(_.id == "io.rf").get.ports.head
+      // The source pin must be left of the sink pin: a left-to-right wire.
+      assert(src.x < dst.x)
+      // And the routed polyline itself must run forward.
+      val e = L.edges.find(ed => ed.to == "io.in" && ed.from == "io.rf").get
+      assert(e.points.nonEmpty)
+      assert(e.points.head._1 <= e.points.last._1)
+    }
+
+    test("hierarchical boundary input sits left of boundary output") {
+      val L = Layout.layout(topMod, topDesign)
+      val boundaryIds = L.nodes.filter(_.kind == "boundary").map(_.id).toSet
+      assert(boundaryIds == Set("io.src", "io.dst"))
+      val inNode  = L.nodes.find(_.id == "io.src").get
+      val outNode = L.nodes.find(_.id == "io.dst").get
+      // External input (drives into the design) should rank left of the output.
+      assert(inNode.x < outNode.x)
+    }
+
+    test("every boundary node has exactly one pin after the split") {
+      val L = Layout.layout(topMod, topDesign)
+      L.nodes.filter(_.kind == "boundary").foreach { n =>
+        assert(n.ports.size == 1)
+      }
+    }
+
+    test("Decoupled boundary output breaks the vote tie toward WEST (output side)") {
+      val L = Layout.layout(tieMod, tieDesign)
+      val out = L.nodes.find(_.id == "io.out").get
+      assert(out.ports.head.side == "WEST")
+    }
+  }
+}

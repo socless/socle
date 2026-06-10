@@ -2886,7 +2886,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     overflow: 'hidden',
                     pointerEvents: 'none',
                   }}>
-                  <span style={{ padding: '0 6px', textAlign: 'center', wordBreak: 'break-all' }}>{inst}</span>
+                  {/* Each external pin is its own stub now (issue #68); the pin
+                      label beside the connector already names the port, so only
+                      show a centered id for label-less stubs to avoid duplication. */}
+                  {!(layoutPorts && layoutPorts[inst] && layoutPorts[inst].some((p) => p.label)) && (
+                    <span style={{ padding: '0 6px', textAlign: 'center', wordBreak: 'break-all' }}>{inst}</span>
+                  )}
                   {layoutPorts && layoutPorts[inst] && layoutPorts[inst].map((p) => {
                     // Interface pins: fat connector glyph (accent, 8x12, rounded); ground pins: thin tick (ink4, 3x6)
                     const pw = p.interface ? 8 : 3;

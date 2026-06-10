@@ -151,6 +151,11 @@ object Layout {
     val westVotes  = scala.collection.mutable.Map.empty[(String, String, String), Int].withDefaultValue(0)
     val ifaceOf    = scala.collection.mutable.Map.empty[(String, String, String), Boolean].withDefaultValue(false)
     val bundleOf   = scala.collection.mutable.Map.empty[(String, String, String), String]
+    // Declared side from classify (sideFor on the port's own direction). Used
+    // only to break vote ties: a Decoupled/AXI boundary port has an anti-parallel
+    // pair (forward data + backward ready), giving one EAST and one WEST vote, so
+    // the tie must fall back to the declared direction rather than a fixed default.
+    val declaredOf = scala.collection.mutable.Map.empty[(String, String, String), String]
     // Ordered paths per (nodeId, kind) to preserve first-seen insertion order.
     val pinOrder   = scala.collection.mutable.LinkedHashMap.empty[(String, String), scala.collection.mutable.LinkedHashSet[String]]
 
@@ -158,6 +163,7 @@ object Layout {
       val k = (ep.nodeId, ep.kind, ep.path)
       if (isSource) eastVotes(k) += 1 else westVotes(k) += 1
       ifaceOf(k) = ifaceOf(k) || ep.interface
+      declaredOf(k) = ep.side
       // First-seen bundle name wins (skip generic "Wire")
       if (!bundleOf.contains(k) && wireBundleName.nonEmpty && wireBundleName != "Wire")
         bundleOf(k) = wireBundleName
@@ -191,7 +197,14 @@ object Layout {
       val pins: PinMap = scala.collection.mutable.LinkedHashMap.empty
       paths.foreach { path =>
         val k      = (nodeId, kind, path)
-        val side   = if (eastVotes(k) >= westVotes(k)) "EAST" else "WEST"
+        // Strict vote winner; on a tie, boundary pins fall back to their declared
+        // direction (reliable for the module's own ports) so Decoupled outputs are
+        // not misread as inputs. Instance pins keep the historical tie -> EAST.
+        val side =
+          if (eastVotes(k) > westVotes(k)) "EAST"
+          else if (westVotes(k) > eastVotes(k)) "WEST"
+          else if (kind == "boundary") declaredOf.getOrElse(k, "EAST")
+          else "EAST"
         val bundle = bundleOf.get(k)
         pins(path) = PinSpec(path, side, ifaceOf(k), bundle.getOrElse(""))
       }
@@ -402,7 +415,13 @@ object Layout {
       Some(Endpoint(head, "inst", path, sideFor("inst", dir), isInterfaceBundle(bundle, design)))
     } else {
       module.ports.find(_.name == head).map { p =>
-        Endpoint(head, "boundary", path, sideFor("boundary", p.dir), isInterfaceBundle(p.bundle, design))
+        // Each external pin is its OWN boundary node (keyed by full path), not
+        // grouped under the port head. A single shared node would force all of
+        // a module's I/O into one layer, so inputs could not sit on the left
+        // and outputs on the right; wires then route backward or span the whole
+        // canvas (issue #68). Per-pin stubs let ELK rank input-sources left and
+        // output-sinks right with forward-flowing wires.
+        Endpoint(path, "boundary", path, sideFor("boundary", p.dir), isInterfaceBundle(p.bundle, design))
       }
     }
   }
