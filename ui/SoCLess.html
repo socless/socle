@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>SoCLess — Chisel Design Explorer</title>
+<title>SoCLess - Chisel Design Explorer</title>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -16,7 +16,7 @@
   *::-webkit-scrollbar-track { background: transparent; }
   .socless-loading { position: fixed; inset: 0; display: grid; place-items: center; color: #70706e; font-family: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', Menlo, Consolas, 'DejaVu Sans Mono', ui-monospace, monospace; font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase; }
 
-  /* Loader chrome — toast banner + drop-zone overlay. Lives outside React so
+  /* Loader chrome - toast banner + drop-zone overlay. Lives outside React so
      the loader script (which runs before React mounts) can show feedback. */
   .socless-toast {
     position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 12px);
@@ -63,7 +63,7 @@
 </script>
 
 <script>
-// AXI4 interconnect example — module hierarchy, bundles, connections, source.
+// AXI4 interconnect example - module hierarchy, bundles, connections, source.
 // Shape mirrors what a Chisel elaboration would expose: every module has typed
 // ports (each a Bundle with named fields), submodule instances, and a list of
 // connections at this scope. Used by both Bench and Atlas variations.
@@ -74,7 +74,7 @@
 // `flip` reverses every dir when used in a port (Chisel Flipped semantics).
 
 const BUNDLES = {
-  // AXI4 channels — each Decoupled[Channel] becomes valid/ready/bits.
+  // AXI4 channels - each Decoupled[Channel] becomes valid/ready/bits.
   AXI4_AR: {
     kind: 'Decoupled',
     fields: [
@@ -139,18 +139,18 @@ const BUNDLES = {
 
 // ─── Module hierarchy ────────────────────────────────────────────────────────
 // Each module:
-//   type     — Chisel class name
-//   doc      — one-line description (shown in inspector / breadcrumb)
-//   ports    — IO bundle list [{name, dir, bundle, doc?}]
-//   children — instance list [{name, type, doc?}]
-//   wires    — internal connections [{from:'inst.port[.chan]', to:'...', label?}]
-//   source   — { file, code } — Chisel source text, lines split on \n
-//   metrics  — { gates, registers, lines } — synth-style stats for the bench
+//   type     - Chisel class name
+//   doc      - one-line description (shown in inspector / breadcrumb)
+//   ports    - IO bundle list [{name, dir, bundle, doc?}]
+//   children - instance list [{name, type, doc?}]
+//   wires    - internal connections [{from:'inst.port[.chan]', to:'...', label?}]
+//   source   - { file, code } - Chisel source text, lines split on \n
+//   metrics  - { gates, registers, lines } - synth-style stats for the bench
 
 const MODULES = {
   AXISystem: {
     type: 'AXISystem',
-    doc: 'Top-level interconnect — 2 masters, 1 crossbar, 2 slaves.',
+    doc: 'Top-level interconnect - 2 masters, 1 crossbar, 2 slaves.',
     ports: [],
     children: [
       { name: 'cpu',    type: 'AXIMaster',    doc: 'RV32 fetch + LSU master' },
@@ -232,7 +232,7 @@ const MODULES = {
 
   AXICrossbar: {
     type: 'AXICrossbar',
-    doc: '2×2 round-robin crossbar — address-decoded routing.',
+    doc: '2×2 round-robin crossbar - address-decoded routing.',
     ports: [
       { name: 'in[0]',  dir: 'slave',  bundle: 'AXI4', doc: 'From CPU master' },
       { name: 'in[1]',  dir: 'slave',  bundle: 'AXI4', doc: 'From DMA master' },
@@ -336,18 +336,18 @@ const TOP_LAYOUT = {
   ],
 };
 
-// ─── Synthetic waveform — 32 cycles of activity on the AR channel ────────────
-// Each track is a signal path; values are per-cycle. 'x' = unknown, '–' = idle.
+// ─── Synthetic waveform - 32 cycles of activity on the AR channel ────────────
+// Each track is a signal path; values are per-cycle. 'x' = unknown, '-' = idle.
 const WAVE_CYCLES = 32;
 const WAVES = [
   { path: 'cpu.io.ar.valid', type: 'Bool', values: '0011110001111110011000111111000110'.slice(0, WAVE_CYCLES).split('') },
   { path: 'cpu.io.ar.ready', type: 'Bool', values: '0011100011110010011100011110001100'.slice(0, WAVE_CYCLES).split('') },
   { path: 'cpu.io.ar.bits.addr', type: 'UInt<32>',
-    values: ['–','–','80000000','80000008','80000010','80000018','–','–','80000020','80000028','80000030','80000038','80000040','80000048','–','–','40000000','40000004','40000008','4000000C','–','–','80000050','80000058','80000060','80000068','80000070','80000078','–','–','–','–'] },
+    values: ['-','-','80000000','80000008','80000010','80000018','-','-','80000020','80000028','80000030','80000038','80000040','80000048','-','-','40000000','40000004','40000008','4000000C','-','-','80000050','80000058','80000060','80000068','80000070','80000078','-','-','-','-'] },
   { path: 'cpu.io.ar.bits.id',   type: 'UInt<4>',
-    values: ['–','–','0','1','2','3','–','–','4','5','6','7','0','1','–','–','2','3','4','5','–','–','6','7','0','1','2','3','–','–','–','–'] },
+    values: ['-','-','0','1','2','3','-','-','4','5','6','7','0','1','-','-','2','3','4','5','-','-','6','7','0','1','2','3','-','-','-','-'] },
   { path: 'cpu.io.ar.bits.len',  type: 'UInt<8>',
-    values: ['–','–','3','3','3','3','–','–','7','7','7','7','3','3','–','–','0','0','0','0','–','–','3','3','3','3','3','3','–','–','–','–'] },
+    values: ['-','-','3','3','3','3','-','-','7','7','7','7','3','3','-','-','0','0','0','0','-','-','3','3','3','3','3','3','-','-','-','-'] },
   { path: 'xbar.arbAR.chosen',   type: 'UInt<1>',
     values: ['0','0','0','0','1','1','0','0','0','0','1','1','0','0','0','0','0','0','1','1','0','0','0','0','1','1','0','0','0','0','0','0'] },
   { path: 'mem.io.r.valid',      type: 'Bool', values: '0000001111100001111111000001111110'.slice(0, WAVE_CYCLES).split('') },
@@ -450,7 +450,7 @@ function portTree(bundleKey, baseDir, parentPath) {
   return { name: '', path: parentPath, bundleKey, isExpandable: !!b, dir: baseDir, width: 0, children };
 }
 
-// Channel color palette — used by both variations so colors are consistent.
+// Channel color palette - used by both variations so colors are consistent.
 const CHANNEL_COLOR = {
   ar: 'oklch(0.60 0.16 250)',   // blue
   aw: 'oklch(0.55 0.17 290)',   // violet
@@ -465,20 +465,20 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
 
 <!-- Design loader.
      Probe order:
-       1) ?design=<id>       — fixture id from examples/manifest.json
-       2) ?design=<url>      — any JSON URL (relative to this page)
-       3) ./design.json      — live elaboration output next to the HTML
-       4) (bundled demo)     — fall through, no fetch
+       1) ?design=<id>       - fixture id from examples/manifest.json
+       2) ?design=<url>      - any JSON URL (relative to this page)
+       3) ./design.json      - live elaboration output next to the HTML
+       4) (bundled demo)     - fall through, no fetch
      Loader MUTATES window.DESIGN.{MODULES,BUNDLES} in place so the inline
      bench code's `const B_MODULES = window.DESIGN.MODULES` captures stay
      valid across reloads. Components remount via a version counter (see App).
 
      Interactions wired up here (run pre-React so they're always available):
-       • toast(msg, kind)              — transient banner for load feedback
+       • toast(msg, kind)              - transient banner for load feedback
        • window drag-and-drop of *.json → loads as a design
-       • __soclessLoadDesign(idOrUrl)  — picker entry point (also URL-syncs)
-       • __soclessLoadDesignFromFile(file) — load from a File / Blob
-       • __soclessReloadLive()         — re-fetch ./design.json without reload -->
+       • __soclessLoadDesign(idOrUrl)  - picker entry point (also URL-syncs)
+       • __soclessLoadDesignFromFile(file) - load from a File / Blob
+       • __soclessReloadLive()         - re-fetch ./design.json without reload -->
 <script>
 (function () {
   // Default top, only used pre-load
@@ -519,7 +519,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
   //   3. The module with the most children (rich for browsing)
   //   4. First module in the file
   // Step 2 covers the common Chisel-7 case where `public module Foo:` got
-  // dropped by an older parser — the children of the missing top stay as
+  // dropped by an older parser - the children of the missing top stay as
   // orphan roots with children, and we pick the richest.
   function resolveTop(declared, byName) {
     if (declared && byName[declared]) return declared;
@@ -654,7 +654,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     }
   };
 
-  // Refresh `live` — re-fetch design.json in place. Useful while iterating
+  // Refresh `live` - re-fetch design.json in place. Useful while iterating
   // on a Chisel design and re-running `mill example.soclessRun`.
   window.__soclessReloadLive = function () {
     return window.__soclessLoadDesign('live', { pushUrl: false });
@@ -773,7 +773,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     const params = new URLSearchParams(window.location.search);
     const want = params.get('design');
 
-    // (1) manifest — only fetch when a ?design= param is present (avoids a
+    // (1) manifest - only fetch when a ?design= param is present (avoids a
     // browser-level 404 console error in normal use where no fixture server
     // is running). Falls back to [] if absent or non-OK.
     window.DESIGN.MANIFEST = [];
@@ -781,7 +781,7 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       try {
         const r = await fetch('examples/manifest.json', { cache: 'no-store' });
         if (r.ok) window.DESIGN.MANIFEST = (await r.json()).designs || [];
-      } catch { /* no fixture server — leave MANIFEST empty */ }
+      } catch { /* no fixture server - leave MANIFEST empty */ }
     }
     if (want) {
       const ok = await window.__soclessLoadDesign(want, { pushUrl: false });
@@ -794,8 +794,8 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     try {
       const r = await fetch('design.json', { cache: 'no-store' });
       if (!r.ok) {
-        // No file (e.g. 404) — quiet fallback, not an error worth toasting.
-        console.info('[socless] no design.json (' + r.status + ') — using bundled demo');
+        // No file (e.g. 404) - quiet fallback, not an error worth toasting.
+        console.info('[socless] no design.json (' + r.status + ') - using bundled demo');
         window.DESIGN.VERSION = 1;
         return false;
       }
@@ -820,8 +820,8 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
         return false;
       }
     } catch (e) {
-      // Network-level failure (offline, CORS, etc.) — silent.
-      console.info('[socless] could not fetch design.json — using bundled demo');
+      // Network-level failure (offline, CORS, etc.) - silent.
+      console.info('[socless] could not fetch design.json - using bundled demo');
       window.DESIGN.VERSION = 1;
       return false;
     }
@@ -1002,7 +1002,7 @@ function useTweaks(defaults) {
     setValues((prev) => ({ ...prev, ...edits }));
     window.parent.postMessage({ type: '__edit_mode_set_keys', edits }, '*');
     // Same-window signal so in-page listeners (deck-stage rail thumbnails)
-    // can react — the parent message only reaches the host, not peers.
+    // can react - the parent message only reaches the host, not peers.
     window.dispatchEvent(new CustomEvent('tweakchange', { detail: edits }));
   }, []);
   return [values, setTweak];
@@ -1010,7 +1010,7 @@ function useTweaks(defaults) {
 
 // ── TweaksPanel ─────────────────────────────────────────────────────────────
 // Floating shell. Registers the protocol listener BEFORE announcing
-// availability — if the announce ran first, the host's activate could land
+// availability - if the announce ran first, the host's activate could land
 // before our handler exists and the toolbar toggle would silently no-op.
 // The close button posts __edit_mode_dismissed so the host's toolbar toggle
 // flips off in lockstep; the host echoes __deactivate_edit_mode back which
@@ -1022,7 +1022,7 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
   // toggle drives the deck's per-viewer _railVisible via window message;
   // state is mirrored from the same localStorage key the deck reads so
   // the control reflects reality across reloads. The mechanism is the
-  // message — authors who want custom placement can post it directly
+  // message - authors who want custom placement can post it directly
   // and pass noDeckControls to suppress this one.
   const hasDeckStage = React.useMemo(
     () => typeof document !== 'undefined' && !!document.querySelector('deck-stage'),
@@ -1031,7 +1031,7 @@ function TweaksPanel({ title = 'Tweaks', noDeckControls = false, children }) {
   // deck-stage enables its rail in connectedCallback, but this panel can
   // mount before that element has upgraded. The initial read catches the
   // common case; the listener covers mounting first. (Older deck-stage.js
-  // copies still wait for the host's __omelette_rail_enabled postMessage —
+  // copies still wait for the host's __omelette_rail_enabled postMessage -
   // same listener handles those.)
   const [railEnabled, setRailEnabled] = React.useState(
     () => hasDeckStage && !!document.querySelector('deck-stage')?._railEnabled,
@@ -1192,20 +1192,20 @@ function TweakRadio({ label, value, options, onChange }) {
   const trackRef = React.useRef(null);
   const [dragging, setDragging] = React.useState(false);
   // The active value is read by pointer-move handlers attached for the lifetime
-  // of a drag — ref it so a stale closure doesn't fire onChange for every move.
+  // of a drag - ref it so a stale closure doesn't fire onChange for every move.
   const valueRef = React.useRef(value);
   valueRef.current = value;
 
   // Segments wrap mid-word once per-segment width runs out. The track is
   // ~248px (280 panel − 28 body pad − 4 seg pad), each button loses 12px
-  // to its own padding, and 11.5px system-ui averages ~6.3px/char — so 2
+  // to its own padding, and 11.5px system-ui averages ~6.3px/char - so 2
   // options fit ~16 chars each, 3 fit ~10. Past that (or >3 options), fall
   // back to a dropdown rather than wrap.
   const labelLen = (o) => String(typeof o === 'object' ? o.label : o).length;
   const maxLen = options.reduce((m, o) => Math.max(m, labelLen(o)), 0);
   const fitsAsSegments = maxLen <= ({ 2: 16, 3: 10 }[options.length] ?? 0);
   if (!fitsAsSegments) {
-    // <select> emits strings — map back to the original option value so the
+    // <select> emits strings - map back to the original option value so the
     // fallback stays type-preserving (numbers, booleans) like the segment path.
     const resolve = (s) => {
       const m = options.find((o) => String(typeof o === 'object' ? o.value : o) === s);
@@ -1317,7 +1317,7 @@ function TweakNumber({ label, value, min, max, step = 1, unit = '', onChange }) 
   );
 }
 
-// Relative-luminance contrast pick — checkmarks drawn over a swatch need to
+// Relative-luminance contrast pick - checkmarks drawn over a swatch need to
 // read on both #111 and #fafafa without per-option configuration. Hex input
 // only (#rgb / #rrggbb); named or rgb()/hsl() colors fall through to "light".
 function __twkIsLight(hex) {
@@ -1337,8 +1337,8 @@ const __TwkCheck = ({ light }) => (
   </svg>
 );
 
-// TweakColor — curated color/palette picker. Each option is either a single
-// hex string or an array of 1-5 hex strings; the card adapts — a lone color
+// TweakColor - curated color/palette picker. Each option is either a single
+// hex string or an array of 1-5 hex strings; the card adapts - a lone color
 // renders solid, a palette renders colors[0] as the hero (left ~2/3) with the
 // rest stacked in a sharp column on the right. onChange emits the
 // option in the shape it was passed (string stays string, array stays array).
@@ -1401,7 +1401,7 @@ Object.assign(window, {
 
 </script>
 <script type="text/babel">
-// Bench — VSCode/Linear-style Chisel design explorer.
+// Bench - VSCode/Linear-style Chisel design explorer.
 // Multi-panel layout: hierarchy (left), schematic (center), inspector (right),
 // tabbed bottom drawer (source / waveform / ports). Designed for 1440×900.
 
@@ -1755,7 +1755,7 @@ function BenchTopBar({ path, navTo, mod, onOpenPalette, onOpenHelp }) {
           </React.Fragment>
         ))}
       </div>
-      {/* search trigger — opens palette on click or ⌘K */}
+      {/* search trigger - opens palette on click or ⌘K */}
       <button
         onClick={onOpenPalette}
         title="Search modules, instances, ports"
@@ -1806,7 +1806,7 @@ function DesignPicker() {
   const [open, setOpen] = useState(false);
   const [reloading, setReloading] = useState(false);
   // Subscribe to design changes so the picker label updates without remount.
-  // (App's `key={version}` remounts BenchApp but NOT the toolbar — the picker
+  // (App's `key={version}` remounts BenchApp but NOT the toolbar - the picker
   // lives outside that key, so it needs its own bump-on-change effect.)
   const [, setBump] = useState(0);
   useEffect(() => {
@@ -1821,7 +1821,7 @@ function DesignPicker() {
   const isLive   = current === 'live';
   const isFile   = typeof current === 'string' && current.startsWith('file:');
 
-  // "live" is always offered — fetch fails harmlessly if design.json isn't there.
+  // "live" is always offered - fetch fails harmlessly if design.json isn't there.
   const options = [
     { id: 'live', label: 'live · design.json', doc: 'Real elaboration output (Mill plugin)', kind: 'live' },
     ...manifest.map((d) => ({ id: d.id, label: d.label, doc: d.doc, kind: 'fixture' })),
@@ -2398,7 +2398,7 @@ function offsetPolyline(pts, o) {
   });
 }
 
-// Wire layers — split into hit-target (under boxes, captures clicks) and
+// Wire layers - split into hit-target (under boxes, captures clicks) and
 // visual (above boxes, paints stroke+arrowheads). Reusable so the same code
 // drives both the top-level schematic and the mini-schematics rendered inside
 // expanded module bodies (Task 7 of the inline-expansion plan).
@@ -2859,7 +2859,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           transformOrigin: '0 0',
           transition: 'width .3s, height .3s',
         }}>
-          {/* Wires — HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
+          {/* Wires - HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
           <WireHitLayer
             wires={wires} totalW={totalW} totalH={containerH}
             routingStyle={routingStyle}
@@ -2869,7 +2869,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           {/* Module boxes */}
           {Object.entries(layoutBoxes).map(([inst, b]) => {
             const child = mod.children.find((c) => c.name === inst);
-            // Boundary nodes (clock/reset/port stubs from baked layout) — render
+            // Boundary nodes (clock/reset/port stubs from baked layout) - render
             // as a small labeled stub box rather than skipping them.
             if (!child || b.kind === 'boundary') {
               return (
@@ -3086,7 +3086,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             );
           })}
 
-          {/* Wires — VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
+          {/* Wires - VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
           <WireVisualLayer
             wires={wires} totalW={totalW} totalH={containerH}
             routingStyle={routingStyle}
@@ -3098,7 +3098,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           />
         </div>
 
-        {/* Leaf-module placeholder — outside transform div so it fills the full viewport */}
+        {/* Leaf-module placeholder - outside transform div so it fills the full viewport */}
         {mod.children.length === 0 && (
           <div style={{
             position: 'absolute', inset: 0,
@@ -3418,14 +3418,14 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
   );
 }
 
-// — Source view: code + syntax highlighting + cross-ref highlight.
+// - Source view: code + syntax highlighting + cross-ref highlight.
 // If the source code text wasn't embedded (i.e. the design was loaded from a
 // real exporter that only knows file:line:col, not the full text), fall back
 // to a locator-only view that points at the originating .scala file.
 function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, clickToNavigate }) {
   // Source resolution order:
-  //   1. mod.source.code — explicit per-module text (bundled demo embeds these)
-  //   2. window.DESIGN.SOURCES[file] — top-level map populated by the exporter
+  //   1. mod.source.code - explicit per-module text (bundled demo embeds these)
+  //   2. window.DESIGN.SOURCES[file] - top-level map populated by the exporter
   //      when run with --source-root. This is the real-design path.
   //   3. Locator-only placeholder when neither is available.
   const file = mod.source.file;
@@ -3454,7 +3454,7 @@ function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, c
         </div>
         <div style={{ color: benchTokens.ink3 }}>
           Source text was not embedded in <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>design.json</code>.
-          Re-run elaboration with <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>--source-root</code> (or use the Mill plugin) — the exporter will read the
+          Re-run elaboration with <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}>--source-root</code> (or use the Mill plugin) - the exporter will read the
           files relative to that root and include them. Until then, open
           <code style={{ fontFamily: benchTokens.mono, fontSize: 11 }}> {file || '(unknown)'}</code> in your editor.
         </div>
@@ -3463,7 +3463,7 @@ function SourceView({ mod, selectedSig, setSelectedSig, hoveredSig, drillInto, c
   }
 
   const code = fileText.split('\n');
-  // Highlight lines mentioning the selected wire's instance / port — kept from
+  // Highlight lines mentioning the selected wire's instance / port - kept from
   // the demo path so signal-driven exploration still works on real designs.
   const selInst = selectedSig ? selectedSig.split('.')[0] : null;
   const selPort = selectedSig ? selectedSig.split('.').slice(0, 2).join('.') : null;
@@ -3528,7 +3528,7 @@ function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, dri
     // Comments
     if (/^\/\//.test(p))
       return <span key={idx} style={{ color: benchTokens.ink4, fontStyle: 'italic' }}>{p}</span>;
-    // Instance names — drill-in on click when available, else select-signal.
+    // Instance names - drill-in on click when available, else select-signal.
     if (childInstSet && childInstSet.has(p)) {
       return (
         <span key={idx} onClick={() => drillInto ? drillInto(p) : setSelectedSig(p)}
@@ -3549,7 +3549,7 @@ function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, dri
   });
 }
 
-// — Waveform view: track names + per-cycle cells
+// - Waveform view: track names + per-cycle cells
 function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
   const cellW = 28;
   const waves = B_WAVES && B_WAVES.length > 0 ? B_WAVES : null;
@@ -3610,8 +3610,8 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
                     ) : (
                       <div style={{
                         height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 9, color: v === '–' ? benchTokens.ink4 : benchTokens.ink2,
-                        background: v !== '–' ? 'oklch(0.96 0.02 250)' : 'transparent',
+                        fontSize: 9, color: v === '-' ? benchTokens.ink4 : benchTokens.ink2,
+                        background: v !== '-' ? 'oklch(0.96 0.02 250)' : 'transparent',
                         borderRadius: 1, overflow: 'hidden', whiteSpace: 'nowrap',
                       }}>{v}</div>
                     )}
@@ -3626,7 +3626,7 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
   );
 }
 
-// — Ports table
+// - Ports table
 function PortsView({ mod, setSelectedSig }) {
   const rows = [];
   mod.children.forEach((c) => {

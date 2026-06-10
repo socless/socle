@@ -46,7 +46,7 @@ class B extends Bundle {
 }
 
 // ── AXI4 aggregate ──────────────────────────────────────────────────────────
-// Five channels — AR/AW/W flow master→slave, R/B flow slave→master (Flipped).
+// Five channels - AR/AW/W flow master→slave, R/B flow slave→master (Flipped).
 // Used directly as a master port; Flipped(new AXI4) on the slave side.
 
 class AXI4 extends Bundle {

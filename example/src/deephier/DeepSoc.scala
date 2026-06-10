@@ -5,11 +5,11 @@ import chisel3.util._
 
 // ── Deep hierarchy: DeepSoc > Cluster > Vec[Core] > (ALU, RegFile) ──────────
 //
-// Level 0 (top)  : DeepSoc        — 2 × Cluster, Decoupled in/out
-// Level 1        : Cluster        — Vec(2, Core), routes Decoupled slices
-// Level 2        : Core           — ALU + RegFile leaf; one Decoupled in/out
-// Level 3 (leaf) : ALU            — combinational op on 32-bit operands
-// Level 3 (leaf) : RegFile        — 16-entry 32-bit register file
+// Level 0 (top)  : DeepSoc        - 2 × Cluster, Decoupled in/out
+// Level 1        : Cluster        - Vec(2, Core), routes Decoupled slices
+// Level 2        : Core           - ALU + RegFile leaf; one Decoupled in/out
+// Level 3 (leaf) : ALU            - combinational op on 32-bit operands
+// Level 3 (leaf) : RegFile        - 16-entry 32-bit register file
 //
 // Inter-instance wires appear at every level so the exporter can exercise
 // connection-walking at >= 3 nesting depths.
@@ -127,7 +127,7 @@ class Cluster(nCores: Int = 2) extends Module {
   // Round-robin selector register.
   val sel = RegInit(0.U(log2Ceil(nCores).W))
 
-  // Wire each core's input — only the selected core gets valid.
+  // Wire each core's input - only the selected core gets valid.
   for (i <- 0 until nCores) {
     cores(i).io.in.valid := io.in.valid && (sel === i.U)
     cores(i).io.in.bits  := io.in.bits

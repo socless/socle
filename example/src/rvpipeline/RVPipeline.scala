@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 
 // ── Minimal 4-stage in-order pipeline: Fetch → Decode → Exec → WB ────────────
-// Not a real RISC-V — the goal is to give the SoCLess exporter a multi-module
+// Not a real RISC-V - the goal is to give the SoCLess exporter a multi-module
 // hierarchy with mixed Decoupled handshakes, sub-bundles, and a memory port.
 
 // Memory port: a request channel (master) and a response channel (slave).
@@ -113,7 +113,7 @@ class WB extends Module {
     val rf   = new RFWrite
   })
   io.in.ready := true.B
-  // We don't actually load/store here — just stub the dmem port.
+  // We don't actually load/store here - just stub the dmem port.
   io.dmem.req.valid     := false.B
   io.dmem.req.bits      := DontCare
   io.dmem.resp.ready    := true.B

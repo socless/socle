@@ -10,9 +10,9 @@ import chisel3.util._
 //
 // Topology:
 //   Datapath (top)
-//     ├─ stage0 : RegStage   — 4 pipeline registers, when/elsewhen/otherwise
-//     ├─ stage1 : RegStage   — same, chained
-//     └─ ctrl   : Controller — generates enable/flush control signals
+//     ├─ stage0 : RegStage   - 4 pipeline registers, when/elsewhen/otherwise
+//     ├─ stage1 : RegStage   - same, chained
+//     └─ ctrl   : Controller - generates enable/flush control signals
 
 // ── Payload ───────────────────────────────────────────────────────────────────
 
@@ -56,7 +56,7 @@ class RegStage extends Module {
     rValid := false.B
     rCount := 0.U
   }.elsewhen(io.stall) {
-    // hold — no assignment, registers keep their value
+    // hold - no assignment, registers keep their value
     rCount := rCount + 1.U               // stall counter still increments
   }.elsewhen(io.enable && io.in.valid) {
     rData  := io.in.bits.data
@@ -78,7 +78,7 @@ class RegStage extends Module {
 // ── Leaf: Controller ─────────────────────────────────────────────────────────
 
 /** Generates enable/flush/stall control signals from a counter-driven FSM.
-  * Three states: RUN, STALL, FLUSH — exercising `switch`/`is` in Chisel.
+  * Three states: RUN, STALL, FLUSH - exercising `switch`/`is` in Chisel.
   */
 class Controller extends Module {
   val io = IO(new Bundle {

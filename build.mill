@@ -1,12 +1,12 @@
 //| mill-version: 1.1.6
 //
-// SoCLess build — Mill 1.1.6.
+// SoCLess build - Mill 1.1.6.
 //
 // Two artifacts get published:
-//   io.socless::socless::<v>        — runtime library (Scala 2.13 / Chisel)
-//   io.socless::mill-socless::<v>   — Mill plugin trait (Scala 3 / Mill APIs)
+//   io.socless::socless::<v>        - runtime library (Scala 2.13 / Chisel)
+//   io.socless::mill-socless::<v>   - Mill plugin trait (Scala 3 / Mill APIs)
 //
-// Bundled `example/` is a demonstration that skips publishLocal — it depends
+// Bundled `example/` is a demonstration that skips publishLocal - it depends
 // on `socless` via moduleDeps and inlines the launcher invocation. Real
 // consumers use the seamless plugin flow (see README).
 //
@@ -190,13 +190,13 @@ object socless extends ChiselToolchain with SoclessPublish {
       check = false,
     )
     if (rc.exitCode != 0) throw new RuntimeException(s"regenerateGoldens failed (exit ${rc.exitCode})")
-    Task.log.info("[socless] Goldens regenerated — review 'git diff socless/test/resources/golden/' before committing.")
+    Task.log.info("[socless] Goldens regenerated - review 'git diff socless/test/resources/golden/' before committing.")
   }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────
 // Compiled against the Mill APIs so users can mix in `SoclessModule`. Doesn't
-// declare a moduleDep on `socless` — the trait pulls the runtime in at task
+// declare a moduleDep on `socless` - the trait pulls the runtime in at task
 // time via the user's mvnDeps.
 object `mill-socless` extends ScalaModule with SoclessPublish {
   def scalaVersion = V.scala3Mill
@@ -217,7 +217,7 @@ object `mill-socless` extends ScalaModule with SoclessPublish {
 object example extends ChiselToolchain {
   def moduleDeps = Seq(socless)
 
-  /** Default top — kept for back-compat with `mill example.soclessRun`. */
+  /** Default top - kept for back-compat with `mill example.soclessRun`. */
   def soclessTop: String = "axisystem.AXISystem"
 
   /** Internal: fork java with this module's runClasspath, call socless.Launcher
@@ -247,12 +247,12 @@ object example extends ChiselToolchain {
     PathRef(runFor(soclessTop, Task.dest, Task.log, runClasspath()))
   }
 
-  /** GCD — single-module Decoupled in/out demo. */
+  /** GCD - single-module Decoupled in/out demo. */
   def soclessRunGcd: T[PathRef] = Task {
     PathRef(runFor("gcd.GCD", Task.dest, Task.log, runClasspath()))
   }
 
-  /** 4-stage RVPipeline — multi-module with mixed Decoupled + sub-bundles. */
+  /** 4-stage RVPipeline - multi-module with mixed Decoupled + sub-bundles. */
   def soclessRunPipeline: T[PathRef] = Task {
     PathRef(runFor("rvpipeline.RVPipeline", Task.dest, Task.log, runClasspath()))
   }

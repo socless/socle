@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 
 // ── Leaf modules ─────────────────────────────────────────────────────────────
-// Minimal stand-ins — enough to elaborate cleanly and exercise the exporter.
+// Minimal stand-ins - enough to elaborate cleanly and exercise the exporter.
 // Real implementations live elsewhere; the exporter doesn't care about logic.
 
 /** AXI4 master. Issues a single AR per cycle when downstream is ready. */
@@ -98,7 +98,7 @@ class AXICrossbar(nMasters: Int, nSlaves: Int) extends Module {
 
 // ── Top-level system ────────────────────────────────────────────────────────
 
-/** Top-level interconnect — 2 masters, 1 crossbar, 2 slaves. */
+/** Top-level interconnect - 2 masters, 1 crossbar, 2 slaves. */
 class AXISystem extends Module {
   val io = IO(new Bundle {})
 

@@ -92,10 +92,10 @@ class Aggregator(n: Int) extends Module {
 /** Top-level interconnect exercising Vec-of-bundle ports.
   *
   * Ports:
-  *   in  : Vec(N, Flipped(Decoupled(SocPayload)))  — N input streams
-  *   out : Vec(N, Decoupled(SocPayload))            — N output streams
-  *   ack : Vec(N, Bool)                             — endpoint acknowledge flags
-  *   busy: Vec(N, Bool)                             — endpoint busy flags
+  *   in  : Vec(N, Flipped(Decoupled(SocPayload)))  - N input streams
+  *   out : Vec(N, Decoupled(SocPayload))            - N output streams
+  *   ack : Vec(N, Bool)                             - endpoint acknowledge flags
+  *   busy: Vec(N, Bool)                             - endpoint busy flags
   *
   * The combination of `in` (Flipped Vec) and `ack`/`busy` (Output Vec) on the
   * same IO bundle exercises mixed-direction bundle parsing in IrWalk.
