@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    name: Build, test, and elaborate examples
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache Mill / Coursier / Ivy caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.mill
+            ~/.ivy2
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+
+      - name: Make mill wrapper executable
+        run: chmod +x ./mill
+
+      - name: Compile all modules
+        run: ./mill __.compile
+
+      - name: Run test suite
+        run: ./mill socless.test
+
+      - name: Elaborate AXISystem example
+        run: ./mill example.soclessRun
+
+      - name: Elaborate GCD example
+        run: ./mill example.soclessRunGcd
+
+      - name: Elaborate RVPipeline example
+        run: ./mill example.soclessRunPipeline
+
+      - name: Elaborate DeepSoc example
+        run: ./mill example.soclessRunDeepSoc
+
+      - name: Elaborate IoBundles example
+        run: ./mill example.soclessRunIoBundles
+
+      - name: Elaborate RegHeavy example
+        run: ./mill example.soclessRunRegHeavy
