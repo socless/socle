@@ -27,11 +27,12 @@ const args = Object.fromEntries(
 const BASE = args.base || 'http://localhost:8765';
 const ONLY = args.design || null;            // restrict to one design id
 const SHOTS = args.shots || null;            // screenshot dir (optional)
+// Browser: an explicit CHROMIUM path or a system chromium if present; otherwise
+// fall back to Playwright's managed chromium (e.g. `npx playwright install
+// chromium` in CI), which chromium.launch() uses when executablePath is unset.
 const EXEC = process.env.CHROMIUM
   || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable']
        .find((p) => existsSync(p));
-
-if (!EXEC) { console.error('No chromium found; set CHROMIUM=/path/to/chromium'); process.exit(2); }
 if (SHOTS) await mkdir(SHOTS, { recursive: true });
 
 const failures = [];
@@ -40,7 +41,9 @@ const note = (design, where, msg) => {
   console.log(`  FAIL [${design}] ${where}: ${msg}`);
 };
 
-const browser = await chromium.launch({ executablePath: EXEC, args: ['--no-sandbox'] });
+const launchOpts = { args: ['--no-sandbox'] };
+if (EXEC) launchOpts.executablePath = EXEC;
+const browser = await chromium.launch(launchOpts);
 
 // Discover designs from the manifest.
 const ctx0 = await browser.newContext();
