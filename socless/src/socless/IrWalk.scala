@@ -32,7 +32,12 @@ object IrWalk {
     byName:  Map[String, Mod],
     bundles: mutable.LinkedHashMap[String, BundleDef],
   ): ModuleDef = {
-    val ports = m.ports.map(p => buildPort(p, bundles))
+    // A port is "connected" if its name is referenced anywhere in the module
+    // body (connects, register/memory clocks+resets, node expressions, when
+    // conditions, ...). m.refs is collected from every statement except port
+    // declarations, so clock/reset and expression-only inputs count as used and
+    // only genuinely-dangling ports are flagged unconnected (issue #74).
+    val ports = m.ports.map(p => buildPort(p, bundles, m.refs.contains(p.name)))
     val children = m.insts.map { i =>
       InstanceDef(
         name   = i.name,
@@ -73,16 +78,18 @@ object IrWalk {
 
   // ── Ports ────────────────────────────────────────────────────────────────
   private def buildPort(
-    p:       Port,
-    bundles: mutable.LinkedHashMap[String, BundleDef],
+    p:         Port,
+    bundles:   mutable.LinkedHashMap[String, BundleDef],
+    connected: Boolean,
   ): PortDef = {
     val (key, role) = registerType(p.tpe, p.dir, p.name, bundles)
     PortDef(
-      name   = p.name,
-      dir    = role,
-      bundle = key,
-      doc    = "",
-      source = p.src.map(toRef).getOrElse(SourceRef.unknown),
+      name      = p.name,
+      dir       = role,
+      bundle    = key,
+      doc       = "",
+      source    = p.src.map(toRef).getOrElse(SourceRef.unknown),
+      connected = connected,
     )
   }
 

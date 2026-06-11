@@ -615,7 +615,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 77,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "reset",
@@ -626,7 +627,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 77,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "io",
@@ -756,7 +758,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 96,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "reset",
@@ -767,7 +770,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 96,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "io",
@@ -853,7 +857,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 109,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "reset",
@@ -864,7 +869,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 109,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "io",
@@ -972,7 +978,8 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 125,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "io",

@@ -65,6 +65,11 @@ case class PortDef(
   bundle: String,      // key into Design.bundles, or a primitive like "UInt<8>"
   doc:    String,
   source: SourceRef,
+  // True when the port appears in at least one connect in the source (to another
+  // port, internal logic, or a constant). False only when the port is genuinely
+  // unconnected - the UI flags those so a port is never shown as unconnected
+  // unless it truly is (issue #74). Default true keeps existing JSON terse.
+  connected: Boolean = true,
 )
 object PortDef { implicit val rw: ReadWriter[PortDef] = macroRW }
 

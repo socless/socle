@@ -26,6 +26,20 @@ object SchemaExtrasTest extends TestSuite {
        |    connect q, blk.q
        |""".stripMargin
 
+  // Port `connected` flag (issue #74): a port is connected iff its name is
+  // referenced somewhere in the body other than its own declaration. Clock used
+  // only by a register counts as connected; a port in no statement does not.
+  private val connChirrtl =
+    """|circuit M :
+       |  module M :
+       |    input clk : Clock
+       |    input used : UInt<8>
+       |    output out : UInt<8>
+       |    input dangling : UInt<8>
+       |    reg r : UInt<8>, clk
+       |    connect out, used
+       |""".stripMargin
+
   val tests = Tests {
 
     test("layoutConsts mirrors Layout's source-of-truth values") {
@@ -64,6 +78,24 @@ object SchemaExtrasTest extends TestSuite {
       val ext  = m.copy(kind = "external")
       val back = upickle.default.read[ModuleDef](upickle.default.write(ext))
       assert(back.kind == "external")
+    }
+
+    test("connected flag: connect/reg-clock used = true, dangling = false") {
+      val design = IrWalk.design(ChirrtlParser.parse(connChirrtl))
+      val m = design.modules.find(_.name == "M").get
+      def conn(n: String) = m.ports.find(_.name == n).get.connected
+      assert(conn("used") == true)       // appears in `connect out, used`
+      assert(conn("out") == true)        // LHS of the connect
+      assert(conn("clk") == true)        // used as the register clock
+      assert(conn("dangling") == false)  // referenced nowhere but its declaration
+    }
+
+    test("PortDef.connected defaults to true and round-trips") {
+      val p = PortDef("p", "in", "UInt<8>", "", SourceRef.unknown)
+      assert(p.connected == true)
+      val un   = p.copy(connected = false)
+      val back = upickle.default.read[PortDef](upickle.default.write(un))
+      assert(back.connected == false)
     }
   }
 }

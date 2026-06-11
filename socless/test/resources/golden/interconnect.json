@@ -736,7 +736,8 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 71,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "reset",
@@ -747,7 +748,8 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 71,
             "col": 7
-          }
+          },
+          "connected": false
         },
         {
           "name": "io",

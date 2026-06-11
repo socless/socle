@@ -3650,11 +3650,15 @@ function WaveformView({ selectedSig, setSelectedSig, setHoveredSig }) {
 // - Ports table
 function PortsView({ mod, setSelectedSig }) {
   const rows = [];
+  // This module's own (boundary) ports first, then each child instance's ports.
+  (mod.ports || []).forEach((p) => {
+    rows.push({ inst: '(this)', type: mod.name, port: p.name, dir: p.dir, bundle: p.bundle, doc: p.doc, connected: p.connected !== false });
+  });
   mod.children.forEach((c) => {
     const cm = B_MODULES[c.type];
     if (!cm) return;
     cm.ports.forEach((p) => {
-      rows.push({ inst: c.name, type: c.type, port: p.name, dir: p.dir, bundle: p.bundle, doc: p.doc });
+      rows.push({ inst: c.name, type: c.type, port: p.name, dir: p.dir, bundle: p.bundle, doc: p.doc, connected: p.connected !== false });
     });
   });
   return (
@@ -3682,7 +3686,15 @@ function PortsView({ mod, setSelectedSig }) {
             </td>
             <td style={{ padding: '6px 12px', color: benchTokens.ink2 }}>{r.bundle}</td>
             <td style={{ padding: '6px 12px', color: benchTokens.ink3 }}>{bTotalWidth(r.bundle)}b</td>
-            <td style={{ padding: '6px 12px', color: benchTokens.ink4, fontFamily: benchTokens.sans, fontSize: 11 }}>{r.doc}</td>
+            <td style={{ padding: '6px 12px', color: benchTokens.ink4, fontFamily: benchTokens.sans, fontSize: 11 }}>
+              {r.connected === false && (
+                <span title="This port is not referenced anywhere in the source (genuinely unconnected)."
+                  style={{ padding: '1px 6px', borderRadius: 2, background: 'oklch(0.95 0.06 30)', color: 'oklch(0.45 0.16 30)', fontFamily: benchTokens.mono, fontSize: 9.5, marginRight: 6 }}>
+                  unconnected
+                </span>
+              )}
+              {r.doc}
+            </td>
           </tr>
         ))}
       </tbody>

@@ -61,6 +61,13 @@ object ChirrtlParser {
     src: Option[SrcInfo],
     regs: Seq[RegDecl] = Seq.empty,
     mems: Seq[MemDecl] = Seq.empty,
+    // Identifier heads referenced anywhere in the module body EXCEPT port
+    // declaration lines: connects, register/memory clocks+resets, node
+    // expressions, when conditions, etc. A port is "used/connected" iff its name
+    // appears here. Collected across all statement kinds (not just connects)
+    // because clock/reset and expression-only inputs never appear in a connect
+    // yet are clearly used (issue #74).
+    refs: Set[String] = Set.empty,
   )
   case class Circ(name: String, modules: Seq[Mod])
 
@@ -79,16 +86,27 @@ object ChirrtlParser {
     val curConns                  = mutable.Buffer.empty[Conn]
     val curRegs                   = mutable.Buffer.empty[RegDecl]
     val curMems                   = mutable.Buffer.empty[MemDecl]
+    val curRefs                   = mutable.Set.empty[String]
 
     def flush(): Unit = curMod.foreach { name =>
       modules += Mod(
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
-        curRegs.toSeq, curMems.toSeq,
+        curRegs.toSeq, curMems.toSeq, curRefs.toSet,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
-      curRegs.clear(); curMems.clear()
+      curRegs.clear(); curMems.clear(); curRefs.clear()
+    }
+
+    // Collect identifier tokens referenced in a statement line (used to detect
+    // which ports are actually used). Strips @[...] source markers first so file
+    // paths don't leak in, then splits on non-identifier characters.
+    val SrcMarker = """@\[[^\]]*\]""".r
+    val IdToken   = """[A-Za-z_][A-Za-z0-9_$]*""".r
+    def collectRefs(line: String): Unit = {
+      val stripped = SrcMarker.replaceAllIn(line, " ")
+      IdToken.findAllIn(stripped).foreach(curRefs += _)
     }
 
     val Circuit  = """^\s*circuit\s+(\w+)\s*:.*$""".r
@@ -114,12 +132,14 @@ object ChirrtlParser {
           // whole parse; we skip unrecognised / unparseable lines gracefully.
           try {
             parseStmt(other) match {
+              // Port declarations name the port itself; excluded from refs so a
+              // port is not counted as "used" merely by being declared.
               case Some(p: Port)    => curPorts += p
-              case Some(i: Inst)    => curInsts += i
-              case Some(c: Conn)    => curConns += c
-              case Some(r: RegDecl) => curRegs += r
-              case Some(m: MemDecl) => curMems += m
-              case _                => () // ignored stmt kind
+              case Some(i: Inst)    => curInsts += i; collectRefs(other)
+              case Some(c: Conn)    => curConns += c; collectRefs(other)
+              case Some(r: RegDecl) => curRegs += r; collectRefs(other)
+              case Some(m: MemDecl) => curMems += m; collectRefs(other)
+              case _                => collectRefs(other) // nodes, whens, ops, etc.
             }
           } catch {
             case _: Exception => () // skip malformed line, keep going
