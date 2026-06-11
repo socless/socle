@@ -791,9 +791,9 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.count",
           "to": "_io_count_T_2",
-          "bundle": "Io_195b34",
+          "bundle": "UInt<2>",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -986,7 +986,7 @@
         },
         {
           "from": "ctrl.io",
-          "to": "io",
+          "to": "io.hint",
           "bundle": "Io_b1853e",
           "label": "",
           "source": {
@@ -1007,13 +1007,35 @@
           }
         },
         {
-          "from": "stage0.io",
+          "from": "stage0.io.enable",
           "to": "ctrl.io",
-          "bundle": "Io_21beba",
-          "label": "3× ground connects",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 145,
+            "col": 20
+          }
+        },
+        {
+          "from": "stage0.io.flush",
+          "to": "ctrl.io",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 146,
+            "col": 20
+          }
+        },
+        {
+          "from": "stage0.io.stall",
+          "to": "ctrl.io",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 147,
             "col": 20
           }
         },
@@ -1040,13 +1062,35 @@
           }
         },
         {
-          "from": "stage1.io",
+          "from": "stage1.io.enable",
           "to": "ctrl.io",
-          "bundle": "Io_21beba",
-          "label": "3× ground connects",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 154,
+            "col": 20
+          }
+        },
+        {
+          "from": "stage1.io.flush",
+          "to": "ctrl.io",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 155,
+            "col": 20
+          }
+        },
+        {
+          "from": "stage1.io.stall",
+          "to": "ctrl.io",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 156,
             "col": 20
           }
         },

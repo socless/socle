@@ -528,13 +528,24 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.ack",
           "to": "valid",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 62,
+            "col": 11
+          }
+        },
+        {
+          "from": "io.busy",
+          "to": "valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 63,
             "col": 11
           }
         }
@@ -614,13 +625,24 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.ack",
           "to": "valid",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 62,
+            "col": 11
+          }
+        },
+        {
+          "from": "io.busy",
+          "to": "valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 63,
             "col": 11
           }
         }
@@ -700,13 +722,24 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.ack",
           "to": "valid",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 62,
+            "col": 11
+          }
+        },
+        {
+          "from": "io.busy",
+          "to": "valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 63,
             "col": 11
           }
         }
@@ -951,9 +984,9 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.count",
           "to": "_io_count_T_2",
-          "bundle": "Io_195b34",
+          "bundle": "UInt<2>",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1060,9 +1093,9 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.count",
           "to": "_io_count_T_2",
-          "bundle": "Io_195b34",
+          "bundle": "UInt<2>",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1169,9 +1202,9 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.count",
           "to": "_io_count_T_2",
-          "bundle": "Io_195b34",
+          "bundle": "UInt<2>",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1448,13 +1481,24 @@
           }
         },
         {
-          "from": "io",
-          "to": "endpoints_0.io",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "from": "io.ack[0]",
+          "to": "endpoints_0.io.ack",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 135,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.busy[0]",
+          "to": "endpoints_0.io.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 136,
             "col": 16
           }
         },
@@ -1514,13 +1558,24 @@
           }
         },
         {
-          "from": "io",
-          "to": "endpoints_1.io",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "from": "io.ack[1]",
+          "to": "endpoints_1.io.ack",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 135,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.busy[1]",
+          "to": "endpoints_1.io.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 136,
             "col": 16
           }
         },
@@ -1580,13 +1635,24 @@
           }
         },
         {
-          "from": "io",
-          "to": "endpoints_2.io",
-          "bundle": "Io_5a7a3d",
-          "label": "2× ground connects",
+          "from": "io.ack[2]",
+          "to": "endpoints_2.io.ack",
+          "bundle": "UInt<1>",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 135,
+            "col": 16
+          }
+        },
+        {
+          "from": "io.busy[2]",
+          "to": "endpoints_2.io.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 136,
             "col": 16
           }
         },

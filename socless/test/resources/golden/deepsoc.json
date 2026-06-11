@@ -2327,9 +2327,9 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.count",
           "to": "_io_count_T_2",
-          "bundle": "Io_195b34",
+          "bundle": "UInt<3>",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",

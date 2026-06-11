@@ -283,17 +283,40 @@ object IrWalk {
       } else rawParts.head
     }
 
-    for (c <- m.conns) {
-      // Drop pure internal-net connects; the schematic only renders port-to-port wires.
-      if (isExternalEndpoint(c.lhs) || isExternalEndpoint(c.rhs)) {
-        val from = trim(c.lhs)
-        val to   = trim(c.rhs)
-        // Skip self-loops on the same port (these are the in-bundle subfield connects)
-        if (from != to) {
-          val k = (from, to)
-          val g = groups.get(k)
-          groups(k) = Group(from, to, g.flatMap(_.src).orElse(c.src), g.map(_.count).getOrElse(0) + 1)
-        }
+    // Deeper trim: keep one extra path segment (`inst.port.field` for instance
+    // ports, `port.field` for this module's own ports). Used to push scalar
+    // field connects below a "split" bundle port so they don't collapse onto
+    // the whole-port path (issue #82).
+    def trimDeep(path: String): String = {
+      val parts = path.split('.').toIndexedSeq
+      val head  = stripIdx(parts.head)
+      val depth = if (instSet.contains(head)) 3 else 2
+      parts.take(depth).mkString(".")
+    }
+
+    // Pass 1: trim every external connect to its coalesced endpoints.
+    val conns = m.conns.filter(c => isExternalEndpoint(c.lhs) || isExternalEndpoint(c.rhs))
+    val pre   = conns.map(c => (c, trim(c.lhs), trim(c.rhs)))
+
+    // A port is "split" when it is connected both as a whole (`inst.port`) and at
+    // sub-field granularity (`inst.port.x`) - e.g. RegStage's io, whose `in`/`out`
+    // sub-bundles descend while its scalar enable/flush/stall collapse onto `io`.
+    // Collapsing the scalars onto `io` makes a redundant pin that overlaps the
+    // `io.in`/`io.out` pins (issue #82). Detect such ancestors and, for the
+    // connects that landed on them, descend one more segment instead.
+    val endpoints = pre.flatMap { case (_, f, t) => Seq(f, t) }.toSet
+    def isSplitAncestor(ep: String): Boolean = endpoints.exists(o => o != ep && o.startsWith(ep + "."))
+    def resolve(orig: String, trimmed: String): String =
+      if (isSplitAncestor(trimmed)) trimDeep(orig) else trimmed
+
+    for ((c, f0, t0) <- pre) {
+      val from = resolve(c.lhs, f0)
+      val to   = resolve(c.rhs, t0)
+      // Skip self-loops on the same port (these are the in-bundle subfield connects)
+      if (from != to) {
+        val k = (from, to)
+        val g = groups.get(k)
+        groups(k) = Group(from, to, g.flatMap(_.src).orElse(c.src), g.map(_.count).getOrElse(0) + 1)
       }
     }
     groups.values.toSeq.map { g =>
