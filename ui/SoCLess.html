@@ -1507,6 +1507,7 @@ function KeyboardHelp({ open, onClose }) {
   return (
     <div
       onClick={onClose}
+      data-help-overlay="1"
       style={{
         position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.38)',
         display: 'flex', justifyContent: 'center', alignItems: 'flex-start',
@@ -2090,7 +2091,7 @@ function CommandPalette({ open, onClose, onNavigate }) {
   const KIND_COLOR = { module: benchTokens.accent, instance: 'oklch(0.55 0.16 290)', port: 'oklch(0.55 0.16 50)' };
 
   return (
-    <div onClick={onClose} style={{
+    <div onClick={onClose} data-command-palette="1" style={{
       position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.32)',
       display: 'flex', justifyContent: 'center', paddingTop: '12vh', zIndex: 100,
     }}>
@@ -2105,6 +2106,7 @@ function CommandPalette({ open, onClose, onNavigate }) {
           <input
             ref={inputRef}
             value={q}
+            data-cmd-input="1"
             placeholder="Search modules, instances, ports…"
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => {
@@ -2135,6 +2137,7 @@ function CommandPalette({ open, onClose, onNavigate }) {
             return (
               <button
                 key={r.kind + ':' + r.label + ':' + i}
+                data-cmd-result={r.label}
                 onMouseEnter={() => setCursor(i)}
                 onClick={() => { onNavigate(r.payload); onClose(); }}
                 style={{
@@ -2412,7 +2415,7 @@ function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, set
         const d = bRoutePath(w, routingStyle);
         return (
           <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
-            data-pan-block="1"
+            data-pan-block="1" data-wire={w.fromPath}
             style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
             onClick={() => setSelectedSig(w.fromPath)}
             onMouseEnter={() => setHoveredSig(w.fromPath)}
@@ -2705,25 +2708,31 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
       const buildRows = (side) => {
         const rows = [];
+        // Dedup by path: a box can carry overlapping pins (e.g. the whole `io`
+        // bundle AND a sub-path `io.in`), so expanding both would emit the same
+        // sub-row twice and collide on the React key. First path wins.
+        const seen = new Set();
+        const pushRow = (row) => { if (seen.has(row.path)) return false; seen.add(row.path); rows.push(row); return true; };
         for (const p of topLevelPorts) {
           if (p.side !== side) continue;
           // Top-level row
-          rows.push({
+          const added = pushRow({
             depth: 0, label: p.label || p.path, dir: null, width: 0,
             path: p.path, bundleKey: p.bundle || '', isExpandable: isAggregateType(p.bundle),
             isTopLevel: true, side, pinX: p.x - b.x, pinY_baked: p.y - b.y,
           });
+          if (!added) continue;
           // If this port is expanded, splice in children (and their expanded children)
           if (p.bundle && expandedPorts.has(p.path)) {
             const tree = portTree(p.bundle, null, p.path);
             const addChildren = (children, depth) => {
               for (const child of children) {
-                rows.push({
+                const ok = pushRow({
                   depth, label: child.name, dir: child.dir, width: child.width,
                   path: child.path, bundleKey: child.bundleKey, isExpandable: child.isExpandable,
                   isTopLevel: false, side,
                 });
-                if (child.isExpandable && expandedPorts.has(child.path)) {
+                if (ok && child.isExpandable && expandedPorts.has(child.path)) {
                   const subTree = portTree(child.bundleKey, child.dir, child.path);
                   addChildren(subTree.children, depth + 1);
                 }
@@ -2974,7 +2983,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     : pinHovered ? benchTokens.ink
                     : isInterface ? benchTokens.accent : benchTokens.ink3;
                   return (
-                    <React.Fragment key={row.path}>
+                    <React.Fragment key={row.path + ':' + rowIdx}>
                       {/* Edge pin glyph - interface = fat connector; ground = thin tick */}
                       <div title={row.path} style={{
                         position: 'absolute',
@@ -3020,7 +3029,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   const chColor = B_CHAN[row.label] || benchTokens.ink3;
                   const hasChannelColor = !!B_CHAN[row.label];
                   return (
-                    <div key={row.path} data-pan-block="1"
+                    <div key={row.path + ':' + rowIdx} data-pan-block="1"
                       data-bundle-toggle={row.isExpandable ? row.path : undefined}
                       style={{
                       position: 'absolute',
@@ -3276,6 +3285,7 @@ function InspectorTreeNode({ node, depth, sig, setSelectedSig, expandedBundles, 
       <div style={{ marginBottom: 3, border: `1px solid ${benchTokens.borderSoft}`, borderRadius: 5, overflow: 'hidden' }}>
         <div
           onClick={() => toggleBundle(key)}
+          data-inspector-toggle={key}
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             padding: `4px 8px 4px ${8 + indent}px`,

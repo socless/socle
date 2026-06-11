@@ -10,11 +10,15 @@ What it does, per example design served by a local server:
 1. Loads `SoCLess.html?design=<id>`.
 2. Fully expands the hierarchy tree.
 3. Drills into every module (including leaves) and asserts the app stays mounted.
-4. Expands every bundle port in the last view.
-5. Fails on any uncaught page exception or `console.error`.
+4. Back on the top module, expands every bundle port.
+5. Exercises the command palette (open/search/navigate), the `?` keyboard-help
+   overlay, wire hover+select, and the inspector bundle tree.
+6. Fails on any uncaught page exception or `console.error`.
 
 It relies on test hooks baked into the UI: `data-hier-path`, `data-hier-toggle`,
-`data-box-inst`, `data-bundle-toggle`.
+`data-box-inst`, `data-bundle-toggle`, `data-wire`, `data-command-palette` /
+`data-cmd-input` / `data-cmd-result`, `data-help-overlay`,
+`data-inspector-toggle`.
 
 ## Run
 

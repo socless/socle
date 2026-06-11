@@ -104,15 +104,72 @@ for (const design of designs) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
   }
 
-  // Expand every bundle port in the current (last) view.
+  // Back to the top module (richest view: instances, wires, interface pins).
+  if (paths.length) {
+    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});
+    await page.waitForTimeout(150);
+  }
+
+  // Expand every bundle port in the top view.
   const toggles = await page.locator('[data-bundle-toggle]').all();
-  console.log(`[${design}] ${toggles.length} bundle toggles in last view`);
+  console.log(`[${design}] ${toggles.length} bundle toggles in top view`);
   for (const t of toggles) {
-    await t.click({ timeout: 2000 }).catch((e) => note(design, 'bundle expand', e.message));
+    // dispatchEvent fires the exact toggle's handler regardless of overlapping
+    // full-width label divs (which intercept a normal click).
+    await t.dispatchEvent('click').catch((e) => note(design, 'bundle expand', e.message));
     await page.waitForTimeout(80);
     drain('bundle expand');
   }
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__bundles-expanded.png` }).catch(() => {});
+
+  // ── Interaction coverage (still on the top module: wires + inspector) ──────
+  // Command palette: open (Ctrl-K), search, navigate to a result, close.
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await page.keyboard.press('Control+k');
+  const palette = page.locator('[data-command-palette]');
+  if (await palette.count()) {
+    await page.locator('[data-cmd-input]').fill('io').catch((e) => note(design, 'palette type', e.message));
+    await page.waitForTimeout(120);
+    const nResults = await page.locator('[data-cmd-result]').count();
+    if (nResults === 0) note(design, 'command palette', 'no results for a generic query');
+    await page.locator('[data-cmd-result]').first().click().catch((e) => note(design, 'palette select', e.message));
+    await page.waitForTimeout(150);
+    drain('command palette navigate');
+    if (await page.locator('[data-command-palette]').count()) note(design, 'command palette', 'did not close after selecting');
+  } else {
+    note(design, 'command palette', 'Ctrl-K did not open the palette');
+  }
+
+  // Keyboard help overlay: `?` opens, Escape closes.
+  await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
+  await page.keyboard.press('Shift+Slash');
+  await page.waitForTimeout(100);
+  if (await page.locator('[data-help-overlay]').count() === 0) {
+    note(design, 'keyboard help', '? did not open the help overlay');
+  } else {
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(100);
+    if (await page.locator('[data-help-overlay]').count()) note(design, 'keyboard help', 'Escape did not close the overlay');
+  }
+  drain('keyboard help');
+
+  // Wire hover + select, then expand the inspector bundle tree it populates.
+  const wire = page.locator('[data-wire]').first();
+  if (await page.locator('[data-wire]').count()) {
+    await wire.hover({ force: true }).catch((e) => note(design, 'wire hover', e.message));
+    await page.waitForTimeout(80);
+    drain('wire hover');
+    await wire.click({ force: true }).catch((e) => note(design, 'wire select', e.message));
+    await page.waitForTimeout(150);
+    drain('wire select');
+    // Inspector tree: expand every aggregate node the selection populated.
+    const inspToggles = await page.locator('[data-inspector-toggle]').all();
+    for (const t of inspToggles) {
+      await t.click({ timeout: 1500 }).catch(() => {});
+      await page.waitForTimeout(60);
+      drain('inspector expand');
+    }
+  }
 
   await ctx.close();
 }
