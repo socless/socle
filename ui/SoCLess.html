@@ -2296,7 +2296,12 @@ const PORT_STEP = (typeof _LC.portStep === 'number') ? _LC.portStep : 24;
 // backend polylines.
 function bBakedLayout(mod) {
   const all = window.DESIGN && window.DESIGN.layouts;
-  const L = all && all[mod.name];
+  if (!all) return null;
+  // Structurally-identical modules share one stored layout (issue #31): resolve
+  // this module's layout key via layoutOf, falling back to its own name for
+  // designs emitted before dedup.
+  const key = (window.DESIGN.layoutOf && window.DESIGN.layoutOf[mod.name]) || mod.name;
+  const L = all[key];
   if (!L) return null;
   const boxes = {};
   const ports = {};

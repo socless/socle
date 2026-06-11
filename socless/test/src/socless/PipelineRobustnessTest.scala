@@ -84,14 +84,22 @@ object PipelineRobustnessTest extends TestSuite {
       }
     }
 
-    // 3: no modules skipped by Layout.withLayouts
+    // 3: no modules skipped by Layout.withLayouts. With layout dedup (#31)
+    // `layouts` holds one entry per UNIQUE structure, so we check that every
+    // module resolves through layoutOf to an existing layout.
     test("Layout.withLayouts produces no skips for any fixture") {
       fixtures.foreach { case (fname, label) =>
         val (_, design, laid) = pipeline(fname)
         check(
-          laid.layouts.size == design.modules.size,
-          s"[$label] layouts.size ${laid.layouts.size} != modules.size ${design.modules.size} - some modules were skipped"
+          laid.layoutOf.size == design.modules.size,
+          s"[$label] layoutOf.size ${laid.layoutOf.size} != modules.size ${design.modules.size} - some modules were skipped"
         )
+        design.modules.foreach { m =>
+          check(
+            laid.layoutOf.get(m.name).exists(laid.layouts.contains),
+            s"[$label] module ${m.name} has no resolvable layout"
+          )
+        }
       }
     }
 
@@ -100,7 +108,7 @@ object PipelineRobustnessTest extends TestSuite {
       fixtures.foreach { case (fname, label) =>
         val (_, design, laid) = pipeline(fname)
         for (m <- design.modules) {
-          val layout = laid.layouts(m.name)
+          val layout = laid.layouts(laid.layoutOf(m.name))
           nodesOverlap(layout.nodes) match {
             case Some(msg) => throw new java.lang.RuntimeException(s"[$label/${m.name}] node overlap: $msg")
             case None      => ()
@@ -114,7 +122,7 @@ object PipelineRobustnessTest extends TestSuite {
       fixtures.foreach { case (fname, label) =>
         val (_, design, laid) = pipeline(fname)
         for (m <- design.modules) {
-          val layout = laid.layouts(m.name)
+          val layout = laid.layouts(laid.layoutOf(m.name))
           for (e <- layout.edges) {
             check(
               e.points.length >= 2,
@@ -130,7 +138,7 @@ object PipelineRobustnessTest extends TestSuite {
       fixtures.foreach { case (fname, label) =>
         val (_, design, laid) = pipeline(fname)
         for (m <- design.modules) {
-          val layout = laid.layouts(m.name)
+          val layout = laid.layouts(laid.layoutOf(m.name))
           if (layout.nodes.nonEmpty) {
             check(
               layout.w > 0 && layout.h > 0,

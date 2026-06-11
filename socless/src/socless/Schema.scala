@@ -20,9 +20,18 @@ case class Design(
   // out the relevant lines per module. Empty if files weren't readable or
   // source embedding was disabled.
   sources: Map[String, String] = Map.empty,
-  // Baked schematic geometry, keyed by module name. Empty when layout was
-  // skipped or failed; the UI falls back to its built-in layout in that case.
+  // Baked schematic geometry. Keyed by a layout key (the representative module
+  // of a group of structurally-identical modules), not necessarily every module
+  // name - see `layoutOf`. Empty when layout was skipped or failed; the UI falls
+  // back to its built-in layout in that case.
   layouts: Map[String, ModuleLayout] = Map.empty,
+  // Maps every module name to the key in `layouts` that holds its geometry.
+  // Chisel emits many structurally-identical module copies (X, X_1, X_2, ...);
+  // their layouts are byte-identical, so each unique layout is stored once and
+  // every copy points at it, keeping design.json small on large SoCs (issue #31).
+  // Empty for designs emitted before dedup; the UI then falls back to the module
+  // name as the key.
+  layoutOf: Map[String, String] = Map.empty,
   // Header/port-row layout constants, emitted so the UI reads them from the
   // design instead of hardcoding a second copy (issue #38). The trailing
   // default keeps older design.json (without this block) loadable; the

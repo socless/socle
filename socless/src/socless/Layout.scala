@@ -385,18 +385,46 @@ object Layout {
     * SoclessExporter.collectSources' skip-and-warn policy) so one bad module
     * never aborts the export. */
   def withLayouts(design: Design): Design = {
+    // Structural fingerprint of everything the layout depends on: the module's
+    // own ports, its child instances by instance NAME plus each child module's
+    // ports (classify reads only the child's ports - dir/bundle - for pin sides
+    // and interface detection; the child's type NAME and internals are irrelevant
+    // to this module's geometry), and its wires - all order-preserving. So two
+    // modules that instantiate differently-named but structurally-identical
+    // children (e.g. Core uses ALU, Core_1 uses ALU_1) still share a layout.
+    // Modules with equal fingerprints lay out byte-identically, so each unique
+    // layout is computed once and every copy points at it (issue #31).
+    val portsByModule = design.modules.iterator.map(m => m.name -> m.ports.map(p => (p.name, p.dir, p.bundle))).toMap
+    def fingerprint(m: ModuleDef): String = {
+      val children = m.children.map(c => (c.name, portsByModule.getOrElse(c.`type`, Nil)))
+      val ports    = m.ports.map(p => (p.name, p.dir, p.bundle))
+      val wires    = m.wires.map(w => (w.from, w.to, w.bundle))
+      (ports, children, wires).toString
+    }
+
     var failed = 0
-    val layouts = design.modules.flatMap { m =>
-      try Some(m.name -> layout(m, design))
-      catch {
-        case t: Throwable =>
-          failed += 1
-          Console.err.println(s"[socless] layout failed for ${m.name}: ${t.getMessage}")
-          None
+    val repByFp  = scala.collection.mutable.HashMap.empty[String, String]      // fingerprint -> representative module name
+    val layouts  = scala.collection.mutable.LinkedHashMap.empty[String, ModuleLayout]
+    val layoutOf = scala.collection.mutable.LinkedHashMap.empty[String, String]
+    for (m <- design.modules) {
+      repByFp.get(fingerprint(m)) match {
+        case Some(rep) =>
+          layoutOf(m.name) = rep                      // reuse an identical module's layout
+        case None =>
+          try {
+            val l = layout(m, design)
+            layouts(m.name)  = l
+            layoutOf(m.name) = m.name
+            repByFp(fingerprint(m)) = m.name
+          } catch {
+            case t: Throwable =>
+              failed += 1
+              Console.err.println(s"[socless] layout failed for ${m.name}: ${t.getMessage}")
+          }
       }
-    }.toMap
+    }
     if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
-    design.copy(layouts = layouts, layoutConsts = consts)
+    design.copy(layouts = layouts.toMap, layoutOf = layoutOf.toMap, layoutConsts = consts)
   }
 
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
