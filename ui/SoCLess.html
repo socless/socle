@@ -2533,6 +2533,26 @@ function bRoutePath(w) {
   return `M ${w.x1} ${w.y1} L ${mx} ${w.y1} L ${mx} ${w.y2} L ${w.x2} ${w.y2}`;
 }
 
+// Strict orthogonal polylines (issue #110): the pin-Y and expansion-shift
+// overrides move wire terminals vertically without re-routing, which used to
+// bend the terminal segments diagonal. Any diagonal segment is replaced by an
+// H-V-H jog through its horizontal midpoint, so wires only ever travel at
+// 90-degree angles. Collinear duplicates are dropped.
+function orthogonalizePts(pts) {
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = out[out.length - 1];
+    const [x1, y1] = pts[i];
+    if (x0 === x1 && y0 === y1) continue;
+    if (x0 !== x1 && y0 !== y1) {
+      const mx = (x0 + x1) / 2;
+      out.push([mx, y0], [mx, y1]);
+    }
+    out.push([x1, y1]);
+  }
+  return out;
+}
+
 // Offset a polyline by a perpendicular distance `o` (px).
 // For each interior vertex, averages the normals of the incoming and outgoing segments.
 // For endpoints, uses the single adjacent segment's normal.
@@ -2594,7 +2614,6 @@ function WireHitLayer({ wires, totalW, totalH, setSelectedSig, setHoveredSig }) 
 function WireVisualLayer({
   wires, totalW, totalH,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, expandedPorts, globalExpanded,
-  markerScope,
 }) {
   const isHl = (w) => {
     if (!selectedSig) return false;
@@ -2605,21 +2624,11 @@ function WireVisualLayer({
     if (!hoveredSig) return false;
     return w.fromPath.startsWith(hoveredSig) || w.toPath.startsWith(hoveredSig);
   };
-  // markerScope namespaces the <marker> ids so nested SVGs don't collide with
-  // the outer SVG's markers. Defaults to 'top'.
-  const ms = markerScope || 'top';
+  // No arrowheads (issue #111): direction is already encoded by the pin
+  // sides (sources on the right edge of a box, sinks on the left), and the
+  // markers read as oversized clutter on dense schematics.
   return (
     <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, pointerEvents: 'none', overflow: 'visible' }}>
-      <defs>
-        {Object.entries(B_CHAN).map(([k, v]) => (
-          <marker key={k} id={`arr-${ms}-${k}`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-            <path d="M0 0 L8 4 L0 8 Z" fill={v} />
-          </marker>
-        ))}
-        <marker id={`arr-${ms}-default`} viewBox="0 0 8 8" refX="4" refY="4" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
-          <path d="M0 0 L8 4 L0 8 Z" fill={benchTokens.ink3} />
-        </marker>
-      </defs>
       {wires.map((w) => {
         const hl  = isHl(w);
         const hov = isHov(w) && !hl; // hover is only meaningful when not already selected
@@ -2650,27 +2659,24 @@ function WireVisualLayer({
                 {channels.map((ch, ci) => {
                   const o = (ci - (channels.length - 1) / 2) * 4;
                   const chColor = B_CHAN[ch.name] || benchTokens.ink3;
-                  const markerHref = B_CHAN[ch.name] ? `url(#arr-${ms}-${ch.name})` : `url(#arr-${ms}-default)`;
                   // When the wire has baked polyline points, offset the polyline perpendicularly
                   if (w.points && w.points.length >= 2) {
                     const offsetPts = offsetPolyline(w.points, o);
                     const dd = 'M ' + offsetPts.map((p) => `${p[0]} ${p[1]}`).join(' L ');
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : (hl || hov ? 1 : 0.85)} markerEnd={markerHref} />;
+                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : (hl || hov ? 1 : 0.85)} />;
                   }
                   // orth fallback for wires without baked points
                   const yo1 = w.y1 + o;
                   const yo2 = w.y2 + o;
                   const mxo = (w.x1 + w.x2) / 2 + o * 2;
                   const dd = `M ${w.x1} ${yo1} L ${mxo} ${yo1} L ${mxo} ${yo2} L ${w.x2} ${yo2}`;
-                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
+                  return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : 1} />;
                 })}
               </g>
             )}
             {!exp && (
               <path d={d} stroke={stroke} strokeWidth={sw} fill="none"
                 strokeLinecap="round" strokeLinejoin="round"
-                markerEnd={`url(#arr-${ms}-default)`}
-                markerStart={w.bidir ? `url(#arr-${ms}-default)` : undefined}
               />
             )}
             {/* Per-wire +N pill removed: expand/collapse is now driven by the in-box port chevron (#29) */}
@@ -3063,12 +3069,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       // fromPinY overrides pts[last] (= w.from = sink endpoint)
       const fromPinY = (pinY[fromInst] && pinY[fromInst][w.from] != null)
         ? (fromBox ? fromBox.y + fromShift + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1] + fromShift;
-      // Rebuild the points array with updated first/last y only.
-      const newPts = pts.map((p, idx) => {
+      // Rebuild the points array with updated first/last y, then restore
+      // strict orthogonality (the override can make terminal segments
+      // diagonal, issue #110).
+      const newPts = orthogonalizePts(pts.map((p, idx) => {
         if (idx === 0) return [p[0], toPinY];
         if (idx === pts.length - 1) return [p[0], fromPinY];
         return p;
-      });
+      }));
       return {
         id: `w${i}`, ...w, fromInst, toInst,
         fromPath: w.from, toPath: w.to,
@@ -3365,14 +3373,13 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             );
           })}
 
-          {/* Wires - VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
+          {/* Wires - VISUAL layer (rendered after boxes so strokes paint above box borders) */}
           <WireVisualLayer
             wires={wires} totalW={totalW} totalH={canvasH}
             selectedSig={selectedSig} hoveredSig={hoveredSig}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             expandedPorts={expandedPorts}
             globalExpanded={globalExpanded}
-            markerScope="top"
           />
         </div>
 
