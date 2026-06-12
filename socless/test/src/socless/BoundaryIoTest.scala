@@ -121,5 +121,29 @@ object BoundaryIoTest extends TestSuite {
       val out = L.nodes.find(_.id == "io.out").get
       assert(out.ports.head.side == "WEST")
     }
+
+    // An AXI slave port at the module boundary comes from `input io` (dir
+    // "slave" via portRole). Its anti-parallel traffic always ties the side
+    // vote, and the tie-break uses the declared side: that must be EAST (it
+    // drives requests into the design like any boundary input). It used to
+    // fall through to WEST and land on the output side (issue #102).
+    test("AXI slave boundary port breaks the vote tie toward EAST (input side)") {
+      val slaveMod = ModuleDef("SlaveTop", "SlaveTop", "", SourceRef.unknown,
+        ports = Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)),
+        children = Seq(InstanceDef("u", "Core", "", SourceRef.unknown)),
+        wires = Seq(
+          // forward request: io drives u.io (from = sink u.io, to = source io)
+          WireDef("u.io", "io", "AXI4", "", SourceRef.unknown),
+          // backward response: u.io drives io (from = sink io, to = source u.io)
+          WireDef("io", "u.io", "AXI4", "", SourceRef.unknown),
+        ),
+        metrics = Metrics(0, 0, 0))
+      val slaveDesign = Design("SlaveTop",
+        Map("AXI4" -> BundleDef("AXI4", "Bundle")),
+        Seq(slaveMod, coreMod))
+      val L = Layout.layout(slaveMod, slaveDesign)
+      val io = L.nodes.find(_.id == "io").get
+      assert(io.ports.head.side == "EAST")
+    }
   }
 }

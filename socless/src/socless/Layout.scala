@@ -73,9 +73,10 @@ object Layout {
   case class Box(x: Int, y: Int, w: Int, h: Int)
 
   /** A resolved wire endpoint. `nodeId` is the box that owns the pin (instance
-    * name, or bare port name for a boundary), `kind` is "inst" or "boundary",
-    * `path` is the full endpoint path used as the pin id, `side` is
-    * "WEST"/"EAST", and `interface` flags aggregate bundles. */
+    * name, or the FULL endpoint path for a boundary stub: since issue #68 each
+    * external pin is its own per-path boundary node), `kind` is "inst" or
+    * "boundary", `path` is the full endpoint path used as the pin id, `side`
+    * is "WEST"/"EAST", and `interface` flags aggregate bundles. */
   case class Endpoint(nodeId: String, kind: String, path: String, side: String, interface: Boolean)
 
   private def stripIdx(s: String): String = {
@@ -88,9 +89,14 @@ object Layout {
     * this module's own boundary INPUTS (which drive signals into the design).
     * Receiving pins (instance inputs/slaves, boundary outputs) sit on WEST. */
   private def sideFor(kind: String, dir: String): String = (kind, dir) match {
-    case ("inst", "output") | ("inst", "master") => "EAST"
-    case ("boundary", "input")                    => "EAST"
-    case _                                         => "WEST"
+    case ("inst", "output") | ("inst", "master")        => "EAST"
+    // A boundary "slave" comes from `input io` (AXI-aware portRole), so by
+    // this file's own convention it drives rightward like any boundary input.
+    // Without this case AXI slave boundary stubs fell through to WEST: their
+    // anti-parallel traffic always ties the side vote and the tie-break uses
+    // this declared side (issue #102).
+    case ("boundary", "input") | ("boundary", "slave")  => "EAST"
+    case _                                               => "WEST"
   }
 
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
@@ -135,13 +141,17 @@ object Layout {
     * coalesced wires as orthogonally-routed edges. */
   def layout(module: ModuleDef, design: Design): ModuleLayout = elkLock.synchronized {
     val root = newGraph()
+    // One name lookup for the whole layout: classify used to scan
+    // design.modules per endpoint, making withLayouts quadratic in module
+    // count on large designs (issue #102).
+    val modulesByName = design.modules.iterator.map(m => m.name -> m).toMap
 
     // 1. Resolve every wire endpoint; keep only wires whose BOTH ends resolve.
     //    Drop clock/reset wires before resolution so their boundary stubs are
     //    also excluded from the layout.
     case class E(w: WireDef, from: Endpoint, to: Endpoint)
     val resolved: Seq[E] = module.wires.filterNot(isClockReset).flatMap { w =>
-      for { f <- classify(w.from, module, design); t <- classify(w.to, module, design) }
+      for { f <- classifyWith(w.from, module, design, modulesByName); t <- classifyWith(w.to, module, design, modulesByName) }
         yield E(w, f, t)
     }
 
@@ -294,32 +304,38 @@ object Layout {
       val b = e.from.path // sink
       if (a <= b) (a, b) else (b, a)
     }
-    val edgesToDraw: Seq[E] = resolved
+    // Each kept edge carries the merged label of its whole group: the dropped
+    // anti-parallel partner's label (e.g. a "13x ground connects" count) used
+    // to vanish with it (issue #102).
+    val edgesToDraw: Seq[(E, String)] = resolved
       .groupBy(antiParallelKey)
       .values
       .map { grp =>
-        if (grp.size == 1) grp.head
-        else {
-          // Anti-parallel (or duplicate) pair: prefer the edge whose source
-          // (e.to) is the driver by VOTE -- eastVotes >= westVotes for that pin.
-          // Do NOT use e.to.side from classify/sideFor; that uses declared
-          // direction which is unreliable for shared AXI4 bundles (C2 regression).
-          // Fall back to lexicographic source-path order for a stable deterministic choice.
-          def isEastByVote(ep: Endpoint): Boolean = {
-            val k = (ep.nodeId, ep.kind, ep.path)
-            eastVotes(k) >= westVotes(k)
+        val kept =
+          if (grp.size == 1) grp.head
+          else {
+            // Anti-parallel (or duplicate) pair: prefer the edge whose source
+            // (e.to) is the driver by VOTE -- eastVotes >= westVotes for that pin.
+            // Do NOT use e.to.side from classify/sideFor; that uses declared
+            // direction which is unreliable for shared AXI4 bundles (C2 regression).
+            // Fall back to lexicographic source-path order for a stable deterministic choice.
+            def isEastByVote(ep: Endpoint): Boolean = {
+              val k = (ep.nodeId, ep.kind, ep.path)
+              eastVotes(k) >= westVotes(k)
+            }
+            grp.find(e => isEastByVote(e.to))
+              .orElse(grp.sortBy(_.to.path).headOption)
+              .getOrElse(grp.head)
           }
-          grp.find(e => isEastByVote(e.to))
-            .orElse(grp.sortBy(_.to.path).headOption)
-            .getOrElse(grp.head)
-        }
+        val label = grp.map(_.w.label).filter(_.nonEmpty).distinct.mkString(" / ")
+        (kept, label)
       }
       .toSeq
 
     // Create edges, oriented source->sink for correct left-to-right layering.
     // WireDef.from is the SINK and WireDef.to is the SOURCE, so the ELK edge
     // runs from e.to (source) to e.from (sink).
-    edgesToDraw.foreach { e =>
+    edgesToDraw.foreach { case (e, _) =>
       for { src <- elkPort.get(e.to.path); dst <- elkPort.get(e.from.path) }
         ElkGraphUtil.createSimpleEdge(src, dst)
     }
@@ -362,13 +378,13 @@ object Layout {
       }
     }.groupBy(_._1).view.mapValues(_.head._2).toMap
 
-    val laidEdges = edgesToDraw.flatMap { e =>
+    val laidEdges = edgesToDraw.flatMap { case (e, mergedLabel) =>
       // Edge was created source->sink, i.e. from the e.to port to the e.from port.
       val src = elkPort.get(e.to.path)
       val dst = elkPort.get(e.from.path)
       (src, dst) match {
         case (Some(s), Some(d)) =>
-          edgeByPortPair.get((s, d)).map { ed =>
+          edgeByPortPair.get((s, d)).flatMap { ed =>
             val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
             val sections = ed.getSections
             if (!sections.isEmpty) {
@@ -377,9 +393,13 @@ object Layout {
               sec.getBendPoints.asScala.foreach(bp => pts += ((bp.getX.toInt, bp.getY.toInt)))
               pts += ((sec.getEndX.toInt, sec.getEndY.toInt))
             }
+            // An ELK edge without sections has no usable route: drop it rather
+            // than emit a polyline that violates the >=2-points invariant
+            // (issue #102).
+            if (pts.size < 2) None
             // points run source->sink (e.to -> e.from); from/to keep WireDef
             // semantics so the UI looks up the polyline by (w.from, w.to).
-            RoutedEdge(e.from.path, e.to.path, pts.toSeq, e.w.label)
+            else Some(RoutedEdge(e.from.path, e.to.path, pts.toSeq, mergedLabel))
           }
         case _ => None
       }
@@ -437,13 +457,16 @@ object Layout {
 
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
     * heads (those endpoints are dropped, as in IrWalk). */
-  def classify(path: String, module: ModuleDef, design: Design): Option[Endpoint] = {
+  def classify(path: String, module: ModuleDef, design: Design): Option[Endpoint] =
+    classifyWith(path, module, design, design.modules.iterator.map(m => m.name -> m).toMap)
+
+  private def classifyWith(path: String, module: ModuleDef, design: Design, modulesByName: Map[String, ModuleDef]): Option[Endpoint] = {
     val parts = path.split('.').toIndexedSeq
     if (parts.isEmpty) return None
     val head = stripIdx(parts.head)
     val instOf = module.children.find(_.name == head)
     if (instOf.isDefined && parts.length >= 2) {
-      val childMod = design.modules.find(_.name == instOf.get.`type`)
+      val childMod = modulesByName.get(instOf.get.`type`)
       val portName = stripIdx(parts(1))
       val portDef  = childMod.flatMap(_.ports.find(_.name == portName))
       val dir      = portDef.map(_.dir).getOrElse("input")

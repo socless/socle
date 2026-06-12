@@ -161,7 +161,8 @@ object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
 
 /** A laid-out box. `kind` is "inst" (a child instance, drilled/expandable) or
   * "boundary" (one of this module's own ports, drawn as a port stub). `id` is
-  * the instance name for "inst", or the bare port name for "boundary".
+  * the instance name for "inst"; for "boundary" it is the FULL endpoint path
+  * (e.g. "io.in[0]"), since issue #68 each external pin is its own stub.
   */
 case class LaidNode(
   id: String, kind: String,   // "inst" | "boundary"
