@@ -22,8 +22,10 @@ case class Design(
   sources: Map[String, String] = Map.empty,
   // Baked schematic geometry. Keyed by a layout key (the representative module
   // of a group of structurally-identical modules), not necessarily every module
-  // name - see `layoutOf`. Empty when layout was skipped or failed; the UI falls
-  // back to its built-in layout in that case.
+  // name - see `layoutOf`. Empty when layout was skipped or failed; the UI has
+  // NO built-in layout fallback: it shows an explicit "no layout data" notice
+  // for affected modules, so re-export with a current socless to get geometry
+  // (issue #96).
   layouts: Map[String, ModuleLayout] = Map.empty,
   // Maps every module name to the key in `layouts` that holds its geometry.
   // Chisel emits many structurally-identical module copies (X, X_1, X_2, ...);
