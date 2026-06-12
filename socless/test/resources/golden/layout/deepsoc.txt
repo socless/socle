@@ -1,0 +1,37 @@
+layout ALU
+layout Cluster
+  node cores_0 kind=inst pins=cores_0.io.in:WEST:iface
+  node cores_1 kind=inst pins=cores_1.io.in:WEST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  edge io.in -> cores_0.io.in
+  edge io.in -> cores_1.io.in
+layout Core
+  node alu kind=inst pins=alu.io:EAST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node rf kind=inst pins=rf.io:EAST:iface
+  edge io.in -> alu.io
+  edge rf.io -> io.out
+  edge alu.io -> rf.io
+layout DeepSoc
+  node cluster0 kind=inst pins=cluster0.io.in:WEST:iface,cluster0.io.out:EAST:iface
+  node cluster1 kind=inst pins=cluster1.io.in:WEST:iface,cluster1.io.out:EAST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node pipe kind=inst pins=pipe.io.deq:EAST:iface,pipe.io.enq:WEST:iface
+  edge io.in -> cluster0.io.in
+  edge pipe.io.deq -> cluster1.io.in
+  edge cluster1.io.out -> io.out
+  edge cluster0.io.out -> pipe.io.enq
+layout Queue4_Token
+layout RegFile
+layoutOf ALU_1 -> ALU
+layoutOf ALU_2 -> ALU
+layoutOf ALU_3 -> ALU
+layoutOf Cluster_1 -> Cluster
+layoutOf Core_1 -> Core
+layoutOf Core_2 -> Core
+layoutOf Core_3 -> Core
+layoutOf RegFile_1 -> RegFile
+layoutOf RegFile_2 -> RegFile
+layoutOf RegFile_3 -> RegFile

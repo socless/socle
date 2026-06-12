@@ -46,7 +46,16 @@ object GoldenWriter {
       val out = new java.io.File(goldenDir, s"$gname.json")
       java.nio.file.Files.write(out.toPath, json.getBytes("UTF-8"))
       println(s"[golden] wrote ${out.getAbsolutePath}")
+
+      // Layout STRUCTURE golden (issue #103): nodes/pins/edges/dedup mapping
+      // only, no coordinates. Consumed by LayoutStructureGoldenTest.
+      val structure = LayoutStructure.summarize(Layout.withLayouts(design))
+      val layoutDir = new java.io.File(goldenDir, "layout")
+      layoutDir.mkdirs()
+      val sout = new java.io.File(layoutDir, s"$gname.txt")
+      java.nio.file.Files.write(sout.toPath, structure.getBytes("UTF-8"))
+      println(s"[golden] wrote ${sout.getAbsolutePath}")
     }
-    println(s"[golden] regenerated ${fixtures.size} goldens in ${goldenDir.getAbsolutePath}")
+    println(s"[golden] regenerated ${fixtures.size} golden pair(s) in ${goldenDir.getAbsolutePath}")
   }
 }

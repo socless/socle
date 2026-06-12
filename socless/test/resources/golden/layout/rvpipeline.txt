@@ -1,0 +1,34 @@
+layout Decode
+  node io.in kind=boundary pins=io.in:WEST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node io.rf kind=boundary pins=io.rf:EAST:iface
+  edge io.in -> io.out
+  edge io.rf -> io.out
+layout Exec
+  node io.in kind=boundary pins=io.in:WEST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  edge io.out -> io.in
+layout Fetch
+  node io.imem kind=boundary pins=io.imem:WEST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  edge io.out -> io.imem
+layout RVPipeline
+  node decode kind=inst pins=decode.io.in:WEST:iface,decode.io.out:EAST:iface,decode.io.rf:EAST:iface
+  node exec kind=inst pins=exec.io.in:WEST:iface,exec.io.out:EAST:iface
+  node fetch kind=inst pins=fetch.io.imem:EAST:iface,fetch.io.out:EAST:iface
+  node io.dmem kind=boundary pins=io.dmem:WEST:iface
+  node io.imem kind=boundary pins=io.imem:WEST:iface
+  node rf kind=inst pins=rf.io.rd:WEST:iface,rf.io.wr:WEST:iface
+  node wb kind=inst pins=wb.io.dmem:EAST:iface,wb.io.in:WEST:iface,wb.io.rf:EAST:iface
+  edge fetch.io.out -> decode.io.in
+  edge decode.io.out -> exec.io.in
+  edge io.imem -> fetch.io.imem
+  edge decode.io.rf -> rf.io.rd
+  edge wb.io.rf -> rf.io.wr
+  edge io.dmem -> wb.io.dmem
+  edge exec.io.out -> wb.io.in
+layout RegFile
+layout WB
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.rf kind=boundary pins=io.rf:WEST:iface
+  edge io.in -> io.rf

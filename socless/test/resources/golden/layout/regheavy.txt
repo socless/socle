@@ -1,0 +1,23 @@
+layout Controller
+layout Datapath
+  node ctrl kind=inst pins=ctrl.io:EAST:iface
+  node io.hint kind=boundary pins=io.hint:EAST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node mid kind=inst pins=mid.io.deq:EAST:iface,mid.io.enq:WEST:iface
+  node stage0 kind=inst pins=stage0.io.enable:WEST:iface,stage0.io.flush:WEST:iface,stage0.io.in:WEST:iface,stage0.io.out:EAST:iface,stage0.io.stall:WEST:iface
+  node stage1 kind=inst pins=stage1.io.enable:WEST:iface,stage1.io.flush:WEST:iface,stage1.io.in:WEST:iface,stage1.io.out:EAST:iface,stage1.io.stall:WEST:iface
+  edge io.hint -> ctrl.io
+  edge stage1.io.out -> io.out
+  edge stage0.io.out -> mid.io.enq
+  edge ctrl.io -> stage0.io.enable
+  edge ctrl.io -> stage0.io.flush
+  edge io.in -> stage0.io.in
+  edge ctrl.io -> stage0.io.stall
+  edge ctrl.io -> stage1.io.enable
+  edge ctrl.io -> stage1.io.flush
+  edge mid.io.deq -> stage1.io.in
+  edge ctrl.io -> stage1.io.stall
+layout Queue2_PipePayload
+layout RegStage
+layoutOf RegStage_1 -> RegStage

@@ -51,6 +51,30 @@ jobs:
           ./mill socless.publishLocal
           ./mill mill-socless.publishLocal
 
+      # Consume the published plugin the way the README tells users to
+      # (tools/consume-test): catches version drift between the two artifacts,
+      # broken artifact coordinates, task wiring, and the UI server flags.
+      # This is the path none of the unit tests can see (issue #103).
+      - name: Plugin consumption smoke
+        run: |
+          ver=$(grep -oP 'publishVer\s*=\s*"\K[^"]+' build.mill)
+          work=$(mktemp -d)
+          cp -r tools/consume-test/. "$work/"
+          cp mill "$work/mill"
+          sed -i "s/SOCLESS_VERSION/$ver/" "$work/build.mill"
+          (cd "$work" && ./mill demo.socless)
+          json=$(find "$work/out" -name design.json | head -1)
+          if [ -z "$json" ]; then echo "plugin produced no design.json"; exit 1; fi
+          (cd "$work" && timeout 90 ./mill demo.soclessServe --port 8917 >serve.log 2>&1 &)
+          ok=0
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:8917/SoCLess.html; then ok=1; break; fi
+            sleep 1
+          done
+          if [ "$ok" != 1 ]; then
+            echo "plugin UI server never served"; cat "$work/serve.log" || true; exit 1
+          fi
+
       - name: Elaborate AXISystem example
         run: ./mill example.soclessRun
 

@@ -1,0 +1,29 @@
+//| mill-version: 1.1.6
+//| mvnDeps:
+//|   - io.socless::mill-socless::SOCLESS_VERSION
+
+// CI consumption smoke for the published Mill plugin (issue #103).
+//
+// This project consumes io.socless::mill-socless from the local publish
+// (publishLocal must run first) exactly the way the README tells users to,
+// so CI exercises the real plugin path: version resolution (the runtime
+// artifact the plugin pulls must exist at the same version), task wiring,
+// the launcher fork, and the UI server arg parsing.
+//
+// SOCLESS_VERSION is a placeholder: the CI step substitutes the current
+// V.publishVer from the repo's build.mill before running, so a version bump
+// cannot silently break consumers.
+
+package build
+
+import mill._, scalalib._
+import socless.mill.SoclessModule
+
+object demo extends ScalaModule with SoclessModule {
+  def scalaVersion = "2.13.16"
+  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.11.0")
+  def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
+    mvn"org.chipsalliance:::chisel-plugin:7.11.0"
+  )
+  def soclessTop = "demo.Blinky"
+}
