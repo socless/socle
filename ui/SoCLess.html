@@ -696,6 +696,9 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
     }
     window.DESIGN.SOURCE = sourceId;
     window.DESIGN.SOURCE_LABEL = sourceLabel;
+    // The raw design object as loaded: the snapshot export re-embeds it
+    // verbatim (issue #122).
+    window.DESIGN.RAW = j;
     window.DESIGN.VERSION += 1;
     const plural = (n, s) => n + ' ' + s + (n === 1 ? '' : 's');
     const summary = plural(j.modules.length, 'module') + ' · ' + plural(Object.keys(j.bundles || {}).length, 'bundle');
@@ -885,6 +888,21 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
 
   // Initial load: read manifest, then pick a source.
   window.__DESIGN_READY = (async () => {
+    // (0) embedded design: a saved snapshot carries its design inline
+    // (issue #122), so it opens from file:// with zero setup. Takes priority
+    // over every other source.
+    const embedded = document.getElementById('socless-embedded-design');
+    if (embedded) {
+      try {
+        const j = JSON.parse(embedded.textContent);
+        return ingest(j, 'snapshot', (j.top || 'design') + ' (snapshot)');
+      } catch (e) {
+        const msg = 'embedded snapshot design is malformed: ' + (e.message || e);
+        console.error('[socless]', msg);
+        toast(msg, 'err', 6000);
+      }
+    }
+
     // (2) URL param (read first so we know if a manifest lookup is needed)
     const params = new URLSearchParams(window.location.search);
     const want = params.get('design');
@@ -2771,6 +2789,55 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     };
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(out.svg);
   };
+
+  // Self-contained shareable snapshot (issue #122): refetch this page's own
+  // HTML (since #105 it is fully self-contained: vendored React, precompiled
+  // JSX, no CDN) and inline the ACTIVE design as an embedded-design block the
+  // boot loader recognizes. The result opens from file:// with full
+  // interactivity: drill-down, expansion, inspector.
+  const exportSnapshot = async () => {
+    const raw = window.DESIGN.RAW;
+    if (!raw) {
+      if (window.__soclessToast) window.__soclessToast('no design loaded to snapshot', 'err');
+      return;
+    }
+    let html;
+    try {
+      const r = await fetch(window.location.pathname, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      html = await r.text();
+    } catch (e) {
+      if (window.__soclessToast) window.__soclessToast('snapshot needs the served UI (could not refetch this page): ' + (e.message || e), 'err', 6000);
+      return;
+    }
+    // Tag needles are built from SPLIT literals: the page's own (compiled)
+    // code is part of the HTML being searched, so a contiguous literal here
+    // would match itself and strip a chunk of the page's script instead of
+    // the embedded block. Split, the contiguous text exists only at runtime.
+    const OPEN_TAG = '<scr' + 'ipt type="application/json" id="socless-embedded-design">';
+    const CLOSE_TAG = '<' + '/script>';
+    // Snapshot-of-snapshot: drop any embedded design the fetched page already
+    // carries before inlining the active one.
+    const at0 = html.indexOf(OPEN_TAG);
+    if (at0 >= 0) {
+      const end0 = html.indexOf(CLOSE_TAG, at0);
+      if (end0 >= 0) html = html.slice(0, at0) + html.slice(end0 + CLOSE_TAG.length);
+    }
+    // A closing-script sequence can only occur inside JSON string values,
+    // where the backslash-escaped form is equivalent, so the global replace
+    // is safe; it keeps the embedded block from terminating early.
+    const json = JSON.stringify(raw).replace(/<\/script/g, '<\\/script');
+    const block = OPEN_TAG + json + CLOSE_TAG + '\n';
+    // Before the first script tag, so the block exists when the loader runs.
+    const at = html.indexOf('<script');
+    if (at < 0) {
+      if (window.__soclessToast) window.__soclessToast('snapshot failed: page markup not recognized', 'err');
+      return;
+    }
+    const out = html.slice(0, at) + block + html.slice(at);
+    downloadBlob(`${raw.top || 'design'}-snapshot.html`, new Blob([out], { type: 'text/html' }));
+    if (window.__soclessToast) window.__soclessToast('snapshot saved: opens anywhere from file://', 'ok');
+  };
   const [zoom, setZoom] = useState(1);
   const [pan, setPan]   = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
@@ -3434,6 +3501,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
         <button data-export-svg="1" onClick={exportSvg} title={`Export ${mod.name} schematic as SVG`} style={zoomBtnStyle}>svg</button>
         <button data-export-png="1" onClick={exportPng} title={`Export ${mod.name} schematic as PNG (2x)`} style={zoomBtnStyle}>png</button>
+        <button data-export-snapshot="1" onClick={exportSnapshot} title="Save a self-contained interactive HTML snapshot (design embedded, opens from file://)" style={zoomBtnStyle}>share</button>
       </div>
     </div>
   );
