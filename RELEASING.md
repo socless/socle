@@ -24,8 +24,10 @@ object V {
 }
 ```
 
-Between releases the value carries a `-SNAPSHOT` suffix. CI publishes snapshots
-automatically; only tagged commits become stable releases.
+Between releases the value carries a `-SNAPSHOT` suffix. There is no
+automated snapshot publishing today: CI runs `publishLocal` for both artifacts
+on every push (so publish metadata cannot rot), and stable releases are
+published manually from a tagged commit (see step 5).
 
 ## Pre-release checklist
 
@@ -87,8 +89,9 @@ git push origin main
 git push origin v0.2.0
 ```
 
-Pushing the `vX.Y.Z` tag triggers the GitHub Actions release workflow (once
-configured), which publishes both artifacts to Maven Central / Sonatype.
+There is currently NO tag-triggered release workflow: pushing the tag only
+records the release point. Publish the artifacts manually (next step). If a
+release workflow is added later, this section should be updated to match.
 
 ### 5. Publish locally (manual / fallback)
 

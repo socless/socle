@@ -37,8 +37,12 @@ trait SoclessModule extends ScalaModule {
     */
   def soclessTop: T[String]
 
-  /** Version of the `socless` runtime library to pull in. */
-  def soclessVersion: T[String] = Task { "0.1.0-SNAPSHOT" }
+  /** Version of the `socless` runtime library to pull in. Defaults to the
+    * version this plugin was built as (generated from V.publishVer in
+    * build.mill), so the two artifacts cannot drift (issue #104). Override
+    * to pin a different runtime.
+    */
+  def soclessVersion: T[String] = Task { SoclessBuildInfo.version }
 
   /** Output filename inside `Task.dest`. */
   def soclessOutputName: T[String] = Task { "design.json" }
