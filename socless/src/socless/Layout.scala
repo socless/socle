@@ -93,8 +93,16 @@ object Layout {
     case _                                         => "WEST"
   }
 
+  private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
+
   private def isInterfaceBundle(bundle: String, design: Design): Boolean =
-    design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled")
+    design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled") ||
+      // Vec-of-bundle keys ("Vec[AXI4, 2]") are not entries in design.bundles
+      // but their pins are interfaces all the same (issue #89).
+      (bundle match {
+        case VecKey(inner) => isInterfaceBundle(inner.trim, design)
+        case _             => false
+      })
 
   private val NodeW      = 160.0
   // PortStep/PortPad/HeaderH are the single numeric source of truth for the

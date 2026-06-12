@@ -15,22 +15,34 @@ import ChirrtlParser.{
   */
 object IrWalk {
 
+  /** Bundle registry: deduplication is by FULL structural identity (names,
+    * flips, ground kinds, widths, vec arity), tracked in `keyByFp`. Friendly
+    * keys (AXI4, Decoupled_<hint>, <Hint>) go to the first structure that
+    * claims them; a structurally different bundle wanting the same friendly
+    * name gets a deterministic hash suffix instead of silently overwriting
+    * the registered definition (issue #88).
+    */
+  private final class BundleReg {
+    val defs    = mutable.LinkedHashMap.empty[String, BundleDef]
+    val keyByFp = mutable.HashMap.empty[String, String]
+  }
+
   def design(c: Circ): Design = {
-    val bundles = mutable.LinkedHashMap.empty[String, BundleDef]
+    val bundles = new BundleReg
     // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
     // endpoints needs to read port types off the instance's own module,
     // which lives elsewhere in the circuit. Building it once here is cheaper
     // than searching per wire.
     val byName  = c.modules.map(m => m.name -> m).toMap
     val modules = c.modules.map(buildModule(_, byName, bundles))
-    Design(top = c.name, bundles = bundles.toMap, modules = modules)
+    Design(top = c.name, bundles = bundles.defs.toMap, modules = modules)
   }
 
   // ── Module ────────────────────────────────────────────────────────────────
   private def buildModule(
     m:       Mod,
     byName:  Map[String, Mod],
-    bundles: mutable.LinkedHashMap[String, BundleDef],
+    bundles: BundleReg,
   ): ModuleDef = {
     // A port is "connected" if its name is referenced anywhere in the module
     // body (connects, register/memory clocks+resets, node expressions, when
@@ -79,7 +91,7 @@ object IrWalk {
   // ── Ports ────────────────────────────────────────────────────────────────
   private def buildPort(
     p:         Port,
-    bundles:   mutable.LinkedHashMap[String, BundleDef],
+    bundles:   BundleReg,
     connected: Boolean,
   ): PortDef = {
     val (key, role) = registerType(p.tpe, p.dir, p.name, bundles)
@@ -120,12 +132,14 @@ object IrWalk {
     tpe:     CType,
     dir:     String,
     hint:    String,
-    bundles: mutable.LinkedHashMap[String, BundleDef],
+    bundles: BundleReg,
   ): (String, String) = tpe match {
     case b: BundleT =>
-      val key = bundleKey(b, hint)
-      bundles.getOrElseUpdate(key, BundleDef(key, "Bundle")) // placeholder for cycles
-      bundles(key) = bundleDef(b, key, bundles)
+      val key = bundleKey(b, hint, bundles)
+      if (!bundles.defs.contains(key)) {
+        bundles.defs(key) = BundleDef(key, "Bundle") // placeholder while children register
+        bundles.defs(key) = bundleDef(b, key, bundles)
+      }
       (key, portRole(dir, b))
 
     case VecT(elem, n) =>
@@ -138,31 +152,57 @@ object IrWalk {
     case GroundT(other, _)        => (other, dir)
   }
 
-  /** Stable key for a bundle: based on its shape (so equivalent bundles
-    * collapse) but biased toward a readable hint when possible.
+  /** Canonical structural rendering of a CHIRRTL type: field names, flips,
+    * ground kinds, widths, and vec arity all participate, so two bundles get
+    * the same fingerprint iff they are structurally identical. The old
+    * names-and-flips-only fingerprint collapsed e.g. Decoupled[UInt<32>] and
+    * Decoupled[R] into one definition (issue #88).
     */
-  private def bundleKey(b: BundleT, hint: String): String = {
-    val fingerprint = b.fields.map(f => s"${if (f.flip) "f" else ""}${f.name}").mkString("_")
-    // Recognized AXI shapes - give them friendly names.
-    val names = b.fields.map(_.name).toSet
-    if (names == Set("ar", "aw", "w", "r", "b")) return "AXI4"
-    if (names == Set("ready", "valid", "bits"))  return s"Decoupled_$hint"
-    if (names == Set("ready", "valid"))           return s"ReadyValid_$hint"
-    // Otherwise, hint-based with a deterministic fingerprint suffix.
-    // We use SHA-1 over the UTF-8 fingerprint bytes so the key is a pure
-    // function of the bundle's structural shape - stable across JVM versions
-    // and implementations (unlike String.hashCode, which is not guaranteed
-    // stable outside the same JVM run).
-    val digest = java.security.MessageDigest.getInstance("SHA-1")
-      .digest(fingerprint.getBytes("UTF-8"))
-    val hex = digest.map("%02x".format(_)).mkString.take(6)
-    s"${capitalize(hint)}_$hex"
+  private def typeFp(t: CType): String = t match {
+    case GroundT(name, w) => s"$name<${w.getOrElse(-1)}>"
+    case VecT(elem, n)    => s"vec[${typeFp(elem)};$n]"
+    case BundleT(fs)      =>
+      fs.map(f => s"${if (f.flip) "!" else ""}${f.name}:${typeFp(f.tpe)}").mkString("{", ",", "}")
+  }
+
+  /** SHA-1 over the UTF-8 fingerprint, hex prefix. SHA-1 (not String.hashCode)
+    * so the key is stable across JVM versions and implementations.
+    */
+  private def fpHex(fp: String): String =
+    java.security.MessageDigest.getInstance("SHA-1")
+      .digest(fp.getBytes("UTF-8"))
+      .map("%02x".format(_)).mkString
+
+  /** Key for a bundle. Identity is the structural fingerprint: the same
+    * structure always returns the same key regardless of hint (so identical
+    * bundles reached via different ports collapse), and different structures
+    * never share a key (a friendly-name clash gets a hash suffix instead of
+    * overwriting, issue #88).
+    */
+  private def bundleKey(b: BundleT, hint: String, bundles: BundleReg): String = {
+    val fp = typeFp(b)
+    bundles.keyByFp.getOrElseUpdate(fp, {
+      val names = b.fields.map(_.name).toSet
+      val base =
+        if (names == Set("ar", "aw", "w", "r", "b")) "AXI4"
+        else if (names == Set("ready", "valid", "bits")) s"Decoupled_$hint"
+        else if (names == Set("ready", "valid"))         s"ReadyValid_$hint"
+        else capitalize(hint)
+      if (!bundles.defs.contains(base)) base
+      else {
+        val hex = fpHex(fp)
+        var n   = 6
+        var key = s"${base}_${hex.take(n)}"
+        while (bundles.defs.contains(key) && n < hex.length) { n += 1; key = s"${base}_${hex.take(n)}" }
+        key
+      }
+    })
   }
 
   private def bundleDef(
     b:       BundleT,
     key:     String,
-    bundles: mutable.LinkedHashMap[String, BundleDef],
+    bundles: BundleReg,
   ): BundleDef = {
     val isDecoupled = {
       val ns = b.fields.map(_.name).toSet
@@ -213,7 +253,7 @@ object IrWalk {
   private def coalesceWires(
     m:       Mod,
     byName:  Map[String, Mod],
-    bundles: mutable.LinkedHashMap[String, BundleDef],
+    bundles: BundleReg,
   ): Seq[WireDef] = {
     case class Group(from: String, to: String, src: Option[SrcInfo], count: Int)
     val groups = mutable.LinkedHashMap.empty[(String, String), Group]
@@ -349,7 +389,7 @@ object IrWalk {
     from:     String,
     to:       String,
     byName:   Map[String, Mod],
-    bundles:  mutable.LinkedHashMap[String, BundleDef],
+    bundles:  BundleReg,
   ): String = {
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
 
@@ -358,30 +398,52 @@ object IrWalk {
       if (i < 0) s else s.substring(0, i)
     }
 
+    // An indexed path segment selects ONE vec element: `in[0]` against a
+    // Vec[AXI4, 2] is an AXI4, not the whole vec. One unwrap per subscript
+    // (issue #89: the index was stripped and the wire got the vec type, which
+    // the UI then displayed on both endpoint pins).
+    def unwrapIdx(t: CType, rawSeg: String): CType = {
+      var cur    = t
+      var subs   = rawSeg.count(_ == '[')
+      while (subs > 0) {
+        cur match {
+          case VecT(elem, _) => cur = elem; subs -= 1
+          case _             => return cur
+        }
+      }
+      cur
+    }
+
     def resolveOnInst(path: String): Option[String] = {
-      val parts = path.split('.').toIndexedSeq.map(stripIdx)
+      val raw   = path.split('.').toIndexedSeq
+      val parts = raw.map(stripIdx)
       if (parts.length < 2) return None
       for {
         ofMod <- instMap.get(parts(0))
         mod   <- byName.get(ofMod)
         port  <- mod.ports.find(_.name == parts(1))
       } yield {
+        val portTpe = unwrapIdx(port.tpe, raw(1))
         // Descend into the named sub-bundle when the path carries a third segment.
         val (effTpe, hint) =
-          if (parts.length >= 3) descendField(port.tpe, parts(2)).map(t => (t, s"${port.name}_${parts(2)}")).getOrElse((port.tpe, port.name))
-          else (port.tpe, port.name)
+          if (parts.length >= 3)
+            descendField(portTpe, parts(2)).map(t => (unwrapIdx(t, raw(2)), s"${port.name}_${parts(2)}")).getOrElse((portTpe, port.name))
+          else (portTpe, port.name)
         val (k, _) = registerType(effTpe, port.dir, hint, bundles)
         k
       }
     }
 
     def resolveOnSelf(path: String): Option[String] = {
-      val parts = path.split('.').toIndexedSeq.map(stripIdx)
+      val raw   = path.split('.').toIndexedSeq
+      val parts = raw.map(stripIdx)
       if (parts.isEmpty) return None
       m.ports.find(_.name == parts(0)).map { p =>
+        val portTpe = unwrapIdx(p.tpe, raw(0))
         val (effTpe, hint) =
-          if (parts.length >= 2) descendField(p.tpe, parts(1)).map(t => (t, s"${p.name}_${parts(1)}")).getOrElse((p.tpe, p.name))
-          else (p.tpe, p.name)
+          if (parts.length >= 2)
+            descendField(portTpe, parts(1)).map(t => (unwrapIdx(t, raw(1)), s"${p.name}_${parts(1)}")).getOrElse((portTpe, p.name))
+          else (portTpe, p.name)
         val (k, _) = registerType(effTpe, p.dir, hint, bundles)
         k
       }

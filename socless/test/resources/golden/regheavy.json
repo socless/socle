@@ -1,55 +1,8 @@
 {
   "top": "Datapath",
   "bundles": {
-    "Decoupled_deq": {
-      "name": "Decoupled_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_195b34": {
-      "name": "Io_195b34",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "enq",
-          "type": "Decoupled_enq",
-          "flip": true
-        },
-        {
-          "name": "deq",
-          "type": "Decoupled_deq",
-          "flip": false
-        },
-        {
-          "name": "count",
-          "type": "UInt<2>",
-          "flip": false
-        }
-      ]
-    },
-    "Io_4a3315": {
-      "name": "Io_4a3315",
+    "Io_34fc3d": {
+      "name": "Io_34fc3d",
       "kind": "Bundle",
       "channels": [
         {
@@ -59,7 +12,38 @@
         },
         {
           "name": "out",
-          "type": "Decoupled_out",
+          "type": "Decoupled_in",
+          "flip": false
+        },
+        {
+          "name": "enable",
+          "type": "UInt<1>",
+          "flip": true
+        },
+        {
+          "name": "flush",
+          "type": "UInt<1>",
+          "flip": true
+        },
+        {
+          "name": "stall",
+          "type": "UInt<1>",
+          "flip": true
+        }
+      ]
+    },
+    "Io_f892a2": {
+      "name": "Io_f892a2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_in",
           "flip": false
         },
         {
@@ -69,30 +53,25 @@
         }
       ]
     },
-    "Decoupled_io_out": {
-      "name": "Decoupled_io_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
+    "Io_610969": {
+      "name": "Io_610969",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "enq",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "deq",
+          "type": "Decoupled_in",
+          "flip": false
+        },
+        {
+          "name": "count",
+          "type": "UInt<2>",
+          "flip": false
+        }
       ]
     },
     "Decoupled_in": {
@@ -121,112 +100,8 @@
         ]
       ]
     },
-    "Decoupled_out": {
-      "name": "Decoupled_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_in": {
-      "name": "Decoupled_io_in",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_enq": {
-      "name": "Decoupled_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_enq": {
-      "name": "Decoupled_io_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_b1853e": {
-      "name": "Io_b1853e",
+    "Io": {
+      "name": "Io",
       "kind": "Bundle",
       "channels": [
         {
@@ -246,63 +121,6 @@
         },
         {
           "name": "hint",
-          "type": "UInt<1>",
-          "flip": true
-        }
-      ]
-    },
-    "Decoupled_io_deq": {
-      "name": "Decoupled_io_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "tag",
-          8,
-          "out"
-        ],
-        [
-          "flags",
-          4,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_21beba": {
-      "name": "Io_21beba",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Decoupled_in",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
-          "flip": false
-        },
-        {
-          "name": "enable",
-          "type": "UInt<1>",
-          "flip": true
-        },
-        {
-          "name": "flush",
-          "type": "UInt<1>",
-          "flip": true
-        },
-        {
-          "name": "stall",
           "type": "UInt<1>",
           "flip": true
         }
@@ -345,7 +163,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_b1853e",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -359,7 +177,7 @@
         {
           "from": "io",
           "to": "_io_enable_T",
-          "bundle": "Io_b1853e",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -370,7 +188,7 @@
         {
           "from": "io",
           "to": "_io_flush_T",
-          "bundle": "Io_b1853e",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -381,7 +199,7 @@
         {
           "from": "io",
           "to": "_io_stall_T",
-          "bundle": "Io_b1853e",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -431,7 +249,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_21beba",
+          "bundle": "Io_34fc3d",
           "doc": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -445,7 +263,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -456,7 +274,7 @@
         {
           "from": "rData",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -467,7 +285,7 @@
         {
           "from": "rTag",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -478,7 +296,7 @@
         {
           "from": "rFlags",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -489,7 +307,7 @@
         {
           "from": "rValid",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -500,7 +318,7 @@
         {
           "from": "io.out",
           "to": "rValid",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -511,7 +329,7 @@
         {
           "from": "io.out",
           "to": "rData",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -522,7 +340,7 @@
         {
           "from": "io.out",
           "to": "rTag",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -533,7 +351,7 @@
         {
           "from": "io.out",
           "to": "rFlags",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -583,7 +401,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_21beba",
+          "bundle": "Io_34fc3d",
           "doc": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -597,7 +415,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -608,7 +426,7 @@
         {
           "from": "rData",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -619,7 +437,7 @@
         {
           "from": "rTag",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -630,7 +448,7 @@
         {
           "from": "rFlags",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -641,7 +459,7 @@
         {
           "from": "rValid",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -652,7 +470,7 @@
         {
           "from": "io.out",
           "to": "rValid",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -663,7 +481,7 @@
         {
           "from": "io.out",
           "to": "rData",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -674,7 +492,7 @@
         {
           "from": "io.out",
           "to": "rTag",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -685,7 +503,7 @@
         {
           "from": "io.out",
           "to": "rFlags",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -735,7 +553,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_610969",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -749,7 +567,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -760,7 +578,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -771,7 +589,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -782,7 +600,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -844,7 +662,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_4a3315",
+          "bundle": "Io_f892a2",
           "doc": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -987,7 +805,7 @@
         {
           "from": "ctrl.io",
           "to": "io.hint",
-          "bundle": "Io_b1853e",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -998,7 +816,7 @@
         {
           "from": "stage0.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -1042,7 +860,7 @@
         {
           "from": "mid.io.enq",
           "to": "stage0.io.out",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -1053,7 +871,7 @@
         {
           "from": "stage1.io.in",
           "to": "mid.io.deq",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -1097,7 +915,7 @@
         {
           "from": "io.out",
           "to": "stage1.io.out",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
@@ -1108,7 +926,7 @@
         {
           "from": "stage1.io.out",
           "to": "io.out",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",

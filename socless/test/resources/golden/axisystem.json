@@ -1,43 +1,18 @@
 {
   "top": "AXISystem",
   "bundles": {
-    "Decoupled_io_b": {
-      "name": "Decoupled_io_b",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ]
-      ]
-    },
-    "Io_da39a3": {
-      "name": "Io_da39a3",
-      "kind": "Bundle"
-    },
-    "Io_195b34": {
-      "name": "Io_195b34",
+    "Io_ec22f2": {
+      "name": "Io_ec22f2",
       "kind": "Bundle",
       "channels": [
         {
-          "name": "enq",
-          "type": "Decoupled_enq",
+          "name": "in",
+          "type": "Vec[AXI4, 2]",
           "flip": true
         },
         {
-          "name": "deq",
-          "type": "Decoupled_deq",
-          "flip": false
-        },
-        {
-          "name": "count",
-          "type": "UInt<3>",
+          "name": "out",
+          "type": "Vec[AXI4, 2]",
           "flip": false
         }
       ]
@@ -63,31 +38,9 @@
         ]
       ]
     },
-    "Decoupled_io_enq": {
-      "name": "Decoupled_io_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ],
-        [
-          "last",
-          1,
-          "out"
-        ]
-      ]
+    "Io_bf21a9": {
+      "name": "Io_bf21a9",
+      "kind": "Bundle"
     },
     "Decoupled_ar": {
       "name": "Decoupled_ar",
@@ -146,138 +99,77 @@
         ]
       ]
     },
-    "Decoupled_io_deq": {
-      "name": "Decoupled_io_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ],
-        [
-          "last",
-          1,
-          "out"
-        ]
+    "Io_765101": {
+      "name": "Io_765101",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "enq",
+          "type": "Decoupled_r",
+          "flip": true
+        },
+        {
+          "name": "deq",
+          "type": "Decoupled_r",
+          "flip": false
+        },
+        {
+          "name": "count",
+          "type": "UInt<3>",
+          "flip": false
+        }
       ]
     },
-    "Decoupled_io_ar": {
-      "name": "Decoupled_io_ar",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "addr",
-          32,
-          "out"
-        ],
-        [
-          "len",
-          8,
-          "out"
-        ],
-        [
-          "size",
-          3,
-          "out"
-        ],
-        [
-          "burst",
-          2,
-          "out"
-        ],
-        [
-          "cache",
-          4,
-          "out"
-        ],
-        [
-          "prot",
-          3,
-          "out"
-        ]
+    "AXI4": {
+      "name": "AXI4",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "ar",
+          "type": "Decoupled_ar",
+          "flip": false
+        },
+        {
+          "name": "aw",
+          "type": "Decoupled_ar",
+          "flip": false
+        },
+        {
+          "name": "w",
+          "type": "Decoupled_w",
+          "flip": false
+        },
+        {
+          "name": "r",
+          "type": "Decoupled_r",
+          "flip": true
+        },
+        {
+          "name": "b",
+          "type": "Decoupled_b",
+          "flip": true
+        }
       ]
     },
-    "Decoupled_aw": {
-      "name": "Decoupled_aw",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "addr",
-          32,
-          "out"
-        ],
-        [
-          "len",
-          8,
-          "out"
-        ],
-        [
-          "size",
-          3,
-          "out"
-        ],
-        [
-          "burst",
-          2,
-          "out"
-        ],
-        [
-          "cache",
-          4,
-          "out"
-        ],
-        [
-          "prot",
-          3,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_deq": {
-      "name": "Decoupled_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ],
-        [
-          "last",
-          1,
-          "out"
-        ]
+    "Io": {
+      "name": "Io",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "enq",
+          "type": "Decoupled_enq",
+          "flip": true
+        },
+        {
+          "name": "deq",
+          "type": "Decoupled_enq",
+          "flip": false
+        },
+        {
+          "name": "count",
+          "type": "UInt<4>",
+          "flip": false
+        }
       ]
     },
     "Decoupled_enq": {
@@ -285,23 +177,8 @@
       "kind": "Decoupled",
       "fields": [
         [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ],
-        [
-          "last",
-          1,
+          "",
+          32,
           "out"
         ]
       ]
@@ -323,141 +200,6 @@
         [
           "resp",
           2,
-          "out"
-        ],
-        [
-          "last",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_aw": {
-      "name": "Decoupled_io_aw",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "addr",
-          32,
-          "out"
-        ],
-        [
-          "len",
-          8,
-          "out"
-        ],
-        [
-          "size",
-          3,
-          "out"
-        ],
-        [
-          "burst",
-          2,
-          "out"
-        ],
-        [
-          "cache",
-          4,
-          "out"
-        ],
-        [
-          "prot",
-          3,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_r": {
-      "name": "Decoupled_io_r",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "id",
-          4,
-          "out"
-        ],
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "resp",
-          2,
-          "out"
-        ],
-        [
-          "last",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_892115": {
-      "name": "Io_892115",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Vec[AXI4, 2]",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Vec[AXI4, 2]",
-          "flip": false
-        }
-      ]
-    },
-    "AXI4": {
-      "name": "AXI4",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "ar",
-          "type": "Decoupled_ar",
-          "flip": false
-        },
-        {
-          "name": "aw",
-          "type": "Decoupled_aw",
-          "flip": false
-        },
-        {
-          "name": "w",
-          "type": "Decoupled_w",
-          "flip": false
-        },
-        {
-          "name": "r",
-          "type": "Decoupled_r",
-          "flip": true
-        },
-        {
-          "name": "b",
-          "type": "Decoupled_b",
-          "flip": true
-        }
-      ]
-    },
-    "Decoupled_io_w": {
-      "name": "Decoupled_io_w",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          64,
-          "out"
-        ],
-        [
-          "strb",
-          8,
           "out"
         ],
         [
@@ -504,7 +246,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -518,7 +260,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -529,7 +271,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -540,7 +282,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -551,7 +293,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -660,7 +402,7 @@
         {
           "from": "io.ar",
           "to": "txQ.io.deq",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -671,7 +413,7 @@
         {
           "from": "io.ar",
           "to": "idCnt",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -682,7 +424,7 @@
         {
           "from": "io.ar",
           "to": "UInt<2>(0h3)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -693,7 +435,7 @@
         {
           "from": "io.ar",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -704,7 +446,7 @@
         {
           "from": "io.ar",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -715,7 +457,7 @@
         {
           "from": "txQ.io.deq",
           "to": "io.ar",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -726,7 +468,7 @@
         {
           "from": "txQ.io.enq",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -737,7 +479,7 @@
         {
           "from": "io.r",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_r",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -748,7 +490,7 @@
         {
           "from": "io.b",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_b",
+          "bundle": "Decoupled_b",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -759,7 +501,7 @@
         {
           "from": "io.aw",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_aw",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -770,7 +512,7 @@
         {
           "from": "io.w",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_w",
+          "bundle": "Decoupled_w",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -820,7 +562,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -834,7 +576,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -845,7 +587,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -856,7 +598,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -867,7 +609,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -976,7 +718,7 @@
         {
           "from": "io.ar",
           "to": "txQ.io.deq",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -987,7 +729,7 @@
         {
           "from": "io.ar",
           "to": "idCnt",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -998,7 +740,7 @@
         {
           "from": "io.ar",
           "to": "UInt<2>(0h3)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1009,7 +751,7 @@
         {
           "from": "io.ar",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1020,7 +762,7 @@
         {
           "from": "io.ar",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_ar",
+          "bundle": "Decoupled_ar",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1031,7 +773,7 @@
         {
           "from": "txQ.io.deq",
           "to": "io.ar",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_enq",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1042,7 +784,7 @@
         {
           "from": "txQ.io.enq",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_enq",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1053,7 +795,7 @@
         {
           "from": "io.r",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_r",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1064,7 +806,7 @@
         {
           "from": "io.b",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_b",
+          "bundle": "Decoupled_b",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1075,7 +817,7 @@
         {
           "from": "io.aw",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_aw",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1086,7 +828,7 @@
         {
           "from": "io.w",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_w",
+          "bundle": "Decoupled_w",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1138,7 +880,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_ec22f2",
           "doc": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1152,7 +894,7 @@
         {
           "from": "io.out[0]",
           "to": "io.in[0]",
-          "bundle": "Vec[AXI4, 2]",
+          "bundle": "AXI4",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1163,7 +905,7 @@
         {
           "from": "io.out[1]",
           "to": "io.in[1]",
-          "bundle": "Vec[AXI4, 2]",
+          "bundle": "AXI4",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1213,7 +955,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_765101",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1227,7 +969,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1238,7 +980,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1249,7 +991,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1260,7 +1002,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1369,7 +1111,7 @@
         {
           "from": "respQ.io.enq",
           "to": "io.ar",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1380,7 +1122,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<32>(0hdeadbeef)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1391,7 +1133,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1402,7 +1144,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1413,7 +1155,7 @@
         {
           "from": "io.ar",
           "to": "respQ.io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1424,7 +1166,7 @@
         {
           "from": "io.r",
           "to": "respQ.io.deq",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1435,7 +1177,7 @@
         {
           "from": "respQ.io.deq",
           "to": "io.r",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1446,7 +1188,7 @@
         {
           "from": "io.aw",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_aw",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1457,7 +1199,7 @@
         {
           "from": "io.w",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_w",
+          "bundle": "Decoupled_w",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1468,7 +1210,7 @@
         {
           "from": "io.b",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_b",
+          "bundle": "Decoupled_b",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1518,7 +1260,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_765101",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1532,7 +1274,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1543,7 +1285,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1554,7 +1296,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1565,7 +1307,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1674,7 +1416,7 @@
         {
           "from": "respQ.io.enq",
           "to": "io.ar",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1685,7 +1427,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<32>(0hdeadbeef)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1696,7 +1438,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1707,7 +1449,7 @@
         {
           "from": "respQ.io.enq",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1718,7 +1460,7 @@
         {
           "from": "io.ar",
           "to": "respQ.io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1729,7 +1471,7 @@
         {
           "from": "io.r",
           "to": "respQ.io.deq",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1740,7 +1482,7 @@
         {
           "from": "respQ.io.deq",
           "to": "io.r",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1751,7 +1493,7 @@
         {
           "from": "io.aw",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_aw",
+          "bundle": "Decoupled_ar",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1762,7 +1504,7 @@
         {
           "from": "io.w",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_w",
+          "bundle": "Decoupled_w",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1773,7 +1515,7 @@
         {
           "from": "io.b",
           "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_io_b",
+          "bundle": "Decoupled_b",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1823,7 +1565,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_da39a3",
+          "bundle": "Io_bf21a9",
           "doc": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -1998,7 +1740,7 @@
         {
           "from": "xbar.io.in[0]",
           "to": "cpu.io",
-          "bundle": "Vec[AXI4, 2]",
+          "bundle": "AXI4",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
@@ -2009,7 +1751,7 @@
         {
           "from": "xbar.io.in[1]",
           "to": "dma.io",
-          "bundle": "Vec[AXI4, 2]",
+          "bundle": "AXI4",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",

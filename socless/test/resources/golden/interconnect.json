@@ -1,141 +1,6 @@
 {
   "top": "Interconnect",
   "bundles": {
-    "Decoupled_deq": {
-      "name": "Decoupled_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_out_elem": {
-      "name": "Decoupled_io_out_elem",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Io_195b34": {
-      "name": "Io_195b34",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "enq",
-          "type": "Decoupled_enq",
-          "flip": true
-        },
-        {
-          "name": "deq",
-          "type": "Decoupled_deq",
-          "flip": false
-        },
-        {
-          "name": "count",
-          "type": "UInt<2>",
-          "flip": false
-        }
-      ]
-    },
-    "Io_5a7a3d": {
-      "name": "Io_5a7a3d",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "req",
-          "type": "Decoupled_req",
-          "flip": true
-        },
-        {
-          "name": "ack",
-          "type": "UInt<1>",
-          "flip": false
-        },
-        {
-          "name": "busy",
-          "type": "UInt<1>",
-          "flip": false
-        }
-      ]
-    },
-    "Decoupled_io_enq": {
-      "name": "Decoupled_io_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
     "Decoupled_req": {
       "name": "Decoupled_req",
       "kind": "Decoupled",
@@ -167,142 +32,76 @@
         ]
       ]
     },
-    "Decoupled_io_out": {
-      "name": "Decoupled_io_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
+    "Io_5337ea": {
+      "name": "Io_5337ea",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "enq",
+          "type": "Decoupled_req",
+          "flip": true
+        },
+        {
+          "name": "deq",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "count",
+          "type": "UInt<2>",
+          "flip": false
+        }
       ]
     },
-    "Decoupled_io_in_elem": {
-      "name": "Decoupled_io_in_elem",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_deq": {
-      "name": "Decoupled_io_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_req": {
-      "name": "Decoupled_io_req",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Io_b06d9b": {
-      "name": "Io_b06d9b",
+    "Io_6e2364": {
+      "name": "Io_6e2364",
       "kind": "Bundle",
       "channels": [
         {
           "name": "in",
-          "type": "Vec[Decoupled_in_elem, 3]",
+          "type": "Vec[Decoupled_req, 3]",
           "flip": true
         },
         {
           "name": "out",
-          "type": "Vec[Decoupled_out_elem, 3]",
+          "type": "Decoupled_req",
+          "flip": false
+        }
+      ]
+    },
+    "Io": {
+      "name": "Io",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": true
+        },
+        {
+          "name": "ack",
+          "type": "UInt<1>",
+          "flip": false
+        },
+        {
+          "name": "busy",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Io_2c4e0f": {
+      "name": "Io_2c4e0f",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Vec[Decoupled_req, 3]",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Vec[Decoupled_req, 3]",
           "flip": false
         },
         {
@@ -313,146 +112,6 @@
         {
           "name": "busy",
           "type": "Vec[UInt<1>, 3]",
-          "flip": false
-        }
-      ]
-    },
-    "Decoupled_out": {
-      "name": "Decoupled_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_out_elem": {
-      "name": "Decoupled_out_elem",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_enq": {
-      "name": "Decoupled_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_in_elem": {
-      "name": "Decoupled_in_elem",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "ctrl.addr",
-          32,
-          "out"
-        ],
-        [
-          "ctrl.opcode",
-          4,
-          "out"
-        ],
-        [
-          "ctrl.last",
-          1,
-          "out"
-        ],
-        [
-          "data.data",
-          64,
-          "out"
-        ],
-        [
-          "data.mask",
-          8,
-          "out"
-        ]
-      ]
-    },
-    "Io_892115": {
-      "name": "Io_892115",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Vec[Decoupled_in_elem, 3]",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
           "flip": false
         }
       ]
@@ -494,7 +153,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_5a7a3d",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -508,7 +167,7 @@
         {
           "from": "io.req",
           "to": "_io_req_ready_T",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -519,7 +178,7 @@
         {
           "from": "reg",
           "to": "io.req",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -591,7 +250,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_5a7a3d",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -605,7 +264,7 @@
         {
           "from": "io.req",
           "to": "_io_req_ready_T",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -616,7 +275,7 @@
         {
           "from": "reg",
           "to": "io.req",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -688,7 +347,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_5a7a3d",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -702,7 +361,7 @@
         {
           "from": "io.req",
           "to": "_io_req_ready_T",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -713,7 +372,7 @@
         {
           "from": "reg",
           "to": "io.req",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -787,7 +446,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_6e2364",
           "doc": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -801,7 +460,7 @@
         {
           "from": "valids[0]",
           "to": "io.in[0]",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -812,7 +471,7 @@
         {
           "from": "valids[1]",
           "to": "io.in[1]",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -823,7 +482,7 @@
         {
           "from": "valids[2]",
           "to": "io.in[2]",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -834,7 +493,7 @@
         {
           "from": "io.out",
           "to": "anyValid",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -845,7 +504,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_T_5",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -856,7 +515,7 @@
         {
           "from": "io.in[0]",
           "to": "_io_in_0_ready_T_2",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -867,7 +526,7 @@
         {
           "from": "io.in[1]",
           "to": "_io_in_1_ready_T_2",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -878,7 +537,7 @@
         {
           "from": "io.in[2]",
           "to": "_io_in_2_ready_T_2",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -928,7 +587,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_5337ea",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -942,7 +601,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -953,7 +612,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -964,7 +623,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -975,7 +634,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1037,7 +696,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_5337ea",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1051,7 +710,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1062,7 +721,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1073,7 +732,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1084,7 +743,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1146,7 +805,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_5337ea",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1160,7 +819,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1171,7 +830,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1182,7 +841,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1193,7 +852,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -1255,7 +914,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_b06d9b",
+          "bundle": "Io_2c4e0f",
           "doc": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1450,7 +1109,7 @@
         {
           "from": "q.io.enq",
           "to": "io.in[0]",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1461,7 +1120,7 @@
         {
           "from": "endpoints_0.io.req",
           "to": "q.io.deq",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1472,7 +1131,7 @@
         {
           "from": "agg.io.in[0]",
           "to": "UInt<1>(0h0)",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1527,7 +1186,7 @@
         {
           "from": "q_1.io.enq",
           "to": "io.in[1]",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1538,7 +1197,7 @@
         {
           "from": "endpoints_1.io.req",
           "to": "q_1.io.deq",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1549,7 +1208,7 @@
         {
           "from": "agg.io.in[1]",
           "to": "UInt<1>(0h0)",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1604,7 +1263,7 @@
         {
           "from": "q_2.io.enq",
           "to": "io.in[2]",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1615,7 +1274,7 @@
         {
           "from": "endpoints_2.io.req",
           "to": "q_2.io.deq",
-          "bundle": "Decoupled_io_req",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1626,7 +1285,7 @@
         {
           "from": "agg.io.in[2]",
           "to": "UInt<1>(0h0)",
-          "bundle": "Vec[Decoupled_io_in_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1659,7 +1318,7 @@
         {
           "from": "io.out[0]",
           "to": "agg.io.out",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_req",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1670,7 +1329,7 @@
         {
           "from": "agg.io.out",
           "to": "io.out[0]",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1681,7 +1340,7 @@
         {
           "from": "io.out[1]",
           "to": "UInt<1>(0h0)",
-          "bundle": "Vec[Decoupled_io_out_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
@@ -1692,7 +1351,7 @@
         {
           "from": "io.out[2]",
           "to": "UInt<1>(0h0)",
-          "bundle": "Vec[Decoupled_io_out_elem, 3]",
+          "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",

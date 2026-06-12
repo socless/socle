@@ -1,34 +1,18 @@
 {
   "top": "DeepSoc",
   "bundles": {
-    "Decoupled_deq": {
-      "name": "Decoupled_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_195b34": {
-      "name": "Io_195b34",
+    "Io_6694ad": {
+      "name": "Io_6694ad",
       "kind": "Bundle",
       "channels": [
         {
           "name": "enq",
-          "type": "Decoupled_enq",
+          "type": "Decoupled_in",
           "flip": true
         },
         {
           "name": "deq",
-          "type": "Decoupled_deq",
+          "type": "Decoupled_in",
           "flip": false
         },
         {
@@ -38,40 +22,24 @@
         }
       ]
     },
-    "Decoupled_io_enq": {
-      "name": "Decoupled_io_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
+    "Io_896693": {
+      "name": "Io_896693",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_in",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_in",
+          "flip": false
+        }
       ]
     },
-    "Decoupled_io_out": {
-      "name": "Decoupled_io_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_efbcda": {
-      "name": "Io_efbcda",
+    "Io_4ad0b1": {
+      "name": "Io_4ad0b1",
       "kind": "Bundle",
       "channels": [
         {
@@ -101,22 +69,6 @@
         }
       ]
     },
-    "Decoupled_io_deq": {
-      "name": "Decoupled_io_deq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
     "Decoupled_in": {
       "name": "Decoupled_in",
       "kind": "Decoupled",
@@ -133,72 +85,8 @@
         ]
       ]
     },
-    "Decoupled_out": {
-      "name": "Decoupled_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_io_in": {
-      "name": "Decoupled_io_in",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Decoupled_enq": {
-      "name": "Decoupled_enq",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "data",
-          32,
-          "out"
-        ],
-        [
-          "valid",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_892115": {
-      "name": "Io_892115",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Decoupled_in",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
-          "flip": false
-        }
-      ]
-    },
-    "Io_cd47ce": {
-      "name": "Io_cd47ce",
+    "Io": {
+      "name": "Io",
       "kind": "Bundle",
       "channels": [
         {
@@ -267,7 +155,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -281,7 +169,7 @@
         {
           "from": "io",
           "to": "_io_out_T_14",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -292,7 +180,7 @@
         {
           "from": "io",
           "to": "_io_cout_T",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -343,7 +231,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -357,7 +245,7 @@
         {
           "from": "io",
           "to": "io_rdata_MPORT",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -368,7 +256,7 @@
         {
           "from": "MPORT",
           "to": "io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -419,7 +307,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -498,7 +386,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -509,7 +397,7 @@
         {
           "from": "alu.io",
           "to": "acc",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -520,7 +408,7 @@
         {
           "from": "alu.io",
           "to": "io.in",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -531,7 +419,7 @@
         {
           "from": "alu.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "3× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -542,7 +430,7 @@
         {
           "from": "acc",
           "to": "alu.io",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -553,7 +441,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "5× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -564,7 +452,7 @@
         {
           "from": "rf.io",
           "to": "alu.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -575,7 +463,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -586,7 +474,7 @@
         {
           "from": "io.out",
           "to": "busy",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -597,7 +485,7 @@
         {
           "from": "io.out",
           "to": "rf.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -608,7 +496,7 @@
         {
           "from": "io.out",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -660,7 +548,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -674,7 +562,7 @@
         {
           "from": "io",
           "to": "_io_out_T_14",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -685,7 +573,7 @@
         {
           "from": "io",
           "to": "_io_cout_T",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -736,7 +624,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -750,7 +638,7 @@
         {
           "from": "io",
           "to": "io_rdata_MPORT",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -761,7 +649,7 @@
         {
           "from": "MPORT",
           "to": "io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -812,7 +700,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -891,7 +779,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -902,7 +790,7 @@
         {
           "from": "alu.io",
           "to": "acc",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -913,7 +801,7 @@
         {
           "from": "alu.io",
           "to": "io.in",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -924,7 +812,7 @@
         {
           "from": "alu.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "3× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -935,7 +823,7 @@
         {
           "from": "acc",
           "to": "alu.io",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -946,7 +834,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "5× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -957,7 +845,7 @@
         {
           "from": "rf.io",
           "to": "alu.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -968,7 +856,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -979,7 +867,7 @@
         {
           "from": "io.out",
           "to": "busy",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -990,7 +878,7 @@
         {
           "from": "io.out",
           "to": "rf.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1001,7 +889,7 @@
         {
           "from": "io.out",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1051,7 +939,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1130,7 +1018,7 @@
         {
           "from": "cores_0.io.in",
           "to": "_cores_0_io_in_valid_T_1",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1141,7 +1029,7 @@
         {
           "from": "cores_0.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1152,7 +1040,7 @@
         {
           "from": "cores_1.io.in",
           "to": "_cores_1_io_in_valid_T_1",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1163,7 +1051,7 @@
         {
           "from": "cores_1.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1174,7 +1062,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1185,7 +1073,7 @@
         {
           "from": "io.out",
           "to": "_io_out_valid_T_3",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1196,7 +1084,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_T_3",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1207,7 +1095,7 @@
         {
           "from": "cores_0.io.out",
           "to": "_cores_0_io_out_ready_T_1",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1218,7 +1106,7 @@
         {
           "from": "cores_1.io.out",
           "to": "_cores_1_io_out_ready_T_1",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1270,7 +1158,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1284,7 +1172,7 @@
         {
           "from": "io",
           "to": "_io_out_T_14",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1295,7 +1183,7 @@
         {
           "from": "io",
           "to": "_io_cout_T",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1346,7 +1234,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1360,7 +1248,7 @@
         {
           "from": "io",
           "to": "io_rdata_MPORT",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1371,7 +1259,7 @@
         {
           "from": "MPORT",
           "to": "io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1422,7 +1310,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1501,7 +1389,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1512,7 +1400,7 @@
         {
           "from": "alu.io",
           "to": "acc",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1523,7 +1411,7 @@
         {
           "from": "alu.io",
           "to": "io.in",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1534,7 +1422,7 @@
         {
           "from": "alu.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "3× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1545,7 +1433,7 @@
         {
           "from": "acc",
           "to": "alu.io",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1556,7 +1444,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "5× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1567,7 +1455,7 @@
         {
           "from": "rf.io",
           "to": "alu.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1578,7 +1466,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1589,7 +1477,7 @@
         {
           "from": "io.out",
           "to": "busy",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1600,7 +1488,7 @@
         {
           "from": "io.out",
           "to": "rf.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1611,7 +1499,7 @@
         {
           "from": "io.out",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1663,7 +1551,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1677,7 +1565,7 @@
         {
           "from": "io",
           "to": "_io_out_T_14",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1688,7 +1576,7 @@
         {
           "from": "io",
           "to": "_io_cout_T",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1739,7 +1627,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1753,7 +1641,7 @@
         {
           "from": "io",
           "to": "io_rdata_MPORT",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1764,7 +1652,7 @@
         {
           "from": "MPORT",
           "to": "io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1815,7 +1703,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1894,7 +1782,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1905,7 +1793,7 @@
         {
           "from": "alu.io",
           "to": "acc",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1916,7 +1804,7 @@
         {
           "from": "alu.io",
           "to": "io.in",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1927,7 +1815,7 @@
         {
           "from": "alu.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "3× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1938,7 +1826,7 @@
         {
           "from": "acc",
           "to": "alu.io",
-          "bundle": "Io_cd47ce",
+          "bundle": "Io",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1949,7 +1837,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "5× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1960,7 +1848,7 @@
         {
           "from": "rf.io",
           "to": "alu.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1971,7 +1859,7 @@
         {
           "from": "rf.io",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1982,7 +1870,7 @@
         {
           "from": "io.out",
           "to": "busy",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -1993,7 +1881,7 @@
         {
           "from": "io.out",
           "to": "rf.io",
-          "bundle": "Io_efbcda",
+          "bundle": "Io_4ad0b1",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2004,7 +1892,7 @@
         {
           "from": "io.out",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2054,7 +1942,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2133,7 +2021,7 @@
         {
           "from": "cores_0.io.in",
           "to": "_cores_0_io_in_valid_T_1",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2144,7 +2032,7 @@
         {
           "from": "cores_0.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2155,7 +2043,7 @@
         {
           "from": "cores_1.io.in",
           "to": "_cores_1_io_in_valid_T_1",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2166,7 +2054,7 @@
         {
           "from": "cores_1.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2177,7 +2065,7 @@
         {
           "from": "io.in",
           "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2188,7 +2076,7 @@
         {
           "from": "io.out",
           "to": "_io_out_valid_T_3",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2199,7 +2087,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_T_3",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2210,7 +2098,7 @@
         {
           "from": "cores_0.io.out",
           "to": "_cores_0_io_out_ready_T_1",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2221,7 +2109,7 @@
         {
           "from": "cores_1.io.out",
           "to": "_cores_1_io_out_ready_T_1",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2271,7 +2159,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_195b34",
+          "bundle": "Io_6694ad",
           "doc": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -2285,7 +2173,7 @@
         {
           "from": "MPORT",
           "to": "io.enq",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -2296,7 +2184,7 @@
         {
           "from": "io.deq",
           "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -2307,7 +2195,7 @@
         {
           "from": "io.enq",
           "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -2318,7 +2206,7 @@
         {
           "from": "io.deq",
           "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_io_deq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "src/main/scala/chisel3/util/Queue.scala",
@@ -2380,7 +2268,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_896693",
           "doc": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2491,7 +2379,7 @@
         {
           "from": "cluster0.io.in",
           "to": "io.in",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2502,7 +2390,7 @@
         {
           "from": "pipe.io.enq",
           "to": "cluster0.io.out",
-          "bundle": "Decoupled_io_enq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2513,7 +2401,7 @@
         {
           "from": "cluster1.io.in",
           "to": "pipe.io.deq",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2524,7 +2412,7 @@
         {
           "from": "io.out",
           "to": "cluster1.io.out",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
@@ -2535,7 +2423,7 @@
         {
           "from": "cluster1.io.out",
           "to": "io.out",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",

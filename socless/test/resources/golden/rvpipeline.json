@@ -1,229 +1,24 @@
 {
   "top": "RVPipeline",
   "bundles": {
-    "Imem_f5707c": {
-      "name": "Imem_f5707c",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "req",
-          "type": "Decoupled_req",
-          "flip": false
-        },
-        {
-          "name": "resp",
-          "type": "Decoupled_resp",
-          "flip": true
-        }
-      ]
-    },
-    "Io_wr_dc69b2": {
-      "name": "Io_wr_dc69b2",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "waddr",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "wdata",
-          "type": "UInt<32>",
-          "flip": false
-        },
-        {
-          "name": "wen",
-          "type": "UInt<1>",
-          "flip": false
-        }
-      ]
-    },
-    "Io_rf_5f1233": {
-      "name": "Io_rf_5f1233",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "raddr1",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "raddr2",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "rdata1",
-          "type": "UInt<32>",
-          "flip": true
-        },
-        {
-          "name": "rdata2",
-          "type": "UInt<32>",
-          "flip": true
-        }
-      ]
-    },
-    "Rf_5f1233": {
-      "name": "Rf_5f1233",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "raddr1",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "raddr2",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "rdata1",
-          "type": "UInt<32>",
-          "flip": true
-        },
-        {
-          "name": "rdata2",
-          "type": "UInt<32>",
-          "flip": true
-        }
-      ]
-    },
-    "Io_rd_5f1233": {
-      "name": "Io_rd_5f1233",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "raddr1",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "raddr2",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "rdata1",
-          "type": "UInt<32>",
-          "flip": true
-        },
-        {
-          "name": "rdata2",
-          "type": "UInt<32>",
-          "flip": true
-        }
-      ]
-    },
-    "Io_75a75c": {
-      "name": "Io_75a75c",
+    "Io_94fafe": {
+      "name": "Io_94fafe",
       "kind": "Bundle",
       "channels": [
         {
           "name": "in",
-          "type": "Decoupled_in",
+          "type": "Decoupled_out_0778b8",
           "flip": true
         },
         {
           "name": "dmem",
-          "type": "Dmem_f5707c",
+          "type": "Imem",
           "flip": false
         },
         {
           "name": "rf",
-          "type": "Rf_dc69b2",
+          "type": "Rf_d1479c",
           "flip": false
-        }
-      ]
-    },
-    "Io_3ab96b": {
-      "name": "Io_3ab96b",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Decoupled_in",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
-          "flip": false
-        },
-        {
-          "name": "rf",
-          "type": "Rf_5f1233",
-          "flip": false
-        }
-      ]
-    },
-    "Io_rf_dc69b2": {
-      "name": "Io_rf_dc69b2",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "waddr",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "wdata",
-          "type": "UInt<32>",
-          "flip": false
-        },
-        {
-          "name": "wen",
-          "type": "UInt<1>",
-          "flip": false
-        }
-      ]
-    },
-    "Io_0e9fed": {
-      "name": "Io_0e9fed",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "imem",
-          "type": "Imem_f5707c",
-          "flip": false
-        },
-        {
-          "name": "dmem",
-          "type": "Dmem_f5707c",
-          "flip": false
-        }
-      ]
-    },
-    "Io_892115": {
-      "name": "Io_892115",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "in",
-          "type": "Decoupled_in",
-          "flip": true
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
-          "flip": false
-        }
-      ]
-    },
-    "Io_imem_f5707c": {
-      "name": "Io_imem_f5707c",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "req",
-          "type": "Decoupled_req",
-          "flip": false
-        },
-        {
-          "name": "resp",
-          "type": "Decoupled_resp",
-          "flip": true
         }
       ]
     },
@@ -239,143 +34,6 @@
         [
           "wdata",
           32,
-          "out"
-        ],
-        [
-          "wen",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Rf_dc69b2": {
-      "name": "Rf_dc69b2",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "waddr",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "wdata",
-          "type": "UInt<32>",
-          "flip": false
-        },
-        {
-          "name": "wen",
-          "type": "UInt<1>",
-          "flip": false
-        }
-      ]
-    },
-    "Rd_5f1233": {
-      "name": "Rd_5f1233",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "raddr1",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "raddr2",
-          "type": "UInt<5>",
-          "flip": false
-        },
-        {
-          "name": "rdata1",
-          "type": "UInt<32>",
-          "flip": true
-        },
-        {
-          "name": "rdata2",
-          "type": "UInt<32>",
-          "flip": true
-        }
-      ]
-    },
-    "Decoupled_io_out": {
-      "name": "Decoupled_io_out",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "result",
-          32,
-          "out"
-        ],
-        [
-          "rd",
-          5,
-          "out"
-        ],
-        [
-          "wen",
-          1,
-          "out"
-        ]
-      ]
-    },
-    "Io_dmem_f5707c": {
-      "name": "Io_dmem_f5707c",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "req",
-          "type": "Decoupled_req",
-          "flip": false
-        },
-        {
-          "name": "resp",
-          "type": "Decoupled_resp",
-          "flip": true
-        }
-      ]
-    },
-    "Dmem_f5707c": {
-      "name": "Dmem_f5707c",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "req",
-          "type": "Decoupled_req",
-          "flip": false
-        },
-        {
-          "name": "resp",
-          "type": "Decoupled_resp",
-          "flip": true
-        }
-      ]
-    },
-    "Io_a888fb": {
-      "name": "Io_a888fb",
-      "kind": "Bundle",
-      "channels": [
-        {
-          "name": "imem",
-          "type": "Imem_f5707c",
-          "flip": false
-        },
-        {
-          "name": "out",
-          "type": "Decoupled_out",
-          "flip": false
-        }
-      ]
-    },
-    "Decoupled_in": {
-      "name": "Decoupled_in",
-      "kind": "Decoupled",
-      "fields": [
-        [
-          "result",
-          32,
-          "out"
-        ],
-        [
-          "rd",
-          5,
           "out"
         ],
         [
@@ -401,45 +59,77 @@
       "kind": "Decoupled",
       "fields": [
         [
-          "result",
+          "pc",
           32,
           "out"
         ],
         [
-          "rd",
-          5,
-          "out"
-        ],
-        [
-          "wen",
-          1,
+          "inst",
+          32,
           "out"
         ]
       ]
     },
-    "Wr_dc69b2": {
-      "name": "Wr_dc69b2",
+    "Io_4cde27": {
+      "name": "Io_4cde27",
       "kind": "Bundle",
       "channels": [
         {
-          "name": "waddr",
-          "type": "UInt<5>",
+          "name": "rd",
+          "type": "Rf",
+          "flip": true
+        },
+        {
+          "name": "wr",
+          "type": "Rf_d1479c",
+          "flip": true
+        }
+      ]
+    },
+    "Io": {
+      "name": "Io",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "imem",
+          "type": "Imem",
           "flip": false
         },
         {
-          "name": "wdata",
-          "type": "UInt<32>",
-          "flip": false
-        },
-        {
-          "name": "wen",
-          "type": "UInt<1>",
+          "name": "out",
+          "type": "Decoupled_out",
           "flip": false
         }
       ]
     },
-    "Decoupled_io_in": {
-      "name": "Decoupled_io_in",
+    "Rf": {
+      "name": "Rf",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "raddr1",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "raddr2",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "rdata1",
+          "type": "UInt<32>",
+          "flip": true
+        },
+        {
+          "name": "rdata2",
+          "type": "UInt<32>",
+          "flip": true
+        }
+      ]
+    },
+    "Decoupled_out_0778b8": {
+      "name": "Decoupled_out_0778b8",
       "kind": "Decoupled",
       "fields": [
         [
@@ -459,20 +149,130 @@
         ]
       ]
     },
-    "Io_c27cc6": {
-      "name": "Io_c27cc6",
+    "Rf_d1479c": {
+      "name": "Rf_d1479c",
       "kind": "Bundle",
       "channels": [
         {
-          "name": "rd",
-          "type": "Rd_5f1233",
+          "name": "waddr",
+          "type": "UInt<5>",
+          "flip": false
+        },
+        {
+          "name": "wdata",
+          "type": "UInt<32>",
+          "flip": false
+        },
+        {
+          "name": "wen",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    },
+    "Imem": {
+      "name": "Imem",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "req",
+          "type": "Decoupled_req",
+          "flip": false
+        },
+        {
+          "name": "resp",
+          "type": "Decoupled_resp",
+          "flip": true
+        }
+      ]
+    },
+    "Io_d330f2": {
+      "name": "Io_d330f2",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "imem",
+          "type": "Imem",
+          "flip": false
+        },
+        {
+          "name": "dmem",
+          "type": "Imem",
+          "flip": false
+        }
+      ]
+    },
+    "Io_8f941d": {
+      "name": "Io_8f941d",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_out_0112bf",
           "flip": true
         },
         {
-          "name": "wr",
-          "type": "Wr_dc69b2",
-          "flip": true
+          "name": "out",
+          "type": "Decoupled_out_0778b8",
+          "flip": false
         }
+      ]
+    },
+    "Io_284312": {
+      "name": "Io_284312",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "in",
+          "type": "Decoupled_out",
+          "flip": true
+        },
+        {
+          "name": "out",
+          "type": "Decoupled_out_0112bf",
+          "flip": false
+        },
+        {
+          "name": "rf",
+          "type": "Rf",
+          "flip": false
+        }
+      ]
+    },
+    "Decoupled_out_0112bf": {
+      "name": "Decoupled_out_0112bf",
+      "kind": "Decoupled",
+      "fields": [
+        [
+          "pc",
+          32,
+          "out"
+        ],
+        [
+          "op",
+          4,
+          "out"
+        ],
+        [
+          "rs1",
+          32,
+          "out"
+        ],
+        [
+          "rs2",
+          32,
+          "out"
+        ],
+        [
+          "imm",
+          32,
+          "out"
+        ],
+        [
+          "rd",
+          5,
+          "out"
+        ]
       ]
     }
   },
@@ -512,7 +312,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_a888fb",
+          "bundle": "Io",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -526,7 +326,7 @@
         {
           "from": "io.imem",
           "to": "io.out",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -537,7 +337,7 @@
         {
           "from": "io.imem",
           "to": "pc",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -548,7 +348,7 @@
         {
           "from": "io.imem",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -559,7 +359,7 @@
         {
           "from": "io.imem",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -570,7 +370,7 @@
         {
           "from": "io.out",
           "to": "io.imem",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -581,7 +381,7 @@
         {
           "from": "io.out",
           "to": "pc",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -633,7 +433,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_3ab96b",
+          "bundle": "Io_284312",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -647,7 +447,7 @@
         {
           "from": "io.rf",
           "to": "_io_rf_raddr1_T",
-          "bundle": "Io_rf_5f1233",
+          "bundle": "Rf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -658,7 +458,7 @@
         {
           "from": "io.rf",
           "to": "_io_rf_raddr2_T",
-          "bundle": "Io_rf_5f1233",
+          "bundle": "Rf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -669,7 +469,7 @@
         {
           "from": "io.in",
           "to": "io.out",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -680,7 +480,7 @@
         {
           "from": "io.out",
           "to": "io.in",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0112bf",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -691,7 +491,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_op_T",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -702,7 +502,7 @@
         {
           "from": "io.out",
           "to": "io.rf",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0112bf",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -713,7 +513,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_imm_T",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -724,7 +524,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_rd_T",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -776,7 +576,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_892115",
+          "bundle": "Io_8f941d",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -790,7 +590,7 @@
         {
           "from": "io.in",
           "to": "io.out",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -801,7 +601,7 @@
         {
           "from": "io.out",
           "to": "io.in",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0778b8",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -812,7 +612,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_result_T_1",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0778b8",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -823,7 +623,7 @@
         {
           "from": "io.out",
           "to": "_io_out_bits_wen_T",
-          "bundle": "Decoupled_io_out",
+          "bundle": "Decoupled_out_0778b8",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -875,7 +675,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_75a75c",
+          "bundle": "Io_94fafe",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -889,7 +689,7 @@
         {
           "from": "io.in",
           "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out_0778b8",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -900,7 +700,7 @@
         {
           "from": "io.dmem",
           "to": "UInt<1>(0h0)",
-          "bundle": "Io_dmem_f5707c",
+          "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -911,7 +711,7 @@
         {
           "from": "io.dmem",
           "to": "UInt<1>(0h1)",
-          "bundle": "Io_dmem_f5707c",
+          "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -922,7 +722,7 @@
         {
           "from": "io.rf",
           "to": "io.in",
-          "bundle": "Io_rf_dc69b2",
+          "bundle": "Rf_d1479c",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -933,7 +733,7 @@
         {
           "from": "io.rf",
           "to": "_io_rf_wen_T",
-          "bundle": "Io_rf_dc69b2",
+          "bundle": "Rf_d1479c",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -984,7 +784,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_c27cc6",
+          "bundle": "Io_4cde27",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -998,7 +798,7 @@
         {
           "from": "io.rd",
           "to": "io_rd_rdata1_MPORT",
-          "bundle": "Io_rd_5f1233",
+          "bundle": "Rf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1009,7 +809,7 @@
         {
           "from": "io.rd",
           "to": "io_rd_rdata2_MPORT",
-          "bundle": "Io_rd_5f1233",
+          "bundle": "Rf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1020,7 +820,7 @@
         {
           "from": "MPORT",
           "to": "io.wr",
-          "bundle": "Io_wr_dc69b2",
+          "bundle": "Rf_d1479c",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1071,7 +871,7 @@
         {
           "name": "io",
           "dir": "output",
-          "bundle": "Io_0e9fed",
+          "bundle": "Io_d330f2",
           "doc": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1246,7 +1046,7 @@
         {
           "from": "fetch.io.imem",
           "to": "io.imem",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1257,7 +1057,7 @@
         {
           "from": "io.imem",
           "to": "fetch.io.imem",
-          "bundle": "Io_imem_f5707c",
+          "bundle": "Imem",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1268,7 +1068,7 @@
         {
           "from": "wb.io.dmem",
           "to": "io.dmem",
-          "bundle": "Io_dmem_f5707c",
+          "bundle": "Imem",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1279,7 +1079,7 @@
         {
           "from": "io.dmem",
           "to": "wb.io.dmem",
-          "bundle": "Io_dmem_f5707c",
+          "bundle": "Imem",
           "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1290,7 +1090,7 @@
         {
           "from": "decode.io.in",
           "to": "fetch.io.out",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1301,7 +1101,7 @@
         {
           "from": "exec.io.in",
           "to": "decode.io.out",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1312,7 +1112,7 @@
         {
           "from": "wb.io.in",
           "to": "exec.io.out",
-          "bundle": "Decoupled_io_in",
+          "bundle": "Decoupled_out_0778b8",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1323,7 +1123,7 @@
         {
           "from": "rf.io.rd",
           "to": "decode.io.rf",
-          "bundle": "Io_rd_5f1233",
+          "bundle": "Rf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1334,7 +1134,7 @@
         {
           "from": "rf.io.wr",
           "to": "wb.io.rf",
-          "bundle": "Io_wr_dc69b2",
+          "bundle": "Rf_d1479c",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",

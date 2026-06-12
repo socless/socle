@@ -1,113 +1,101 @@
 package socless
 
 import utest._
-import ChirrtlParser.{BundleT, Field, GroundT}
+import ChirrtlParser.{BundleT, Field, GroundT, Circ, Mod, Port}
 
-/** Verifies that bundle key generation is deterministic and stable across JVMs.
-  *
-  * The hash suffix is derived from SHA-1 over the UTF-8 structural fingerprint,
-  * not from String.hashCode (which is not guaranteed stable across JVM versions
-  * or implementations). These tests pin the exact expected hex values so that a
-  * future accidental regression is immediately caught.
+/** Verifies bundle key generation: identity is the FULL structural
+  * fingerprint (names, flips, ground kinds, widths, vec arity), so
+  * structurally identical bundles collapse to one key regardless of hint,
+  * and structurally different bundles never share a key even when they want
+  * the same friendly name (issue #88). Hash suffixes come from SHA-1 over
+  * the UTF-8 fingerprint, never String.hashCode, so keys are stable across
+  * JVM versions; the pinned hex values guard that.
   */
 object BundleKeyTest extends TestSuite {
 
-  // Helpers to build small BundleT fixtures
-  private def field(name: String, flip: Boolean = false): Field =
-    Field(name, flip, GroundT("UInt", Some(8)))
+  private def field(name: String, flip: Boolean = false, width: Int = 8): Field =
+    Field(name, flip, GroundT("UInt", Some(width)))
 
-  // Drive bundleKey through the public API: build a minimal Design and check
-  // what key ends up in the bundles map.
-  private def keyFor(fields: Seq[Field], hint: String): String = {
-    import ChirrtlParser.{Circ, Mod, Port}
-    val bundle = BundleT(fields)
-    val port   = Port(hint, "output", bundle, src = None)
-    val mod    = Mod("Top", "module", Seq(port), Nil, Nil, src = None)
-    val circ   = Circ("Top", Seq(mod))
-    val design = IrWalk.design(circ)
-    // Return the first key that isn't a plain ground-type string.
-    design.bundles.keys
-      .find(k => !k.startsWith("UInt") && !k.startsWith("SInt") && !k.startsWith("Vec"))
-      .getOrElse(throw new RuntimeException(
-        s"no bundle key found; bundles=${design.bundles.keys.toSeq}"))
+  /** One module per (portName, bundle), all in one circuit, sharing a registry. */
+  private def designFor(ports: (String, BundleT)*): Design = {
+    val mods = ports.zipWithIndex.map { case ((hint, bundle), i) =>
+      Mod(s"M$i", "module", Seq(Port(hint, "output", bundle, src = None)), Nil, Nil, src = None)
+    }
+    IrWalk.design(Circ("M0", mods))
   }
 
-  // Known SHA-1 hex values (verified with Python's hashlib.sha1):
-  //   SHA-1("fa_b_fc")[0..5] = 390d65
-  //   SHA-1("data")[0..5]    = a17c9a
-  private val fpFlipABFlipC = Seq(field("a", flip = true), field("b"), field("c", flip = true))
-  private val fpData         = Seq(field("data"))
+  private def bundleKeys(d: Design): Seq[String] =
+    d.bundles.keys.toSeq.filterNot(k => k.startsWith("UInt") || k.startsWith("SInt") || k.startsWith("Vec"))
+
+  private val abFlip = BundleT(Seq(field("a", flip = true), field("b"), field("c", flip = true)))
+  private val data8  = BundleT(Seq(field("data")))
+  private val data32 = BundleT(Seq(field("data", width = 32)))
 
   val tests = Tests {
 
-    test("key has expected shape: Hint_<6hexchars>") {
-      val k      = keyFor(fpFlipABFlipC, "myport")
-      val prefix = "Myport_"
-      assert(k.startsWith(prefix))
-      val suffix = k.stripPrefix(prefix)
-      assert(suffix.length == 6)
-      assert(suffix.forall(c => "0123456789abcdef".contains(c)))
+    test("first registration claims the bare friendly name") {
+      val d = designFor("myport" -> abFlip)
+      assert(d.bundles.contains("Myport"))
     }
 
-    test("same-shaped bundle always produces the same key (determinism)") {
-      val k1 = keyFor(fpFlipABFlipC, "myport")
-      val k2 = keyFor(fpFlipABFlipC, "myport")
-      assert(k1 == k2)
+    test("identical structure under different hints collapses to ONE key") {
+      val d    = designFor("portA" -> abFlip, "portB" -> abFlip)
+      val keys = bundleKeys(d)
+      assert(keys.length == 1)
+      assert(keys.head == "Porta" || keys.head == "PortA" || keys.head.startsWith("Port"))
     }
 
-    test("same shape different hint: identical hex suffix, different full key") {
-      val k1      = keyFor(fpFlipABFlipC, "portA")
-      val k2      = keyFor(fpFlipABFlipC, "portB")
-      val suffix1 = k1.dropWhile(_ != '_').drop(1)
-      val suffix2 = k2.dropWhile(_ != '_').drop(1)
-      assert(suffix1 == suffix2)
-      assert(k1 != k2)
+    test("same hint, different structure: distinct keys, both definitions kept") {
+      val d    = designFor("io" -> data8, "io" -> data32)
+      val keys = bundleKeys(d)
+      assert(keys.length == 2)
+      assert(keys.contains("Io"))
+      val other = keys.find(_ != "Io").get
+      assert(other.startsWith("Io_"))
+      // Both field widths survive (the old fingerprint silently overwrote one).
+      val widths = keys.map(k => d.bundles(k)).flatMap(_.channels.map(_.`type`)).toSet
+      assert(widths == Set("UInt<8>", "UInt<32>"))
     }
 
-    test("different shapes produce different hex suffixes") {
-      val k1      = keyFor(fpFlipABFlipC, "p")
-      val k2      = keyFor(fpData, "p")
-      val suffix1 = k1.dropWhile(_ != '_').drop(1)
-      val suffix2 = k2.dropWhile(_ != '_').drop(1)
-      assert(suffix1 != suffix2)
+    test("hash suffix is deterministic SHA-1 hex over the structural fingerprint") {
+      // SHA-1("{!a:UInt<8>,b:UInt<8>,!c:UInt<8>}").take(6) = 689197
+      // SHA-1("{data:UInt<8>}").take(6)                    = 3bc851
+      val d = designFor("p" -> data32, "p" -> data8, "p" -> abFlip)
+      // data32 claims "P"; the other two collide on the base and get suffixes.
+      assert(d.bundles.contains("P"))
+      assert(d.bundles.contains("P_3bc851"))
+      assert(d.bundles.contains("P_689197"))
     }
 
-    // Pinned golden values: if the algorithm, encoding, or take-length ever
-    // changes accidentally these assertions catch it immediately.
-    test("pinned hex for fingerprint 'fa_b_fc' is 390d65") {
-      val k      = keyFor(fpFlipABFlipC, "myport")
-      val suffix = k.stripPrefix("Myport_")
-      assert(suffix == "390d65")
+    test("Decoupled bundles with different payloads stay distinct") {
+      val deq32 = BundleT(Seq(field("ready", flip = true, width = 1), field("valid", width = 1), field("bits", width = 32)))
+      val deq64 = BundleT(Seq(field("ready", flip = true, width = 1), field("valid", width = 1), field("bits", width = 64)))
+      val d     = designFor("deq" -> deq32, "deq" -> deq64)
+      val keys  = bundleKeys(d)
+      assert(keys.length == 2)
+      assert(keys.contains("Decoupled_deq"))
+      assert(keys.exists(_.startsWith("Decoupled_deq_")))
+      val fieldWidths = keys.map(k => d.bundles(k)).flatMap(_.fields.map(_.width)).toSet
+      assert(fieldWidths == Set(32, 64))
     }
 
-    test("pinned hex for fingerprint 'data' is a17c9a") {
-      val k      = keyFor(fpData, "p")
-      val suffix = k.stripPrefix("P_")
-      assert(suffix == "a17c9a")
-    }
-
-    test("AXI4 friendly-name fast-path is unchanged") {
-      import ChirrtlParser.{Circ, Mod, Port}
-      val bundle = BundleT(Seq("ar", "aw", "w", "r", "b").map(n => field(n)))
-      val mod    = Mod("Top", "module", Seq(Port("io", "output", bundle, None)), Nil, Nil, None)
-      val design = IrWalk.design(Circ("Top", Seq(mod)))
-      assert(design.bundles.contains("AXI4"))
-    }
-
-    test("Decoupled friendly-name fast-path is unchanged") {
-      import ChirrtlParser.{Circ, Mod, Port}
-      val bundle = BundleT(Seq(field("ready"), field("valid"), field("bits")))
-      val mod    = Mod("Top", "module", Seq(Port("io", "output", bundle, None)), Nil, Nil, None)
-      val design = IrWalk.design(Circ("Top", Seq(mod)))
-      assert(design.bundles.keys.exists(_.startsWith("Decoupled_")))
+    test("AXI4 friendly name goes to the first shape; a different AXI shape gets a suffix") {
+      def axi(width: Int) = BundleT(Seq("ar", "aw", "w", "r", "b").map(n => field(n, width = width)))
+      val d    = designFor("io" -> axi(8), "io" -> axi(16))
+      assert(d.bundles.contains("AXI4"))
+      assert(d.bundles.keys.exists(k => k.startsWith("AXI4_") && k != "AXI4"))
     }
 
     test("ReadyValid friendly-name fast-path is unchanged") {
-      import ChirrtlParser.{Circ, Mod, Port}
-      val bundle = BundleT(Seq(field("ready"), field("valid")))
-      val mod    = Mod("Top", "module", Seq(Port("io", "output", bundle, None)), Nil, Nil, None)
-      val design = IrWalk.design(Circ("Top", Seq(mod)))
-      assert(design.bundles.keys.exists(_.startsWith("ReadyValid_")))
+      val rv = BundleT(Seq(field("ready"), field("valid")))
+      val d  = designFor("io" -> rv)
+      assert(d.bundles.keys.exists(_.startsWith("ReadyValid_")))
+    }
+
+    test("keys are deterministic across runs") {
+      val d1 = designFor("io" -> data8, "io" -> data32, "q" -> abFlip)
+      val d2 = designFor("io" -> data8, "io" -> data32, "q" -> abFlip)
+      assert(d1.bundles.keys.toSet == d2.bundles.keys.toSet)
     }
   }
 }
