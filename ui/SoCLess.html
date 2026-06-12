@@ -2689,6 +2689,82 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // drag-on-background = pan; auto-fit on path / layout change so any size
   // design lands in view at first paint.
   const viewportRef = useRef(null);
+  // The transformed canvas content; serialized by the SVG/PNG export.
+  const contentRef = useRef(null);
+
+  // ── Export (issue #4): serialize the canvas content into a standalone SVG.
+  // The UI styles everything inline (React style props), so a foreignObject
+  // wrapper preserves appearance; theme colors are CSS variables on :root,
+  // which a detached SVG cannot see, so every var(--x) referenced in the
+  // markup is resolved from the live theme and re-declared on the wrapper.
+  const buildExportSvg = () => {
+    const node = contentRef.current;
+    if (!node) return null;
+    const clone = node.cloneNode(true);
+    clone.style.transform = 'none';
+    clone.style.transition = 'none';
+    clone.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    const xhtml = new XMLSerializer().serializeToString(clone);
+    const varNames = [...new Set([...xhtml.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]))];
+    const rootStyle = getComputedStyle(document.documentElement);
+    const varDecls = varNames
+      .map((v) => `${v}: ${rootStyle.getPropertyValue(v).trim()};`)
+      .join(' ');
+    const w = Math.max(1, Math.ceil(totalW));
+    const h = Math.max(1, Math.ceil(containerH));
+    const bg = rootStyle.getPropertyValue('--bg').trim() || '#fbfbfa';
+    return {
+      w, h,
+      svg:
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+        `<rect width="100%" height="100%" fill="${bg}"/>` +
+        `<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="${varDecls} position: relative; width: ${w}px; height: ${h}px; font-family: ui-monospace, monospace;">` +
+        xhtml +
+        `</div></foreignObject></svg>`,
+    };
+  };
+
+  const downloadBlob = (filename, blob) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+
+  const exportSvg = () => {
+    const out = buildExportSvg();
+    if (!out) return;
+    downloadBlob(`socless-${mod.name}.svg`, new Blob([out.svg], { type: 'image/svg+xml' }));
+  };
+
+  const exportPng = () => {
+    const out = buildExportSvg();
+    if (!out) return;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const scale = 2; // 2x for crisp text
+        const c = document.createElement('canvas');
+        c.width = out.w * scale;
+        c.height = out.h * scale;
+        const ctx = c.getContext('2d');
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
+        c.toBlob((b) => {
+          if (b) downloadBlob(`socless-${mod.name}.png`, b);
+          else if (window.__soclessToast) window.__soclessToast('PNG export failed; try SVG instead', 'err');
+        }, 'image/png');
+      } catch (e) {
+        // Some browsers taint the canvas for foreignObject content.
+        if (window.__soclessToast) window.__soclessToast('PNG export blocked by the browser; use SVG', 'err');
+      }
+    };
+    img.onerror = () => {
+      if (window.__soclessToast) window.__soclessToast('PNG export failed; try SVG instead', 'err');
+    };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(out.svg);
+  };
   const [zoom, setZoom] = useState(1);
   const [pan, setPan]   = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
@@ -2994,7 +3070,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
              cursor: dragRef.current ? 'grabbing' : 'grab',
              touchAction: 'none',
            }}>
-        <div style={{
+        <div ref={contentRef} style={{
           position: 'absolute', left: 0, top: 0,
           width: totalW, height: containerH,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
@@ -3313,6 +3389,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         <span style={{ padding: '3px 6px', color: benchTokens.ink2, minWidth: 38, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => zoomBy(1.25)} title="Zoom in (or mouse wheel up)" style={zoomBtnStyle}>+</button>
         <button onClick={() => { setZoom(1); setPan({ x: 40, y: 40 }); }} title="Reset to 100%" style={zoomBtnStyle}>1:1</button>
+        <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
+        <button data-export-svg="1" onClick={exportSvg} title={`Export ${mod.name} schematic as SVG`} style={zoomBtnStyle}>svg</button>
+        <button data-export-png="1" onClick={exportPng} title={`Export ${mod.name} schematic as PNG (2x)`} style={zoomBtnStyle}>png</button>
       </div>
     </div>
   );
