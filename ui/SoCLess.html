@@ -386,15 +386,6 @@ const MODULES = {
   },
 };
 
-// Display order at top level for the schematic layout (left → right columns).
-const TOP_LAYOUT = {
-  columns: [
-    { id: 'masters',     label: 'Masters',      modules: ['cpu', 'dma'] },
-    { id: 'fabric',      label: 'Fabric',       modules: ['xbar'] },
-    { id: 'slaves',      label: 'Slaves',       modules: ['mem', 'periph'] },
-  ],
-};
-
 // ─── Synthetic waveform - 32 cycles of activity on the AR channel ────────────
 // Each track is a signal path; values are per-cycle. 'x' = unknown, '-' = idle.
 const WAVE_CYCLES = 32;
@@ -574,7 +565,7 @@ const CHANNEL_COLOR = {
   b:  'oklch(0.58 0.18 25)',    // red
 };
 
-window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidth, bundleFields, SOURCES: {} };
+window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidth, bundleFields, SOURCES: {} };
 
 </script>
 
@@ -1536,7 +1527,6 @@ const B_BUNDLES  = window.DESIGN.BUNDLES;
 const B_WAVES    = window.DESIGN.WAVES;
 const B_WAVE_CYCLES = window.DESIGN.WAVE_CYCLES;
 const B_CHAN     = window.DESIGN.CHANNEL_COLOR;
-const bBundleFields = window.DESIGN.bundleFields;
 const bTotalWidth   = window.DESIGN.totalWidth;
 
 // ─── Tokens ──────────────────────────────────────────────────────────────────
@@ -1591,13 +1581,6 @@ function getModuleByPath(path) {
   return mod;
 }
 
-// Resolve a wire endpoint string ('cpu.io.ar' → {inst:'cpu', port:'io', chan:'ar'})
-function parseEndpoint(s) {
-  // Handle 'in[0].ar' style indices
-  const parts = s.split('.');
-  return { inst: parts[0], port: parts[1] || null, chan: parts[2] || null, full: s };
-}
-
 // ─── Keyboard shortcuts (single source of truth) ────────────────────────────
 const SHORTCUTS = [
   { category: 'Navigation',
@@ -1626,7 +1609,6 @@ const SHORTCUTS = [
 function KeyboardHelp({ open, onClose }) {
   if (!open) return null;
   const isMac = typeof navigator !== 'undefined' && /Mac|iP(hone|ad|od)/.test(navigator.platform);
-  const rows = SHORTCUTS.flatMap((s) => s.rows.map((r) => ({ ...r, category: s.category })));
   // Collapse Mac-only key variants when on Mac (show ⌘K) or non-Mac (show Ctrl K).
   const displayKey = (k) => {
     if (isMac && k === 'Ctrl K') return null;
@@ -1729,7 +1711,6 @@ function BenchApp({ tweaks }) {
   const [expandedBundles, setExpandedBundles] = useState(new Set()); // bundle paths expanded (inspector)
   const [expandedPorts, setExpandedPorts] = useState(new Set());     // per-pin paths expanded in schematic
   const [bottomTab, setBottomTab] = useState('source');
-  const [drawerHeight, setDrawerHeight] = useState(240);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -1827,7 +1808,7 @@ function BenchApp({ tweaks }) {
             mod={mod} tab={bottomTab} setTab={setBottomTab}
             selectedSig={selectedSig} setSelectedSig={setSelectedSig}
             hoveredSig={hoveredSig} setHoveredSig={setHoveredSig}
-            height={drawerHeight} setHeight={setDrawerHeight}
+            height={240}
             density={density}
             drillInto={drillInto} tweaks={tweaks}
           />
@@ -1984,7 +1965,6 @@ function BenchTopBar({ path, navTo, mod, onOpenPalette, onOpenHelp }) {
 
 // ─── Design picker ─ switch between bundled fixtures + live design.json ────
 // Keyboard: `d` toggles open (when no input is focused). Esc closes.
-// `r` while picker is open + current source is `live` re-fetches design.json.
 function DesignPicker() {
   const [open, setOpen] = useState(false);
   const [reloading, setReloading] = useState(false);
@@ -2482,11 +2462,13 @@ function BenchHierarchy({ path, setPath, density }) {
 }
 
 function ModuleGlyph({ type, active }) {
-  // Tiny shape indicating module kind
-  const shape = type === 'AXICrossbar' ? '⬢' :
-                type === 'AXIMaster'   ? '◆' :
-                type === 'AXISlave'    ? '■' :
-                type === 'AXISystem'   ? '◉' : '·';
+  // Tiny shape indicating module kind, derived from the module def:
+  // hub (3+ children), register-bearing, blackbox (external/intrinsic), plain leaf.
+  const def = B_MODULES[type];
+  const shape = !def ? '·' :
+                (def.children || []).length >= 3                  ? '⬢' :
+                ((def.metrics && def.metrics.registers) || 0) > 0 ? '◆' :
+                (def.kind === 'external' || def.kind === 'intrinsic') ? '■' : '·';
   return (
     <span style={{
       width: 12, display: 'inline-flex', justifyContent: 'center',
@@ -2520,9 +2502,8 @@ function layoutConstsNow() {
   };
 }
 
-// Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H
-// and a `routingStyle: 'baked'` marker so the wire layer routes along the
-// backend polylines.
+// Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H;
+// the wire layer routes along the backend polylines.
 function bBakedLayout(mod) {
   const all = window.DESIGN && window.DESIGN.layouts;
   if (!all) return null;
@@ -2540,67 +2521,16 @@ function bBakedLayout(mod) {
   });
   const edges = {};
   L.edges.forEach((e) => { edges[e.from + ' ' + e.to] = e.points; });
-  return { boxes, ports, edges, totalW: L.w, totalH: L.h, columnLabels: [], routingStyle: 'baked' };
+  return { boxes, ports, edges, totalW: L.w, totalH: L.h };
 }
 
-// Pick which side of each box a wire enters from based on the relative box
-// positions of the two endpoints (closest face). Used for force layouts where
-// boxes can be in any relative position.
-function bWireEndpoints(ba, bb, fromIdx, toIdx, total) {
-  const cax = ba.x + ba.w / 2, cay = ba.y + ba.h / 2;
-  const cbx = bb.x + bb.w / 2, cby = bb.y + bb.h / 2;
-  const dx = cbx - cax, dy = cby - cay;
-  // Stagger when multiple wires share the same face
-  const off = total > 1 ? (fromIdx - (total - 1) / 2) * 10 : 0;
-  let ax, ay, bx, by;
-  if (Math.abs(dx) >= Math.abs(dy)) {
-    ax = dx > 0 ? ba.x + ba.w : ba.x;
-    ay = cay + off;
-    bx = dx > 0 ? bb.x : bb.x + bb.w;
-    by = cby + off;
-  } else {
-    ax = cax + off;
-    ay = dy > 0 ? ba.y + ba.h : ba.y;
-    bx = cbx + off;
-    by = dy > 0 ? bb.y : bb.y + bb.h;
-  }
-  return { x1: ax, y1: ay, x2: bx, y2: by };
-}
-
-function bRoutePath(w, routingStyle) {
+function bRoutePath(w) {
   if (w.points && w.points.length >= 2) {
     return 'M ' + w.points.map((p) => `${p[0]} ${p[1]}`).join(' L ');
   }
-  if (routingStyle === 'curve') {
-    const dx = w.x2 - w.x1, dy = w.y2 - w.y1;
-    const horiz = Math.abs(dx) >= Math.abs(dy);
-    const cp = Math.max(40, Math.min(180, Math.sqrt(dx * dx + dy * dy) * 0.4));
-    if (horiz) {
-      return `M ${w.x1} ${w.y1} C ${w.x1 + Math.sign(dx) * cp} ${w.y1}, ${w.x2 - Math.sign(dx) * cp} ${w.y2}, ${w.x2} ${w.y2}`;
-    }
-    return `M ${w.x1} ${w.y1} C ${w.x1} ${w.y1 + Math.sign(dy) * cp}, ${w.x2} ${w.y2 - Math.sign(dy) * cp}, ${w.x2} ${w.y2}`;
-  }
-  // orth: out-segment, vertical bend, in-segment
+  // orth fallback: out-segment, vertical bend, in-segment
   const mx = (w.x1 + w.x2) / 2;
   return `M ${w.x1} ${w.y1} L ${mx} ${w.y1} L ${mx} ${w.y2} L ${w.x2} ${w.y2}`;
-}
-
-function bRouteMidpoint(w, routingStyle) {
-  // Where to anchor labels / expand toggles on a routed wire.
-  // When the wire has a baked polyline, return a point ON the polyline:
-  // pick the vertex pair around the middle index and return their midpoint.
-  if (w.points && w.points.length >= 2) {
-    const pts = w.points;
-    const mid = Math.floor(pts.length / 2);
-    // For even lengths, average the two middle vertices; for odd, use the middle vertex.
-    const a = pts[mid - (pts.length % 2 === 0 ? 1 : 0)];
-    const b = pts[mid];
-    return { x: (a[0] + b[0]) / 2, y: (a[1] + b[1]) / 2 };
-  }
-  if (routingStyle === 'curve') {
-    return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
-  }
-  return { x: (w.x1 + w.x2) / 2, y: (w.y1 + w.y2) / 2 };
 }
 
 // Offset a polyline by a perpendicular distance `o` (px).
@@ -2642,11 +2572,11 @@ function offsetPolyline(pts, o) {
 // visual (above boxes, paints stroke+arrowheads). Reusable so the same code
 // drives both the top-level schematic and the mini-schematics rendered inside
 // expanded module bodies (Task 7 of the inline-expansion plan).
-function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, setHoveredSig }) {
+function WireHitLayer({ wires, totalW, totalH, setSelectedSig, setHoveredSig }) {
   return (
     <svg style={{ position: 'absolute', top: 0, left: 0, width: totalW, height: totalH, overflow: 'visible' }}>
       {wires.map((w) => {
-        const d = bRoutePath(w, routingStyle);
+        const d = bRoutePath(w);
         return (
           <path key={w.id} d={d} stroke="transparent" strokeWidth={14} fill="none"
             data-pan-block="1" data-wire={w.fromPath}
@@ -2662,7 +2592,7 @@ function WireHitLayer({ wires, totalW, totalH, routingStyle, setSelectedSig, set
 }
 
 function WireVisualLayer({
-  wires, totalW, totalH, routingStyle,
+  wires, totalW, totalH,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, expandedPorts, globalExpanded,
   markerScope,
 }) {
@@ -2707,8 +2637,7 @@ function WireVisualLayer({
         // Halo: selection gets accent glow; hover gets soft ink halo; default is near-invisible
         const haloColor   = hl ? benchTokens.accent : hov ? benchTokens.ink : benchTokens.ink2;
         const haloOpacity = hl ? 0.18 : hov ? 0.10 : 0.07;
-        const d   = bRoutePath(w, routingStyle);
-        const mid = bRouteMidpoint(w, routingStyle);
+        const d   = bRoutePath(w);
         const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
         return (
           <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
@@ -2728,20 +2657,7 @@ function WireVisualLayer({
                     const dd = 'M ' + offsetPts.map((p) => `${p[0]} ${p[1]}`).join(' L ');
                     return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={dim ? 0.3 : (hl || hov ? 1 : 0.85)} markerEnd={markerHref} />;
                   }
-                  // Fallback for non-baked wires
-                  if (routingStyle === 'curve') {
-                    const dxw = w.x2 - w.x1, dyw = w.y2 - w.y1;
-                    const horiz = Math.abs(dxw) >= Math.abs(dyw);
-                    let dd;
-                    if (horiz) {
-                      const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1} ${w.y1 + o} C ${w.x1 + Math.sign(dxw) * cp} ${w.y1 + o}, ${w.x2 - Math.sign(dxw) * cp} ${w.y2 + o}, ${w.x2} ${w.y2 + o}`;
-                    } else {
-                      const cp = Math.max(40, Math.min(180, Math.sqrt(dxw * dxw + dyw * dyw) * 0.4));
-                      dd = `M ${w.x1 + o} ${w.y1} C ${w.x1 + o} ${w.y1 + Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2 - Math.sign(dyw) * cp}, ${w.x2 + o} ${w.y2}`;
-                    }
-                    return <path key={ch.name} d={dd} stroke={dim ? benchTokens.ink4 : chColor} strokeWidth={1.8} fill="none" strokeLinecap="round" opacity={dim ? 0.3 : 1} markerEnd={markerHref} />;
-                  }
+                  // orth fallback for wires without baked points
                   const yo1 = w.y1 + o;
                   const yo2 = w.y2 + o;
                   const mxo = (w.x1 + w.x2) / 2 + o * 2;
@@ -2769,7 +2685,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // Current layout constants (BenchApp remounts on design switch, so reading
   // them per mount keeps the geometry in sync with the loaded design).
   const { HEADER_H, PORT_PAD, PORT_STEP } = layoutConstsNow();
-  const [hoveredInst, setHoveredInst] = useState(null);
   // Pan + zoom on the schematic canvas. Wheel = zoom around cursor;
   // drag-on-background = pan; auto-fit on path / layout change so any size
   // design lands in view at first paint.
@@ -2789,7 +2704,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   useEffect(() => { panRef.current  = pan;  }, [pan]);
 
   const layoutResult = useMemo(() => bBakedLayout(mod), [mod]);
-  const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, routingStyle, edges: bakedEdges } = layoutResult || { boxes: {}, ports: {}, totalW: 1, totalH: 1, routingStyle: 'baked', edges: {} };
+  const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, edges: bakedEdges } = layoutResult || { boxes: {}, ports: {}, totalW: 1, totalH: 1, edges: {} };
   const containerH = totalH + 40;
 
   // On path change: save the old path's zoom/pan, then restore or auto-fit for
@@ -2946,7 +2861,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       if (b.kind === 'boundary') continue;
       const instChild = mod.children.find((c) => c.name === inst);
       const ports = (layoutPorts && layoutPorts[inst]) || [];
-      const topLevelPorts = ports.filter((p) => !p.bundle || true); // all top-level pins
+      const topLevelPorts = ports; // all top-level pins
 
       const buildRows = (side) => {
         const rows = [];
@@ -3017,74 +2932,41 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     return result;
   }, [boxRowsMap]);
 
-  // Wires with absolute endpoints. We compute per-instance fan-out indexing
-  // so wires sharing a face are staggered (avoids overlap on dense modules).
+  // Wires with absolute endpoints, routed along the baked (ELK) polylines.
   const wires = useMemo(() => {
-    // Count wires per (instance, role) to compute stagger offsets.
-    const fanOut = {}, fanIn = {};
-    displayWires.forEach((w) => {
-      const a = w.from.split('.')[0], b = w.to.split('.')[0];
-      fanOut[a] = (fanOut[a] || 0) + 1;
-      fanIn[b]  = (fanIn[b]  || 0) + 1;
-    });
-    const idxOut = {}, idxIn = {};
     return displayWires.map((w, i) => {
       const fromInst = w.from.split('.')[0];
       const toInst   = w.to.split('.')[0];
-      if (routingStyle === 'baked') {
-        const pts = bakedEdges && bakedEdges[w.from + ' ' + w.to];
-        if (!pts || pts.length < 2) return null;
-        // Override terminal y-coordinates if the port has shifted due to row expansion.
-        // The baked x stays; only y changes (pins move vertically as rows expand above them).
-        // NOTE: in RoutedEdge, points run source->sink (w.to->w.from), so:
-        //   pts[0] = w.to endpoint (source)
-        //   pts[last] = w.from endpoint (sink)
-        const fromBox = layoutBoxes[fromInst];
-        const toBox   = layoutBoxes[toInst];
-        // toPinY overrides pts[0] (= w.to = source endpoint)
-        const toPinY = (pinY[toInst] && pinY[toInst][w.to] != null)
-          ? (toBox ? toBox.y + pinY[toInst][w.to] : pts[0][1]) : pts[0][1];
-        // fromPinY overrides pts[last] (= w.from = sink endpoint)
-        const fromPinY = (pinY[fromInst] && pinY[fromInst][w.from] != null)
-          ? (fromBox ? fromBox.y + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1];
-        // Rebuild the points array with updated first/last y only.
-        const newPts = pts.map((p, idx) => {
-          if (idx === 0) return [p[0], toPinY];
-          if (idx === pts.length - 1) return [p[0], fromPinY];
-          return p;
-        });
-        return {
-          id: `w${i}`, ...w, fromInst, toInst,
-          fromPath: w.from, toPath: w.to,
-          points: newPts,
-          x1: newPts[0][0], y1: newPts[0][1],
-          x2: newPts[newPts.length - 1][0], y2: newPts[newPts.length - 1][1],
-        };
-      }
-      const ba = layoutBoxes[fromInst];
-      const bb = layoutBoxes[toInst];
-      if (!ba || !bb) return null;
-      const fIdx = (idxOut[fromInst] = (idxOut[fromInst] || 0) + 1) - 1;
-      const tIdx = (idxIn[toInst]   = (idxIn[toInst]   || 0) + 1) - 1;
-      const pts = bWireEndpoints(ba, bb, fIdx, fanOut[fromInst]);
+      const pts = bakedEdges && bakedEdges[w.from + ' ' + w.to];
+      if (!pts || pts.length < 2) return null;
+      // Override terminal y-coordinates if the port has shifted due to row expansion.
+      // The baked x stays; only y changes (pins move vertically as rows expand above them).
+      // NOTE: in RoutedEdge, points run source->sink (w.to->w.from), so:
+      //   pts[0] = w.to endpoint (source)
+      //   pts[last] = w.from endpoint (sink)
+      const fromBox = layoutBoxes[fromInst];
+      const toBox   = layoutBoxes[toInst];
+      // toPinY overrides pts[0] (= w.to = source endpoint)
+      const toPinY = (pinY[toInst] && pinY[toInst][w.to] != null)
+        ? (toBox ? toBox.y + pinY[toInst][w.to] : pts[0][1]) : pts[0][1];
+      // fromPinY overrides pts[last] (= w.from = sink endpoint)
+      const fromPinY = (pinY[fromInst] && pinY[fromInst][w.from] != null)
+        ? (fromBox ? fromBox.y + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1];
+      // Rebuild the points array with updated first/last y only.
+      const newPts = pts.map((p, idx) => {
+        if (idx === 0) return [p[0], toPinY];
+        if (idx === pts.length - 1) return [p[0], fromPinY];
+        return p;
+      });
       return {
-        id: `w${i}`, ...w,
-        fromInst, toInst,
+        id: `w${i}`, ...w, fromInst, toInst,
         fromPath: w.from, toPath: w.to,
-        ...pts,
+        points: newPts,
+        x1: newPts[0][0], y1: newPts[0][1],
+        x2: newPts[newPts.length - 1][0], y2: newPts[newPts.length - 1][1],
       };
     }).filter(Boolean);
-  }, [displayWires, layoutBoxes, bakedEdges, routingStyle, pinY]);
-
-  const isHighlighted = (wire) => {
-    if (!selectedSig) return false;
-    return wire.fromPath.startsWith(selectedSig) || wire.toPath.startsWith(selectedSig) ||
-           selectedSig.startsWith(wire.fromPath) || selectedSig.startsWith(wire.toPath);
-  };
-  const isHovered = (wire) => {
-    if (!hoveredSig) return false;
-    return wire.fromPath.startsWith(hoveredSig) || wire.toPath.startsWith(hoveredSig);
-  };
+  }, [displayWires, layoutBoxes, bakedEdges, pinY]);
 
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
@@ -3122,7 +3004,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           {/* Wires - HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
           <WireHitLayer
             wires={wires} totalW={totalW} totalH={containerH}
-            routingStyle={routingStyle}
             setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
           />
 
@@ -3337,8 +3218,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 data-pan-block="1"
                 data-box-inst={inst}
                 data-box-drillable={drillable ? '1' : '0'}
-                onMouseEnter={() => setHoveredInst(inst)}
-                onMouseLeave={() => setHoveredInst((cur) => (cur === inst ? null : cur))}
                 onDoubleClick={() => drillable && drillInto(inst)}
                 style={{
                   position: 'absolute', left: b.x, top: b.y, width: b.w, height: effectiveH,
@@ -3378,7 +3257,6 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           {/* Wires - VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
           <WireVisualLayer
             wires={wires} totalW={totalW} totalH={containerH}
-            routingStyle={routingStyle}
             selectedSig={selectedSig} hoveredSig={hoveredSig}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             expandedPorts={expandedPorts}
@@ -3642,62 +3520,8 @@ function InspectorTreeNode({ node, depth, sig, setSelectedSig, expandedBundles, 
   );
 }
 
-// BundleChannel kept for any other callers (ports panel, etc.) - not used by InspectorBundle anymore.
-function BundleChannel({ ch, fields, wireFrom, setSelectedSig, sig }) {
-  const [open, setOpen] = useState(true);
-  const color = B_CHAN[ch] || benchTokens.ink3;
-  return (
-    <div style={{ marginBottom: 6, border: `1px solid ${benchTokens.borderSoft}`, borderRadius: 5, overflow: 'hidden' }}>
-      <div onClick={() => setOpen((o) => !o)}
-        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', background: benchTokens.panelAlt, cursor: 'pointer', fontFamily: benchTokens.mono, fontSize: 11 }}>
-        <span style={{ width: 8, height: 8, borderRadius: 4, background: color }} />
-        <span style={{ fontWeight: 600 }}>{ch}</span>
-        <span style={{ marginLeft: 'auto', color: benchTokens.ink4, fontSize: 10 }}>{fields.length} signals</span>
-        <span style={{ color: benchTokens.ink4, fontSize: 9, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform .12s', display: 'inline-block' }}>▶</span>
-      </div>
-      {open && (
-        <div>
-          {fields.map((f) => {
-            const fullPath = `${wireFrom}.${f.name}`;
-            const isSel = sig === fullPath;
-            return (
-              <div key={f.name}
-                onClick={() => setSelectedSig(fullPath)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  padding: '3px 8px 3px 22px', fontFamily: benchTokens.mono, fontSize: 10.5,
-                  cursor: 'pointer', position: 'relative',
-                  background: isSel ? benchTokens.accentBg : 'transparent',
-                  color: isSel ? benchTokens.accent : benchTokens.ink2,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSel) e.currentTarget.style.background = benchTokens.panelAlt;
-                  const btn = e.currentTarget.querySelector('.copy-btn');
-                  if (btn) btn.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  if (!isSel) e.currentTarget.style.background = 'transparent';
-                  const btn = e.currentTarget.querySelector('.copy-btn');
-                  if (btn) btn.style.opacity = '0';
-                }}
-              >
-                <span style={{ width: 12, color: benchTokens.ink4, fontSize: 9 }}>{f.dir === 'out' ? '→' : '←'}</span>
-                <span>{f.name}</span>
-                <span style={{ marginLeft: 'auto', color: benchTokens.ink4 }}>{f.width}b</span>
-                <span className="copy-btn" style={{ opacity: 0, transition: 'opacity .1s' }}>
-                  <CopyPathBtn path={fullPath} />
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Bottom drawer: source / waveform / ports ────────────────────────────────
-function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, setHeight, density, drillInto, tweaks }) {
+function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, density, drillInto, tweaks }) {
   const tabs = [
     { id: 'source', label: 'Source',  icon: '⌥' },
     { id: 'wave',   label: 'Waveform', icon: '∿' },
@@ -3843,7 +3667,7 @@ function tokenizeScala(line, selInst, selPort, setSelectedSig, childInstSet, dri
     if (/^\s+$/.test(p) || /^[(){}.,;]$/.test(p)) return <span key={idx}>{p}</span>;
     if (/^(class|extends|val|def|new|for|until|object|trait|case|match|if|else|when|otherwise)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.5 0.15 290)', fontWeight: 500 }}>{p}</span>;
-    if (/^(Module|IO|Bundle|Vec|Flipped|Decoupled|Queue|RRArbiter|AddrDec|RRouter|Backend|IdAllocator|AXI4|AXIMaster|AXISlave|AXISystem|AXICrossbar|TxReq|AR|R|UInt|SInt|Bool|Clock|Reset|Reg|RegInit|Mem|DontCare)$/.test(p))
+    if (/^(Module|IO|Bundle|Vec|Flipped|Decoupled|Queue|RRArbiter|UInt|SInt|Bool|Clock|Reset|Reg|RegInit|Mem|DontCare)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.5 0.13 200)' }}>{p}</span>;
     if (/^(true|false)$/.test(p))
       return <span key={idx} style={{ color: 'oklch(0.55 0.15 30)' }}>{p}</span>;
