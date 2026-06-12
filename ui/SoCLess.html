@@ -621,6 +621,13 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
       if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
       mutateAssign(window.DESIGN.layouts, j.layouts);
     }
+    // Layout dedup indirection (issue #31): copies resolve their layout via
+    // layoutOf (e.g. AXIMaster_1 -> AXIMaster). Without this map every
+    // non-representative copy renders an empty canvas.
+    if (j.layoutOf && typeof j.layoutOf === 'object') {
+      if (!window.DESIGN.layoutOf) window.DESIGN.layoutOf = {};
+      mutateAssign(window.DESIGN.layoutOf, j.layoutOf);
+    }
     // Header/port-row layout constants (issue #38). Carried through so the
     // schematic geometry can read them instead of duplicating the literals.
     if (j.layoutConsts && typeof j.layoutConsts === 'object') {
@@ -3235,8 +3242,27 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           />
         </div>
 
-        {/* Leaf-module placeholder - outside transform div so it fills the full viewport */}
-        {mod.children.length === 0 && (
+        {/* Missing-layout notice: a module we cannot find baked geometry for
+            must say so loudly instead of silently rendering an empty canvas
+            (issue #87: this is how the layoutOf regression went unnoticed). */}
+        {layoutResult === null && (mod.children.length > 0 || (mod.ports || []).length > 0) && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            pointerEvents: 'none',
+          }}>
+            <span data-layout-missing="1" style={{
+              fontFamily: benchTokens.mono, fontSize: 12,
+              color: benchTokens.warn || benchTokens.ink2,
+              letterSpacing: 0.3,
+              whiteSpace: 'nowrap',
+            }}>No layout data for {mod.name}: re-export design.json with a current socless version.</span>
+          </div>
+        )}
+
+        {/* Empty-module placeholder - only when there is truly nothing drawn
+            (issue #93: it used to render over boundary stubs and wires). */}
+        {layoutResult !== null && mod.children.length === 0 && Object.keys(layoutBoxes).length === 0 && (
           <div style={{
             position: 'absolute', inset: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -3247,7 +3273,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
               color: benchTokens.ink4,
               letterSpacing: 0.3,
               whiteSpace: 'nowrap',
-            }}>This is a leaf module - no sub-instances to display.</span>
+            }}>This module has no instances, ports, or wires to display.</span>
           </div>
         )}
       </div>
