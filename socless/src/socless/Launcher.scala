@@ -12,14 +12,21 @@ import os.Path
   * Args (CHIRRTL file mode):
   *   `--fir-input <path> [--output <path>]`
   *
-  * In Chisel mode the launcher reflection-instantiates the named class and
-  * runs Chisel elaboration.  In CHIRRTL mode it reads a `.fir` file directly
-  * and pipes it through `ChirrtlParser` + `IrWalk` (no Chisel on the
-  * classpath is required).
+  * In Chisel mode the launcher reflection-resolves `--top` and runs Chisel
+  * elaboration.  In CHIRRTL mode it reads a `.fir` file directly and pipes it
+  * through `ChirrtlParser` + `IrWalk` (no Chisel on the classpath is
+  * required).
   *
-  * Parameterized Chisel modules need a thin no-arg wrapper:
+  * `--top` accepts three forms (issue #116), tried in this order:
   * {{{
-  *   class MyTopForSocless extends MyTop(defaultParams)
+  *   mypkg.MyTop          // class with a no-arg constructor
+  *   mypkg.MyGen          // Scala object with a zero-arg apply() or build()
+  *   mypkg.Gens.smallSoC  // zero-arg factory method on a Scala object
+  * }}}
+  * Generator objects are the natural form for parameterized designs - the
+  * object can close over any config or implicits it needs:
+  * {{{
+  *   object MyTopForSocless { def apply() = new MyTop(defaultParams) }
   * }}}
   *
   * The plugin's `socless` task forks a `java -cp <runClasspath>` calling
@@ -43,6 +50,84 @@ object Launcher {
     sourceRoot: Option[String],
     chirrtlOut: Option[String],
   )
+
+  /** How a resolved `--top` produces a design instance (issue #116). */
+  sealed trait GenSpec {
+    /** Construct the design. Must be called inside a Chisel builder context
+      * (i.e. from within emitCHIRRTL's generator thunk). */
+    def instantiate(): AnyRef
+    /** Human-readable form for error messages. */
+    def describe: String
+  }
+  object GenSpec {
+    final case class Ctor(ctor: java.lang.reflect.Constructor[_]) extends GenSpec {
+      def instantiate(): AnyRef = ctor.newInstance().asInstanceOf[AnyRef]
+      def describe: String = "no-arg constructor"
+    }
+    final case class ObjectMethod(instance: AnyRef, method: java.lang.reflect.Method) extends GenSpec {
+      def instantiate(): AnyRef = method.invoke(instance)
+      def describe: String = s"object method ${method.getName}()"
+    }
+  }
+
+  private def loadClass(name: String): Option[Class[_]] =
+    try Some(Class.forName(name))
+    catch { case _: ClassNotFoundException | _: NoClassDefFoundError => None }
+
+  /** The singleton instance of a Scala `object` with the given FQCN, if any. */
+  private def objectInstance(name: String): Option[AnyRef] =
+    loadClass(name + "$").flatMap { c =>
+      try Option(c.getField("MODULE$").get(null))
+      catch { case _: ReflectiveOperationException => None }
+    }
+
+  private def zeroArgMethod(target: AnyRef, names: Seq[String]): Option[java.lang.reflect.Method] =
+    names.iterator.flatMap { n =>
+      try {
+        val m = target.getClass.getMethod(n)
+        if (m.getParameterCount == 0) Some(m) else None
+      } catch { case _: NoSuchMethodException => None }
+    }.take(1).toSeq.headOption
+
+  /** Resolve `--top` into a generator. Accepted forms, tried in order
+    * (issue #116):
+    *
+    *   1. `mypkg.MyTop`         - class with an accessible no-arg constructor
+    *   2. `mypkg.MyGen`         - Scala object with a zero-arg apply()/build()
+    *   3. `mypkg.Gens.smallSoC` - zero-arg factory method on a Scala object
+    *
+    * Pure resolution (no instantiation), so it is unit-testable; the actual
+    * construction happens inside the elaboration thunk.
+    */
+  private[socless] def resolveTop(top: String): Either[String, GenSpec] = {
+    val asClass = loadClass(top)
+    val viaCtor = asClass.flatMap { c =>
+      try { val k = c.getDeclaredConstructor(); k.setAccessible(true); Some(GenSpec.Ctor(k): GenSpec) }
+      catch { case _: NoSuchMethodException => None }
+    }
+    def viaObject = objectInstance(top).flatMap { o =>
+      zeroArgMethod(o, Seq("apply", "build")).map(m => GenSpec.ObjectMethod(o, m): GenSpec)
+    }
+    def viaFactory = {
+      val i = top.lastIndexOf('.')
+      if (i <= 0) None
+      else objectInstance(top.substring(0, i)).flatMap { o =>
+        zeroArgMethod(o, Seq(top.substring(i + 1))).map(m => GenSpec.ObjectMethod(o, m): GenSpec)
+      }
+    }
+    viaCtor.orElse(viaObject).orElse(viaFactory).toRight {
+      val reason =
+        if (asClass.isDefined) s"[socless] $top exists but has no accessible no-argument constructor."
+        else s"[socless] $top was not found on the classpath (check spelling + that it is on the runClasspath)."
+      reason + "\n" +
+      "            --top accepts any of:\n" +
+      "              mypkg.MyTop          (class with a no-arg constructor)\n" +
+      "              mypkg.MyGen          (object with a zero-arg apply() or build())\n" +
+      "              mypkg.Gens.smallSoC  (zero-arg factory method on an object)\n" +
+      "            For parameterized designs, a generator object is the natural wrapper:\n" +
+      "              object MyTopForSocless { def apply() = new MyTop(defaultParams) }"
+    }
+  }
 
   /** Pure argument parser - no reflection, no I/O. Returns Right(config) on
     * success or Left(errorMessage) on failure.
@@ -132,36 +217,27 @@ object Launcher {
       case None =>
         val top = cfg.top.get   // safe: parseArgs guarantees one of the two is set
 
-        val cls =
-          try Class.forName(top)
-          catch { case _: ClassNotFoundException =>
-            Console.err.println(s"[socless] class not found: $top")
-            Console.err.println("            check spelling + that it is on the runClasspath")
+        val spec = resolveTop(top) match {
+          case Right(s) => s
+          case Left(msg) =>
+            Console.err.println(msg)
             sys.exit(1)
-          }
+        }
 
-        val ctor =
-          try { val c = cls.getDeclaredConstructor(); c.setAccessible(true); c }
-          catch { case _: NoSuchMethodException =>
-            Console.err.println(s"[socless] $top has no accessible no-argument constructor.")
-            Console.err.println( "            Parameterized Chisel modules must be wrapped:")
-            Console.err.println(s"              class ${cls.getSimpleName}ForSocless extends ${cls.getSimpleName}(defaultParams)")
-            Console.err.println( "            See: https://github.com/e-ban/SoCless#wrapping-parameterized-modules")
-            sys.exit(1)
-          }
-
-        // The catch must live INSIDE the thunk: newInstance() only runs later,
+        // The catch must live INSIDE the thunk: instantiation only runs later,
         // during Chisel elaboration (emitCHIRRTL calls gen() in a builder
         // context; Chisel modules cannot be constructed outside one). A try
         // around the lambda creation alone can never fire.
         val gen: () => RawModule = () =>
-          try ctor.newInstance().asInstanceOf[RawModule]
-          catch { case e: java.lang.reflect.InvocationTargetException =>
-            val cause = Option(e.getCause).getOrElse(e)
-            Console.err.println(s"[socless] failed to instantiate $top: $cause")
-            Console.err.println( "            if the constructor needs parameters, wrap it:")
-            Console.err.println(s"              class ${cls.getSimpleName}ForSocless extends ${cls.getSimpleName}(defaultParams)")
-            sys.exit(1)
+          try spec.instantiate().asInstanceOf[RawModule]
+          catch {
+            case e: java.lang.reflect.InvocationTargetException =>
+              val cause = Option(e.getCause).getOrElse(e)
+              Console.err.println(s"[socless] failed to instantiate $top (${spec.describe}): $cause")
+              sys.exit(1)
+            case _: ClassCastException =>
+              Console.err.println(s"[socless] $top (${spec.describe}) did not return a chisel3.RawModule")
+              sys.exit(1)
           }
 
         chirrtlOut match {

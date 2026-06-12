@@ -77,7 +77,7 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 
 | Member | Default | Use |
 |---|---|---|
-| `soclessTop: T[String]` | (no default — required) | FQCN of the top Chisel class. Must have a no-arg constructor; wrap parameterized modules in a thin `extends YourTop(defaults)` stub. |
+| `soclessTop: T[String]` | (no default — required) | FQCN of the design to elaborate: a class with a no-arg constructor, a Scala object with a zero-arg `apply()`/`build()`, or a zero-arg factory method (`mypkg.Gens.smallSoC`). For parameterized designs, a generator object is the natural wrapper: `object MyTopForSocless { def apply() = new MyTop(defaultParams) }`. |
 | `soclessVersion: T[String]` | `"0.1.0-SNAPSHOT"` | Runtime library version. |
 | `soclessOutputName: T[String]` | `"design.json"` | Filename inside `Task.dest`. |
 | `soclessRuntimeDeps: T[Seq[Dep]]` | `socless::soclessVersion` | Runtime deps injected into `mvnDeps`. Override to swap to an in-tree `moduleDeps` build. |
@@ -87,8 +87,8 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 
 1. The `socless` task forks `java` with your module's `runClasspath` and
    invokes `socless.Launcher`.
-2. `Launcher` reflection-instantiates your top class, hands it to
-   `SoclessExporter.export`.
+2. `Launcher` reflection-resolves your top (class, generator object, or
+   factory method) and hands it to `SoclessExporter.export`.
 3. `SoclessExporter` calls Chisel's public `circt.stage.ChiselStage.emitCHIRRTL`
    to get the elaborated design as CHIRRTL text — bundles still aggregate
    at this level.
