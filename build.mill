@@ -67,6 +67,34 @@ trait ChiselToolchain extends ScalaModule {
 // ─── SoCLess standalone server helper ───────────────────────────────────────
 // Used by both `example.soclessUI` and `example.soclessServe`.
 // The equivalent in the published Mill plugin lives in SoclessModule.scala.
+
+/** Parse the leftover task arguments as a port: `--port N` or a bare `N`.
+  * Mirrors SoclessModule.parsePort (build.mill cannot depend on the plugin).
+  */
+def parseSoclessPort(args: Seq[String], default: Int): Int = {
+  def toPort(s: String): Int =
+    s.toIntOption.filter(p => p > 0 && p <= 65535).getOrElse(
+      sys.error(s"[socless] invalid port '$s' (expected 1-65535)")
+    )
+  args match {
+    case Seq()            => default
+    case Seq("--port", n) => toPort(n)
+    case Seq(n)           => toPort(n)
+    case other            => sys.error(
+      s"[socless] unrecognized arguments: ${other.mkString(" ")} (usage: soclessUI [--port] <port>)"
+    )
+  }
+}
+
+/** Open `url` in the default browser, best-effort: never kill the server task. */
+def openSoclessBrowser(url: String, log: String => Unit): Unit = {
+  val opener =
+    if (sys.props.getOrElse("os.name", "").toLowerCase.contains("mac")) "open"
+    else "xdg-open"
+  try { os.proc(opener, url).spawn(stdout = os.Pipe, stderr = os.Pipe); () }
+  catch { case _: Exception => log(s"[socless] could not open a browser, visit $url manually") }
+}
+
 def buildSoclessServer(classpath: String): String = {
   val q3 = "\"\"\""     // triple-quote, safely embedded in a triple-quoted Scala string
   val cpEscaped = classpath.replace("\\", "\\\\")
@@ -81,6 +109,10 @@ import tempfile
 
 CLASSPATH = $q3$cpEscaped$q3
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+# Loopback only: /convert runs a JVM on the request body, that must not be
+# reachable from the LAN. Set SOCLESS_BIND to override deliberately.
+HOST = os.environ.get("SOCLESS_BIND", "127.0.0.1")
+MAX_BODY = 128 * 1024 * 1024  # 128 MB of CHIRRTL is enough for anyone
 SERVE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -98,6 +130,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
         length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_BODY:
+            self.send_error(413, "Body too large (%d bytes, max %d)" % (length, MAX_BODY))
+            return
         body = self.rfile.read(length).decode("utf-8", errors="replace")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,7 +150,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             )
             if result.returncode != 0:
                 msg = (result.stderr or result.stdout or "launcher failed").strip()
-                self.send_error(500, "Conversion failed: " + msg[:200])
+                # send_error puts the message into the status line: it must
+                # be a single line or the HTTP response is malformed.
+                first = msg.splitlines()[0] if msg else "launcher failed"
+                self.send_error(500, "Conversion failed: " + first[:200])
                 print("[socless] /convert error:", msg, file=sys.stderr)
                 return
 
@@ -125,14 +163,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(data)
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("", PORT), Handler)
-    print("[socless] serving on http://localhost:" + str(PORT) + "/SoCLess.html -- Ctrl-C to stop",
+    # ThreadingHTTPServer: a slow /convert (JVM startup + elaboration) must
+    # not block static file serving.
+    try:
+        server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as e:
+        print("[socless] cannot listen on %s:%d: %s" % (HOST, PORT, e), file=sys.stderr)
+        print("[socless] pick another port: mill <module>.soclessUI --port <N>", file=sys.stderr)
+        sys.exit(1)
+    print("[socless] serving on http://" + HOST + ":" + str(PORT) + "/SoCLess.html -- Ctrl-C to stop",
           file=sys.stderr)
     try:
         server.serve_forever()
@@ -286,7 +330,7 @@ object example extends ChiselToolchain {
     * Blocks until Ctrl-C.
     */
   def soclessUI(args: Args) = Task.Command {
-    val port = args.value.headOption.fold(8765)(_.toInt)
+    val port = parseSoclessPort(args.value, 8765)
     val json = soclessRun().path
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
@@ -312,7 +356,7 @@ object example extends ChiselToolchain {
     * Blocks until Ctrl-C.
     */
   def soclessServe(args: Args) = Task.Command {
-    val port = args.value.headOption.fold(8765)(_.toInt)
+    val port = parseSoclessPort(args.value, 8765)
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
     extractHtmlTo(uiDir, runClasspath())
@@ -340,7 +384,7 @@ object example extends ChiselToolchain {
     os.write.over(serverScript, buildSoclessServer(cpStr))
     val url = s"http://localhost:$port/SoCLess.html"
     log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
-    os.proc("xdg-open", url).spawn()
+    openSoclessBrowser(url, msg => log.info(msg))
     os.proc("python3", serverScript, port.toString)
       .call(stdout = os.Inherit, stderr = os.Inherit)
   }

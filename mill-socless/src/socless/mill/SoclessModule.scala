@@ -107,7 +107,7 @@ trait SoclessModule extends ScalaModule {
     * Blocks until Ctrl-C.
     */
   def soclessUI(args: Args) = Task.Command {
-    val port  = args.value.headOption.fold(soclessUiPort())(_.toInt)
+    val port  = SoclessModule.parsePort(args.value, soclessUiPort())
     val json  = socless().path
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
@@ -134,7 +134,7 @@ trait SoclessModule extends ScalaModule {
     * Blocks until Ctrl-C.
     */
   def soclessServe(args: Args) = Task.Command {
-    val port  = args.value.headOption.fold(soclessUiPort())(_.toInt)
+    val port  = SoclessModule.parsePort(args.value, soclessUiPort())
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
 
@@ -169,13 +169,44 @@ trait SoclessModule extends ScalaModule {
 
     val url = s"http://localhost:$port/SoCLess.html"
     log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
-    os.proc("xdg-open", url).spawn()
+    SoclessModule.openBrowser(url, msg => log.info(msg))
     os.proc("python3", serverScript, port.toString)
       .call(stdout = os.Inherit, stderr = os.Inherit)
   }
 }
 
 object SoclessModule {
+
+  /** Parse the leftover task arguments as a port: `--port N` or a bare `N`.
+    * Mill passes flag-looking tokens through positionally, so the documented
+    * `--port 9000` form arrives here as Seq("--port", "9000").
+    */
+  def parsePort(args: Seq[String], default: Int): Int = {
+    def toPort(s: String): Int =
+      s.toIntOption.filter(p => p > 0 && p <= 65535).getOrElse(
+        sys.error(s"[socless] invalid port '$s' (expected 1-65535)")
+      )
+    args match {
+      case Seq()            => default
+      case Seq("--port", n) => toPort(n)
+      case Seq(n)           => toPort(n)
+      case other            => sys.error(
+        s"[socless] unrecognized arguments: ${other.mkString(" ")} (usage: soclessUI [--port] <port>)"
+      )
+    }
+  }
+
+  /** Open `url` in the default browser, best-effort: a missing opener must
+    * never kill the server task (macOS has no xdg-open, headless Linux may
+    * lack xdg-utils).
+    */
+  def openBrowser(url: String, log: String => Unit): Unit = {
+    val opener =
+      if (sys.props.getOrElse("os.name", "").toLowerCase.contains("mac")) "open"
+      else "xdg-open"
+    try { os.proc(opener, url).spawn(stdout = os.Pipe, stderr = os.Pipe); () }
+    catch { case _: Exception => log(s"[socless] could not open a browser, visit $url manually") }
+  }
 
   /** Inline Python HTTP server script.
     *
@@ -202,6 +233,10 @@ import tempfile
 
 CLASSPATH = $q3$cpEscaped$q3
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
+# Loopback only: /convert runs a JVM on the request body, that must not be
+# reachable from the LAN. Set SOCLESS_BIND to override deliberately.
+HOST = os.environ.get("SOCLESS_BIND", "127.0.0.1")
+MAX_BODY = 128 * 1024 * 1024  # 128 MB of CHIRRTL is enough for anyone
 SERVE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -219,6 +254,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
         length = int(self.headers.get("Content-Length", 0))
+        if length > MAX_BODY:
+            self.send_error(413, "Body too large (%d bytes, max %d)" % (length, MAX_BODY))
+            return
         body = self.rfile.read(length).decode("utf-8", errors="replace")
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -236,7 +274,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             )
             if result.returncode != 0:
                 msg = (result.stderr or result.stdout or "launcher failed").strip()
-                self.send_error(500, "Conversion failed: " + msg[:200])
+                # send_error puts the message into the status line: it must
+                # be a single line or the HTTP response is malformed.
+                first = msg.splitlines()[0] if msg else "launcher failed"
+                self.send_error(500, "Conversion failed: " + first[:200])
                 print("[socless] /convert error:", msg, file=sys.stderr)
                 return
 
@@ -246,14 +287,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(data)))
-        self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(data)
 
 
 if __name__ == "__main__":
-    server = http.server.HTTPServer(("", PORT), Handler)
-    print("[socless] serving on http://localhost:" + str(PORT) + "/SoCLess.html -- Ctrl-C to stop",
+    # ThreadingHTTPServer: a slow /convert (JVM startup + elaboration) must
+    # not block static file serving.
+    try:
+        server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
+    except OSError as e:
+        print("[socless] cannot listen on %s:%d: %s" % (HOST, PORT, e), file=sys.stderr)
+        print("[socless] pick another port: mill <module>.soclessUI --port <N>", file=sys.stderr)
+        sys.exit(1)
+    print("[socless] serving on http://" + HOST + ":" + str(PORT) + "/SoCLess.html -- Ctrl-C to stop",
           file=sys.stderr)
     try:
         server.serve_forever()
