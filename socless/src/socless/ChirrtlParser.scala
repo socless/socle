@@ -136,24 +136,36 @@ object ChirrtlParser {
       }
     }
 
-    val Circuit  = """^\s*circuit\s+(\w+)\s*:.*$""".r
+    val Circuit  = """^\s*circuit\s+([\w$]+)\s*:.*$""".r
     // Chisel 7+ emits `public module Foo:` for the entry point (layer support).
     // Older Chisel just emits `module Foo:`. We accept both, plus extmodule /
-    // intmodule. Multiple `@[file line:col]` markers may appear on one line
-    // (Chisel attaches a marker per parent macro expansion); we capture them
-    // as a single trailing block and only parse the first one - coalescing
-    // them all into one source ref would be lossy without buying anything.
-    val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+(\w+)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
+    // intmodule. Names may contain `$` (anonymous classes) and extra tokens
+    // may sit between the name and the colon (`module Foo enablelayer A :`):
+    // rejecting the line silently merged the module's whole body into the
+    // PREVIOUS module (issue #101). Multiple `@[file line:col]` markers may
+    // appear on one line (Chisel attaches a marker per parent macro
+    // expansion); we capture them as a single trailing block and only parse
+    // the first one - coalescing them all into one source ref would be lossy
+    // without buying anything.
+    val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+([\w$]+)([^:]*)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
+
+    // Constructs we recognize but do not represent (no topology for them):
+    // counted and surfaced as ONE summary warning so .fir users know what is
+    // missing instead of wires silently vanishing (issue #101).
+    var skippedPartial = 0   // old-FIRRTL partial connect `lhs <- rhs`
+    var skippedAttach  = 0   // Analog `attach(a, b)`
 
     for (raw <- lines) {
       raw match {
         case Circuit(n) =>
           circuitName = n
-        case ModLine(_indent, kind, name, srcOpt) =>
+        case ModLine(_indent, kind, name, _extra, srcOpt) =>
           flush()
           curMod  = Some(name)
           curKind = kind
           curSrc  = parseSrc(Option(srcOpt))
+        case other if curMod.isDefined && other.trim.startsWith(";") =>
+          () // comment line: never a statement, never a reference
         case other if curMod.isDefined =>
           // Wrap per-line parsing so a malformed statement never aborts the
           // whole parse; we skip unrecognised / unparseable lines gracefully.
@@ -169,7 +181,11 @@ object ChirrtlParser {
               case Some(c: Conn)    => curConns += c; collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl) => curRegs += r; collectRefs(other)
               case Some(m: MemDecl) => curMems += m; collectRefs(other)
-              case _                => collectRefs(other) // nodes, whens, ops, etc.
+              case _ =>
+                val t = other.trim
+                if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
+                else if (t.startsWith("attach")) skippedAttach += 1
+                collectRefs(other) // nodes, whens, ops, etc.
             }
           } catch {
             case _: Exception => () // skip malformed line, keep going
@@ -178,6 +194,13 @@ object ChirrtlParser {
       }
     }
     flush()
+    if (skippedPartial + skippedAttach > 0) {
+      val parts = Seq(
+        if (skippedPartial > 0) Some(s"$skippedPartial partial connect(s) '<-'") else None,
+        if (skippedAttach  > 0) Some(s"$skippedAttach attach statement(s)") else None,
+      ).flatten
+      Console.err.println(s"[socless] parser skipped ${parts.mkString(" and ")}: these wires are not represented")
+    }
     Circ(circuitName, modules.toSeq)
   }
 
@@ -192,13 +215,24 @@ object ChirrtlParser {
   // We accept both for portability.
   private val ConnRe1 = """^\s+connect\s+(.+?)\s*,\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   private val ConnRe2 = """^\s+(.+?)\s*<=\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+  // Old-FIRRTL partial connect; recognized only to COUNT it (no topology).
+  private val PartialConnRe = """^[\w$][\w$.\[\]]*\s*<-\s*""".r
+
+  /** The LHS of a legacy `<=` connect must look like a reference: bare `<=`
+    * also appears inside printf format strings and expression lines, which
+    * used to parse into bogus Conns (inflating wire metrics, issue #101). */
+  private def isRefExpr(s: String): Boolean =
+    s.nonEmpty && (s.head.isLetter || s.head == '_') &&
+      !s.exists(c => c == '(' || c == '"' || c == ' ')
 
   // Register declarations.
   // Plain reg:      reg <name> : <type>, <clock>  @[...]
   // Reset reg:  regreset <name> : <type>, <clock>, <reset>, <init>  @[...]
-  // Both match the same prefix: optional "regreset" or "reg" keyword, then name : type, rest.
+  // The type is NOT split at the first comma (aggregate reg types contain
+  // commas, issue #101): the full remainder is captured and parseType
+  // consumes exactly the type prefix, leaving the clock/reset operands.
   private val RegRe =
-    """^\s+(?:regreset|reg)\s+([\w$]+)\s*:\s*(.+?)\s*,.*?((?:@\[[^\]]*\]\s*)*)$""".r
+    """^\s+(?:regreset|reg)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
 
   // Memory declarations: cmem, smem, mem (one-liner forms).
   // cmem/smem: cmem <name> : <type>[<depth>]  @[...]
@@ -214,7 +248,7 @@ object ChirrtlParser {
       Some(Inst(name, ofMod, parseSrc(Option(srcOpt))))
     case ConnRe1(lhs, rhs, srcOpt) =>
       Some(Conn(lhs.trim, rhs.trim, parseSrc(Option(srcOpt))))
-    case ConnRe2(lhs, rhs, srcOpt) if !line.contains("connect ") =>
+    case ConnRe2(lhs, rhs, srcOpt) if !line.contains("connect ") && isRefExpr(lhs.trim) =>
       Some(Conn(lhs.trim, rhs.trim, parseSrc(Option(srcOpt))))
     case RegRe(name, typeStr, srcOpt) =>
       // Parse just the type prefix; ignore the clock/reset/init operands.
@@ -248,7 +282,10 @@ object ChirrtlParser {
     * The recursion handles arbitrarily nested bundles + vectors of bundles.
     */
   def parseType(src: String): (Type, String) = {
-    val s = src.trim
+    val s0 = src.trim
+    // `const T` is T for our purposes (issue #101: it used to parse as a
+    // ground type literally named "const", discarding the real type).
+    val s = if (s0.startsWith("const ")) s0.substring(6).trim else s0
     val (base, after) =
       if (s.startsWith("{")) parseBundle(s)
       else                    parseGround(s)
@@ -269,8 +306,12 @@ object ChirrtlParser {
     var rest = src.substring(1).trim
     val fields = mutable.Buffer.empty[Field]
     while (rest.nonEmpty && !rest.startsWith("}")) {
+      // `flip` is only the keyword when an identifier follows: a field
+      // literally NAMED flip (`flip : UInt<1>`) must keep its name (issue
+      // #101: it used to parse as Field(name = "", flip = true)).
       val (flip, afterFlip) =
-        if (rest.startsWith("flip") && rest.length > 4 && rest(4).isWhitespace)
+        if (rest.startsWith("flip") && rest.length > 4 && rest(4).isWhitespace
+            && !rest.substring(4).trim.startsWith(":"))
                                         (true,  rest.substring(4).trim)
         else                            (false, rest)
       // field name up to ':'
@@ -294,6 +335,22 @@ object ChirrtlParser {
     val (name, after0) =
       if (nameEnd < 0) (s, "")
       else             (s.substring(0, nameEnd), s.substring(nameEnd))
+    // Probe<T> / RWProbe<T>: the payload may itself contain '<...>'
+    // (Probe<UInt<8>>), so the bracket must be matched by depth, not by the
+    // first '>' (issue #101: the width parsed as "UInt<8" and a stray '>'
+    // leaked into the remainder).
+    if ((name == "Probe" || name == "RWProbe") && after0.startsWith("<")) {
+      var depth = 0; var i = 0; var end = -1
+      while (i < after0.length && end < 0) {
+        after0(i) match {
+          case '<' => depth += 1
+          case '>' => depth -= 1; if (depth == 0) end = i
+          case _   =>
+        }
+        i += 1
+      }
+      if (end > 0) return (GroundT(name, None), after0.substring(end + 1).trim)
+    }
     // Optional <Width>
     val (width, after) =
       if (after0.startsWith("<")) {

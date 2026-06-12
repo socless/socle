@@ -278,6 +278,108 @@ object ChirrtlParserHardeningTest extends TestSuite {
       assert(mod(circ, "Good2").ports.size == 1)
     }
 
+    // ── Round 2 (issue #101) ─────────────────────────────────────────────────
+
+    test("dollar-sign module names parse as their own module, never merged") {
+      val chirrtl =
+        """|circuit T :
+           |  module Outer :
+           |    input a : UInt<1>
+           |  module Foo$anon :
+           |    input b : UInt<1>
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      assert(circ.modules.map(_.name) == Seq("Outer", "Foo$anon"))
+      assert(mod(circ, "Outer").ports.map(_.name) == Seq("a"))
+      assert(mod(circ, "Foo$anon").ports.map(_.name) == Seq("b"))
+    }
+
+    test("module with enablelayer tokens before the colon parses") {
+      val chirrtl =
+        """|circuit T :
+           |  module Foo enablelayer A :
+           |    input a : UInt<1>
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      assert(circ.modules.map(_.name) == Seq("Foo"))
+      assert(mod(circ, "Foo").ports.map(_.name) == Seq("a"))
+    }
+
+    test("printf format strings containing <= do not become connects") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    input clock : Clock
+           |    input a : UInt<8>
+           |    printf(clock, UInt<1>(1), "x <= %d", a)
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      assert(mod(circ, "T").conns.isEmpty)
+    }
+
+    test("comment lines are neither statements nor references") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    input a : UInt<8>
+           |    input ghost : UInt<8>
+           |    ; ghost <= a
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      val m = mod(circ, "T")
+      assert(m.conns.isEmpty)
+      assert(!m.refs.contains("ghost"))
+    }
+
+    test("a field literally named flip keeps its name") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    output io : { flip : UInt<1>, flip dir : UInt<1>}
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      val tpe = mod(circ, "T").ports.head.tpe.asInstanceOf[ChirrtlParser.BundleT]
+      assert(tpe.fields.map(f => (f.name, f.flip)) == Seq(("flip", false), ("dir", true)))
+    }
+
+    test("aggregate register types are not truncated at the first comma") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    input clock : Clock
+           |    reg r : { a : UInt<8>, b : UInt<16>}, clock
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      val tpe = mod(circ, "T").regs.head.tpe.asInstanceOf[ChirrtlParser.BundleT]
+      assert(tpe.fields.map(_.name) == Seq("a", "b"))
+    }
+
+    test("const and Probe types parse without garbage") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    input c : const UInt<8>
+           |    output p : Probe<UInt<8>>
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      val m = mod(circ, "T")
+      assert(m.ports.find(_.name == "c").get.tpe == ChirrtlParser.GroundT("UInt", Some(8)))
+      assert(m.ports.find(_.name == "p").get.tpe == ChirrtlParser.GroundT("Probe", None))
+    }
+
+    test("partial connects and attach are skipped without creating bogus topology") {
+      val chirrtl =
+        """|circuit T :
+           |  module T :
+           |    input a : UInt<8>
+           |    output b : UInt<8>
+           |    b <- a
+           |    attach(a, b)
+           |""".stripMargin
+      val circ = parse(chirrtl)
+      assert(mod(circ, "T").conns.isEmpty)
+    }
+
     // ── Realistic minimal valid snippet still parses correctly ───────────────
 
     test("minimal valid CHIRRTL snippet still parses correctly") {
