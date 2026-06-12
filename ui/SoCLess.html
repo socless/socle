@@ -2711,7 +2711,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       .map((v) => `${v}: ${rootStyle.getPropertyValue(v).trim()};`)
       .join(' ');
     const w = Math.max(1, Math.ceil(totalW));
-    const h = Math.max(1, Math.ceil(containerH));
+    const h = Math.max(1, Math.ceil(canvasH));
     const bg = rootStyle.getPropertyValue('--bg').trim() || '#fbfbfa';
     return {
       w, h,
@@ -3008,6 +3008,38 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     return result;
   }, [boxRowsMap]);
 
+  // Vertical shifts that keep boxes from covering each other when a bundle
+  // expansion grows a box (issue #106): each expanded box inserts vertical
+  // space at its baked bottom edge, and every box whose baked top sits at or
+  // below that edge moves down by the delta. Relative order is preserved and
+  // boxes can never overlap vertically because of an expansion.
+  const boxShift = useMemo(() => {
+    const inserts = [];
+    for (const [inst, b] of Object.entries(layoutBoxes)) {
+      const info = boxRowsMap[inst];
+      if (info && info.boxH > b.h) inserts.push({ bottom: b.y + b.h, delta: info.boxH - b.h });
+    }
+    const shift = {};
+    let total = 0;
+    if (inserts.length) {
+      for (const [inst, b] of Object.entries(layoutBoxes)) {
+        let s = 0;
+        for (const ins of inserts) if (b.y >= ins.bottom - 1) s += ins.delta;
+        if (s > 0) shift[inst] = s;
+      }
+      total = inserts.reduce((acc, ins) => acc + ins.delta, 0);
+    }
+    return { shift, total };
+  }, [layoutBoxes, boxRowsMap]);
+
+  // The box that owns an endpoint path: boundary stubs are keyed by the FULL
+  // path ("io.in[0]"), instances by the head segment.
+  const ownerBoxId = (path) => (layoutBoxes[path] ? path : path.split('.')[0]);
+
+  // Canvas height including the space inserted by expansions, so a tall
+  // expansion can never paint past the canvas (issue #106).
+  const canvasH = containerH + boxShift.total;
+
   // Wires with absolute endpoints, routed along the baked (ELK) polylines.
   const wires = useMemo(() => {
     return displayWires.map((w, i) => {
@@ -3015,19 +3047,22 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       const toInst   = w.to.split('.')[0];
       const pts = bakedEdges && bakedEdges[w.from + ' ' + w.to];
       if (!pts || pts.length < 2) return null;
-      // Override terminal y-coordinates if the port has shifted due to row expansion.
-      // The baked x stays; only y changes (pins move vertically as rows expand above them).
+      // Override terminal y-coordinates if the port has shifted due to row
+      // expansion, and follow the owning box's expansion shift (issue #106).
+      // The baked x stays; only y changes (pins move vertically).
       // NOTE: in RoutedEdge, points run source->sink (w.to->w.from), so:
       //   pts[0] = w.to endpoint (source)
       //   pts[last] = w.from endpoint (sink)
-      const fromBox = layoutBoxes[fromInst];
-      const toBox   = layoutBoxes[toInst];
+      const fromBox   = layoutBoxes[fromInst];
+      const toBox     = layoutBoxes[toInst];
+      const fromShift = boxShift.shift[ownerBoxId(w.from)] || 0;
+      const toShift   = boxShift.shift[ownerBoxId(w.to)] || 0;
       // toPinY overrides pts[0] (= w.to = source endpoint)
       const toPinY = (pinY[toInst] && pinY[toInst][w.to] != null)
-        ? (toBox ? toBox.y + pinY[toInst][w.to] : pts[0][1]) : pts[0][1];
+        ? (toBox ? toBox.y + toShift + pinY[toInst][w.to] : pts[0][1]) : pts[0][1] + toShift;
       // fromPinY overrides pts[last] (= w.from = sink endpoint)
       const fromPinY = (pinY[fromInst] && pinY[fromInst][w.from] != null)
-        ? (fromBox ? fromBox.y + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1];
+        ? (fromBox ? fromBox.y + fromShift + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1] + fromShift;
       // Rebuild the points array with updated first/last y only.
       const newPts = pts.map((p, idx) => {
         if (idx === 0) return [p[0], toPinY];
@@ -3042,7 +3077,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         x2: newPts[newPts.length - 1][0], y2: newPts[newPts.length - 1][1],
       };
     }).filter(Boolean);
-  }, [displayWires, layoutBoxes, bakedEdges, pinY]);
+  }, [displayWires, layoutBoxes, bakedEdges, pinY, boxShift]);
 
   // Global bundle-mode: when "expanded", every wire renders as channel ribbons
   // regardless of individual toggles; the per-wire expand pill is hidden.
@@ -3072,14 +3107,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
            }}>
         <div ref={contentRef} style={{
           position: 'absolute', left: 0, top: 0,
-          width: totalW, height: containerH,
+          width: totalW, height: canvasH,
           transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           transformOrigin: '0 0',
           transition: 'width .3s, height .3s',
         }}>
           {/* Wires - HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
           <WireHitLayer
-            wires={wires} totalW={totalW} totalH={containerH}
+            wires={wires} totalW={totalW} totalH={canvasH}
             setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
           />
 
@@ -3095,7 +3130,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   data-boundary-stub={inst}
                   title={inst}
                   style={{
-                    position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
+                    position: 'absolute', left: b.x, top: b.y + (boxShift.shift[inst] || 0), width: b.w, height: b.h,
                     background: benchTokens.panelAlt,
                     border: `1px dashed ${benchTokens.border}`,
                     borderRadius: 4,
@@ -3296,7 +3331,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 data-box-drillable={drillable ? '1' : '0'}
                 onDoubleClick={() => drillable && drillInto(inst)}
                 style={{
-                  position: 'absolute', left: b.x, top: b.y, width: b.w, height: effectiveH,
+                  position: 'absolute', left: b.x, top: b.y + (boxShift.shift[inst] || 0), width: b.w, height: effectiveH,
                   background: benchTokens.panel,
                   border: `1px ${isBlackbox ? 'dashed' : 'solid'} ${selectedHere ? benchTokens.accent : benchTokens.border}`,
                   borderRadius: 6,
@@ -3332,7 +3367,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
           {/* Wires - VISUAL layer (rendered after boxes so stroke + arrowheads paint above box borders) */}
           <WireVisualLayer
-            wires={wires} totalW={totalW} totalH={containerH}
+            wires={wires} totalW={totalW} totalH={canvasH}
             selectedSig={selectedSig} hoveredSig={hoveredSig}
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             expandedPorts={expandedPorts}
