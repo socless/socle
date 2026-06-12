@@ -77,8 +77,17 @@ for (const design of designs) {
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
   await page.goto(`${BASE}/SoCLess.html?design=${design}`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).catch(() => {});
+  // A design that renders zero hierarchy nodes is a failure, not a skip:
+  // every fixture has at least a top module (issue #103 - the blank-canvas
+  // regression class must not pass silently).
+  const loaded = await page.waitForSelector('[data-hier-path]', { timeout: 15000 })
+    .then(() => true).catch(() => false);
   drain('initial load');
+  if (!loaded) {
+    note(design, 'initial load', 'no hierarchy nodes rendered within 15s');
+    await ctx.close();
+    continue;
+  }
 
   // Fully expand the hierarchy tree (repeat until row count is stable).
   for (let i = 0; i < 12; i++) {
@@ -100,7 +109,20 @@ for (const design of designs) {
     // App must still be mounted: the hierarchy panel and a schematic host stay present.
     const alive = await page.locator('[data-hier-path]').count();
     if (alive === 0) note(design, `drill ${path}${leaf ? ' (leaf)' : ''}`, 'app unmounted / blank page');
-    drain(`drill ${path}${leaf ? ' (leaf)' : ''}`);
+    // The canvas must show SOMETHING: instance boxes, boundary stubs, or the
+    // explicit empty-module notice. A silent blank canvas is a bug (this is
+    // exactly how the layoutOf regression in #87 shipped). A missing-layout
+    // notice is also a failure here: fixtures are exported with layouts.
+    const content = await page.evaluate(() => ({
+      boxes: document.querySelectorAll('[data-box-inst]').length,
+      stubs: document.querySelectorAll('[data-boundary-stub]').length,
+      empty: !!document.querySelector('[data-empty-module]'),
+      layoutMissing: !!document.querySelector('[data-layout-missing]'),
+    }));
+    const where = `drill ${path}${leaf ? ' (leaf)' : ''}`;
+    if (content.layoutMissing) note(design, where, 'missing-layout notice shown for a fixture exported with layouts');
+    else if (content.boxes + content.stubs === 0 && !content.empty) note(design, where, 'blank canvas: no boxes, stubs, or empty-module notice');
+    drain(where);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
   }
 

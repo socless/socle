@@ -3008,6 +3008,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
               return (
                 <div key={inst}
                   data-pan-block="1"
+                  data-boundary-stub={inst}
                   title={inst}
                   style={{
                     position: 'absolute', left: b.x, top: b.y, width: b.w, height: b.h,
@@ -3268,7 +3269,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             pointerEvents: 'none',
           }}>
-            <span style={{
+            <span data-empty-module="1" style={{
               fontFamily: benchTokens.mono, fontSize: 12,
               color: benchTokens.ink4,
               letterSpacing: 0.3,

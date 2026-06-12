@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# Rapid successive pushes should not run redundant full builds.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   build-and-test:
     name: Build, test, and elaborate examples
@@ -39,6 +44,13 @@ jobs:
       - name: Run test suite
         run: ./mill socless.test
 
+      # Publishing must not rot until release day: exercise the local publish
+      # path for both artifacts (catches POM/metadata breakage early).
+      - name: Publish artifacts locally
+        run: |
+          ./mill socless.publishLocal
+          ./mill mill-socless.publishLocal
+
       - name: Elaborate AXISystem example
         run: ./mill example.soclessRun
 
@@ -71,7 +83,9 @@ jobs:
         working-directory: tools/ui-smoke
         run: |
           npm ci
-          npx --yes playwright@1.50 install --with-deps chromium
+          # Keep this version identical to playwright-core in package.json:
+          # a CLI/browser/runner mismatch causes "Executable doesn't exist" flakes.
+          npx --yes playwright@1.60.0 install --with-deps chromium
 
       - name: Assemble UI serve directory
         run: node tools/ui-smoke/assemble.mjs site
@@ -79,5 +93,12 @@ jobs:
       - name: Run UI smoke test
         run: |
           (cd site && python3 -m http.server 8765 >/tmp/ui-server.log 2>&1 &)
-          for i in $(seq 1 20); do curl -sf http://localhost:8765/SoCLess.html >/dev/null && break || sleep 0.5; done
+          ok=0
+          for i in $(seq 1 20); do
+            if curl -sf http://localhost:8765/SoCLess.html >/dev/null; then ok=1; break; fi
+            sleep 0.5
+          done
+          if [ "$ok" != 1 ]; then
+            echo "UI server never came up"; cat /tmp/ui-server.log; exit 1
+          fi
           node tools/ui-smoke/smoke.mjs --base http://localhost:8765
