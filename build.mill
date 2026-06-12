@@ -197,10 +197,13 @@ object socless extends ChiselToolchain with SoclessPublish {
     mvn"org.eclipse.elk:org.eclipse.elk.core:${V.elk}",
     mvn"org.eclipse.elk:org.eclipse.elk.alg.layered:${V.elk}",
   )
-  // Bundle ONLY SoCLess.html at the JAR root (it is the single resource
-  // SoclessModule.soclessUI extracts). Embedding all of ui/ shipped ~9 MB of
-  // dev assets (vta.json, archive/) to every consumer (issue #104).
-  def uiHtml = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" / "SoCLess.html" }
+  // Bundle ONLY the built UI at the JAR root (it is the single resource
+  // SoclessModule.soclessUI extracts; embedding all of ui/ used to ship ~9 MB
+  // of dev assets, issue #104). The BUILT file (SoCLess.dist.html: JSX
+  // precompiled, production React inlined, zero network dependencies, issue
+  // #105) is committed like the goldens, so the Scala build never needs
+  // Node; CI verifies it stays in sync with the source.
+  def uiHtml = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" / "SoCLess.dist.html" }
   def uiResource = Task {
     os.copy.over(uiHtml().path, Task.dest / "SoCLess.html")
     PathRef(Task.dest)

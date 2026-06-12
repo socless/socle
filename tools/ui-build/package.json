@@ -1,0 +1,12 @@
+{
+  "name": "socless-ui-build",
+  "private": true,
+  "type": "module",
+  "description": "Builds ui/SoCLess.dist.html: precompiles the JSX blocks and inlines vendored production React, so the shipped UI has zero network dependencies (issue #105).",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@babel/standalone": "7.29.0"
+  }
+}

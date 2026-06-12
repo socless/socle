@@ -18,7 +18,11 @@ const designs = [
 ];
 
 mkdirSync(`${out}/examples`, { recursive: true });
-copyFileSync('ui/SoCLess.html', `${out}/SoCLess.html`);
+// Serve the BUILT artifact (precompiled JSX + vendored production React,
+// issue #105): it is what ships in the JAR, so it is what gets smoked. Fall
+// back to the dev source when the dist has not been built.
+const ui = existsSync('ui/SoCLess.dist.html') ? 'ui/SoCLess.dist.html' : 'ui/SoCLess.html';
+copyFileSync(ui, `${out}/SoCLess.html`);
 
 const manifest = [];
 for (const [id, task, label] of designs) {

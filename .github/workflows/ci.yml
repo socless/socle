@@ -103,6 +103,20 @@ jobs:
         with:
           node-version: "20"
 
+      # The shipped UI (ui/SoCLess.dist.html: JSX precompiled, production
+      # React inlined, issue #105) is committed like the goldens. Rebuild it
+      # and fail if someone edited ui/SoCLess.html without regenerating.
+      - name: UI dist is in sync with its source
+        working-directory: tools/ui-build
+        run: |
+          npm ci
+          node build.mjs
+          if ! git diff --exit-code ../../ui/SoCLess.dist.html; then
+            echo "ui/SoCLess.dist.html is stale."
+            echo "Run: cd tools/ui-build && npm ci && node build.mjs   then commit the result."
+            exit 1
+          fi
+
       - name: Install UI smoke deps + Chromium
         working-directory: tools/ui-smoke
         run: |

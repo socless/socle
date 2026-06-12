@@ -110,8 +110,15 @@ Common prefixes: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`,
 
 - **Backend (Scala)**: standard `scalafmt` defaults; no `chisel3.internal.*`
   imports (use only public Chisel APIs).
-- **UI (`ui/SoCLess.html`)**: single-file React + Babel; keep it self-contained.
-  No build step, no npm, no bundler.
+- **UI (`ui/SoCLess.html`)**: single-file React, JSX compiled in the browser
+  (dev CDN builds) so you can hack on it with zero tooling. The SHIPPED
+  artifact is `ui/SoCLess.dist.html` (JSX precompiled, production React
+  inlined, no network dependencies): after editing the source, regenerate it
+  and commit both files (CI fails if they drift):
+
+  ```bash
+  cd tools/ui-build && npm ci && node build.mjs
+  ```
 - **Prose and comments**: no em dashes. Use a hyphen, comma, colon, or
   parentheses instead.
 
