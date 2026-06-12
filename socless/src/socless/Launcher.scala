@@ -150,11 +150,16 @@ object Launcher {
             sys.exit(1)
           }
 
-        val gen: () => RawModule =
-          try () => ctor.newInstance().asInstanceOf[RawModule]
-          catch { case e: Exception =>
-            Console.err.println(s"[socless] failed to instantiate $top: ${e.getMessage}")
-            Console.err.println( "            ensure the class has an accessible no-argument constructor:")
+        // The catch must live INSIDE the thunk: newInstance() only runs later,
+        // during Chisel elaboration (emitCHIRRTL calls gen() in a builder
+        // context; Chisel modules cannot be constructed outside one). A try
+        // around the lambda creation alone can never fire.
+        val gen: () => RawModule = () =>
+          try ctor.newInstance().asInstanceOf[RawModule]
+          catch { case e: java.lang.reflect.InvocationTargetException =>
+            val cause = Option(e.getCause).getOrElse(e)
+            Console.err.println(s"[socless] failed to instantiate $top: $cause")
+            Console.err.println( "            if the constructor needs parameters, wrap it:")
             Console.err.println(s"              class ${cls.getSimpleName}ForSocless extends ${cls.getSimpleName}(defaultParams)")
             sys.exit(1)
           }
