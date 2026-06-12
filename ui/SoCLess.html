@@ -417,9 +417,18 @@ const WAVES = [
 
 function totalWidth(bundleName) {
   const b = BUNDLES[bundleName];
-  if (!b) return 0;
+  if (!b) {
+    // Ground types carry their width in the key ("UInt<8>" -> 8); Vec keys
+    // multiply the element width. Used to return 0 ("0b" in width columns).
+    const vm = /^Vec\[(.+),\s*(\d+)\]$/.exec(bundleName || '');
+    if (vm) return totalWidth(vm[1].trim()) * parseInt(vm[2], 10);
+    const gm = /^(?:UInt|SInt)<(\d+)>$/.exec(bundleName || '');
+    return gm ? parseInt(gm[1], 10) : 0;
+  }
   if (b.kind === 'Bundle') {
-    return b.channels.reduce((acc, ch) => acc + totalWidth(ch.type) + 2 /* valid+ready */, 0);
+    // Each channel's own kind accounts for its handshake bits; adding
+    // another +2 here double-counted valid/ready (AXI4 showed 10b extra).
+    return b.channels.reduce((acc, ch) => acc + totalWidth(ch.type), 0);
   }
   if (b.kind === 'Decoupled') {
     return b.fields.reduce((acc, f) => acc + f[1], 0) + 2 /* valid + ready */;
@@ -652,10 +661,16 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     const byName = {};
     for (const m of j.modules) byName[m.name] = m;
     mutateAssign(window.DESIGN.MODULES, byName);
-    if (j.bundles && typeof j.bundles === 'object') {
+    // Every derived map below is replaced UNCONDITIONALLY: a design without
+    // the key must clear the previous design's data, or stale entries leak
+    // across switches and bare-name collisions render the old design's
+    // geometry/types for the new one (issue #94).
+    {
       const bs = {};
-      for (const [k, v] of Object.entries(j.bundles)) {
-        bs[k] = { kind: v.kind, fields: v.fields || [], channels: v.channels || [], name: v.name || k };
+      if (j.bundles && typeof j.bundles === 'object') {
+        for (const [k, v] of Object.entries(j.bundles)) {
+          bs[k] = { kind: v.kind, fields: v.fields || [], channels: v.channels || [], name: v.name || k };
+        }
       }
       mutateAssign(window.DESIGN.BUNDLES, bs);
     }
@@ -664,22 +679,16 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
     // (same trick as MODULES/BUNDLES above).
     if (!window.DESIGN.SOURCES) window.DESIGN.SOURCES = {};
     mutateAssign(window.DESIGN.SOURCES, (j.sources && typeof j.sources === 'object') ? j.sources : {});
-    if (j.layouts && typeof j.layouts === 'object') {
-      if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
-      mutateAssign(window.DESIGN.layouts, j.layouts);
-    }
+    if (!window.DESIGN.layouts) window.DESIGN.layouts = {};
+    mutateAssign(window.DESIGN.layouts, (j.layouts && typeof j.layouts === 'object') ? j.layouts : {});
     // Layout dedup indirection (issue #31): copies resolve their layout via
     // layoutOf (e.g. AXIMaster_1 -> AXIMaster). Without this map every
     // non-representative copy renders an empty canvas.
-    if (j.layoutOf && typeof j.layoutOf === 'object') {
-      if (!window.DESIGN.layoutOf) window.DESIGN.layoutOf = {};
-      mutateAssign(window.DESIGN.layoutOf, j.layoutOf);
-    }
+    if (!window.DESIGN.layoutOf) window.DESIGN.layoutOf = {};
+    mutateAssign(window.DESIGN.layoutOf, (j.layoutOf && typeof j.layoutOf === 'object') ? j.layoutOf : {});
     // Header/port-row layout constants (issue #38). Carried through so the
     // schematic geometry can read them instead of duplicating the literals.
-    if (j.layoutConsts && typeof j.layoutConsts === 'object') {
-      window.DESIGN.layoutConsts = j.layoutConsts;
-    }
+    window.DESIGN.layoutConsts = (j.layoutConsts && typeof j.layoutConsts === 'object') ? j.layoutConsts : {};
     // Waves: splice the live array in-place so module-scope B_WAVES captures stay valid.
     // When the loaded design has no waves, clear to [] so WaveformView shows the empty-state.
     const newWaves = (Array.isArray(j.waves) && j.waves.length > 0) ? j.waves : [];
@@ -826,7 +835,10 @@ window.DESIGN = { BUNDLES, MODULES, TOP_LAYOUT, WAVES, WAVE_CYCLES, CHANNEL_COLO
   window.addEventListener('popstate', () => {
     const want = new URLSearchParams(window.location.search).get('design');
     if (want) window.__soclessLoadDesign(want, { pushUrl: false });
-    else window.__soclessReloadLive();
+    // Only re-fetch live when this session actually loaded from design.json:
+    // in file/demo mode there is nothing to fetch and the reload used to
+    // surface a spurious "load failed: design.json 404" toast (issue #94).
+    else if (window.DESIGN.SOURCE === 'live') window.__soclessReloadLive();
   });
 
   // ── Drag and drop *.json onto the page → load as a design.
@@ -1773,6 +1785,16 @@ function BenchApp({ tweaks }) {
     });
   }, []);
 
+  // Expansion paths are instance-relative ("txQ.io.deq"), not scoped to the
+  // current module: without clearing on navigation, expanding a port in one
+  // module auto-expands an identically named port anywhere you drill, and
+  // entries accumulate for the whole session (issue #94).
+  const navKey = path.join('/');
+  useEffect(() => {
+    setExpandedPorts(new Set());
+    setExpandedBundles(new Set());
+  }, [navKey]);
+
   const togglePort = useCallback((ppath) => {
     setExpandedPorts((s) => {
       const n = new Set(s);
@@ -2005,6 +2027,9 @@ function DesignPicker() {
       const tag = document.activeElement?.tagName;
       const typing = tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable;
       if (typing) return;
+      // Don't toggle the picker underneath an open modal (palette / help
+      // overlay), issue #98.
+      if (document.querySelector('[data-command-palette], [data-help-overlay]')) return;
       if (e.key === 'd' || e.key === 'D') {
         if (e.metaKey || e.ctrlKey || e.altKey) return;
         e.preventDefault();
@@ -2162,6 +2187,10 @@ function fuzzyHighlight(label, needle) {
       ni++;
     }
   }
+  // Scoring matches against label + subtitle; when the match came from the
+  // subtitle the label-only subsequence is incomplete and partial marks
+  // would highlight the wrong characters (issue #98). Show none instead.
+  if (ni < nlo.length) return [{ text: label, hi: false }];
   if (lastEnd < label.length) spans.push({ text: label.slice(lastEnd), hi: false });
   return spans;
 }
@@ -2194,6 +2223,32 @@ function CommandPalette({ open, onClose, onNavigate }) {
           sub: (p.dir || '?') + ' ' + (p.bundle || ''),
           payload: [m.name],
         });
+        // Index one level of bundle channels and Vec elements so the pin
+        // paths visible on screen (io.in[0], io.ar, ...) are searchable
+        // (issue #98: they previously returned 'No matches').
+        const addSub = (name, key) => out.push({
+          kind: 'port',
+          label: m.name + ':' + name,
+          sub: key || '',
+          payload: [m.name],
+        });
+        const b = B_BUNDLES[p.bundle];
+        const vec = /^Vec\[(.+),\s*(\d+)\]$/.exec(p.bundle || '');
+        if (b && b.kind === 'Bundle') {
+          for (const ch of (b.channels || [])) {
+            const chKey = ch.type;
+            const chVec = /^Vec\[(.+),\s*(\d+)\]$/.exec(chKey || '');
+            if (chVec) {
+              const n = Math.min(parseInt(chVec[2], 10), 16);
+              for (let i = 0; i < n; i++) addSub(p.name + '.' + ch.name + '[' + i + ']', chVec[1].trim());
+            } else {
+              addSub(p.name + '.' + ch.name, chKey);
+            }
+          }
+        } else if (vec) {
+          const n = Math.min(parseInt(vec[2], 10), 16);
+          for (let i = 0; i < n; i++) addSub(p.name + '[' + i + ']', vec[1].trim());
+        }
       });
     }
     return out;
@@ -2226,11 +2281,13 @@ function CommandPalette({ open, onClose, onNavigate }) {
       if (!allHit) continue;
       // Bonuses
       if (target.indexOf(needle) >= 0) score -= 1000;           // exact substring wins
-      if (target.startsWith(needle) || target.startsWith(needle)) score -= 200; // leading match
+      if (target.startsWith(needle) || it.label.toLowerCase().startsWith(needle)) score -= 200; // leading match
       // Word-start bonus: first char of needle matches a word boundary in target
       if (needle.length > 0) {
-        const firstChar = needle[0];
-        if (target[0] === firstChar) score -= 100;
+        // Regex-escape: a query starting with '[', '(' or '\' must not throw
+        // a SyntaxError out of the render (issue #98).
+        const firstChar = needle[0].replace(/[.*+?^$()|[\]{}\\]/g, '\\$&');
+        if (target[0] === needle[0]) score -= 100;
         const wbIdx = target.search(new RegExp('(?:^|[\\s._/-])' + firstChar));
         if (wbIdx >= 0) score -= 80;
       }
@@ -2251,7 +2308,12 @@ function CommandPalette({ open, onClose, onNavigate }) {
   const KIND_COLOR = { module: benchTokens.accent, instance: 'oklch(0.55 0.16 290)', port: 'oklch(0.55 0.16 50)' };
 
   return (
-    <div onClick={onClose} data-command-palette="1" style={{
+    <div onClick={onClose} data-command-palette="1"
+      // Escape must close the palette regardless of which child (input or a
+      // result button) owns focus (issue #98: the input handler alone missed
+      // focus on results).
+      onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } }}
+      style={{
       position: 'fixed', inset: 0, background: 'rgba(20,20,18,0.32)',
       display: 'flex', justifyContent: 'center', paddingTop: '12vh', zIndex: 100,
     }}>
@@ -2445,11 +2507,18 @@ const NODE_W = 220, NODE_H = 84;
 // design.json (layoutConsts) so the values stay in sync with Layout.scala
 // (issue #38); we fall back to the historical literals when an older
 // design.json without the block is loaded.
-const _LC = (window.DESIGN && window.DESIGN.layoutConsts) || {};
-// Height of the component-box header band (name + type label).
-const HEADER_H = (typeof _LC.headerH === 'number') ? _LC.headerH : 28;
-const PORT_PAD = (typeof _LC.portPad === 'number') ? _LC.portPad : 18;
-const PORT_STEP = (typeof _LC.portStep === 'number') ? _LC.portStep : 24;
+// Read at CALL time, not script-eval time: ingest() populates
+// window.DESIGN.layoutConsts asynchronously and on every design switch,
+// so a module-scope const would be frozen at the fallbacks forever
+// (issue #94: that silently defeated #38).
+function layoutConstsNow() {
+  const lc = (window.DESIGN && window.DESIGN.layoutConsts) || {};
+  return {
+    HEADER_H: (typeof lc.headerH === 'number') ? lc.headerH : 28,
+    PORT_PAD: (typeof lc.portPad === 'number') ? lc.portPad : 18,
+    PORT_STEP: (typeof lc.portStep === 'number') ? lc.portStep : 24,
+  };
+}
 
 // Baked layout from the backend (ELK). Returns boxes, ports, edges, totalW/H
 // and a `routingStyle: 'baked'` marker so the wire layer routes along the
@@ -2697,6 +2766,9 @@ function WireVisualLayer({
 }
 
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedPorts, togglePort, tweaks }) {
+  // Current layout constants (BenchApp remounts on design switch, so reading
+  // them per mount keeps the geometry in sync with the loaded design).
+  const { HEADER_H, PORT_PAD, PORT_STEP } = layoutConstsNow();
   const [hoveredInst, setHoveredInst] = useState(null);
   // Pan + zoom on the schematic canvas. Wheel = zoom around cursor;
   // drag-on-background = pan; auto-fit on path / layout change so any size
@@ -3028,7 +3100,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             <span style={{ color: benchTokens.ink }}>{mod.type}</span>
           </div>
           <div style={{ background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: '4px 10px', fontSize: 11, color: benchTokens.ink3, fontFamily: benchTokens.mono }}>
-            {mod.children.length} inst · {mod.wires.length} wires
+            {mod.children.length} inst · {mod.wires.length} connects
           </div>
         </div>
       </div>
@@ -3073,8 +3145,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontFamily: benchTokens.mono, fontSize: 9.5, color: benchTokens.ink3,
                     overflow: 'hidden',
-                    pointerEvents: 'none',
-                  }}>
+                    // Hoverable so the path tooltip works and the stub can be
+                    // inspected; data-pan-block keeps panning off it (issue #95:
+                    // pointerEvents none made boundary ports uninspectable).
+                    pointerEvents: 'auto',
+                    cursor: 'default',
+                  }}
+                  onClick={() => setSelectedSig(inst)}
+                  >
                   {/* Each external pin is its own stub now (issue #68); the pin
                       label beside the connector already names the port, so only
                       show a centered id for label-less stubs to avoid duplication. */}
@@ -3113,7 +3191,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                             color: p.interface ? benchTokens.ink2 : benchTokens.ink3,
                             whiteSpace: 'nowrap',
                             pointerEvents: 'none',
-                            maxWidth: b.w - pw - 8,
+                            // Stubs can be 16px wide: never emit a negative width.
+                            maxWidth: Math.max(12, b.w - pw - 8),
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             lineHeight: '10px',
@@ -3391,9 +3470,12 @@ function InspectorMeta({ mod }) {
   const items = [
     ['Type',      mod.type],
     ['Instances', mod.children.length],
-    ['Wires',     mod.wires.length],
+    // mod.wires are coalesced connect groups (literal tie-offs included),
+    // not drawn wires: label them honestly (issue #97).
+    ['Connects',  mod.wires.length],
     ...(mod.metrics.gates != null ? [['Gates', mod.metrics.gates.toLocaleString()]] : []),
     ['Registers', mod.metrics.registers],
+    ...(mod.metrics.memories != null ? [['Memories', mod.metrics.memories]] : []),
     ['LOC',       mod.metrics.lines],
   ];
   return (
@@ -3467,7 +3549,14 @@ function InspectorBundle({ wire, sig, expandedBundles, toggleBundle, setSelected
 
       <div style={{ marginTop: 14, fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Source</div>
       <div style={{ background: benchTokens.panelAlt, padding: '6px 10px', borderRadius: 5, fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink2 }}>
-        {wire.label || wire.bundle}<span style={{ color: benchTokens.ink4 }}> · L24</span>
+        {wire.label || wire.bundle}
+        {/* Real source locator from WireDef.source; it used to show a
+            hardcoded 'L24' on every wire (issue #97). */}
+        {wire.source && wire.source.file ? (
+          <span title={wire.source.file} style={{ color: benchTokens.ink4 }}>
+            {' · '}{wire.source.file.split('/').pop()}:{wire.source.line}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -3635,7 +3724,8 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontFamily: benchTokens.mono, color: benchTokens.ink4 }}>
           {tab === 'source' && mod.source.file}
-          {tab === 'wave' && (B_WAVES && B_WAVES.length > 0 ? `${window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES} cycles · 100 MHz` : 'no waveform data')}
+          {/* No clock frequency exists in the schema: do not invent one (issue #97). */}
+          {tab === 'wave' && (B_WAVES && B_WAVES.length > 0 ? `${window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES} cycles` : 'no waveform data')}
           {tab === 'ports' && `${mod.children.length} instances`}
         </div>
       </div>
