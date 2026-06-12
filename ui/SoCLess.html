@@ -490,7 +490,10 @@ function portTree(bundleKey, baseDir, parentPath) {
   const children = [];
   if (b.kind === 'Bundle') {
     for (const ch of (b.channels || [])) {
-      const childDir = ch.flip ? (baseDir === 'out' ? 'in' : 'out') : baseDir;
+      // Only flip against a KNOWN base direction; with baseDir null (callers
+      // that have no port context) the child stays null so no wrong arrow is
+      // rendered (issue #85: flipped channels used to come out 'out' always).
+      const childDir = baseDir == null ? null : (ch.flip ? (baseDir === 'out' ? 'in' : 'out') : baseDir);
       const childPath = parentPath ? parentPath + '.' + ch.name : ch.name;
       const isExpandable = isAggregateType(ch.type);
       const sub = portTree(ch.type, childDir, childPath);
@@ -503,10 +506,54 @@ function portTree(bundleKey, baseDir, parentPath) {
     // bits: may reference a sub-bundle or be inline fields
     // For simplicity, list each bits field directly
     for (const [fn, fw, fd] of (b.fields || [])) {
-      children.push({ name: 'bits.' + fn, path: parentPath + '.bits.' + fn, bundleKey: 'UInt<' + fw + '>', isExpandable: false, dir: baseDir === 'out' ? fd : (fd === 'out' ? 'in' : 'out'), width: fw, children: [] });
+      // Flip field directions only for a consumer-side port (baseDir 'in');
+      // with baseDir null the declared direction is shown unchanged (it used
+      // to flip every field unconditionally, issue #85).
+      children.push({ name: 'bits.' + fn, path: parentPath + '.bits.' + fn, bundleKey: 'UInt<' + fw + '>', isExpandable: false, dir: baseDir === 'in' ? (fd === 'out' ? 'in' : 'out') : fd, width: fw, children: [] });
     }
   }
   return { name: '', path: parentPath, bundleKey, isExpandable: !!b, dir: baseDir, width: 0, children };
+}
+
+// Resolve the true direction ('out' | 'in') of a pin on an instance box by
+// walking from the instance type's declared port through the bundle tree,
+// honoring channel flips and Vec indexing. `pinPath` is instance-prefixed
+// ("xbar.io.in[0]"). Returns null when unresolvable; portTree then renders
+// no direction arrows rather than wrong ones (issue #85).
+function resolvePinDir(instType, pinPath) {
+  const m = B_MODULES[instType];
+  if (!m || !Array.isArray(m.ports)) return null;
+  const rel = pinPath.replace(/^[^.\[]+\./, '');
+  const port = m.ports.find((p) => rel === p.name || rel.startsWith(p.name + '.') || rel.startsWith(p.name + '['));
+  if (!port) return null;
+  let dir = (port.dir === 'output' || port.dir === 'master') ? 'out' : 'in';
+  let key = port.bundle;
+  let rest = rel.slice(port.name.length);
+  while (rest) {
+    const idx = /^\[(\d+)\]/.exec(rest);
+    if (idx) {
+      const vm = /^Vec\[(.+),\s*(\d+)\]$/.exec(key || '');
+      if (!vm) return dir;
+      key = vm[1].trim();
+      rest = rest.slice(idx[0].length);
+      continue;
+    }
+    const seg = /^\.([^.\[]+)/.exec(rest);
+    if (!seg) return dir;
+    const b = B_BUNDLES[key];
+    if (!b) return dir;
+    if (b.kind === 'Bundle') {
+      const ch = (b.channels || []).find((c) => c.name === seg[1]);
+      if (!ch) return dir;
+      if (ch.flip) dir = dir === 'out' ? 'in' : 'out';
+      key = ch.type;
+    } else {
+      // Decoupled valid/ready/bits levels are handled inside portTree.
+      return dir;
+    }
+    rest = rest.slice(seg[0].length);
+  }
+  return dir;
 }
 
 // Channel color palette - used by both variations so colors are consistent.
@@ -2821,6 +2868,11 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const boxRowsMap = useMemo(() => {
     const result = {};
     for (const [inst, b] of Object.entries(layoutBoxes)) {
+      // Boundary stubs are fixed-size, not expandable, and their pins are
+      // ELK-placed: the row-based pin-Y override must never apply to them
+      // (issue #95: it detached wires from the 28px stubs).
+      if (b.kind === 'boundary') continue;
+      const instChild = mod.children.find((c) => c.name === inst);
       const ports = (layoutPorts && layoutPorts[inst]) || [];
       const topLevelPorts = ports.filter((p) => !p.bundle || true); // all top-level pins
 
@@ -2842,7 +2894,10 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           if (!added) continue;
           // If this port is expanded, splice in children (and their expanded children)
           if (p.bundle && expandedPorts.has(p.path)) {
-            const tree = portTree(p.bundle, null, p.path);
+            // The pin's true direction comes from the instance type's port
+            // declaration (issue #85: null here rendered wrong/missing arrows).
+            const baseDir = instChild ? resolvePinDir(instChild.type, p.path) : null;
+            const tree = portTree(p.bundle, baseDir, p.path);
             const addChildren = (children, depth) => {
               for (const child of children) {
                 const ok = pushRow({
@@ -2869,7 +2924,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       result[inst] = { westRows, eastRows, boxH };
     }
     return result;
-  }, [layoutBoxes, layoutPorts, expandedPorts]);
+  }, [layoutBoxes, layoutPorts, expandedPorts, mod]);
 
   // pinY[inst][portPath] = current y within box (box-relative).
   // Used to override wire endpoint y so wires stay attached when rows expand.
@@ -3114,17 +3169,23 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                         outlineOffset: isInterface ? '1px' : '0',
                         transition: 'background .12s',
                       }} />
-                      {/* Label + optional chevron */}
+                      {/* Label + optional chevron. The row is confined to its
+                          side's half of the box: anchoring to BOTH edges made
+                          every row span the full width, flushing glyphs into
+                          the opposite column and overlapping the other side's
+                          rows (issue #85). Chevron sits on the pin side. */}
                       <div data-pan-block="1"
                         data-bundle-toggle={row.isExpandable ? row.path : undefined}
                         style={{
                         position: 'absolute',
                         top: rowY - 8,
                         ...(isWest
-                          ? { left: pw + 4 + indentPx, right: 6, textAlign: 'left' }
-                          : { right: pw + 4 + indentPx, left: 6, textAlign: 'right' }),
+                          ? { left: pw + 4 + indentPx }
+                          : { right: pw + 4 + indentPx }),
+                        width: Math.max(24, b.w / 2 - (pw + 4 + indentPx) - 4),
                         display: 'flex', alignItems: 'center',
                         flexDirection: isWest ? 'row' : 'row-reverse',
+                        justifyContent: 'flex-start',
                         gap: 3, height: 16,
                         fontFamily: benchTokens.mono, fontSize: 8.5,
                         color: benchTokens.ink2,
@@ -3134,12 +3195,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                       }}
                         onClick={row.isExpandable ? (e) => { e.stopPropagation(); togglePort(row.path); } : undefined}
                       >
-                        <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
                         {row.isExpandable && (
                           <span style={{ flexShrink: 0, color: chevronColor, fontSize: 8, lineHeight: 1 }}>
                             {expandedPorts.has(row.path) ? '−' : '+'}
                           </span>
                         )}
+                        <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{row.label}</span>
                       </div>
                     </React.Fragment>
                   );
@@ -3154,10 +3215,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                       position: 'absolute',
                       top: rowY - 8,
                       ...(isWest
-                        ? { left: 12 + indentPx, right: 6 }
-                        : { right: 12 + indentPx, left: 6 }),
+                        ? { left: 12 + indentPx }
+                        : { right: 12 + indentPx }),
+                      width: Math.max(24, b.w / 2 - (12 + indentPx) - 4),
                       display: 'flex', alignItems: 'center',
                       flexDirection: isWest ? 'row' : 'row-reverse',
+                      justifyContent: 'flex-start',
                       gap: 3, height: 16,
                       fontFamily: benchTokens.mono, fontSize: 8,
                       color: hasChannelColor ? chColor : benchTokens.ink3,
@@ -3167,14 +3230,16 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                     }}
                       onClick={row.isExpandable ? (e) => { e.stopPropagation(); togglePort(row.path); } : undefined}
                     >
-                      {/* Color dot for known channel names */}
-                      {hasChannelColor && <span style={{ width: 5, height: 5, borderRadius: '50%', background: chColor, flexShrink: 0 }} />}
-                      <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: isWest ? 'left' : 'right' }}>{row.label}</span>
+                      {/* Chevron at the pin edge, then dot + name; dir arrow and
+                          width badge sit inward of the name, never in the other
+                          side's column (issue #85). */}
                       {row.isExpandable && (
                         <span style={{ flexShrink: 0, color: benchTokens.ink4, fontSize: 8 }}>
                           {expandedPorts.has(row.path) ? '−' : '+'}
                         </span>
                       )}
+                      {hasChannelColor && <span style={{ width: 5, height: 5, borderRadius: '50%', background: chColor, flexShrink: 0 }} />}
+                      <span title={row.path} style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, flexShrink: 1 }}>{row.label}</span>
                       {row.dir && (
                         <span style={{ flexShrink: 0, color: benchTokens.ink4, fontSize: 7 }}>
                           {row.dir === 'out' ? '→' : '←'}
