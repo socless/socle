@@ -71,6 +71,25 @@ object ChirrtlParser {
   )
   case class Circ(name: String, modules: Seq[Mod])
 
+  // CHIRRTL statement keywords, type names, and primops that must never count
+  // as a port reference (issue #100). Field selections are already excluded
+  // syntactically (a head is never preceded by '.'), so this list only needs
+  // the bare-word vocabulary of the language itself.
+  private val RefStopwords: Set[String] = Set(
+    "circuit", "module", "extmodule", "intmodule", "public", "defname", "parameter",
+    "input", "output", "flip", "inst", "of", "node", "wire", "reg", "regreset",
+    "mem", "cmem", "smem", "when", "else", "skip", "connect", "invalidate",
+    "attach", "define", "force", "release", "printf", "assert", "assume",
+    "cover", "stop", "read", "write", "infer", "rdwr", "mport", "with", "is",
+    "invalid", "old", "new", "undefined",
+    "UInt", "SInt", "Clock", "Reset", "AsyncReset", "Analog", "Probe", "RWProbe",
+    "const", "Fixed", "Interval",
+    "mux", "validif", "add", "sub", "mul", "div", "rem", "lt", "leq", "gt",
+    "geq", "eq", "neq", "pad", "shl", "shr", "dshl", "dshr", "cvt", "neg",
+    "not", "and", "or", "xor", "andr", "orr", "xorr", "cat", "bits", "head",
+    "tail", "asUInt", "asSInt", "asClock", "asAsyncReset",
+  )
+
   // ── Top-level parse ────────────────────────────────────────────────────────
   def parse(chirrtl: String): Circ = {
     val lines = chirrtl.split('\n').toIndexedSeq
@@ -99,14 +118,22 @@ object ChirrtlParser {
       curRegs.clear(); curMems.clear(); curRefs.clear()
     }
 
-    // Collect identifier tokens referenced in a statement line (used to detect
-    // which ports are actually used). Strips @[...] source markers first so file
-    // paths don't leak in, then splits on non-identifier characters.
+    // Collect referenced identifiers (used to detect which ports are actually
+    // used). Only the HEAD of each dotted reference counts: `io.valid`
+    // references the port `io`, never a port named `valid` (issue #100: the
+    // old bag-of-tokens split marked a dangling port `valid` as connected
+    // whenever any other port's `.valid` field was used, and statement
+    // keywords / module names landed in refs too). Source markers and string
+    // literals are stripped first; field selections are excluded by the
+    // lookbehind; statement keywords and primops by the stopword set.
     val SrcMarker = """@\[[^\]]*\]""".r
-    val IdToken   = """[A-Za-z_][A-Za-z0-9_$]*""".r
+    val StrLit    = "\"(?:[^\"\\\\]|\\\\.)*\"".r
+    val RefHead   = """(?<![\w$.])[A-Za-z_][A-Za-z0-9_$]*""".r
     def collectRefs(line: String): Unit = {
-      val stripped = SrcMarker.replaceAllIn(line, " ")
-      IdToken.findAllIn(stripped).foreach(curRefs += _)
+      val stripped = StrLit.replaceAllIn(SrcMarker.replaceAllIn(line, " "), " ")
+      RefHead.findAllIn(stripped).foreach { id =>
+        if (!RefStopwords.contains(id)) curRefs += id
+      }
     }
 
     val Circuit  = """^\s*circuit\s+(\w+)\s*:.*$""".r
@@ -135,8 +162,11 @@ object ChirrtlParser {
               // Port declarations name the port itself; excluded from refs so a
               // port is not counted as "used" merely by being declared.
               case Some(p: Port)    => curPorts += p
-              case Some(i: Inst)    => curInsts += i; collectRefs(other)
-              case Some(c: Conn)    => curConns += c; collectRefs(other)
+              // An instance line (`inst foo of Bar`) references no ports:
+              // collecting it would add the instance and module names to refs.
+              case Some(i: Inst)    => curInsts += i
+              // Connects reference exactly their two endpoint expressions.
+              case Some(c: Conn)    => curConns += c; collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl) => curRegs += r; collectRefs(other)
               case Some(m: MemDecl) => curMems += m; collectRefs(other)
               case _                => collectRefs(other) // nodes, whens, ops, etc.

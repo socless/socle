@@ -49,7 +49,11 @@ object IrWalk {
     // conditions, ...). m.refs is collected from every statement except port
     // declarations, so clock/reset and expression-only inputs count as used and
     // only genuinely-dangling ports are flagged unconnected (issue #74).
-    val ports = m.ports.map(p => buildPort(p, bundles, m.refs.contains(p.name)))
+    // Blackboxes (extmodule/intmodule) have no statements at all, so the
+    // heuristic cannot apply: default their ports to connected rather than
+    // flagging every blackbox pin as dangling (issue #100).
+    val isRealModule = m.kind == "module"
+    val ports = m.ports.map(p => buildPort(p, bundles, !isRealModule || m.refs.contains(p.name)))
     val children = m.insts.map { i =>
       InstanceDef(
         name   = i.name,

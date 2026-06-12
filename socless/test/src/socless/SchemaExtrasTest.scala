@@ -90,6 +90,51 @@ object SchemaExtrasTest extends TestSuite {
       assert(conn("dangling") == false)  // referenced nowhere but its declaration
     }
 
+    // Issue #100: references are path HEADS, not tokens. A dangling port that
+    // shares its name with a referenced FIELD (io.valid), a module name
+    // (inst u of Sub), or a statement keyword must stay flagged.
+    test("connected flag: field names, module names, and keywords are not references") {
+      val text =
+        """|circuit T :
+           |  module Sub :
+           |    input io : { valid : UInt<1>}
+           |  module T :
+           |    input io : { valid : UInt<1>}
+           |    output o : UInt<1>
+           |    input valid : UInt<1>
+           |    input Sub : UInt<1>
+           |    input of : UInt<1>
+           |    inst u of Sub
+           |    connect u.io.valid, io.valid
+           |    connect o, io.valid
+           |""".stripMargin
+      val design = IrWalk.design(ChirrtlParser.parse(text))
+      val m = design.modules.find(_.name == "T").get
+      def conn(n: String) = m.ports.find(_.name == n).get.connected
+      assert(conn("io") == true)      // head of io.valid
+      assert(conn("o") == true)       // connect LHS
+      assert(conn("valid") == false)  // only `.valid` fields are referenced
+      assert(conn("Sub") == false)    // only the module name appears
+      assert(conn("of") == false)     // only the keyword appears
+    }
+
+    test("connected flag: blackbox ports default to connected") {
+      val text =
+        """|circuit T :
+           |  extmodule Blk :
+           |    input clk : Clock
+           |    output q : UInt<8>
+           |    defname = Blk
+           |  module T :
+           |    input clk : Clock
+           |    inst b of Blk
+           |    connect b.clk, clk
+           |""".stripMargin
+      val design = IrWalk.design(ChirrtlParser.parse(text))
+      val blk = design.modules.find(_.name == "Blk").get
+      assert(blk.ports.forall(_.connected))
+    }
+
     test("PortDef.connected defaults to true and round-trips") {
       val p = PortDef("p", "in", "UInt<8>", "", SourceRef.unknown)
       assert(p.connected == true)
