@@ -174,17 +174,28 @@ ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
 
 (or `sbt "runMain ..."` a tiny main that does the same).
 
-**2. Convert + serve with the standalone CLI.** No checkout needed - launch the
-published artifact straight from coursier:
+**2. Convert + serve with the standalone CLI.** Build a single self-contained
+jar once (`socless.Launcher` is its main class), then run it anywhere, with no
+Mill, no Python, and no design checkout:
 
 ```bash
+mill socless.assembly                       # one fat jar at out/socless/assembly.dest/out.jar
+jar=out/socless/assembly.dest/out.jar
+
 # one-off convert:
-cs launch io.socless::socless:<version> -M socless.Launcher -- \
-  --fir-input MyTop.fir --output design.json
+java -jar "$jar" --fir-input MyTop.fir --output design.json
 
 # or serve the UI and drag-drop the .fir onto the page (in-process /convert):
+java -jar "$jar" serve --dir .              # serves design.json from . if present; --port N to override
+```
+
+Once the artifact is published to a repository you can resolve, coursier runs
+the same main without building the jar (the artifact is `0.1.0-SNAPSHOT`, so
+this needs a `mill socless.publishLocal` first, or a published release):
+
+```bash
 cs launch io.socless::socless:<version> -M socless.Launcher -- \
-  serve --dir .        # serves design.json from . if present; --port N to override
+  serve --dir .
 ```
 
 `serve` extracts the bundled single-file UI, serves it on `127.0.0.1` (loopback

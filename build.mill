@@ -191,6 +191,11 @@ if __name__ == "__main__":
 // ─── Runtime library ────────────────────────────────────────────────────────
 object socless extends ChiselToolchain with SoclessPublish {
   def artifactName = "socless"
+  // Explicit so `mill socless.assembly` always produces a runnable jar
+  // (`java -jar … serve` / `--fir-input`) regardless of how many `main`s the
+  // module gains; relying on Mill's single-main auto-detection would silently
+  // break the assembly the day a second entry point is added (issue #156).
+  def mainClass = Some("socless.Launcher")
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.lihaoyi::upickle:${V.upickle}",
     mvn"com.lihaoyi::os-lib:${V.osLib}",
