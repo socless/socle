@@ -158,6 +158,40 @@ mill show example.soclessRun     # prints the JSON path
 The `example/` module is wired with `moduleDeps = Seq(socless)` instead of
 the plugin, so it works without `publishLocal`.
 
+## Using SoCLess with sbt (or any build)
+
+The Mill plugin is the smoothest path, but SoCLess does not need Mill. The
+runtime library ships a standalone, Python-free UI server, so any build that
+can emit CHIRRTL works in two steps.
+
+**1. Dump CHIRRTL from your own build.** Anywhere you can run Chisel:
+
+```scala
+import circt.stage.ChiselStage
+ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
+// writes MyTop.fir
+```
+
+(or `sbt "runMain ..."` a tiny main that does the same).
+
+**2. Convert + serve with the standalone CLI.** No checkout needed - launch the
+published artifact straight from coursier:
+
+```bash
+# one-off convert:
+cs launch io.socless::socless:<version> -M socless.Launcher -- \
+  --fir-input MyTop.fir --output design.json
+
+# or serve the UI and drag-drop the .fir onto the page (in-process /convert):
+cs launch io.socless::socless:<version> -M socless.Launcher -- \
+  serve --dir .        # serves design.json from . if present; --port N to override
+```
+
+`serve` extracts the bundled single-file UI, serves it on `127.0.0.1` (loopback
+only), and converts dropped `.fir` files in-process - no Mill, no Python. Add
+`--dir <dir>` to also serve a `design.json` / `designs.json` from that
+directory so the UI auto-loads it.
+
 ## Compatibility notes
 
 - **Chisel** — CI tests against 7.11.0 only. 5.x / 6.x are not yet covered by

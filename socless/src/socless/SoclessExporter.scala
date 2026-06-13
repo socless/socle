@@ -66,14 +66,23 @@ object SoclessExporter {
     *   )
     * }}}
     */
+  /** Parse CHIRRTL text into a laid-out [[Design]] with no file I/O. Used by
+    * [[fromChirrtl]] and by the standalone server's in-process `/convert`
+    * (issue #115). */
+  def designFromChirrtl(chirrtl: String): Design =
+    Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(chirrtl)))
+
+  /** Convert CHIRRTL text to a `design.json` string (no file I/O), for the
+    * standalone server (issue #115). */
+  def designJson(chirrtl: String, indent: Int = 2): String =
+    upickle.default.write(designFromChirrtl(chirrtl), indent = indent)
+
   def fromChirrtl(
     chirrtl:    String,
     outputPath: Path,
     indent:     Int = 2,
   ): Design = {
-    val parsed = ChirrtlParser.parse(chirrtl)
-    val core   = IrWalk.design(parsed)
-    val design = Layout.withLayouts(core)
+    val design = designFromChirrtl(chirrtl)
     val json   = upickle.default.write(design, indent = indent)
     os.write.over(outputPath, json, createFolders = true)
     Console.err.println(

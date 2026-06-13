@@ -1,0 +1,146 @@
+package socless
+
+import com.sun.net.httpserver.{HttpExchange, HttpServer}
+import java.net.InetSocketAddress
+import java.nio.charset.StandardCharsets.UTF_8
+import java.util.concurrent.Executors
+
+/** Standalone, dependency-free UI server (issue #115): `socless.Launcher serve`
+  * extracts the embedded SoCLess.html and serves it on loopback, converting
+  * dropped `.fir` files in-process via `POST /convert`. No Mill and no Python
+  * required, so it works from an sbt project (or any build): dump CHIRRTL from
+  * your own build, then point this at it.
+  *
+  * Usage:
+  * {{{
+  *   socless.Launcher serve [--port N] [--dir <static-dir>] [--no-open]
+  * }}}
+  * `--dir` additionally serves static files from a directory (drop a
+  * `design.json` / `designs.json` there to have the UI auto-load it).
+  */
+object Serve {
+
+  private val MaxBody = 128 * 1024 * 1024 // 128 MB of CHIRRTL is plenty
+
+  def run(args: Array[String]): Unit = {
+    var port = 8765
+    var dir  = Option.empty[os.Path]
+    var open = true
+    var i    = 0
+    while (i < args.length) {
+      args(i) match {
+        case "--port" if i + 1 < args.length =>
+          port = args(i + 1).toIntOption.filter(p => p > 0 && p <= 65535).getOrElse {
+            Console.err.println(s"[socless] serve: invalid port '${args(i + 1)}'"); sys.exit(2)
+          }
+          i += 2
+        case "--dir" if i + 1 < args.length =>
+          dir = Some(os.Path(args(i + 1), os.pwd)); i += 2
+        case "--no-open" => open = false; i += 1
+        case other =>
+          Console.err.println(s"[socless] serve: unknown argument '$other'")
+          Console.err.println("usage: socless.Launcher serve [--port N] [--dir <dir>] [--no-open]")
+          sys.exit(2)
+      }
+    }
+
+    val html = readResource("/SoCLess.html").getOrElse {
+      Console.err.println("[socless] SoCLess.html not found on the classpath; is the socless JAR complete?")
+      sys.exit(1)
+    }
+
+    val server =
+      try HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0)
+      catch {
+        case e: java.io.IOException =>
+          Console.err.println(s"[socless] cannot listen on 127.0.0.1:$port: ${e.getMessage}")
+          Console.err.println("[socless] pick another port: serve --port <N>")
+          sys.exit(1)
+      }
+    server.createContext("/", (ex: HttpExchange) => handle(ex, html, dir))
+    server.setExecutor(Executors.newFixedThreadPool(4))
+    server.start()
+
+    val url = s"http://127.0.0.1:$port/SoCLess.html"
+    Console.err.println(s"[socless] serving on $url (drag-drop a .fir, or POST /convert) -- Ctrl-C to stop")
+    if (open) openBrowser(url)
+    // Block forever; the JVM exits on Ctrl-C.
+    try Thread.currentThread.join()
+    catch { case _: InterruptedException => server.stop(0) }
+  }
+
+  private def handle(ex: HttpExchange, html: String, dir: Option[os.Path]): Unit = {
+    try {
+      val method = ex.getRequestMethod
+      val path   = ex.getRequestURI.getPath
+      if (method == "POST" && path == "/convert") { convert(ex); return }
+      if (method != "GET" && method != "HEAD") { send(ex, 405, "text/plain", "method not allowed".getBytes(UTF_8)); return }
+      path match {
+        case "/" | "/SoCLess.html" =>
+          send(ex, 200, "text/html; charset=utf-8", html.getBytes(UTF_8))
+        case p =>
+          serveStatic(ex, dir, p.stripPrefix("/"))
+      }
+    } catch {
+      case e: Throwable =>
+        send(ex, 500, "text/plain", s"error: ${e.getMessage}".getBytes(UTF_8))
+    } finally ex.close()
+  }
+
+  /** Serve a file from `--dir`, guarding against path traversal. */
+  private def serveStatic(ex: HttpExchange, dir: Option[os.Path], rel: String): Unit = {
+    val file =
+      try dir.map(_ / os.RelPath(rel)) catch { case _: Throwable => None }
+    file match {
+      case Some(f) if dir.exists(d => f.startsWith(d)) && os.exists(f) && os.isFile(f) =>
+        send(ex, 200, contentType(rel), os.read.bytes(f))
+      case _ =>
+        send(ex, 404, "text/plain", "not found".getBytes(UTF_8))
+    }
+  }
+
+  private def convert(ex: HttpExchange): Unit = {
+    val declared = Option(ex.getRequestHeaders.getFirst("Content-Length")).flatMap(_.toIntOption).getOrElse(-1)
+    if (declared > MaxBody) { send(ex, 413, "text/plain", "body too large".getBytes(UTF_8)); return }
+    val body = new String(ex.getRequestBody.readAllBytes(), UTF_8)
+    try {
+      val json = SoclessExporter.designJson(body)
+      send(ex, 200, "application/json", json.getBytes(UTF_8))
+    } catch {
+      case e: Throwable =>
+        // First line only: a multi-line message would be unhelpful to the UI.
+        val msg = Option(e.getMessage).getOrElse(e.toString).linesIterator.next()
+        send(ex, 500, "text/plain", s"conversion failed: $msg".getBytes(UTF_8))
+    }
+  }
+
+  private def send(ex: HttpExchange, code: Int, ctype: String, body: Array[Byte]): Unit = {
+    ex.getResponseHeaders.set("Content-Type", ctype)
+    val head = ex.getRequestMethod == "HEAD"
+    ex.sendResponseHeaders(code, if (head) -1L else body.length.toLong)
+    if (!head) {
+      val out = ex.getResponseBody
+      try out.write(body) finally out.close()
+    }
+  }
+
+  private def contentType(name: String): String =
+    if (name.endsWith(".json")) "application/json"
+    else if (name.endsWith(".html")) "text/html; charset=utf-8"
+    else if (name.endsWith(".js")) "text/javascript"
+    else "text/plain"
+
+  private def readResource(name: String): Option[String] = {
+    val s = getClass.getResourceAsStream(name)
+    if (s == null) None
+    else try Some(new String(s.readAllBytes(), UTF_8)) finally s.close()
+  }
+
+  private def openBrowser(url: String): Unit = {
+    val opener =
+      if (sys.props.getOrElse("os.name", "").toLowerCase.contains("mac")) "open"
+      else "xdg-open"
+    try { os.proc(opener, url).spawn(stdout = os.Pipe, stderr = os.Pipe); () }
+    catch { case _: Throwable => () } // best-effort
+  }
+}

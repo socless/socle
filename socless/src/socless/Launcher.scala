@@ -40,7 +40,8 @@ import os.Path
 object Launcher {
 
   val UsageLine: String =
-    "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]"
+    "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
+    "       socless.Launcher serve [--port N] [--dir <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
   /** Parsed representation of valid CLI arguments. */
   final case class LauncherConfig(
@@ -201,6 +202,9 @@ object Launcher {
     }
 
   def main(args: Array[String]): Unit = {
+    // `serve` subcommand: a standalone, Mill/Python-free UI server (issue
+    // #115). Anything else is the flag-based elaborate / convert path.
+    if (args.headOption.contains("serve")) { Serve.run(args.tail); return }
     parseArgs(args) match {
       case Left("help") =>
         println(UsageLine)
