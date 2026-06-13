@@ -65,6 +65,23 @@ jobs:
       - name: Run test suite
         run: ./mill socless.test
 
+      # The committed CHIRRTL fixtures are the input to every golden test.
+      # Fail if they have drifted from the current example sources / Chisel
+      # (otherwise the goldens test stale input with CI green, issue #135).
+      - name: CHIRRTL fixtures in sync with example sources
+        run: tools/check-chirrtl-fixtures.sh
+
+      # The committed reference design JSONs (the dev-mode `ui/` demos) must
+      # stay loadable as the schema evolves (issue #135).
+      - name: Reference example JSONs are valid
+        run: |
+          for f in ui/examples/*.json; do
+            [ "$(basename "$f")" = manifest.json ] && continue
+            python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get('modules'),list) and d['modules'], 'no modules'; assert isinstance(d.get('top'),str) and d['top'], 'no top'" "$f" \
+              || { echo "invalid reference JSON: $f"; exit 1; }
+          done
+          echo "ui/examples/*.json all valid"
+
       # Publishing must not rot until release day: exercise the local publish
       # path for both artifacts (catches POM/metadata breakage early).
       - name: Publish artifacts locally

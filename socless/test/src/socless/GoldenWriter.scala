@@ -16,14 +16,7 @@ import upickle.default._
   */
 object GoldenWriter {
 
-  private val fixtures: Seq[(String, String)] = Seq(
-    "axisystem.fir"    -> "axisystem",
-    "gcd.fir"          -> "gcd",
-    "rvpipeline.fir"   -> "rvpipeline",
-    "deepsoc.fir"      -> "deepsoc",
-    "interconnect.fir" -> "interconnect",
-    "regheavy.fir"     -> "regheavy",
-  )
+  private val fixtures: Seq[(String, String)] = Fixtures.all
 
   def main(args: Array[String]): Unit = {
     // Expect exactly one argument: the path to socless/test/resources/golden/

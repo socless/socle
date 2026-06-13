@@ -48,9 +48,9 @@ import socless.mill.SoclessModule
 
 trait ChiselModule extends ScalaModule {
   def scalaVersion = "2.13.16"
-  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.0.0-RC2")
+  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.11.0")
   def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
-    mvn"org.chipsalliance:::chisel-plugin:7.0.0-RC2"
+    mvn"org.chipsalliance:::chisel-plugin:7.11.0"
   )
 }
 

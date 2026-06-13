@@ -18,19 +18,19 @@ layout Interconnect
   node q kind=inst pins=q.io.deq:EAST:iface,q.io.enq:WEST:iface
   node q_1 kind=inst pins=q_1.io.deq:EAST:iface,q_1.io.enq:WEST:iface
   node q_2 kind=inst pins=q_2.io.deq:EAST:iface,q_2.io.enq:WEST:iface
-  edge q.io.deq -> endpoints_0.io.req
-  edge q_1.io.deq -> endpoints_1.io.req
-  edge q_2.io.deq -> endpoints_2.io.req
-  edge endpoints_0.io.ack -> io.ack[0]
-  edge endpoints_1.io.ack -> io.ack[1]
-  edge endpoints_2.io.ack -> io.ack[2]
-  edge endpoints_0.io.busy -> io.busy[0]
-  edge endpoints_1.io.busy -> io.busy[1]
-  edge endpoints_2.io.busy -> io.busy[2]
-  edge agg.io.out -> io.out[0]
-  edge io.in[0] -> q.io.enq
-  edge io.in[1] -> q_1.io.enq
-  edge io.in[2] -> q_2.io.enq
+  edge endpoints_0.io.req -> q.io.deq
+  edge endpoints_1.io.req -> q_1.io.deq
+  edge endpoints_2.io.req -> q_2.io.deq
+  edge io.ack[0] -> endpoints_0.io.ack
+  edge io.ack[1] -> endpoints_1.io.ack
+  edge io.ack[2] -> endpoints_2.io.ack
+  edge io.busy[0] -> endpoints_0.io.busy
+  edge io.busy[1] -> endpoints_1.io.busy
+  edge io.busy[2] -> endpoints_2.io.busy
+  edge io.out[0] -> agg.io.out
+  edge q.io.enq -> io.in[0]
+  edge q_1.io.enq -> io.in[1]
+  edge q_2.io.enq -> io.in[2]
 layout Queue2_SocPayload
 layoutOf Endpoint_1 -> Endpoint
 layoutOf Endpoint_2 -> Endpoint

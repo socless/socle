@@ -10,6 +10,11 @@ package socless
   * pin sides, or changes edge dedup now fails CI instead of shipping
   * unnoticed (coordinates remain free to move).
   *
+  * Note: single-module / leaf fixtures (gcd, and regheavy's Controller) lay
+  * out to one node with no edges, so their layout golden is near-vacuous; the
+  * real layout-structure coverage comes from the multi-module fixtures
+  * (AXISystem, DeepSoc, Interconnect) which carry nodes, pin sides and edges.
+  *
   * Regenerate together with the JSON goldens:
   *
   *   ./mill socless.regenerateGoldens
@@ -30,7 +35,10 @@ object LayoutStructure {
         sb.append(s"  node ${n.id} kind=${n.kind} pins=$pins\n")
       }
       for (e <- l.edges.sortBy(e => (e.from, e.to))) {
-        sb.append(s"  edge ${e.to} -> ${e.from}\n")
+        // RoutedEdge.from is the producer, .to the consumer (Schema.scala), so
+        // print producer -> consumer, matching the field it is sorted by
+        // (issue #137: this used to print sink -> source, reading backwards).
+        sb.append(s"  edge ${e.from} -> ${e.to}\n")
       }
     }
     for ((m, rep) <- design.layoutOf.toSeq.sortBy(_._1) if m != rep) {
@@ -42,14 +50,7 @@ object LayoutStructure {
 
 object LayoutStructureGoldenTest extends TestSuite {
 
-  private val fixtures: Seq[(String, String)] = Seq(
-    "axisystem.fir"    -> "axisystem",
-    "gcd.fir"          -> "gcd",
-    "rvpipeline.fir"   -> "rvpipeline",
-    "deepsoc.fir"      -> "deepsoc",
-    "interconnect.fir" -> "interconnect",
-    "regheavy.fir"     -> "regheavy",
-  )
+  private val fixtures: Seq[(String, String)] = Fixtures.all
 
   private def readFixture(name: String): String = {
     val s = getClass.getResourceAsStream(s"/chirrtl/$name")

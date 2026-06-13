@@ -222,12 +222,15 @@ object socless extends ChiselToolchain with SoclessPublish {
     *
     *   ./mill socless.regenerateGoldens
     *
-    * The task sets SOCLESS_REGENERATE=1 and re-runs GoldenDesignTest, which
-    * writes (or overwrites) socless/test/resources/golden/<name>.json in the
-    * source tree rather than asserting.  After regenerating, review the diff
-    * with `git diff socless/test/resources/golden/` before committing.
+    * The task forks `socless.GoldenWriter`, which writes (or overwrites) both
+    * golden families in the source tree: the JSON snapshots
+    * (socless/test/resources/golden/<name>.json) and the layout-structure
+    * snapshots (socless/test/resources/golden/layout/<name>.txt).  After
+    * regenerating, review the diff with `git diff socless/test/resources/golden/`
+    * before committing.
     *
-    * Alternative (equivalent):
+    * Alternative (sets SOCLESS_REGENERATE=1 so the golden TESTS write instead
+    * of assert; equivalent for the JSON goldens):
     *   SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
     */
   def regenerateGoldens(): Command[Unit] = Task.Command {
