@@ -37,6 +37,18 @@ trait SoclessModule extends ScalaModule {
     */
   def soclessTop: T[String]
 
+  /** Tops to elaborate. Defaults to the single `soclessTop`. Set this to view
+    * several designs from one build (the whole SoC, a single core, the NoC,
+    * ...) and switch between them in the UI's design picker (issue #117):
+    * {{{
+    *   def soclessTops = Seq("mypkg.SoC", "mypkg.Core", "mypkg.NoC")
+    * }}}
+    * Each top elaborates in its own JVM fork; one broken top is skipped with
+    * an error and does not hide the others. The first top is the default
+    * `design.json`; the rest become `design-<top>.json`, indexed by a
+    * `designs.json` the UI reads. */
+  def soclessTops: T[Seq[String]] = Task { Seq(soclessTop()) }
+
   /** Version of the `socless` runtime library to pull in. Defaults to the
     * version this plugin was built as (generated from V.publishVer in
     * build.mill), so the two artifacts cannot drift (issue #104). Override
@@ -72,33 +84,60 @@ trait SoclessModule extends ScalaModule {
     super.mvnDeps() ++ soclessRuntimeDeps()
   }
 
-  /** Elaborate the design and write `design.json`. Forks a fresh JVM with
-    * the module's `runClasspath` so the exporter sees your exact Chisel version. */
+  /** Elaborate each top in `soclessTops` and write the design JSON(s). Forks a
+    * fresh JVM per top with the module's `runClasspath` so the exporter sees
+    * your exact Chisel version. The first top is `design.json` (the default the
+    * UI auto-loads); additional tops are `design-<top>.json` plus a
+    * `designs.json` index for the picker (issue #117). Returns the primary
+    * `design.json`. */
   def socless: T[PathRef] = Task {
-    val out   = Task.dest / soclessOutputName()
+    val tops  = soclessTops()
+    require(tops.nonEmpty, "soclessTops must not be empty")
     val cpStr = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
-    val rc = os.proc(
-      "java", "-cp", cpStr,
-      "socless.Launcher",
-      "--top", soclessTop(),
-      "--output", out.toString,
-      // Workspace root -> exporter resolves SourceRefs (`src/main/scala/...`)
-      // against it and embeds the file contents in design.json so the UI's
-      // Source tab can show real code instead of just file:line:col.
-      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
-    ).call(
-      stdout = os.Inherit,
-      stderr = os.Inherit,
-      cwd    = soclessWorkingDir(),
-      check  = false,
-    )
-    if (rc.exitCode != 0)
-      throw new RuntimeException(
-        s"socless launcher exited with code ${rc.exitCode}. " +
-        s"Re-run with `--log-level debug` for full stderr."
-      )
-    Task.log.info(s"[socless] design.json: $out")
-    PathRef(out)
+    val root  = mill.api.BuildCtx.workspaceRoot.toString
+
+    def fileFor(i: Int, top: String): String =
+      if (i == 0) soclessOutputName() else s"design-${top.replace('.', '_')}.json"
+
+    var failed = 0
+    val ok = tops.zipWithIndex.flatMap { case (top, i) =>
+      val out = Task.dest / fileFor(i, top)
+      val rc = os.proc(
+        "java", "-cp", cpStr,
+        "socless.Launcher",
+        "--top", top,
+        "--output", out.toString,
+        // Workspace root -> exporter resolves SourceRefs (`src/main/scala/...`)
+        // against it and embeds the file contents so the UI's Source tab can
+        // show real code instead of just file:line:col.
+        "--source-root", root,
+      ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = soclessWorkingDir(), check = false)
+      if (rc.exitCode != 0) {
+        Task.log.error(s"[socless] top '$top' failed (exit ${rc.exitCode}); skipping it")
+        failed += 1
+        None
+      } else {
+        Task.log.info(s"[socless] $top -> $out")
+        Some((top, fileFor(i, top)))
+      }
+    }
+
+    val primary = Task.dest / soclessOutputName()
+    if (!os.exists(primary))
+      throw new RuntimeException(s"socless: the first top '${tops.head}' failed; no $primary was produced.")
+
+    // Multi-top index for the UI picker (issue #117). A single top keeps the
+    // plain 'live' behavior - no index emitted.
+    if (ok.size > 1) {
+      def esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+      val items = ok.map { case (top, file) =>
+        s"""    { "id": "${esc(top)}", "label": "${esc(top.split('.').last)}", "path": "${esc(file)}" }"""
+      }.mkString(",\n")
+      os.write.over(Task.dest / "designs.json", s"""{\n  "designs": [\n$items\n  ]\n}\n""")
+    }
+    if (failed > 0) Task.log.error(s"[socless] $failed of ${tops.size} top(s) failed to elaborate.")
+    Task.log.info(s"[socless] design.json: $primary")
+    PathRef(primary)
   }
 
   /** Elaborate, extract SoCLess.html from the runtime JAR, copy design.json
@@ -117,7 +156,9 @@ trait SoclessModule extends ScalaModule {
     os.makeDir.all(uiDir)
 
     extractHtml(runClasspath(), uiDir)
-    os.copy.over(json, uiDir / "design.json")
+    // Copy every emitted JSON (design.json, design-<top>.json, designs.json)
+    // so the multi-top picker has them all next to the HTML (issue #117).
+    for (p <- os.list(json / os.up) if p.last.endsWith(".json")) os.copy.over(p, uiDir / p.last)
     serve(uiDir, runClasspath(), port, Task.log)
   }
 

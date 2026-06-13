@@ -25,5 +25,8 @@ object demo extends ScalaModule with SoclessModule {
   def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
     mvn"org.chipsalliance:::chisel-plugin:7.11.0"
   )
-  def soclessTop = "demo.Blinky"
+  // Two tops exercise the multi-top path (issue #117): design.json is Blinky
+  // (the first), design-demo_Counter.json is Counter, designs.json indexes both.
+  def soclessTop  = "demo.Blinky"
+  def soclessTops = Seq("demo.Blinky", "demo.Counter")
 }

@@ -92,6 +92,7 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 | Member | Default | Use |
 |---|---|---|
 | `soclessTop: T[String]` | (no default — required) | FQCN of the design to elaborate: a class with a no-arg constructor, a Scala object with a zero-arg `apply()`/`build()`, or a zero-arg factory method (`mypkg.Gens.smallSoC`). For parameterized designs, a generator object is the natural wrapper: `object MyTopForSocless { def apply() = new MyTop(defaultParams) }`. |
+| `soclessTops: T[Seq[String]]` | `Seq(soclessTop())` | Elaborate several tops from one build (the whole SoC, a core, the NoC, ...) and switch between them in the UI's design picker. The first is `design.json`; the rest are `design-<top>.json`, indexed by a `designs.json`. One broken top is skipped, not fatal. |
 | `soclessVersion: T[String]` | this plugin's version | Runtime library version (generated from the build, so it cannot drift from the plugin). |
 | `soclessOutputName: T[String]` | `"design.json"` | Filename inside `Task.dest`. |
 | `soclessUiPort: T[Int]` | `8765` | Default port for `soclessUI` / `soclessServe`. |

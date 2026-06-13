@@ -752,6 +752,14 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
     const pushUrl = !opts || opts.pushUrl !== false;
     try {
       if (typeof idOrUrl !== 'string') return false;
+      // Multi-top design from the plugin's designs.json (issue #117).
+      const dz = (window.DESIGN.DESIGNS || []).find((d) => d.id === idOrUrl);
+      if (dz) {
+        const j = await fetchJson(dz.path);
+        const ok = ingest(j, dz.id, dz.label || dz.id);
+        if (ok && pushUrl) syncUrl(dz.id);
+        return ok;
+      }
       if ((window.DESIGN.MANIFEST || []).some((d) => d.id === idOrUrl)) {
         const ok = await loadFromManifestId(idOrUrl);
         if (ok && pushUrl) syncUrl(idOrUrl);
@@ -949,8 +957,23 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
         window.DESIGN.VERSION = 1;
         return false;
       }
+      // design.json exists (plugin / served mode): pick up the optional
+      // multi-top index next to it (issue #117). Absent for single-top.
+      window.DESIGN.DESIGNS = [];
       try {
-        return ingest(j, 'live', 'live (design.json)');
+        const dz = await fetch('designs.json', { cache: 'no-store' });
+        if (dz.ok) {
+          const list = (await dz.json()).designs;
+          if (Array.isArray(list)) window.DESIGN.DESIGNS = list;
+        }
+      } catch { /* no multi-top index */ }
+      try {
+        // When multi-top, label the default load as the first top so the
+        // picker highlights it (design.json IS the first top's output).
+        const first = window.DESIGN.DESIGNS[0];
+        return first
+          ? ingest(j, first.id, first.label || first.id)
+          : ingest(j, 'live', 'live (design.json)');
       } catch (e) {
         const msg = 'design.json: ' + (e.message || e);
         console.error('[socless]', msg);
@@ -2046,14 +2069,18 @@ function DesignPicker() {
   }, []);
 
   const manifest = window.DESIGN.MANIFEST || [];
+  const designs  = window.DESIGN.DESIGNS || []; // plugin multi-top index (#117)
   const current  = window.DESIGN.SOURCE;
   const label    = window.DESIGN.SOURCE_LABEL || 'demo';
   const isLive   = current === 'live';
   const isFile   = typeof current === 'string' && current.startsWith('file:');
 
-  // "live" is always offered - fetch fails harmlessly if design.json isn't there.
+  // When the plugin emitted several tops, list them; otherwise offer the plain
+  // "live" design.json. Fixtures (dev `ui/` serve) are always appended.
   const options = [
-    { id: 'live', label: 'live · design.json', doc: 'Real elaboration output (Mill plugin)', kind: 'live' },
+    ...(designs.length
+      ? designs.map((d) => ({ id: d.id, label: d.label || d.id, doc: 'Mill plugin top', kind: 'design' }))
+      : [{ id: 'live', label: 'live · design.json', doc: 'Real elaboration output (Mill plugin)', kind: 'live' }]),
     ...manifest.map((d) => ({ id: d.id, label: d.label, doc: d.doc, kind: 'fixture' })),
   ];
 

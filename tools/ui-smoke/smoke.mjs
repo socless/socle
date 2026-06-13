@@ -69,7 +69,10 @@ for (const design of designs) {
     errors.push('console.error: ' + t);
   });
   page.on('response', (r) => {
-    if (r.status() === 404 && !r.url().endsWith('/favicon.ico')) {
+    // designs.json is the optional plugin multi-top index (#117): a 404 just
+    // means single-top / non-plugin serve, which is the smoke's case.
+    const optional = ['/favicon.ico', '/designs.json'];
+    if (r.status() === 404 && !optional.some((s) => r.url().endsWith(s))) {
       errors.push('http 404: ' + r.url());
     }
   });

@@ -106,6 +106,13 @@ jobs:
           # Assert the emitted JSON is VALID and is the Blinky design, not just
           # that a (possibly empty/truncated) file exists (issue #134).
           python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['top']=='Blinky', d['top']; assert d['modules'], 'no modules'" "$json"
+          # consume-test sets soclessTops=[Blinky, Counter]: assert the multi-top
+          # index and the second design were emitted (issue #117).
+          dz=$(find "$work/out" -name designs.json | head -1)
+          if [ -z "$dz" ]; then echo "plugin produced no designs.json for the multi-top build"; exit 1; fi
+          python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['designs']; ids=[d['id'] for d in ds]; assert ids==['demo.Blinky','demo.Counter'], ids" "$dz"
+          counter=$(find "$work/out" -name 'design-demo_Counter.json' | head -1)
+          python3 -c "import json,sys; assert json.load(open(sys.argv[1]))['top']=='Counter'" "$counter"
           (cd "$work" && timeout 120 ./mill demo.soclessServe --port 8917 >serve.log 2>&1 &)
           ok=0
           for i in $(seq 1 60); do
