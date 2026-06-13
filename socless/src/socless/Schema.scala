@@ -88,6 +88,12 @@ case class ModuleDef(
   // The UI renders external/intrinsic distinctly and skips drilldown (issue
   // #20). Trailing default keeps older design.json loadable.
   kind:     String = "internal",
+  // Elaboration parameters that define this module's behavior (issue #19).
+  // CHIRRTL does NOT carry Chisel constructor parameters (they're erased by
+  // emission), so this is empty from the CHIRRTL path today; the field is the
+  // UI contract for a future elaboration-time source to populate. Default-empty
+  // map is omitted, so goldens are unchanged. Kept LAST.
+  parameters: Map[String, String] = Map.empty,
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
 
@@ -110,6 +116,14 @@ case class InstanceDef(
   `type`: String,      // module class name
   doc:    String,
   source: SourceRef,
+  // The signal in the PARENT that drives this instance's clock / reset port,
+  // inferred from connect connectivity (issue #19). Two sibling instances with
+  // the same `clock` string share a clock domain; the UI highlights them. Empty
+  // when the instance has no clock/reset port, the driver couldn't be resolved,
+  // or for blackboxes. Additive + default-omitted, so only clocked instances
+  // change the goldens. Kept LAST so positional constructions stay compatible.
+  clock:  String = "",
+  reset:  String = "",
 )
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 

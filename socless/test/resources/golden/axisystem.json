@@ -373,7 +373,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 15,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -689,7 +691,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 15,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1082,7 +1086,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 50,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1387,7 +1393,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 50,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1584,7 +1592,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 105,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "dma",
@@ -1594,7 +1604,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 106,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "xbar",
@@ -1604,7 +1616,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 107,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "mem",
@@ -1614,7 +1628,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 108,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "periph",
@@ -1624,7 +1640,9 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 109,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [

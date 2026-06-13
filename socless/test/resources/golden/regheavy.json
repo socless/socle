@@ -680,7 +680,9 @@
             "file": "example/src/regheavy/Datapath.scala",
             "line": 136,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "stage0",
@@ -690,7 +692,9 @@
             "file": "example/src/regheavy/Datapath.scala",
             "line": 137,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "stage1",
@@ -700,7 +704,9 @@
             "file": "example/src/regheavy/Datapath.scala",
             "line": 138,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "mid",
@@ -710,7 +716,9 @@
             "file": "example/src/regheavy/Datapath.scala",
             "line": 139,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [

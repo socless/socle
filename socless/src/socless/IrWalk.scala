@@ -64,12 +64,28 @@ object IrWalk {
     // flagging every blackbox pin as dangling (issue #100).
     val isRealModule = m.kind == "module"
     val ports = m.ports.map(p => buildPort(p, bundles, !isRealModule || m.refs.contains(p.name)))
+    // Clock/reset domain inference (issue #19): the connect that feeds an
+    // instance's clock (or reset) port names the domain signal; siblings sharing
+    // it share a domain. We find that port on the *child* module's interface
+    // (clock by type or name, reset by type or name since reset is often
+    // lowered to UInt<1>) and look up `<inst>.<port>` on the LHS of a connect.
+    def driverOf(instName: String, portNames: Seq[String]): String =
+      portNames.iterator
+        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
+        .find(_.nonEmpty)
+        .getOrElse("")
+
     val children = m.insts.map { i =>
+      val childPorts = byName.get(i.ofModule).map(_.ports).getOrElse(Seq.empty)
+      val clockPorts = childPorts.filter(isClockPort).map(_.name)
+      val resetPorts = childPorts.filter(isResetPort).map(_.name)
       InstanceDef(
         name   = i.name,
         `type` = i.ofModule,
         doc    = "",
         source = i.src.map(toRef).getOrElse(SourceRef.unknown),
+        clock  = driverOf(i.name, clockPorts),
+        reset  = driverOf(i.name, resetPorts),
       )
     }
     val wires = coalesceWires(m, byName, bundles)
@@ -246,6 +262,19 @@ object IrWalk {
     case GroundT("Reset", _)      => Seq(FieldDef(prefix, 1, "out"))
     case GroundT(_, _)            => Seq(FieldDef(prefix, 0, "out"))
     case VecT(elem, n)            => (0 until n).flatMap(i => flattenGround(elem, s"$prefix[$i]"))
+  }
+
+  // Clock/reset port recognition for domain inference (issue #19). Type is the
+  // strong signal; a name fallback catches reset lowered to UInt<1> (common
+  // after some passes) and clocks named clk. Mirrors the UI's clock/reset
+  // de-emphasis heuristic so the two stay consistent.
+  private def isClockPort(p: ChirrtlParser.Port): Boolean = p.tpe match {
+    case GroundT("Clock", _) => true
+    case _                   => { val n = p.name.toLowerCase; n == "clock" || n == "clk" }
+  }
+  private def isResetPort(p: ChirrtlParser.Port): Boolean = p.tpe match {
+    case GroundT("Reset", _) | GroundT("AsyncReset", _) => true
+    case _ => { val n = p.name.toLowerCase; n == "reset" || n == "rst" || n == "rst_n" || n == "resetn" }
   }
 
   // ── Wires: coalesce connect statements back into bundle-level wires ───────

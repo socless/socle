@@ -889,7 +889,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 146,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "decode",
@@ -899,7 +901,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 147,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "exec",
@@ -909,7 +913,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 148,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "wb",
@@ -919,7 +925,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 149,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "rf",
@@ -929,7 +937,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 150,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [

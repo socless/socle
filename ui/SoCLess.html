@@ -3470,6 +3470,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // path ("io.in[0]"), instances by the head segment.
   const ownerBoxId = (path) => (layoutBoxes[path] ? path : path.split('.')[0]);
 
+  // Clock-domain peer highlight (issue #19): when an instance is selected,
+  // sibling instances driven by the same clock signal get a dashed ring, so the
+  // domain is visible on the canvas, not just in the inspector.
+  const selInstName = selectedSig ? ownerBoxId(selectedSig) : '';
+  const selClock = (mod.children.find((c) => c.name === selInstName) || {}).clock || '';
+
   // Canvas height including the space inserted by expansions, so a tall
   // expansion can never paint past the canvas (issue #106).
   const canvasH = containerH + boxShift.total;
@@ -3693,6 +3699,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             const drillable = !!childMod && !isBlackbox && childMod.children.length > 0;
             const wiresOnMe = wires.filter((w) => w.fromInst === inst || w.toInst === inst);
             const selectedHere = selectedSig && (selectedSig.startsWith(inst + '.') || selectedSig === inst);
+            const isClockPeer = !!selClock && inst !== selInstName && !!child && child.clock === selClock;
             const boxInfo = boxRowsMap[inst] || { westRows: [], eastRows: [], boxH: b.h };
             const effectiveH = boxInfo.boxH;
             // Build merged rows for WEST and EAST side rendering inside the box.
@@ -3819,21 +3826,27 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 data-pan-block="1"
                 data-box-inst={inst}
                 data-box-drillable={drillable ? '1' : '0'}
+                data-clock-peer={isClockPeer ? '1' : undefined}
                 onDoubleClick={() => drillable && drillInto(inst)}
                 style={{
                   position: 'absolute', left: b.x, top: b.y + (boxShift.shift[inst] || 0), width: b.w, height: effectiveH,
                   opacity: boxActive(inst) ? 1 : 0.18,
                   background: benchTokens.panel,
-                  border: `1px ${isBlackbox ? 'dashed' : 'solid'} ${selectedHere ? benchTokens.accent : benchTokens.border}`,
+                  border: `1px ${isBlackbox ? 'dashed' : 'solid'} ${selectedHere ? benchTokens.accent : isClockPeer ? benchTokens.accentLine : benchTokens.border}`,
                   borderRadius: 6,
-                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}` : '0 1px 2px rgba(0,0,0,.04)',
+                  boxShadow: selectedHere ? `0 0 0 3px ${benchTokens.accentBg}`
+                    : isClockPeer ? `0 0 0 2px ${benchTokens.accentLine}`
+                    : '0 1px 2px rgba(0,0,0,.04)',
                   cursor: drillable ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
                   overflow: 'visible',
                   transition: 'box-shadow .12s, border-color .12s, opacity .15s',
                 }}
               >
-                <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px ${isBlackbox ? 'dashed' : 'solid'} ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
+                <div
+                  onClick={() => setSelectedSig(inst)}
+                  title={drillable ? `${inst} — click to inspect, double-click to drill in` : `${inst} — click to inspect`}
+                  style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px ${isBlackbox ? 'dashed' : 'solid'} ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden', cursor: 'pointer' }}>
                   <ModuleGlyph type={child.type} active={selectedHere} />
                   <span title={inst} style={{ fontFamily: benchTokens.mono, fontSize: 11.5, fontWeight: 600, color: benchTokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{inst}</span>
                   <div style={{ marginLeft: 'auto', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3948,6 +3961,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 function BenchInspector({ mod, selectedSig, hoveredSig, setSelectedSig, expandedBundles, toggleBundle, density }) {
   const sig = selectedSig || hoveredSig;
   const wire = sig ? mod.wires.find((w) => w.from === sig || w.to === sig || sig.startsWith(w.from + '.') || sig.startsWith(w.to + '.')) : null;
+  // A selected child instance (clock/reset domain inspection, issue #19).
+  const inst = sig && !wire ? mod.children.find((c) => c.name === sig) : null;
 
   return (
     <div style={{ width: 304, flexShrink: 0, background: benchTokens.panel, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -3965,6 +3980,65 @@ function BenchInspector({ mod, selectedSig, hoveredSig, setSelectedSig, expanded
       )}
       {sig && wire && (
         <InspectorBundle wire={wire} sig={sig} expandedBundles={expandedBundles} toggleBundle={toggleBundle} setSelectedSig={setSelectedSig} />
+      )}
+      {sig && !wire && inst && (
+        <InspectorInstance inst={inst} siblings={mod.children} setSelectedSig={setSelectedSig} />
+      )}
+    </div>
+  );
+}
+
+// Instance detail: clock/reset domain (issue #19) + any elaboration parameters.
+// Sibling instances that share this one's clock domain are listed so the
+// domain grouping is browsable from the inspector, not just the schematic.
+function InspectorInstance({ inst, siblings, setSelectedSig }) {
+  const childDef = B_MODULES[inst.type] || {};
+  const params = childDef.parameters || {};
+  const paramKeys = Object.keys(params);
+  const clockPeers = inst.clock
+    ? siblings.filter((c) => c.name !== inst.name && c.clock === inst.clock)
+    : [];
+  const Row = ({ k, v, mono }) => (
+    <React.Fragment>
+      <span style={{ color: benchTokens.ink4 }}>{k}</span>
+      <span style={{ color: benchTokens.ink2, fontFamily: mono ? benchTokens.mono : 'inherit', wordBreak: 'break-all' }}>{v}</span>
+    </React.Fragment>
+  );
+  return (
+    <div data-inst-inspect={inst.name} style={{ padding: '12px 14px', fontSize: 12, overflow: 'auto' }}>
+      <div style={{ fontFamily: benchTokens.mono, fontSize: 13, fontWeight: 600, color: benchTokens.ink, marginBottom: 2 }}>{inst.name}</div>
+      <div style={{ fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink3, marginBottom: 12 }}>{inst.type}</div>
+
+      <div style={{ fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Domains</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', rowGap: 5, columnGap: 8, fontSize: 11, marginBottom: 12 }}>
+        <Row k="clock" v={<span data-inst-clock={inst.clock || ''}>{inst.clock || '—'}</span>} mono />
+        <Row k="reset" v={inst.reset || '—'} mono />
+      </div>
+
+      {inst.clock && clockPeers.length > 0 && (
+        <div data-clock-domain={inst.clock} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>
+            Same clock domain ({clockPeers.length})
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {clockPeers.map((c) => (
+              <button key={c.name} data-clock-peer={c.name} onClick={() => setSelectedSig(c.name)}
+                title={`Select ${c.name} (clock: ${c.clock})`}
+                style={{ fontFamily: benchTokens.mono, fontSize: 10.5, color: benchTokens.ink2,
+                  background: benchTokens.panelAlt, border: `1px solid ${benchTokens.borderSoft}`,
+                  borderRadius: 4, padding: '2px 6px', cursor: 'pointer' }}>{c.name}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {paramKeys.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: benchTokens.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 6 }}>Parameters</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', rowGap: 5, columnGap: 8, fontSize: 11, fontFamily: benchTokens.mono }}>
+            {paramKeys.map((k) => <Row key={k} k={k} v={String(params[k])} mono />)}
+          </div>
+        </div>
       )}
     </div>
   );

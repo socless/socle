@@ -325,7 +325,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 79,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "rf",
@@ -335,7 +337,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 80,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -718,7 +722,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 79,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "rf",
@@ -728,7 +734,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 80,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -957,7 +965,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 125,
             "col": 38
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "cores_1",
@@ -967,7 +977,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 125,
             "col": 38
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1328,7 +1340,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 79,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "rf",
@@ -1338,7 +1352,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 80,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1721,7 +1737,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 79,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "rf",
@@ -1731,7 +1749,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 80,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -1960,7 +1980,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 125,
             "col": 38
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "cores_1",
@@ -1970,7 +1992,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 125,
             "col": 38
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
@@ -2286,7 +2310,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 168,
             "col": 24
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "cluster1",
@@ -2296,7 +2322,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 169,
             "col": 24
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "name": "pipe",
@@ -2306,7 +2334,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 172,
             "col": 20
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         }
       ],
       "wires": [
