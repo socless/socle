@@ -2558,7 +2558,8 @@ function bRoutePath(w) {
 // overrides move wire terminals vertically without re-routing, which used to
 // bend the terminal segments diagonal. Any diagonal segment is replaced by an
 // H-V-H jog through its horizontal midpoint, so wires only ever travel at
-// 90-degree angles. Collinear duplicates are dropped.
+// 90-degree angles. Exact consecutive duplicate points are dropped (collinear
+// runs are left as-is; they render identically).
 function orthogonalizePts(pts) {
   const out = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
@@ -2574,9 +2575,12 @@ function orthogonalizePts(pts) {
   return out;
 }
 
-// Offset a polyline by a perpendicular distance `o` (px).
-// For each interior vertex, averages the normals of the incoming and outgoing segments.
-// For endpoints, uses the single adjacent segment's normal.
+// Offset a polyline by a perpendicular distance `o` (px), preserving corners.
+// Interior vertices use the MITER point: the bisector of the two adjacent
+// segment normals scaled by 1/cos(half-angle), so an offset 90-degree corner
+// stays a 90-degree corner (offset (+/-o, +/-o)) instead of collapsing to the
+// averaged normal at o/sqrt(2) per axis, which left ribbon bends slightly
+// diagonal (issue #133). Endpoints use the single adjacent segment's normal.
 // Perpendicular of segment (dx,dy): normal = (-dy, dx) normalized.
 function offsetPolyline(pts, o) {
   if (!pts || pts.length < 2) return pts;
@@ -2597,16 +2601,60 @@ function offsetPolyline(pts, o) {
     } else if (i === n - 1) {
       [nx, ny] = segNormals[n - 2];
     } else {
-      // Average adjacent segment normals
+      // Miter join: bisector of the adjacent normals, scaled so the offset
+      // corner sits on the intersection of the two offset segment lines.
       const [nx0, ny0] = segNormals[i - 1];
       const [nx1, ny1] = segNormals[i];
-      const ax = (nx0 + nx1) / 2, ay = (ny0 + ny1) / 2;
+      const ax = nx0 + nx1, ay = ny0 + ny1;
       const al = Math.sqrt(ax * ax + ay * ay);
-      if (al < 1e-9) { nx = nx0; ny = ny0; }
-      else { nx = ax / al; ny = ay / al; }
+      if (al < 1e-9) { nx = nx0; ny = ny0; }   // 180-degree U-turn: fall back
+      else {
+        const ux = ax / al, uy = ay / al;       // bisector unit vector
+        const cosHalf = ux * nx0 + uy * ny0;     // = cos(half turn angle)
+        const miter = cosHalf > 0.25 ? 1 / cosHalf : 4; // cap spikes on sharp turns
+        nx = ux * miter; ny = uy * miter;
+      }
     }
     return [p[0] + nx * o, p[1] + ny * o];
   });
+}
+
+// Geometric midpoint of a polyline and the unit direction of the segment it
+// lands on. Used to place the bidirectional double-chevron glyph (issue #133).
+function polylineMidpoint(pts) {
+  if (!pts || pts.length < 2) return null;
+  const segLen = [];
+  let total = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    segLen.push(l); total += l;
+  }
+  if (total < 1e-6) return null;
+  let half = total / 2;
+  for (let i = 0; i < segLen.length; i++) {
+    if (half <= segLen[i] || i === segLen.length - 1) {
+      const len = segLen[i] || 1;
+      const t = half / len;
+      const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+      return { x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t, dx: (x1 - x0) / len, dy: (y1 - y0) / len };
+    }
+    half -= segLen[i];
+  }
+  return null;
+}
+
+// SVG path data for an opposed double-chevron centered at (x,y) oriented along
+// (dx,dy): two arrowheads pointing away from each other, reading as two-way
+// traffic. Used as the bidirectional cue now that arrowheads are gone (#133).
+function bidirChevrons(mid) {
+  const { x, y, dx, dy } = mid;
+  const px = -dy, py = dx;             // unit perpendicular
+  const gap = 2.5, s = 3, w = 3;       // spacing, depth, half-width
+  const tipA = [x + gap * dx, y + gap * dy];
+  const tipB = [x - gap * dx, y - gap * dy];
+  const a = `M ${tipA[0] - s * dx + w * px} ${tipA[1] - s * dy + w * py} L ${tipA[0]} ${tipA[1]} L ${tipA[0] - s * dx - w * px} ${tipA[1] - s * dy - w * py}`;
+  const b = `M ${tipB[0] + s * dx + w * px} ${tipB[1] + s * dy + w * py} L ${tipB[0]} ${tipB[1]} L ${tipB[0] + s * dx - w * px} ${tipB[1] + s * dy - w * py}`;
+  return a + ' ' + b;
 }
 
 // Wire layers - split into hit-target (under boxes, captures clicks) and
@@ -2700,6 +2748,16 @@ function WireVisualLayer({
                 strokeLinecap="round" strokeLinejoin="round"
               />
             )}
+            {/* Bidirectional cue: a mid-wire opposed double-chevron. Pin sides
+                encode direction for one-way wires, but a collapsed Decoupled
+                A<->B pair (the common case) would otherwise look one-way (#133). */}
+            {!exp && w.bidir && w.points && w.points.length >= 2 && (() => {
+              const mid = polylineMidpoint(w.points);
+              return mid ? (
+                <path d={bidirChevrons(mid)} stroke={stroke} strokeWidth={1.3}
+                  fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={0.9} />
+              ) : null;
+            })()}
             {/* Per-wire +N pill removed: expand/collapse is now driven by the in-box port chevron (#29) */}
           </g>
         );
@@ -3025,8 +3083,8 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
   // CHIRRTL emits both directions of every Decoupled handshake (bits forward,
   // ready back), so the coalesced wire list almost always has matched pairs
-  // A→B and B→A. We fold them into one bidirectional wire (rendered as a
-  // double-headed arrow) so the schematic reads as Chisel-level connects, not
+  // A→B and B→A. We fold them into one bidirectional wire (marked with a
+  // mid-wire double-chevron, #133) so the schematic reads as Chisel-level connects, not
   // ground-signal flow. Same-direction same-pair wires are kept (only true
   // reverse pairs collapse).
   const displayWires = useMemo(() => {
@@ -3269,7 +3327,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           transformOrigin: '0 0',
           transition: 'width .3s, height .3s',
         }}>
-          {/* Wires - HIT-TARGET layer (rendered before boxes so boxes paint above arrowhead-bearing strokes) */}
+          {/* Wires - HIT-TARGET layer (rendered before boxes so boxes paint above wire strokes) */}
           <WireHitLayer
             wires={wires} totalW={totalW} totalH={canvasH}
             setSelectedSig={setSelectedSig} setHoveredSig={setHoveredSig}
