@@ -44,6 +44,26 @@ object Serve {
   private val Usage =
     "usage: socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
 
+  /** Per-flag explanations for the `serve` subcommand. Shared so the top-level
+    * `--help` and `serve --help` describe the flags identically (issue #157). */
+  val FlagsHelp: String =
+    """  --port N             TCP port to listen on (default 8765; bound to 127.0.0.1 only)
+      |  --dir <dir>          also serve static files from <dir>. Drop a design.json there
+      |                       (or designs.json for multiple tops) and the UI auto-loads it
+      |                       on open, instead of you drag-dropping a .fir
+      |  --watch <file.fir>   re-convert <file.fir> whenever it changes and serve the result
+      |                       at /design.json; the open UI hot-reloads it (save-and-see loop)
+      |  --source-root <dir>  embed source text into converted designs, so the Source tab
+      |                       shows code (resolves the .fir's @[file ...] markers)
+      |  --no-open            do not open a browser window on start""".stripMargin
+
+  /** Full `serve --help` output: usage line, one-line summary, then the flags. */
+  val Help: String =
+    Usage + "\n\n" +
+    "serve - standalone loopback UI server. Serves the bundled UI and converts\n" +
+    "dropped .fir files in process (POST /convert); no Mill and no Python.\n\n" +
+    "Options:\n" + FlagsHelp
+
   def run(args: Array[String]): Unit = {
     var port    = 8765
     var dir     = Option.empty[os.Path]
@@ -54,7 +74,7 @@ object Serve {
     while (i < args.length) {
       args(i) match {
         case "--help" | "-h" =>
-          println(Usage); return
+          println(Help); return
         case "--port" if i + 1 < args.length =>
           port = args(i + 1).toIntOption.filter(p => p > 0 && p <= 65535).getOrElse {
             Console.err.println(s"[socless] serve: invalid port '${args(i + 1)}'"); sys.exit(2)

@@ -229,8 +229,13 @@ object LauncherArgsTest extends TestSuite {
       // drops a feature as the CLI grows.
       for (mode <- Seq("elaborate", "convert", "dump", "serve"))
         assert(Launcher.HelpText.contains(mode))
-      for (flag <- Seq("--top", "--fir-input", "--chirrtl-out", "--source-root", "--watch", "--strict"))
+      // Every flag - export and server - must be documented in --help.
+      for (flag <- Seq("--top", "--fir-input", "--output", "--chirrtl-out", "--source-root",
+                       "--strict", "--port", "--dir", "--watch", "--no-open"))
         assert(Launcher.HelpText.contains(flag))
+      // serve --help documents the server flags too (shared text).
+      for (flag <- Seq("--port", "--dir", "--watch", "--source-root", "--no-open"))
+        assert(Serve.Help.contains(flag))
     }
   }
 }

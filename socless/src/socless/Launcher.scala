@@ -44,29 +44,32 @@ object Launcher {
     "       socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
   /** Fuller help printed for `--help`/`-h`; errors print the terse [[UsageLine]].
-    * Spells out the four modes one main supports, since they are otherwise only
-    * discoverable by reading the flag list (issue #157). */
+    * Spells out the four modes one main supports and explains every flag, since
+    * they are otherwise only discoverable by reading the source (issue #157).
+    * The serve flags are shared with `serve --help` via [[Serve.FlagsHelp]]. */
   val HelpText: String =
-    """socless.Launcher - export a Chisel/CHIRRTL design to design.json, or serve the UI.
+    s"""socless.Launcher - export a Chisel/CHIRRTL design to design.json, or serve the UI.
       |
       |Modes (pick one):
-      |  elaborate   --top <fqcn> [--output <path>] [--source-root <dir>] [--strict]
-      |              Elaborate a Chisel design. Needs Chisel + the design on the classpath.
-      |              --top accepts a no-arg class, an object's apply()/build(), or a
-      |              zero-arg factory method (mypkg.Gens.smallSoC).
-      |  convert     --fir-input <path> [--output <path>] [--source-root <dir>] [--strict]
-      |              Convert a CHIRRTL .fir file. No Chisel needed.
-      |  dump        --top <fqcn> --chirrtl-out <path>
-      |              Emit raw CHIRRTL to <path> and stop (capture a .fir fixture).
-      |  serve       serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]
-      |              Standalone loopback UI server: drag-drop a .fir (POST /convert),
-      |              or --watch one for a save-and-see loop. No Mill, no Python.
+      |  elaborate   --top <fqcn> ...        Elaborate a Chisel design (needs Chisel on the classpath).
+      |  convert     --fir-input <path> ...  Convert a CHIRRTL .fir file (no Chisel needed).
+      |  dump        --top <fqcn> --chirrtl-out <path>   Emit raw CHIRRTL and stop.
+      |  serve       serve [server options]  Standalone loopback UI server (no Mill, no Python).
       |
-      |Common flags:
-      |  --output <path>       design.json destination (default: ./design.json)
-      |  --source-root <dir>   embed source text by resolving the @[file ...] markers
-      |  --strict              exit nonzero if the export produced warnings
-      |  --help, -h            this message""".stripMargin
+      |Export flags (elaborate / convert / dump):
+      |  --top <fqcn>         design to elaborate: a no-arg class, an object's apply()/build(),
+      |                       or a zero-arg factory method (mypkg.Gens.smallSoC)
+      |  --fir-input <path>   convert this CHIRRTL .fir instead of elaborating (no Chisel needed)
+      |  --output <path>      design.json destination (default: ./design.json)
+      |  --source-root <dir>  embed source text by resolving the @[file ...] markers, so the
+      |                       UI's Source tab shows code instead of a bare file:line locator
+      |  --chirrtl-out <path> with --top: write raw CHIRRTL to <path> and stop (capture a .fir)
+      |  --strict             exit nonzero (3) if the export produced warnings
+      |
+      |Server flags (serve):
+      |${Serve.FlagsHelp}
+      |
+      |  --help, -h           this message""".stripMargin
 
   /** Parsed representation of valid CLI arguments. */
   final case class LauncherConfig(
