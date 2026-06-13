@@ -62,14 +62,28 @@ object myDesign extends ChiselModule with SoclessModule {
 **Run:**
 
 ```bash
-mill myDesign.socless              # elaborate + emit design.json
-mill show myDesign.socless         # prints the resulting JSON path
-# Drop it next to SoCLess.html:
-cp $(mill show myDesign.socless | tr -d '"') /path/to/SoCLess.html.dir/design.json
+mill myDesign.soclessUI            # elaborate + serve the UI, open the browser
+mill myDesign.soclessUI --port 9000
 ```
 
-The UI auto-fetches `design.json` on load. Top-bar status flips from "demo"
-to "live".
+`soclessUI` elaborates your design, extracts the single-file UI from the JAR,
+drops `design.json` next to it, and serves both on a local port (default 8765,
+loopback only). The UI auto-fetches `design.json` on load; the top-bar status
+reads "live". While the server is up you can also drag-and-drop a `.fir`
+(CHIRRTL) file onto the page to convert and view it on the fly.
+
+Just want the JSON (to wire into your own pipeline)?
+
+```bash
+mill myDesign.socless              # elaborate + emit design.json
+mill show myDesign.socless         # prints the resulting JSON path
+```
+
+To browse an existing `.fir` with no Chisel project at all:
+
+```bash
+mill myDesign.soclessServe         # serve the UI; drag-drop a .fir onto the page
+```
 
 ## What the plugin gives you
 
@@ -78,10 +92,13 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 | Member | Default | Use |
 |---|---|---|
 | `soclessTop: T[String]` | (no default — required) | FQCN of the design to elaborate: a class with a no-arg constructor, a Scala object with a zero-arg `apply()`/`build()`, or a zero-arg factory method (`mypkg.Gens.smallSoC`). For parameterized designs, a generator object is the natural wrapper: `object MyTopForSocless { def apply() = new MyTop(defaultParams) }`. |
-| `soclessVersion: T[String]` | `"0.1.0-SNAPSHOT"` | Runtime library version. |
+| `soclessVersion: T[String]` | this plugin's version | Runtime library version (generated from the build, so it cannot drift from the plugin). |
 | `soclessOutputName: T[String]` | `"design.json"` | Filename inside `Task.dest`. |
+| `soclessUiPort: T[Int]` | `8765` | Default port for `soclessUI` / `soclessServe`. |
 | `soclessRuntimeDeps: T[Seq[Dep]]` | `socless::soclessVersion` | Runtime deps injected into `mvnDeps`. Override to swap to an in-tree `moduleDeps` build. |
-| `socless: T[PathRef]` | provided | The task. Forks `java -cp <runClasspath> socless.Launcher --top … --output …`. |
+| `socless: T[PathRef]` | provided | Elaborate + emit `design.json`. Forks `java -cp <runClasspath> socless.Launcher --top … --output …`. |
+| `soclessUI(args)` | provided | Elaborate, then serve the UI + `design.json` and open a browser. Accepts `--port <N>` or a bare port. Blocks until Ctrl-C. |
+| `soclessServe(args)` | provided | Serve the UI without elaborating first; drag-drop a `.fir` to convert. Same port args. |
 
 ## How it works
 
@@ -100,6 +117,31 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 
 No `chisel3.internal.*` imports anywhere — survives Chisel patch updates.
 
+## The UI
+
+The viewer is a single self-contained HTML file (`ui/SoCLess.html` is the dev
+source; `ui/SoCLess.dist.html` is the shipped artifact with React vendored and
+the JSX precompiled, so it has **no network dependencies** and works offline).
+`soclessUI` serves it for you; you can also open the file directly and drop a
+`design.json` onto it.
+
+What you can do in it:
+
+- **Navigate** the hierarchy tree or the schematic; double-click a box to drill
+  into a submodule, breadcrumb back out (zoom/pan is preserved per level).
+- **Expand bundle ports** in place to see channels and fields; wires stay
+  orthogonal and boxes move aside so nothing overlaps.
+- **Inspect** any wire or module (types, widths, registers/memories, source
+  location) and **jump to the source** in your editor (VS Code / IntelliJ link,
+  right-click the path to switch).
+- **Command palette** (Ctrl/Cmd-K) with fuzzy search over modules, instances
+  and pins; `?` lists the keyboard shortcuts.
+- **Dark mode** (persists), and a **Source** tab that shows the Chisel behind
+  each module when the design was exported with a source root.
+- **Export**: SVG / PNG of the current schematic, or a self-contained
+  **HTML snapshot** with the design embedded - send it to a colleague and they
+  open it from `file://` with full interactivity, no repo or build needed.
+
 ## Trying the bundled demos
 
 ```bash
@@ -117,9 +159,12 @@ the plugin, so it works without `publishLocal`.
 
 ## Compatibility notes
 
-- **Chisel** — tested on 7.x. Earlier (5.x / 6.x) should work too; if your
-  CHIRRTL emit uses the legacy `lhs <= rhs` form instead of `connect lhs, rhs`,
-  the parser handles both.
+- **Chisel** — CI tests against 7.11.0 only. 5.x / 6.x are not yet covered by
+  CI, but the parser is written for cross-version portability: it accepts both
+  the legacy `lhs <= rhs` and the modern `connect lhs, rhs` connect forms, plus
+  `public module` / layer syntax. If you use an older Chisel and hit a parse
+  gap, please open an issue with the `.fir` (capture it with
+  `Launcher --chirrtl-out`).
 - **Mill** — tested on 1.1.6 (use `>= 1.1, <= 1.1.6`). If
   `mvn"com.lihaoyi::mill-libs:1.1.6"` doesn't resolve in your environment,
   swap to the specific submodule (e.g. `mill-scalalib`) — the trait only
