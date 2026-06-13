@@ -222,12 +222,16 @@ cs launch ... -- serve --dir .  # terminal 2: serves that design.json, UI hot-re
 
 ## Compatibility notes
 
-- **Chisel** — CI tests against 7.11.0 only. 5.x / 6.x are not yet covered by
-  CI, but the parser is written for cross-version portability: it accepts both
-  the legacy `lhs <= rhs` and the modern `connect lhs, rhs` connect forms, plus
-  `public module` / layer syntax. If you use an older Chisel and hit a parse
-  gap, please open an issue with the `.fir` (capture it with
-  `Launcher --chirrtl-out`).
+- **Chisel** — example elaboration runs against 7.11.0, but the parser is
+  written for cross-version portability and a committed fixture matrix proves
+  it: `VersionMatrixTest` parses the *same* design emitted in three syntax eras
+  (SFC/legacy `lhs <= rhs` + `reg ... with`, early-CIRCT `connect` + `regreset`
+  without `public module`, and modern `public module` + `layer`) and asserts
+  all three yield an identical topology. So the legacy `<=` form, the
+  `reg ... with : (reset => ...)` reset, and the `public module` / layer syntax
+  are each held by CI. If you use an older Chisel and hit a parse gap, please
+  open an issue with the `.fir` (capture it with `Launcher --chirrtl-out`) — it
+  becomes a new row in the matrix.
 - **Mill** — tested on 1.1.6 (use `>= 1.1, <= 1.1.6`). If
   `mvn"com.lihaoyi::mill-libs:1.1.6"` doesn't resolve in your environment,
   swap to the specific submodule (e.g. `mill-scalalib`) — the trait only
