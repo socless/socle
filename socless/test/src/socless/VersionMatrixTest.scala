@@ -5,7 +5,7 @@ import utest._
 /** Chisel version compatibility matrix (issue #119).
   *
   * The same trivial design ("Mini": two 8-bit inputs summed into a registered
-  * output) is committed as CHIRRTL in three syntax eras the parser claims to
+  * output) is committed as CHIRRTL across the syntax eras the parser claims to
   * support:
   *
   *   - `chisel3.fir` - SFC / legacy FIRRTL: bare `module`, `lhs <= rhs`
@@ -13,6 +13,8 @@ import utest._
   *     literals, no `FIRRTL version` header.
   *   - `chisel5.fir` - early CIRCT: `module` (no `public`), `connect lhs, rhs`,
   *     `regreset`, `UInt<8>(0h0)` literals, `FIRRTL version 3.0.0`.
+  *   - `chisel6.fir` - `public module` but no `layer` block yet, `FIRRTL
+  *     version 4.0.0` (the shape between chisel5 and chisel7).
   *   - `chisel7.fir` - modern: `public module`, a `layer` block, annotation
   *     payload after the circuit, `FIRRTL version 6.0.0`.
   *
@@ -23,7 +25,7 @@ import utest._
   */
 object VersionMatrixTest extends TestSuite {
 
-  private val variants = Seq("chisel3", "chisel5", "chisel7")
+  private val variants = Seq("chisel3", "chisel5", "chisel6", "chisel7")
 
   private def readFixture(name: String): String = {
     val s = getClass.getResourceAsStream(s"/chirrtl/versions/$name.fir")
@@ -78,7 +80,7 @@ object VersionMatrixTest extends TestSuite {
       }
     }
 
-    test("all three syntax eras yield an identical topology signature") {
+    test("all syntax eras yield an identical topology signature") {
       val sigs = variants.map(v => v -> signature(designOf(v)))
       val ref  = sigs.head._2
       for ((name, sig) <- sigs.tail)
