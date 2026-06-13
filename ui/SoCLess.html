@@ -2935,6 +2935,73 @@ function canRasterizeForeignObject() {
   });
 }
 
+// Minimap / navigation preview for large schematics (issue #5). Renders the
+// full canvas bounding box with every instance block at scale, plus a rectangle
+// for the current viewport. Click or drag inside it to recenter the main view.
+// Purely derived from props (boxes + current pan/zoom + viewport size), so it
+// reflects pan/zoom in real time with no state of its own beyond the drag.
+function BenchMinimap({ boxes, totalW, totalH, pan, zoom, viewportSize, onCenter }) {
+  const ref = useRef(null);
+  if (!(totalW > 0) || !(totalH > 0) || !(viewportSize.w > 0)) return null;
+  const MAX_W = 190, MAX_H = 140;
+  const s = Math.min(MAX_W / totalW, MAX_H / totalH);
+  const w = Math.max(1, totalW * s), h = Math.max(1, totalH * s);
+  // Visible content rectangle in content coords -> minimap coords. The screen
+  // origin (0,0) maps to content (-pan/zoom); the viewport spans vp/zoom of it.
+  const rx = (-pan.x / zoom) * s;
+  const ry = (-pan.y / zoom) * s;
+  const rw = (viewportSize.w / zoom) * s;
+  const rh = (viewportSize.h / zoom) * s;
+
+  const centerAt = (clientX, clientY) => {
+    const r = ref.current && ref.current.getBoundingClientRect();
+    if (!r) return;
+    // Clamp the grab point to the panel so a drag past the edge still tracks.
+    const mx = Math.max(0, Math.min(w, clientX - r.left));
+    const my = Math.max(0, Math.min(h, clientY - r.top));
+    onCenter(mx / s, my / s);
+  };
+  const onDown = (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    centerAt(e.clientX, e.clientY);
+    const move = (ev) => centerAt(ev.clientX, ev.clientY);
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  return (
+    <div data-minimap="1" data-pan-block="1" ref={ref} onMouseDown={onDown}
+      title="Click or drag to pan"
+      style={{
+        position: 'absolute', bottom: 12, left: 12, zIndex: 3, width: w, height: h,
+        background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
+        borderRadius: 4, cursor: 'pointer', overflow: 'hidden',
+        boxShadow: '0 1px 5px rgba(0,0,0,.14)',
+      }}>
+      {Object.entries(boxes).map(([inst, b]) => (
+        <div key={inst} style={{
+          position: 'absolute', left: b.x * s, top: b.y * s,
+          width: Math.max(1, b.w * s), height: Math.max(1, b.h * s),
+          background: benchTokens.ink4, opacity: 0.45, borderRadius: 1,
+        }} />
+      ))}
+      {/* Current viewport rectangle (clipped by the panel's overflow:hidden). */}
+      <div data-minimap-viewport="1" style={{
+        position: 'absolute', left: rx, top: ry, width: rw, height: rh,
+        border: `1.5px solid ${benchTokens.accent}`,
+        background: benchTokens.accentLine,
+        boxSizing: 'border-box', pointerEvents: 'none',
+      }} />
+    </div>
+  );
+}
+
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedPorts, togglePort, tweaks }) {
   // Current layout constants (BenchApp remounts on design switch, so reading
   // them per mount keeps the geometry in sync with the loaded design).
@@ -3096,6 +3163,27 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const [zoom, setZoom] = useState(1);
   const [pan, setPan]   = useState({ x: 0, y: 0 });
   const dragRef = useRef(null);
+
+  // Minimap (issue #5): toggle + live viewport size. Tracked reactively so the
+  // minimap's viewport rectangle stays correct as the panel is resized.
+  const [showMinimap, setShowMinimap] = useState(true);
+  const [viewportSize, setViewportSize] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const update = () => setViewportSize({ w: vp.clientWidth, h: vp.clientHeight });
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(update);
+    ro.observe(vp);
+    return () => ro.disconnect();
+  }, []);
+  // Recenter the main view on a content-space point (used by the minimap).
+  const centerOnContent = useCallback((cx, cy) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    setPan({ x: vp.clientWidth / 2 - cx * zoom, y: vp.clientHeight / 2 - cy * zoom });
+  }, [zoom]);
 
   // Per-path view-state memory: pathKey -> { zoom, pan }.
   // Mirrors of the current zoom/pan as refs so the save-on-navigate effect can
@@ -3809,6 +3897,16 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         )}
       </div>
 
+      {/* Minimap / navigation preview (issue #5), bottom-left so it clears the
+          bottom-right zoom controls. Hidden for trivial canvases that fit anyway. */}
+      {showMinimap && Object.keys(layoutBoxes).length > 0 && (
+        <BenchMinimap
+          boxes={layoutBoxes} totalW={totalW} totalH={canvasH}
+          pan={pan} zoom={zoom} viewportSize={viewportSize}
+          onCenter={centerOnContent}
+        />
+      )}
+
       {/* Zoom controls (bottom-right, outside the pan/zoom viewport so they don't transform). */}
       <div style={{
         position: 'absolute', bottom: 12, right: 12, zIndex: 3,
@@ -3816,6 +3914,10 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
         borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 11,
       }}>
+        <button data-minimap-toggle="1" onClick={() => setShowMinimap((v) => !v)}
+          title={showMinimap ? 'Hide minimap' : 'Show minimap'}
+          style={{ ...zoomBtnStyle, color: showMinimap ? benchTokens.accent : zoomBtnStyle.color }}>map</button>
+        <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
         <button onClick={fitToView} title="Fit to view" style={zoomBtnStyle}>fit</button>
         <button onClick={() => zoomBy(0.8)} title="Zoom out (or mouse wheel down)" style={zoomBtnStyle}>−</button>
         <span style={{ padding: '3px 6px', color: benchTokens.ink2, minWidth: 38, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
