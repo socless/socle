@@ -3478,6 +3478,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // while an expansion is active (issue #130).
   useEffect(() => { canvasHRef.current = canvasH; }, [canvasH]);
 
+  // Minimap is only worth showing when content actually overflows the viewport
+  // at the current zoom; a single-box design that fits needs no overview, but
+  // zooming into it past the edges brings the minimap back (issue #5 polish).
+  const minimapUseful = Object.keys(layoutBoxes).length > 0 && viewportSize.w > 0 &&
+    (totalW * zoom > viewportSize.w + 1 || canvasH * zoom > viewportSize.h + 1);
+
   // Wires with absolute endpoints, routed along the baked (ELK) polylines.
   const wires = useMemo(() => {
     return displayWires.map((w, i) => {
@@ -3898,8 +3904,10 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       </div>
 
       {/* Minimap / navigation preview (issue #5), bottom-left so it clears the
-          bottom-right zoom controls. Hidden for trivial canvases that fit anyway. */}
-      {showMinimap && Object.keys(layoutBoxes).length > 0 && (
+          bottom-right zoom controls. Shown only when there is genuinely
+          off-screen content to navigate (zoom-aware: appears when you zoom into
+          a small design too, hides when the whole canvas already fits). */}
+      {showMinimap && minimapUseful && (
         <BenchMinimap
           boxes={layoutBoxes} totalW={totalW} totalH={canvasH}
           pan={pan} zoom={zoom} viewportSize={viewportSize}
@@ -3914,10 +3922,14 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
         background: benchTokens.panel, border: `1px solid ${benchTokens.border}`,
         borderRadius: 5, padding: 2, fontFamily: benchTokens.mono, fontSize: 11,
       }}>
-        <button data-minimap-toggle="1" onClick={() => setShowMinimap((v) => !v)}
-          title={showMinimap ? 'Hide minimap' : 'Show minimap'}
-          style={{ ...zoomBtnStyle, color: showMinimap ? benchTokens.accent : zoomBtnStyle.color }}>map</button>
-        <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
+        {minimapUseful && (
+          <>
+            <button data-minimap-toggle="1" onClick={() => setShowMinimap((v) => !v)}
+              title={showMinimap ? 'Hide minimap' : 'Show minimap'}
+              style={{ ...zoomBtnStyle, color: showMinimap ? benchTokens.accent : zoomBtnStyle.color }}>map</button>
+            <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
+          </>
+        )}
         <button onClick={fitToView} title="Fit to view" style={zoomBtnStyle}>fit</button>
         <button onClick={() => zoomBy(0.8)} title="Zoom out (or mouse wheel down)" style={zoomBtnStyle}>−</button>
         <span style={{ padding: '3px 6px', color: benchTokens.ink2, minWidth: 38, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>

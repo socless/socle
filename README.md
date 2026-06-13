@@ -213,12 +213,17 @@ Edit your Chisel, sbt re-dumps `MyTop.fir`, and the open UI reloads within ~1s.
 A 0-module or mid-write parse is ignored (the last good design stays on screen),
 so a save caught mid-flush never flickers the view to an error.
 
-With Mill, compose the plugin's `-w` watch with a static `serve` instead:
+With Mill, compose the plugin's `-w` watch with a static `serve` instead. The
+`socless` task writes `design.json` into its task-dest, so point `serve --dir`
+there (`mill show myDesign.socless` prints the exact path):
 
 ```bash
-mill -w myDesign.socless        # terminal 1: re-emits design.json on every edit
-cs launch ... -- serve --dir .  # terminal 2: serves that design.json, UI hot-reloads
+mill -w myDesign.socless                          # terminal 1: re-emits design.json on every edit
+cs launch ... -- serve --dir out/myDesign/socless.dest   # terminal 2: serves it, UI hot-reloads
 ```
+
+The plugin writes `design.json` atomically, so the UI's poller never reads a
+half-written file.
 
 ## Compatibility notes
 
