@@ -36,7 +36,11 @@ object SoclessExporter {
     val parsed    = ChirrtlParser.parse(chirrtl)
     val core      = IrWalk.design(parsed)
     val sources   = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
-    val design    = Layout.withLayouts(core.copy(sources = sources))
+    val design    = Layout.withLayouts(core.copy(
+      sources    = sources,
+      // Absolute root for open-in-editor links (issue #123).
+      sourceRoot = sourceRoot.map(_.toString).getOrElse(""),
+    ))
     val json      = upickle.default.write(design, indent = indent)
     os.write.over(outputPath, json, createFolders = true)
     val sourceTxt = if (sources.isEmpty) "" else s", ${sources.size} sources"

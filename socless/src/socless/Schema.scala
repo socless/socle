@@ -41,6 +41,13 @@ case class Design(
   // usually equals the default, so the UI can rely on the field being present.
   @upickle.implicits.serializeDefaults(true)
   layoutConsts: LayoutConsts = LayoutConsts(28, 24, 18),
+  // Absolute workspace root the relative SourceRef paths resolve against, as
+  // seen on the exporting machine. Lets the UI build open-in-editor links
+  // (vscode://file/..., issue #123). Empty when no source root was
+  // configured; consumers on other machines simply get dead links
+  // (best-effort by design). Additive: older design.json omits it. Kept LAST
+  // so positional Design(...) constructions stay source-compatible.
+  sourceRoot: String = "",
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 

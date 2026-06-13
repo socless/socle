@@ -696,6 +696,9 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
     }
     window.DESIGN.SOURCE = sourceId;
     window.DESIGN.SOURCE_LABEL = sourceLabel;
+    // Absolute workspace root for open-in-editor links (issue #123); empty
+    // for older design.json or when no source root was configured.
+    window.DESIGN.SOURCE_ROOT = (typeof j.sourceRoot === 'string') ? j.sourceRoot : '';
     // The raw design object as loaded: the snapshot export re-embeds it
     // verbatim (issue #122).
     window.DESIGN.RAW = j;
@@ -3709,6 +3712,71 @@ function InspectorTreeNode({ node, depth, sig, setSelectedSig, expandedBundles, 
   );
 }
 
+// ─── Source path chip: path + open-in-editor link (issue #123) ───────────────
+// Editor URL templates; {path} is the absolute file path, {line} the 1-based
+// line. The chosen preset persists in localStorage. Links are best-effort:
+// they need the file to exist at the design's sourceRoot on THIS machine, so
+// shared snapshots simply get a disabled button.
+const EDITOR_PRESETS = [
+  { id: 'vscode', label: 'VS Code',   url: 'vscode://file/{path}:{line}' },
+  { id: 'idea',   label: 'IntelliJ',  url: 'idea://open?file={path}&line={line}' },
+  { id: 'off',    label: 'no editor', url: '' },
+];
+
+function SourcePathChip({ source }) {
+  const [editor, setEditor] = useState(() => {
+    try { return localStorage.getItem('socless-editor') || 'vscode'; } catch (e) { return 'vscode'; }
+  });
+  const preset = EDITOR_PRESETS.find((p) => p.id === editor) || EDITOR_PRESETS[0];
+  const file = (source && source.file) || '';
+  const root = (window.DESIGN && window.DESIGN.SOURCE_ROOT) || '';
+  // Absolute path: markers are either absolute already or relative to the
+  // exporting machine's sourceRoot.
+  const absPath = file.startsWith('/') ? file : (root && file ? root.replace(/\/$/, '') + '/' + file : null);
+  const canOpen = !!(absPath && preset.url);
+  const open = () => {
+    if (!canOpen) return;
+    const url = preset.url
+      .replace('{path}', absPath)
+      .replace('{line}', String((source && source.line) || 1));
+    // Custom protocol: hands off to the OS handler, never navigates the page.
+    window.location.href = url;
+  };
+  const cycle = (e) => {
+    e.preventDefault();
+    const i = EDITOR_PRESETS.findIndex((p) => p.id === preset.id);
+    const next = EDITOR_PRESETS[(i + 1) % EDITOR_PRESETS.length].id;
+    setEditor(next);
+    try { localStorage.setItem('socless-editor', next); } catch (e2) {}
+    if (window.__soclessToast) window.__soclessToast('open-in-editor: ' + (EDITOR_PRESETS.find((p) => p.id === next) || {}).label, 'info', 1800);
+  };
+  return (
+    <React.Fragment>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 420 }} title={absPath || file}>{file}</span>
+      {file && (
+        <button
+          data-open-editor="1"
+          onClick={open}
+          onContextMenu={cycle}
+          disabled={!canOpen}
+          title={canOpen
+            ? `Open in ${preset.label} at line ${(source && source.line) || 1} (right-click to switch editor)`
+            : (preset.url
+                ? 'No absolute path available (re-export with --source-root); right-click to switch editor'
+                : 'Open-in-editor is off; right-click to choose an editor')}
+          style={{
+            border: `1px solid ${benchTokens.borderSoft}`, borderRadius: 4,
+            background: 'transparent', color: canOpen ? benchTokens.ink2 : benchTokens.ink4,
+            cursor: canOpen ? 'pointer' : 'default', fontFamily: benchTokens.mono,
+            fontSize: 10, lineHeight: '14px', padding: '0 5px',
+          }}>
+          {'↗'}
+        </button>
+      )}
+    </React.Fragment>
+  );
+}
+
 // ─── Bottom drawer: source / waveform / ports ────────────────────────────────
 function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, height, density, drillInto, tweaks }) {
   const tabs = [
@@ -3735,8 +3803,8 @@ function BenchBottomPanel({ mod, tab, setTab, selectedSig, setSelectedSig, hover
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontFamily: benchTokens.mono, color: benchTokens.ink4 }}>
-          {tab === 'source' && mod.source.file}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 12px', fontSize: 11, fontFamily: benchTokens.mono, color: benchTokens.ink4 }}>
+          {tab === 'source' && <SourcePathChip source={mod.source} />}
           {/* No clock frequency exists in the schema: do not invent one (issue #97). */}
           {tab === 'wave' && (B_WAVES && B_WAVES.length > 0 ? `${window.DESIGN.WAVE_CYCLES || B_WAVE_CYCLES} cycles` : 'no waveform data')}
           {tab === 'ports' && `${mod.children.length} instances`}
