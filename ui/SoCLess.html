@@ -2708,6 +2708,36 @@ function WireVisualLayer({
   );
 }
 
+// Feature-detect whether the browser rasterizes <foreignObject> when an SVG is
+// drawn to a canvas. WebKit (Safari) does not: it produces a silently blank PNG
+// with no error (issue #131), so PNG export must fall back to SVG there.
+// Cached after the first probe.
+let _foRasterCache = null;
+function canRasterizeForeignObject() {
+  if (_foRasterCache !== null) return Promise.resolve(_foRasterCache);
+  return new Promise((resolve) => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2">' +
+      '<foreignObject width="2" height="2"><div xmlns="http://www.w3.org/1999/xhtml" ' +
+      'style="width:2px;height:2px;background:#ff0000"></div></foreignObject></svg>';
+    const img = new Image();
+    img.onload = () => {
+      let ok = false;
+      try {
+        const c = document.createElement('canvas');
+        c.width = 2; c.height = 2;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const px = ctx.getImageData(0, 0, 1, 1).data;
+        ok = px[0] > 100 && px[3] > 100; // the red div actually rendered
+      } catch (e) { ok = false; } // tainted canvas -> cannot verify -> treat as unsupported
+      _foRasterCache = ok;
+      resolve(ok);
+    };
+    img.onerror = () => { _foRasterCache = false; resolve(false); };
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
 function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, setHoveredSig, drillInto, expandedBundles, toggleBundle, expandedPorts, togglePort, tweaks }) {
   // Current layout constants (BenchApp remounts on design switch, so reading
   // them per mount keeps the geometry in sync with the loaded design).
@@ -2759,13 +2789,38 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   };
 
-  const exportSvg = () => {
-    const out = buildExportSvg();
-    if (!out) return;
-    downloadBlob(`socless-${mod.name}.svg`, new Blob([out.svg], { type: 'image/svg+xml' }));
+  // Run `capture` against the live DOM with selection/hover highlight cleared,
+  // then restore it. Wire/box styling is a pure function of selectedSig (the
+  // selected net gets the accent stroke, every OTHER wire dims to 0.32, the
+  // selected box gets a glow), so a plain click would otherwise export a
+  // washed-out one-net view instead of the schematic (issue #131).
+  const captureWithoutSelection = async (capture) => {
+    if (selectedSig == null && hoveredSig == null) return await capture();
+    const prevSel = selectedSig;
+    setSelectedSig(null);
+    setHoveredSig(null);
+    // Past the highlight transitions (opacity .15s, box-shadow .12s) so the
+    // serialized DOM has settled to the unhighlighted appearance.
+    await new Promise((r) => setTimeout(r, 200));
+    try { return await capture(); }
+    finally { setSelectedSig(prevSel); }
   };
 
-  const exportPng = () => {
+  const saveSvg = () => {
+    const out = buildExportSvg();
+    if (out) downloadBlob(`socless-${mod.name}.svg`, new Blob([out.svg], { type: 'image/svg+xml' }));
+  };
+
+  const exportSvg = () => captureWithoutSelection(saveSvg);
+
+  const exportPng = () => captureWithoutSelection(async () => {
+    // WebKit cannot rasterize foreignObject to a canvas (silently blank PNG):
+    // fall back to SVG with an explanation rather than save a blank image.
+    if (!(await canRasterizeForeignObject())) {
+      if (window.__soclessToast) window.__soclessToast('this browser cannot rasterize the schematic to PNG; saving SVG instead', 'info', 5000);
+      saveSvg();
+      return;
+    }
     const out = buildExportSvg();
     if (!out) return;
     const img = new Image();
@@ -2791,7 +2846,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       if (window.__soclessToast) window.__soclessToast('PNG export failed; try SVG instead', 'err');
     };
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(out.svg);
-  };
+  });
 
   // Self-contained shareable snapshot (issue #122): refetch this page's own
   // HTML (since #105 it is fully self-contained: vendored React, precompiled
@@ -2852,6 +2907,9 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const viewStateMapRef = useRef(new Map());
   const zoomRef = useRef(zoom);
   const panRef  = useRef(pan);
+  // Latest expansion-aware canvas height; written by an effect below where
+  // canvasH is computed, read by fitToView (issue #130).
+  const canvasHRef = useRef(0);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { panRef.current  = pan;  }, [pan]);
 
@@ -2941,12 +2999,16 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
 
   const fitToView = useCallback(() => {
     const vp = viewportRef.current;
-    if (!vp || totalW <= 0 || containerH <= 0) return;
+    if (!vp || totalW <= 0) return;
+    // Expansion-aware height so "fit" frames any active bundle expansion
+    // (issue #130); falls back to containerH before the first effect runs.
+    const fh = canvasHRef.current || containerH;
+    if (fh <= 0) return;
     const margin = 40;
     const w = vp.clientWidth, h = vp.clientHeight;
-    const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / containerH);
+    const z = Math.min(1, (w - 2 * margin) / totalW, (h - 2 * margin) / fh);
     setZoom(z);
-    setPan({ x: (w - totalW * z) / 2, y: (h - containerH * z) / 2 });
+    setPan({ x: (w - totalW * z) / 2, y: (h - fh * z) / 2 });
   }, [totalW, containerH]);
 
   const zoomBy = (factor) => {
@@ -3090,22 +3152,33 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // below that edge moves down by the delta. Relative order is preserved and
   // boxes can never overlap vertically because of an expansion.
   const boxShift = useMemo(() => {
-    const inserts = [];
+    // One raw insert per box that grew, at its baked bottom edge.
+    const raw = [];
     for (const [inst, b] of Object.entries(layoutBoxes)) {
       const info = boxRowsMap[inst];
-      if (info && info.boxH > b.h) inserts.push({ bottom: b.y + b.h, delta: info.boxH - b.h });
+      if (info && info.boxH > b.h) raw.push({ bottom: b.y + b.h, delta: info.boxH - b.h });
     }
+    // Boxes that share a baked bottom (side by side on one row) expand in
+    // parallel, so a box below clears the TALLER of them, not their sum
+    // (issue #130). Collapse to one insert per bottom edge, keeping the max.
+    const byBottom = new Map();
+    for (const ins of raw) byBottom.set(ins.bottom, Math.max(byBottom.get(ins.bottom) || 0, ins.delta));
+    const inserts = [...byBottom.entries()].map(([bottom, delta]) => ({ bottom, delta }));
+    // Downward shift for anything whose baked top sits at/below an insertion
+    // edge: boxes AND wire interior bend points (issue #130). One function so
+    // the two stay in lockstep.
+    const shiftAt = (y) => {
+      let s = 0;
+      for (const ins of inserts) if (y >= ins.bottom - 1) s += ins.delta;
+      return s;
+    };
     const shift = {};
-    let total = 0;
-    if (inserts.length) {
-      for (const [inst, b] of Object.entries(layoutBoxes)) {
-        let s = 0;
-        for (const ins of inserts) if (b.y >= ins.bottom - 1) s += ins.delta;
-        if (s > 0) shift[inst] = s;
-      }
-      total = inserts.reduce((acc, ins) => acc + ins.delta, 0);
+    for (const [inst, b] of Object.entries(layoutBoxes)) {
+      const s = shiftAt(b.y);
+      if (s > 0) shift[inst] = s;
     }
-    return { shift, total };
+    const total = inserts.reduce((acc, ins) => acc + ins.delta, 0);
+    return { shift, inserts, shiftAt, total };
   }, [layoutBoxes, boxRowsMap]);
 
   // The box that owns an endpoint path: boundary stubs are keyed by the FULL
@@ -3115,6 +3188,10 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // Canvas height including the space inserted by expansions, so a tall
   // expansion can never paint past the canvas (issue #106).
   const canvasH = containerH + boxShift.total;
+  // Mirror canvasH into a ref so fitToView (defined above this point) reads the
+  // expansion-aware height; otherwise the fit button crops shifted bottom rows
+  // while an expansion is active (issue #130).
+  useEffect(() => { canvasHRef.current = canvasH; }, [canvasH]);
 
   // Wires with absolute endpoints, routed along the baked (ELK) polylines.
   const wires = useMemo(() => {
@@ -3139,13 +3216,15 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
       // fromPinY overrides pts[last] (= w.from = sink endpoint)
       const fromPinY = (pinY[fromInst] && pinY[fromInst][w.from] != null)
         ? (fromBox ? fromBox.y + fromShift + pinY[fromInst][w.from] : pts[pts.length - 1][1]) : pts[pts.length - 1][1] + fromShift;
-      // Rebuild the points array with updated first/last y, then restore
-      // strict orthogonality (the override can make terminal segments
-      // diagonal, issue #110).
+      // Rebuild the points array: terminals get the pin overrides; interior
+      // bend points follow the SAME downward shift as the boxes they route
+      // past, or the corridor segment stays at the baked y and cuts across
+      // shifted boxes (issue #130). Then restore strict orthogonality, since
+      // any of these y moves can bend a segment diagonal (issue #110).
       const newPts = orthogonalizePts(pts.map((p, idx) => {
         if (idx === 0) return [p[0], toPinY];
         if (idx === pts.length - 1) return [p[0], fromPinY];
-        return p;
+        return [p[0], p[1] + boxShift.shiftAt(p[1])];
       }));
       return {
         id: `w${i}`, ...w, fromInst, toInst,
