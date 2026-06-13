@@ -2729,7 +2729,9 @@ function WireHitLayer({ wires, totalW, totalH, setSelectedSig, setHoveredSig }) 
 function WireVisualLayer({
   wires, totalW, totalH,
   selectedSig, hoveredSig, expandedBundles, toggleBundle, expandedPorts, globalExpanded,
+  wireActive,
 }) {
+  const active = wireActive || (() => true);
   const isHl = (w) => {
     if (!selectedSig) return false;
     return w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
@@ -2763,8 +2765,11 @@ function WireVisualLayer({
         const haloOpacity = hl ? 0.18 : hov ? 0.10 : 0.07;
         const d   = bRoutePath(w);
         const channels = (B_BUNDLES[w.bundle] && B_BUNDLES[w.bundle].channels) || [];
+        // Filter dimming (issue #121) folds in with selection dimming.
+        const filteredOut = !active(w);
+        const groupOpacity = filteredOut ? 0.12 : (dim ? 0.32 : 1);
         return (
-          <g key={w.id} style={{ opacity: dim ? 0.32 : 1, transition: 'opacity .15s' }}>
+          <g key={w.id} style={{ opacity: groupOpacity, transition: 'opacity .15s' }}>
             {!exp && (
               // Halo/glow behind the wire stroke - accent for selected, soft ink for hovered, faint for default
               <path d={d} stroke={haloColor} strokeWidth={sw + 6} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={haloOpacity} />
@@ -2810,6 +2815,15 @@ function WireVisualLayer({
       })}
     </svg>
   );
+}
+
+// Subsequence fuzzy test: does `needle` appear in `hay` in order? Used by the
+// schematic filter (issue #121) - same matching style as the command palette.
+function fuzzyHas(hay, needle) {
+  if (!needle) return true;
+  let i = 0;
+  for (let j = 0; j < hay.length && i < needle.length; j++) if (hay[j] === needle[i]) i += 1;
+  return i === needle.length;
 }
 
 // Feature-detect whether the browser rasterizes <foreignObject> when an SVG is
@@ -3344,6 +3358,32 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   // regardless of individual toggles; the per-wire expand pill is hidden.
   const globalExpanded = tweaks.bundleMode === 'expanded';
 
+  // Schematic filter (issue #121): "grep for the schematic". Typing dims every
+  // box and wire that does not match the query, keeping matches AND their
+  // direct neighbors at full opacity. Cleared on navigation.
+  const [filter, setFilter] = useState('');
+  useEffect(() => { setFilter(''); }, [pathKey]);
+  const filterActive = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return null;
+    const match = new Set();
+    for (const inst of Object.keys(layoutBoxes)) {
+      const child = mod.children.find((c) => c.name === inst);
+      const hay = (inst + ' ' + (child ? child.type : '')).toLowerCase();
+      if (fuzzyHas(hay, q)) match.add(inst);
+    }
+    const active = new Set(match);
+    // Pull in direct neighbors so a matched box keeps its context visible.
+    for (const w of wires) {
+      const a = ownerBoxId(w.from), b = ownerBoxId(w.to);
+      if (match.has(a)) active.add(b);
+      if (match.has(b)) active.add(a);
+    }
+    return active;
+  }, [filter, layoutBoxes, wires, mod]);
+  const boxActive = (inst) => !filterActive || filterActive.has(inst);
+  const wireActive = (w) => !filterActive || filterActive.has(ownerBoxId(w.from)) || filterActive.has(ownerBoxId(w.to));
+
   return (
     <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
       {/* Canvas chrome */}
@@ -3355,6 +3395,21 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
           </div>
           <div style={{ background: benchTokens.panel, border: `1px solid ${benchTokens.border}`, borderRadius: 5, padding: '4px 10px', fontSize: 11, color: benchTokens.ink3, fontFamily: benchTokens.mono }}>
             {mod.children.length} inst · {mod.wires.length} connects
+          </div>
+          {/* Filter box (issue #121): dims non-matching boxes + wires. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: benchTokens.panel, border: `1px solid ${filter ? benchTokens.accent : benchTokens.border}`, borderRadius: 5, padding: '0 8px', fontFamily: benchTokens.mono, fontSize: 11 }}>
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke={benchTokens.ink4} strokeWidth="1.5"><circle cx="4.5" cy="4.5" r="3"/><path d="M7 7l2.5 2.5"/></svg>
+            <input
+              data-filter-input="1"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setFilter(''); e.currentTarget.blur(); } }}
+              placeholder="filter…"
+              style={{ border: 'none', outline: 'none', background: 'transparent', width: 90, height: 24, fontFamily: 'inherit', fontSize: 11, color: benchTokens.ink }}
+            />
+            {filter && (
+              <button onClick={() => setFilter('')} title="Clear filter (Esc)" style={{ border: 'none', background: 'transparent', color: benchTokens.ink3, cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, lineHeight: 1, padding: 0 }}>{'×'}</button>
+            )}
           </div>
         </div>
       </div>
@@ -3392,6 +3447,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   title={inst}
                   style={{
                     position: 'absolute', left: b.x, top: b.y + (boxShift.shift[inst] || 0), width: b.w, height: b.h,
+                    opacity: boxActive(inst) ? 1 : 0.18, transition: 'opacity .15s',
                     background: benchTokens.panelAlt,
                     border: `1px dashed ${benchTokens.border}`,
                     borderRadius: 4,
@@ -3593,6 +3649,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                 onDoubleClick={() => drillable && drillInto(inst)}
                 style={{
                   position: 'absolute', left: b.x, top: b.y + (boxShift.shift[inst] || 0), width: b.w, height: effectiveH,
+                  opacity: boxActive(inst) ? 1 : 0.18,
                   background: benchTokens.panel,
                   border: `1px ${isBlackbox ? 'dashed' : 'solid'} ${selectedHere ? benchTokens.accent : benchTokens.border}`,
                   borderRadius: 6,
@@ -3600,7 +3657,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
                   cursor: drillable ? 'pointer' : 'default',
                   display: 'flex', flexDirection: 'column',
                   overflow: 'visible',
-                  transition: 'box-shadow .12s, border-color .12s',
+                  transition: 'box-shadow .12s, border-color .12s, opacity .15s',
                 }}
               >
                 <div style={{ height: HEADER_H, boxSizing: 'border-box', padding: '0 10px', borderBottom: `1px ${isBlackbox ? 'dashed' : 'solid'} ${benchTokens.borderSoft}`, display: 'flex', alignItems: 'center', gap: 6, background: benchTokens.panelAlt, flexShrink: 0, minWidth: 0, overflow: 'hidden' }}>
@@ -3633,6 +3690,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             expandedBundles={expandedBundles} toggleBundle={toggleBundle}
             expandedPorts={expandedPorts}
             globalExpanded={globalExpanded}
+            wireActive={wireActive}
           />
         </div>
 
