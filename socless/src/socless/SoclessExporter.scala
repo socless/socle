@@ -42,7 +42,7 @@ object SoclessExporter {
       sourceRoot = sourceRoot.map(_.toString).getOrElse(""),
     ))
     val json      = upickle.default.write(design, indent = indent)
-    os.write.over(outputPath, json, createFolders = true)
+    writeAtomic(outputPath, json)
     val sourceTxt = if (sources.isEmpty) "" else s", ${sources.size} sources"
     val warnTxt   = if (design.warnings.isEmpty) "" else s", ${design.warnings.map(_.count).sum} warnings"
     Console.err.println(
@@ -84,7 +84,7 @@ object SoclessExporter {
   ): Design = {
     val design = designFromChirrtl(chirrtl)
     val json   = upickle.default.write(design, indent = indent)
-    os.write.over(outputPath, json, createFolders = true)
+    writeAtomic(outputPath, json)
     Console.err.println(
       s"[socless] wrote $outputPath - " +
       s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
@@ -100,6 +100,16 @@ object SoclessExporter {
     * Unreadable / missing files are skipped silently with a stderr note;
     * we never abort the export because of a stale source path.
     */
+  /** Write JSON atomically: a same-directory temp file then an atomic rename,
+    * so a consumer reading the file mid-write (the UI's live watch polling
+    * design.json, #120) never sees a truncated document. */
+  private def writeAtomic(path: Path, json: String): Unit = {
+    os.makeDir.all(path / os.up)
+    val tmp = path / os.up / s".${path.last}.tmp"
+    os.write.over(tmp, json)
+    os.move.over(tmp, path) // rename is atomic on the same filesystem
+  }
+
   private def collectSources(d: Design, sourceRoot: Path): Map[String, String] = {
     val files = mutable.LinkedHashSet.empty[String]
     def add(s: SourceRef): Unit =

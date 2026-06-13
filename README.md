@@ -192,6 +192,34 @@ only), and converts dropped `.fir` files in-process - no Mill, no Python. Add
 `--dir <dir>` to also serve a `design.json` / `designs.json` from that
 directory so the UI auto-loads it.
 
+### Live dev loop (save and see)
+
+`serve --watch <file.fir>` re-converts a CHIRRTL file in-process every time it
+changes and serves the result at `/design.json`; the UI polls that endpoint and
+hot-reloads the schematic on its own (an "updated Ns ago" indicator shows the
+loop is live). Pair it with a build that re-dumps the `.fir` on every edit for a
+save-and-see workflow:
+
+```bash
+# terminal 1 - your build re-emits MyTop.fir on every source change:
+sbt "~runMain mypkg.DumpMain"          # DumpMain calls emitCHIRRTLFile (step 1 above)
+
+# terminal 2 - serve + watch that file:
+cs launch io.socless::socless:<version> -M socless.Launcher -- \
+  serve --watch MyTop.fir
+```
+
+Edit your Chisel, sbt re-dumps `MyTop.fir`, and the open UI reloads within ~1s.
+A 0-module or mid-write parse is ignored (the last good design stays on screen),
+so a save caught mid-flush never flickers the view to an error.
+
+With Mill, compose the plugin's `-w` watch with a static `serve` instead:
+
+```bash
+mill -w myDesign.socless        # terminal 1: re-emits design.json on every edit
+cs launch ... -- serve --dir .  # terminal 2: serves that design.json, UI hot-reloads
+```
+
 ## Compatibility notes
 
 - **Chisel** — CI tests against 7.11.0 only. 5.x / 6.x are not yet covered by

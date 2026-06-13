@@ -13,20 +13,31 @@ import java.util.concurrent.Executors
   *
   * Usage:
   * {{{
-  *   socless.Launcher serve [--port N] [--dir <static-dir>] [--no-open]
+  *   socless.Launcher serve [--port N] [--dir <static-dir>] [--watch <file.fir>] [--no-open]
   * }}}
   * `--dir` additionally serves static files from a directory (drop a
   * `design.json` / `designs.json` there to have the UI auto-load it).
+  *
+  * `--watch <file.fir>` re-converts a CHIRRTL file in-process whenever it
+  * changes and serves the result at `/design.json`; combined with the UI's
+  * live poller (#120) this gives a save-and-see dev loop. Point it at a `.fir`
+  * your own build dumps on every edit (e.g. `sbt ~runMain ...Dump`).
   */
 object Serve {
 
   private val MaxBody = 128 * 1024 * 1024 // 128 MB of CHIRRTL is plenty
 
+  // The current converted design.json + the time it was produced, for
+  // --watch. Volatile so the watcher thread's writes are seen by request
+  // threads. None until the first conversion succeeds.
+  @volatile private var live: Option[(String, Long)] = None
+
   def run(args: Array[String]): Unit = {
-    var port = 8765
-    var dir  = Option.empty[os.Path]
-    var open = true
-    var i    = 0
+    var port  = 8765
+    var dir   = Option.empty[os.Path]
+    var watch = Option.empty[os.Path]
+    var open  = true
+    var i     = 0
     while (i < args.length) {
       args(i) match {
         case "--port" if i + 1 < args.length =>
@@ -36,13 +47,16 @@ object Serve {
           i += 2
         case "--dir" if i + 1 < args.length =>
           dir = Some(os.Path(args(i + 1), os.pwd)); i += 2
+        case "--watch" if i + 1 < args.length =>
+          watch = Some(os.Path(args(i + 1), os.pwd)); i += 2
         case "--no-open" => open = false; i += 1
         case other =>
           Console.err.println(s"[socless] serve: unknown argument '$other'")
-          Console.err.println("usage: socless.Launcher serve [--port N] [--dir <dir>] [--no-open]")
+          Console.err.println("usage: socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--no-open]")
           sys.exit(2)
       }
     }
+    watch.foreach(startWatch)
 
     val html = readResource("/SoCLess.html").getOrElse {
       Console.err.println("[socless] SoCLess.html not found on the classpath; is the socless JAR complete?")
@@ -78,6 +92,13 @@ object Serve {
       path match {
         case "/" | "/SoCLess.html" =>
           send(ex, 200, "text/html; charset=utf-8", html.getBytes(UTF_8))
+        // When --watch is active, the freshest design.json lives in memory; the
+        // UI's live poller (#120) reads it via Last-Modified. Falls through to
+        // --dir static when no conversion has happened yet.
+        case "/design.json" if live.isDefined =>
+          val (json, stamp) = live.get
+          ex.getResponseHeaders.set("Last-Modified", httpDate(stamp))
+          send(ex, 200, "application/json", json.getBytes(UTF_8))
         case p =>
           serveStatic(ex, dir, p.stripPrefix("/"))
       }
@@ -93,11 +114,58 @@ object Serve {
       try dir.map(_ / os.RelPath(rel)) catch { case _: Throwable => None }
     file match {
       case Some(f) if dir.exists(d => f.startsWith(d)) && os.exists(f) && os.isFile(f) =>
+        // Last-Modified lets the UI's live watch (#120) detect re-elaboration.
+        ex.getResponseHeaders.set("Last-Modified", httpDate(os.mtime(f)))
         send(ex, 200, contentType(rel), os.read.bytes(f))
       case _ =>
         send(ex, 404, "text/plain", "not found".getBytes(UTF_8))
     }
   }
+
+  /** Re-convert a `.fir` file into design.json in-process whenever it changes
+    * (issue #120). Runs on a daemon thread polling mtime ~1x/sec; the result is
+    * published into `live` for the GET /design.json handler. A failed
+    * conversion (mid-write file, transient parse error) is logged and the last
+    * good design is kept, so the UI never flips to a broken state. */
+  private def startWatch(fir: os.Path): Unit = {
+    def convertOnce(): Unit =
+      try {
+        val design = SoclessExporter.designFromChirrtl(os.read(fir))
+        // A 0-module parse means the file was empty, mid-write, or not CHIRRTL.
+        // The parser degrades gracefully rather than throwing, so guard here and
+        // keep the last good design instead of flipping the UI to "Unknown".
+        if (design.modules.isEmpty)
+          Console.err.println("[socless] watch: parsed 0 modules (incomplete or invalid CHIRRTL?), keeping last good")
+        else
+          live = Some((upickle.default.write(design, indent = 2), System.currentTimeMillis()))
+      } catch {
+        case e: Throwable =>
+          val msg = Option(e.getMessage).getOrElse(e.toString).linesIterator.next()
+          Console.err.println(s"[socless] watch: conversion failed (keeping last good): $msg")
+      }
+    // Initial conversion so the UI has something the moment it loads.
+    if (os.exists(fir)) convertOnce()
+    else Console.err.println(s"[socless] watch: $fir does not exist yet; waiting for it")
+    val t = new Thread(() => {
+      var lastMtime = -1L
+      while (true) {
+        try {
+          if (os.exists(fir)) {
+            val m = os.mtime(fir)
+            if (m != lastMtime) { lastMtime = m; convertOnce() }
+          }
+        } catch { case _: InterruptedException => return; case _: Throwable => () }
+        try Thread.sleep(1000) catch { case _: InterruptedException => return }
+      }
+    }, "socless-watch")
+    t.setDaemon(true)
+    t.start()
+    Console.err.println(s"[socless] watching $fir for changes -- re-converting on save")
+  }
+
+  private def httpDate(millis: Long): String =
+    java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
+      java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(millis), java.time.ZoneOffset.UTC))
 
   private def convert(ex: HttpExchange): Unit = {
     val declared = Option(ex.getRequestHeaders.getFirst("Content-Length")).flatMap(_.toIntOption).getOrElse(-1)

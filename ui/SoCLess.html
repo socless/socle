@@ -789,6 +789,40 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
     return window.__soclessLoadDesign('live', { pushUrl: false });
   };
 
+  // Live watch (issue #120): while showing the live design and the tab is
+  // visible, poll design.json's Last-Modified and reload in place when it
+  // changes - so re-running elaboration (soclessWatch, `mill -w`, or by hand)
+  // refreshes the schematic with no manual reload. In-place reload preserves
+  // zoom/pan and drill state (#12/#94).
+  (function setupLiveWatch() {
+    let lastMod = null; // null = needs a fresh baseline
+    window.DESIGN.LIVE_UPDATED_AT = 0;
+    async function poll() {
+      if (window.DESIGN.SOURCE !== 'live') return;
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const r = await fetch('design.json', { method: 'HEAD', cache: 'no-store' });
+        if (!r.ok) return;
+        const stamp = r.headers.get('Last-Modified') || r.headers.get('ETag') || '';
+        if (!stamp) return;
+        if (lastMod === null) { lastMod = stamp; return; } // baseline, no reload
+        if (stamp !== lastMod) {
+          lastMod = stamp;
+          const ok = await window.__soclessReloadLive();
+          if (ok) {
+            window.DESIGN.LIVE_UPDATED_AT = Date.now();
+            window.dispatchEvent(new CustomEvent('socless:live-updated'));
+            toast('design.json changed - reloaded', 'ok', 2500);
+          }
+        }
+      } catch { /* server gone or offline - ignore, retry next tick */ }
+    }
+    // Re-baseline whenever a fresh design loads (manual reload / design switch),
+    // so the same change is never acted on twice.
+    window.addEventListener('socless:design-changed', () => { lastMod = null; });
+    setInterval(poll, 1500);
+  })();
+
   // Load a SoCLess design.json from a File / Blob (drag-drop or upload).
   window.__soclessLoadDesignFromFile = async function (file) {
     try {
@@ -1966,6 +2000,23 @@ function ThemeToggle() {
   );
 }
 
+// "updated Ns ago" since the live watch last auto-reloaded design.json
+// (issue #120). Ticks once a second; only mounted while showing the live design.
+function LiveUpdatedAgo() {
+  const [, tick] = useState(0);
+  const [at, setAt] = useState(window.DESIGN.LIVE_UPDATED_AT || 0);
+  useEffect(() => {
+    const id = setInterval(() => tick((x) => x + 1), 1000);
+    const onUpd = () => setAt(window.DESIGN.LIVE_UPDATED_AT || Date.now());
+    window.addEventListener('socless:live-updated', onUpd);
+    return () => { clearInterval(id); window.removeEventListener('socless:live-updated', onUpd); };
+  }, []);
+  if (!at) return null;
+  const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
+  const ago = secs < 60 ? `${secs}s` : `${Math.round(secs / 60)}m`;
+  return <span data-live-ago="1" style={{ color: benchTokens.ink4 }}>updated {ago} ago</span>;
+}
+
 // ─── Top bar ─────────────────────────────────────────────────────────────────
 function BenchTopBar({ path, navTo, mod, onOpenPalette, onOpenHelp }) {
   const metrics = (mod && mod.metrics) || {};
@@ -2032,6 +2083,7 @@ function BenchTopBar({ path, navTo, mod, onOpenPalette, onOpenHelp }) {
           <span style={{ width: 6, height: 6, borderRadius: 3, background: isLive ? benchTokens.ok : benchTokens.warn }} />
           {source}
         </span>
+        {isLive && <LiveUpdatedAgo />}
       </div>
       {/* help affordance */}
       <button
