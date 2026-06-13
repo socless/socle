@@ -32,5 +32,29 @@ object StandaloneConvertTest extends TestSuite {
       val js = SoclessExporter.designJson(gcd)
       assert(upickle.default.write(d, indent = 2) == js)
     }
+
+    test("a sourceRoot embeds source text from the .fir's markers (#154)") {
+      val dir     = os.temp.dir()
+      val rel     = "pkg/Tiny.scala"
+      val srcText = "class Tiny extends Module { val io = IO(new Bundle {}) }\n"
+      os.write(dir / os.RelPath(rel), srcText, createFolders = true)
+      val chirrtl =
+        s"""|circuit Tiny :
+            |  module Tiny : @[$rel 1:7]
+            |    input clock : Clock @[$rel 1:7]
+            |    input reset : UInt<1> @[$rel 1:7]
+            |    output io : { flip a : UInt<8>, b : UInt<8>} @[$rel 2:14]
+            |""".stripMargin
+
+      // With a root: the marker resolves and the text is embedded.
+      val withRoot = SoclessExporter.designFromChirrtl(chirrtl, Some(dir))
+      assert(withRoot.sources.get(rel).contains(srcText))
+      assert(withRoot.sourceRoot == dir.toString)
+
+      // Without a root: behaviour is unchanged (no embedding, terse JSON).
+      val without = SoclessExporter.designFromChirrtl(chirrtl)
+      assert(without.sources.isEmpty)
+      assert(without.sourceRoot == "")
+    }
   }
 }

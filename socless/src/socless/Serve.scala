@@ -22,6 +22,10 @@ import java.util.concurrent.Executors
   * changes and serves the result at `/design.json`; combined with the UI's
   * live poller (#120) this gives a save-and-see dev loop. Point it at a `.fir`
   * your own build dumps on every edit (e.g. `sbt ~runMain ...Dump`).
+  *
+  * `--source-root <dir>` embeds source text into every converted design (both
+  * drag-drop `/convert` and `--watch`), so the UI's Source tab shows code
+  * instead of a bare file:line locator (issue #154).
   */
 object Serve {
 
@@ -32,14 +36,25 @@ object Serve {
   // threads. None until the first conversion succeeds.
   @volatile private var live: Option[(String, Long)] = None
 
+  // Optional --source-root: embeds source text into converted designs (#154),
+  // for both POST /convert and --watch. Set once at startup, read by request
+  // and watcher threads.
+  @volatile private var sourceRoot: Option[os.Path] = None
+
+  private val Usage =
+    "usage: socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
+
   def run(args: Array[String]): Unit = {
-    var port  = 8765
-    var dir   = Option.empty[os.Path]
-    var watch = Option.empty[os.Path]
-    var open  = true
-    var i     = 0
+    var port    = 8765
+    var dir     = Option.empty[os.Path]
+    var watch   = Option.empty[os.Path]
+    var srcRoot = Option.empty[os.Path]
+    var open    = true
+    var i       = 0
     while (i < args.length) {
       args(i) match {
+        case "--help" | "-h" =>
+          println(Usage); return
         case "--port" if i + 1 < args.length =>
           port = args(i + 1).toIntOption.filter(p => p > 0 && p <= 65535).getOrElse {
             Console.err.println(s"[socless] serve: invalid port '${args(i + 1)}'"); sys.exit(2)
@@ -49,13 +64,16 @@ object Serve {
           dir = Some(os.Path(args(i + 1), os.pwd)); i += 2
         case "--watch" if i + 1 < args.length =>
           watch = Some(os.Path(args(i + 1), os.pwd)); i += 2
+        case "--source-root" if i + 1 < args.length =>
+          srcRoot = Some(os.Path(args(i + 1), os.pwd)); i += 2
         case "--no-open" => open = false; i += 1
         case other =>
           Console.err.println(s"[socless] serve: unknown argument '$other'")
-          Console.err.println("usage: socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--no-open]")
+          Console.err.println(Usage)
           sys.exit(2)
       }
     }
+    sourceRoot = srcRoot
     watch.foreach(startWatch)
 
     val html = readResource("/SoCLess.html").getOrElse {
@@ -130,7 +148,7 @@ object Serve {
   private def startWatch(fir: os.Path): Unit = {
     def convertOnce(): Unit =
       try {
-        val design = SoclessExporter.designFromChirrtl(os.read(fir))
+        val design = SoclessExporter.designFromChirrtl(os.read(fir), sourceRoot)
         // A 0-module parse means the file was empty, mid-write, or not CHIRRTL.
         // The parser degrades gracefully rather than throwing, so guard here and
         // keep the last good design instead of flipping the UI to "Unknown".
@@ -172,7 +190,7 @@ object Serve {
     if (declared > MaxBody) { send(ex, 413, "text/plain", "body too large".getBytes(UTF_8)); return }
     val body = new String(ex.getRequestBody.readAllBytes(), UTF_8)
     try {
-      val json = SoclessExporter.designJson(body)
+      val json = SoclessExporter.designJson(body, sourceRoot = sourceRoot)
       send(ex, 200, "application/json", json.getBytes(UTF_8))
     } catch {
       case e: Throwable =>

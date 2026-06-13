@@ -68,26 +68,40 @@ object SoclessExporter {
     */
   /** Parse CHIRRTL text into a laid-out [[Design]] with no file I/O. Used by
     * [[fromChirrtl]] and by the standalone server's in-process `/convert`
-    * (issue #115). */
-  def designFromChirrtl(chirrtl: String): Design =
-    Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(chirrtl)))
+    * (issue #115).
+    *
+    * When `sourceRoot` is given, the `@[file …]` markers in the CHIRRTL are
+    * resolved against it and the source text is embedded, exactly like the
+    * Chisel [[export]] path - so a design served from a `.fir` can show source
+    * code too (issue #154). Absolute marker paths are read directly; relative
+    * ones resolve under `sourceRoot`. */
+  def designFromChirrtl(chirrtl: String, sourceRoot: Option[Path] = None): Design = {
+    val core    = IrWalk.design(ChirrtlParser.parse(chirrtl))
+    val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
+    Layout.withLayouts(core.copy(
+      sources    = sources,
+      sourceRoot = sourceRoot.map(_.toString).getOrElse(""),
+    ))
+  }
 
   /** Convert CHIRRTL text to a `design.json` string (no file I/O), for the
-    * standalone server (issue #115). */
-  def designJson(chirrtl: String, indent: Int = 2): String =
-    upickle.default.write(designFromChirrtl(chirrtl), indent = indent)
+    * standalone server (issue #115). `sourceRoot` embeds source text (#154). */
+  def designJson(chirrtl: String, sourceRoot: Option[Path] = None, indent: Int = 2): String =
+    upickle.default.write(designFromChirrtl(chirrtl, sourceRoot), indent = indent)
 
   def fromChirrtl(
     chirrtl:    String,
     outputPath: Path,
-    indent:     Int = 2,
+    sourceRoot: Option[Path] = None,
+    indent:     Int          = 2,
   ): Design = {
-    val design = designFromChirrtl(chirrtl)
+    val design = designFromChirrtl(chirrtl, sourceRoot)
     val json   = upickle.default.write(design, indent = indent)
     writeAtomic(outputPath, json)
+    val sourceTxt = if (design.sources.isEmpty) "" else s", ${design.sources.size} sources"
     Console.err.println(
       s"[socless] wrote $outputPath - " +
-      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
+      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt"
     )
     design
   }

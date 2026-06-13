@@ -41,7 +41,7 @@ object Launcher {
 
   val UsageLine: String =
     "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
-    "       socless.Launcher serve [--port N] [--dir <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
+    "       socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
   /** Parsed representation of valid CLI arguments. */
   final case class LauncherConfig(
@@ -231,7 +231,9 @@ object Launcher {
         if (!os.exists(firFile))
           { Console.err.println(s"[socless] file not found: $firFile"); sys.exit(1) }
         val chirrtl = os.read(firFile)
-        enforceStrict(cfg, SoclessExporter.fromChirrtl(chirrtl, output))
+        // --source-root embeds source text from the .fir's @[file …] markers,
+        // same as the Chisel path (issue #154).
+        enforceStrict(cfg, SoclessExporter.fromChirrtl(chirrtl, output, sourceRoot = sourceRoot))
 
       case None =>
         val top = cfg.top.get   // safe: parseArgs guarantees one of the two is set
