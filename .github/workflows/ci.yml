@@ -18,6 +18,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # The shipped UI (ui/SoCLess.dist.html: JSX precompiled, production React
+      # inlined, issue #105) is committed like the goldens. Rebuild it and fail
+      # if someone edited ui/SoCLess.html without regenerating. Runs FIRST so a
+      # UI-only PR fails in seconds instead of after the whole Scala pipeline
+      # has published and served the stale dist (issue #136).
+      - name: UI dist is in sync with its source
+        working-directory: tools/ui-build
+        run: |
+          npm ci
+          node build.mjs
+          if ! git diff --exit-code ../../ui/SoCLess.dist.html; then
+            echo "ui/SoCLess.dist.html is stale."
+            echo "Run: cd tools/ui-build && npm ci && node build.mjs   then commit the result."
+            exit 1
+          fi
+
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
@@ -65,7 +86,10 @@ jobs:
           (cd "$work" && ./mill demo.socless)
           json=$(find "$work/out" -name design.json | head -1)
           if [ -z "$json" ]; then echo "plugin produced no design.json"; exit 1; fi
-          (cd "$work" && timeout 90 ./mill demo.soclessServe --port 8917 >serve.log 2>&1 &)
+          # Assert the emitted JSON is VALID and is the Blinky design, not just
+          # that a (possibly empty/truncated) file exists (issue #134).
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['top']=='Blinky', d['top']; assert d['modules'], 'no modules'" "$json"
+          (cd "$work" && timeout 120 ./mill demo.soclessServe --port 8917 >serve.log 2>&1 &)
           ok=0
           for i in $(seq 1 60); do
             if curl -sf -o /dev/null http://127.0.0.1:8917/SoCLess.html; then ok=1; break; fi
@@ -74,6 +98,18 @@ jobs:
           if [ "$ok" != 1 ]; then
             echo "plugin UI server never served"; cat "$work/serve.log" || true; exit 1
           fi
+          # The served (and JAR-embedded) UI must be the BUILT dist, not the
+          # CDN-dependent dev source - the exact regression PR #113 wired the
+          # build to prevent, but no gate asserted the served bytes (issue #134).
+          curl -sf http://127.0.0.1:8917/SoCLess.html -o /tmp/served-ui.html
+          grep -q 'GENERATED FILE' /tmp/served-ui.html || { echo "served UI is not the built dist (no GENERATED FILE banner)"; exit 1; }
+          if grep -q -e 'unpkg.com' -e 'text/babel' /tmp/served-ui.html; then
+            echo "served UI still references the CDN / in-browser Babel (dev source leaked into the JAR)"; exit 1
+          fi
+          # Exercise POST /convert (the drag-drop .fir path): the python server's
+          # only dynamic endpoint, otherwise zero coverage (issue #134).
+          curl -sf --data-binary @socless/test/resources/chirrtl/gcd.fir http://127.0.0.1:8917/convert \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('modules'), 'convert returned no modules'; print('convert ok: top=' + str(d.get('top')))"
 
       - name: Elaborate AXISystem example
         run: ./mill example.soclessRun
@@ -97,26 +133,8 @@ jobs:
       # Drives the single-file UI headlessly against every elaborated design:
       # drills into each module (incl. leaves), expands every bundle, and fails
       # on any page exception or console error. Reuses the design.json files
-      # produced by the elaborate steps above.
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      # The shipped UI (ui/SoCLess.dist.html: JSX precompiled, production
-      # React inlined, issue #105) is committed like the goldens. Rebuild it
-      # and fail if someone edited ui/SoCLess.html without regenerating.
-      - name: UI dist is in sync with its source
-        working-directory: tools/ui-build
-        run: |
-          npm ci
-          node build.mjs
-          if ! git diff --exit-code ../../ui/SoCLess.dist.html; then
-            echo "ui/SoCLess.dist.html is stale."
-            echo "Run: cd tools/ui-build && npm ci && node build.mjs   then commit the result."
-            exit 1
-          fi
-
+      # produced by the elaborate steps above. (Node + the dist sync check ran
+      # right after checkout; see the top of the job.)
       - name: Install UI smoke deps + Chromium
         working-directory: tools/ui-smoke
         run: |
@@ -126,7 +144,7 @@ jobs:
           npx --yes playwright@1.60.0 install --with-deps chromium
 
       - name: Assemble UI serve directory
-        run: node tools/ui-smoke/assemble.mjs site
+        run: node tools/ui-smoke/assemble.mjs site --require-dist
 
       - name: Run UI smoke test
         run: |

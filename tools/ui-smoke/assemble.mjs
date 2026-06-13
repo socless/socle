@@ -3,11 +3,17 @@
 // examples/manifest.json the picker reads, and a default design.json.
 //
 // Run from the repo root after elaborating the examples:
-//   node tools/ui-smoke/assemble.mjs <out-dir>   (default: site)
+//   node tools/ui-smoke/assemble.mjs <out-dir> [--require-dist]   (default out: site)
+//
+// --require-dist fails if ui/SoCLess.dist.html is missing instead of silently
+// serving the dev source (CI passes it so the smoke always validates the
+// shipped artifact, issue #136).
 
 import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'node:fs';
 
-const out = process.argv[2] || 'site';
+const args = process.argv.slice(2);
+const requireDist = args.includes('--require-dist');
+const out = args.find((a) => !a.startsWith('--')) || 'site';
 const designs = [
   ['axisystem',    'soclessRun',          'AXISystem (AXI crossbar)'],
   ['rvpipeline',   'soclessRunPipeline',  'RVPipeline (4-stage)'],
@@ -21,7 +27,13 @@ mkdirSync(`${out}/examples`, { recursive: true });
 // Serve the BUILT artifact (precompiled JSX + vendored production React,
 // issue #105): it is what ships in the JAR, so it is what gets smoked. Fall
 // back to the dev source when the dist has not been built.
-const ui = existsSync('ui/SoCLess.dist.html') ? 'ui/SoCLess.dist.html' : 'ui/SoCLess.html';
+const hasDist = existsSync('ui/SoCLess.dist.html');
+if (requireDist && !hasDist) {
+  console.error('--require-dist: ui/SoCLess.dist.html is missing. Build it: cd tools/ui-build && npm ci && node build.mjs');
+  process.exit(1);
+}
+const ui = hasDist ? 'ui/SoCLess.dist.html' : 'ui/SoCLess.html';
+console.log(`[assemble] serving UI from ${ui}${hasDist ? ' (built dist)' : ' (DEV SOURCE - not the shipped artifact)'}`);
 copyFileSync(ui, `${out}/SoCLess.html`);
 
 const manifest = [];

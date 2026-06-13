@@ -9,8 +9,9 @@
 //   1. The three CDN <script src> tags are replaced by the vendored
 //      production UMDs of react/react-dom, inlined (Babel is dropped).
 //   2. Every <script type="text/babel"> block is precompiled with the same
-//      @babel/standalone version and the same preset (react) the browser
-//      would have used, becoming a plain <script>.
+//      @babel/standalone version (preset-react, modern-ES output) and inlined
+//      as a plain <script>. See the preset note at the Babel.transform call:
+//      this is NOT byte-identical to the dev page's transform, by design.
 //
 // The dist file is COMMITTED (like the golden snapshots) so the Scala build
 // never needs Node; CI rebuilds it and fails if it is out of sync.
@@ -40,18 +41,35 @@ const vendor = (f) => {
 };
 
 // 1. Swap the CDN tags for inlined production builds; drop Babel entirely.
+// The version is captured FROM the dev CDN tag (the source of truth a dev
+// would bump) and asserted against the vendored UMD, so upgrading React in
+// ui/SoCLess.html without re-vendoring fails the build instead of silently
+// shipping a different React major than the dev page (issue #136).
 const cdnTag = (pkg) =>
-  new RegExp(`<script src="https://unpkg\\.com/${pkg}@[^"]+"[^>]*></script>`);
-const replaceTag = (pkg, replacement) => {
+  new RegExp(`<script src="https://unpkg\\.com/${pkg}@([^/"]+)[^"]*"[^>]*></script>`);
+const vendorMatchingTag = (pkg, file) => {
   const re = cdnTag(pkg);
-  if (!re.test(html)) throw new Error(`CDN tag for ${pkg} not found in SoCLess.html`);
+  const m = html.match(re);
+  if (!m) throw new Error(`CDN tag for ${pkg} not found in SoCLess.html`);
+  const version = m[1];
+  const code = vendor(file);
+  if (!code.includes(version)) {
+    throw new Error(
+      `${file} does not embed version ${version} from the ${pkg} CDN tag. ` +
+      `Re-vendor it (see tools/ui-build/vendor/README.md) before building.`,
+    );
+  }
   // Replacer FUNCTION: minified React contains '$&' sequences, which the
   // string form of replace() would expand to the matched tag.
-  html = html.replace(re, () => replacement);
+  html = html.replace(re, () => `<script>/* ${pkg}@${version} production (vendored) */\n${code}\n</script>`);
 };
-replaceTag('react', `<script>/* react@18.3.1 production (vendored) */\n${vendor('react.production.min.js')}\n</script>`);
-replaceTag('react-dom', `<script>/* react-dom@18.3.1 production (vendored) */\n${vendor('react-dom.production.min.js')}\n</script>`);
-replaceTag('@babel/standalone', '<!-- @babel/standalone not needed: JSX precompiled by tools/ui-build/build.mjs -->');
+vendorMatchingTag('react', 'react.production.min.js');
+vendorMatchingTag('react-dom', 'react-dom.production.min.js');
+{
+  const re = cdnTag('@babel/standalone');
+  if (!re.test(html)) throw new Error('CDN tag for @babel/standalone not found in SoCLess.html');
+  html = html.replace(re, () => '<!-- @babel/standalone not needed: JSX precompiled by tools/ui-build/build.mjs -->');
+}
 
 // 2. Precompile every text/babel block in place.
 const OPEN = '<script type="text/babel">';
@@ -63,6 +81,12 @@ while ((idx = html.indexOf(OPEN, idx)) !== -1) {
   if (end === -1) throw new Error('unterminated text/babel block');
   const jsx = html.slice(start, end);
   const { code } = Babel.transform(jsx, {
+    // preset-react only: the dist intentionally ships MODERN ES (async/await,
+    // classes, ...), matching this tool's existing modern-browser baseline
+    // (CSS custom properties, oklch, foreignObject). The dev page's in-browser
+    // @babel/standalone may apply additional env transforms, but on the modern
+    // browsers SoCLess targets the runtime behavior is equivalent; do not rely
+    // on byte-for-byte transform parity between dev and dist (issue #136).
     presets: ['react'],
     // Keep output readable and diffs reviewable; no minification.
     compact: false,
