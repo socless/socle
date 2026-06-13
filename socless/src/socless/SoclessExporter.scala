@@ -44,9 +44,10 @@ object SoclessExporter {
     val json      = upickle.default.write(design, indent = indent)
     os.write.over(outputPath, json, createFolders = true)
     val sourceTxt = if (sources.isEmpty) "" else s", ${sources.size} sources"
+    val warnTxt   = if (design.warnings.isEmpty) "" else s", ${design.warnings.map(_.count).sum} warnings"
     Console.err.println(
       s"[socless] wrote $outputPath - " +
-      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt"
+      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt$warnTxt"
     )
     design
   }

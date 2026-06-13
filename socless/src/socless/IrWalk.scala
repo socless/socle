@@ -35,7 +35,17 @@ object IrWalk {
     // than searching per wire.
     val byName  = c.modules.map(m => m.name -> m).toMap
     val modules = c.modules.map(buildModule(_, byName, bundles))
-    Design(top = c.name, bundles = bundles.defs.toMap, modules = modules)
+    // Carry parser warnings through, and add a walk-level one: wires whose
+    // endpoint type could not be resolved fall back to bundle "Wire" (issue
+    // #118 - the user should know those are best-effort, not real types).
+    val unresolved = modules.flatMap(_.wires).count(_.bundle == "Wire")
+    val walkWarnings =
+      if (unresolved > 0)
+        Seq(Warning("unresolved-endpoint", unresolved,
+          s"$unresolved wire(s) had an unresolvable endpoint type and were labeled 'Wire'"))
+      else Seq.empty
+    Design(top = c.name, bundles = bundles.defs.toMap, modules = modules,
+      warnings = c.warnings ++ walkWarnings)
   }
 
   // ── Module ────────────────────────────────────────────────────────────────

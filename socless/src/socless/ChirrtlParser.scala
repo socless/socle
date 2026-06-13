@@ -69,7 +69,7 @@ object ChirrtlParser {
     // yet are clearly used (issue #74).
     refs: Set[String] = Set.empty,
   )
-  case class Circ(name: String, modules: Seq[Mod])
+  case class Circ(name: String, modules: Seq[Mod], warnings: Seq[Warning] = Seq.empty)
 
   // CHIRRTL statement keywords, type names, and primops that must never count
   // as a port reference (issue #100). Field selections are already excluded
@@ -150,8 +150,8 @@ object ChirrtlParser {
     val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+([\w$]+)([^:]*)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
 
     // Constructs we recognize but do not represent (no topology for them):
-    // counted and surfaced as ONE summary warning so .fir users know what is
-    // missing instead of wires silently vanishing (issue #101).
+    // counted and surfaced as structured warnings so users know what is
+    // missing instead of wires silently vanishing (issues #101, #118).
     var skippedPartial = 0   // old-FIRRTL partial connect `lhs <- rhs`
     var skippedAttach  = 0   // Analog `attach(a, b)`
 
@@ -194,14 +194,19 @@ object ChirrtlParser {
       }
     }
     flush()
-    if (skippedPartial + skippedAttach > 0) {
-      val parts = Seq(
-        if (skippedPartial > 0) Some(s"$skippedPartial partial connect(s) '<-'") else None,
-        if (skippedAttach  > 0) Some(s"$skippedAttach attach statement(s)") else None,
-      ).flatten
-      Console.err.println(s"[socless] parser skipped ${parts.mkString(" and ")}: these wires are not represented")
-    }
-    Circ(circuitName, modules.toSeq)
+    val warnings = Seq(
+      if (skippedPartial > 0)
+        Some(Warning("skipped-partial-connect", skippedPartial,
+          s"$skippedPartial partial connect(s) ('<-') were skipped; those wires are not represented"))
+      else None,
+      if (skippedAttach > 0)
+        Some(Warning("skipped-attach", skippedAttach,
+          s"$skippedAttach attach statement(s) were skipped; those Analog nets are not represented"))
+      else None,
+    ).flatten
+    if (warnings.nonEmpty)
+      Console.err.println(s"[socless] ${warnings.map(_.message).mkString("; ")}")
+    Circ(circuitName, modules.toSeq, warnings)
   }
 
   // ── Statement-level parsing ────────────────────────────────────────────────

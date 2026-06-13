@@ -699,6 +699,8 @@ window.DESIGN = { BUNDLES, MODULES, WAVES, WAVE_CYCLES, CHANNEL_COLOR, totalWidt
     // Absolute workspace root for open-in-editor links (issue #123); empty
     // for older design.json or when no source root was configured.
     window.DESIGN.SOURCE_ROOT = (typeof j.sourceRoot === 'string') ? j.sourceRoot : '';
+    // Non-fatal export warnings (issue #118); shown in a dismissible banner.
+    window.DESIGN.WARNINGS = Array.isArray(j.warnings) ? j.warnings : [];
     // The raw design object as loaded: the snapshot export re-embeds it
     // verbatim (issue #122).
     window.DESIGN.RAW = j;
@@ -1720,6 +1722,49 @@ function KeyboardHelp({ open, onClose }) {
   );
 }
 
+// ─── Export warnings banner (issue #118) ─────────────────────────────────────
+// Surfaces Design.warnings (parser skips, unresolved endpoints, ...) so a
+// schematic with silently missing wires is self-diagnosing instead of looking
+// complete. Dismissible; reappears on the next design load (keyed by version).
+function WarningsBanner() {
+  const warnings = (window.DESIGN && window.DESIGN.WARNINGS) || [];
+  const [open, setOpen] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  if (!warnings.length || !open) return null;
+  const total = warnings.reduce((n, w) => n + (w.count || 1), 0);
+  const warn = benchTokens.warn || 'oklch(0.62 0.16 70)';
+  return (
+    <div data-warnings-banner="1" style={{
+      display: 'flex', flexDirection: 'column',
+      background: benchTokens.panelAlt, borderBottom: `1px solid ${benchTokens.border}`,
+      fontFamily: benchTokens.mono, fontSize: 11, color: benchTokens.ink2,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px' }}>
+        <span style={{ color: warn, fontWeight: 600 }}>{'⚠'} {total} export warning{total === 1 ? '' : 's'}</span>
+        <button onClick={() => setExpanded((v) => !v)} style={{
+          border: 'none', background: 'transparent', color: benchTokens.ink3,
+          cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, padding: 0,
+        }}>{expanded ? 'hide details' : 'show details'}</button>
+        <div style={{ flex: 1 }} />
+        <button data-warnings-dismiss="1" onClick={() => setOpen(false)} title="Dismiss" style={{
+          border: 'none', background: 'transparent', color: benchTokens.ink3,
+          cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, lineHeight: 1, padding: 0,
+        }}>{'×'}</button>
+      </div>
+      {expanded && (
+        <ul style={{ margin: 0, padding: '0 12px 8px 30px', color: benchTokens.ink3 }}>
+          {warnings.map((w, i) => (
+            <li key={i} style={{ marginBottom: 2 }}>
+              <span style={{ color: benchTokens.ink4 }}>[{w.kind}]</span> {w.message}
+              {w.module ? <span style={{ color: benchTokens.ink4 }}> ({w.module})</span> : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── App root ────────────────────────────────────────────────────────────────
 function BenchApp({ tweaks }) {
   // Default to the loaded design's top, fall back to the bundled demo top.
@@ -1813,6 +1858,7 @@ function BenchApp({ tweaks }) {
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
     }}>
       <BenchTopBar path={path} navTo={navTo} mod={mod} onOpenPalette={() => setPaletteOpen(true)} onOpenHelp={() => setHelpOpen(true)} />
+      <WarningsBanner />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <BenchHierarchy path={path} setPath={setPath} density={density} />
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, borderLeft: `1px solid ${benchTokens.border}`, borderRight: `1px solid ${benchTokens.border}` }}>

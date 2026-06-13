@@ -48,8 +48,22 @@ case class Design(
   // (best-effort by design). Additive: older design.json omits it. Kept LAST
   // so positional Design(...) constructions stay source-compatible.
   sourceRoot: String = "",
+  // Non-fatal issues raised while parsing CHIRRTL / walking the IR: skipped
+  // constructs (partial connects, attach, ...), unparsed lines, unresolved
+  // wire endpoints. Empty for a clean export. The UI surfaces them in a
+  // dismissible banner so "missing wire vs parser drop" is self-diagnosing on
+  // large designs (issue #118). Additive, last: older design.json omits it.
+  warnings: Seq[Warning] = Seq.empty,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
+
+/** A non-fatal export warning (issue #118). `kind` is a stable machine tag
+  * (e.g. "skipped-partial-connect", "unparsed-line", "unresolved-endpoint"),
+  * `count` how many times it occurred, `message` a human-readable summary,
+  * and `module` the module it was localized to when known (else "").
+  */
+case class Warning(kind: String, count: Int, message: String, module: String = "")
+object Warning { implicit val rw: ReadWriter[Warning] = macroRW }
 
 /** Header/port-row geometry shared between the Scala backend ([[Layout]]) and
   * the UI. The numeric source of truth lives in [[Layout]]; this struct just

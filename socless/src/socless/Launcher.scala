@@ -40,7 +40,7 @@ import os.Path
 object Launcher {
 
   val UsageLine: String =
-    "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>]"
+    "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]"
 
   /** Parsed representation of valid CLI arguments. */
   final case class LauncherConfig(
@@ -49,6 +49,7 @@ object Launcher {
     output:     Option[String],
     sourceRoot: Option[String],
     chirrtlOut: Option[String],
+    strict:     Boolean = false,
   )
 
   /** How a resolved `--top` produces a design instance (issue #116). */
@@ -141,7 +142,7 @@ object Launcher {
     *   --help / -h           (special: Left("help") signals caller to print usage and exit 0)
     */
   def parseArgs(args: Array[String]): Either[String, LauncherConfig] = {
-    val known = Set("--top", "--fir-input", "--output", "--source-root", "--chirrtl-out", "--help", "-h")
+    val known = Set("--top", "--fir-input", "--output", "--source-root", "--chirrtl-out", "--strict", "--help", "-h")
 
     var i          = 0
     var top        = Option.empty[String]
@@ -149,11 +150,16 @@ object Launcher {
     var output     = Option.empty[String]
     var sourceRoot = Option.empty[String]
     var chirrtlOut = Option.empty[String]
+    var strict     = false
 
     while (i < args.length) {
       args(i) match {
         case "--help" | "-h" =>
           return Left("help")
+
+        case "--strict" =>
+          strict = true
+          i += 1
 
         case flag @ ("--top" | "--fir-input" | "--output" | "--source-root" | "--chirrtl-out") =>
           if (i + 1 >= args.length)
@@ -181,9 +187,18 @@ object Launcher {
       case (Some(_), Some(_)) =>
         Left(s"--top and --fir-input are mutually exclusive\n$UsageLine")
       case _ =>
-        Right(LauncherConfig(top, firInput, output, sourceRoot, chirrtlOut))
+        Right(LauncherConfig(top, firInput, output, sourceRoot, chirrtlOut, strict))
     }
   }
+
+  /** Exit nonzero under --strict when the emitted design carried warnings, for
+    * CI that wants a clean export to be a hard gate (issue #118). */
+  private def enforceStrict(cfg: LauncherConfig, design: Design): Unit =
+    if (cfg.strict && design.warnings.nonEmpty) {
+      Console.err.println(s"[socless] --strict: ${design.warnings.size} warning kind(s); failing.")
+      design.warnings.foreach(w => Console.err.println(s"            [${w.kind}] ${w.message}"))
+      sys.exit(3)
+    }
 
   def main(args: Array[String]): Unit = {
     parseArgs(args) match {
@@ -212,7 +227,7 @@ object Launcher {
         if (!os.exists(firFile))
           { Console.err.println(s"[socless] file not found: $firFile"); sys.exit(1) }
         val chirrtl = os.read(firFile)
-        SoclessExporter.fromChirrtl(chirrtl, output)
+        enforceStrict(cfg, SoclessExporter.fromChirrtl(chirrtl, output))
 
       case None =>
         val top = cfg.top.get   // safe: parseArgs guarantees one of the two is set
@@ -246,7 +261,7 @@ object Launcher {
             os.write.over(dest, chirrtl, createFolders = true)
             Console.err.println(s"[socless] CHIRRTL written to $dest (${chirrtl.length} chars)")
           case None =>
-            SoclessExporter.export(gen, output, sourceRoot = sourceRoot)
+            enforceStrict(cfg, SoclessExporter.export(gen, output, sourceRoot = sourceRoot))
         }
     }
   }
