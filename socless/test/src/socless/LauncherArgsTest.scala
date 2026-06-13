@@ -217,5 +217,20 @@ object LauncherArgsTest extends TestSuite {
         chirrtlOut = Some("/fir/out.fir"),
       )))
     }
+
+    // -----------------------------------------------------------------------
+    // Help text (issue #157)
+    // -----------------------------------------------------------------------
+
+    test("--help/-h are recognised and HelpText documents every mode + flag") {
+      assert(Launcher.parseArgs(Array("--help")) == Left("help"))
+      assert(Launcher.parseArgs(Array("-h")) == Left("help"))
+      // Each mode the single main supports must be named, or the help silently
+      // drops a feature as the CLI grows.
+      for (mode <- Seq("elaborate", "convert", "dump", "serve"))
+        assert(Launcher.HelpText.contains(mode))
+      for (flag <- Seq("--top", "--fir-input", "--chirrtl-out", "--source-root", "--watch", "--strict"))
+        assert(Launcher.HelpText.contains(flag))
+    }
   }
 }

@@ -43,6 +43,31 @@ object Launcher {
     "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
     "       socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
+  /** Fuller help printed for `--help`/`-h`; errors print the terse [[UsageLine]].
+    * Spells out the four modes one main supports, since they are otherwise only
+    * discoverable by reading the flag list (issue #157). */
+  val HelpText: String =
+    """socless.Launcher - export a Chisel/CHIRRTL design to design.json, or serve the UI.
+      |
+      |Modes (pick one):
+      |  elaborate   --top <fqcn> [--output <path>] [--source-root <dir>] [--strict]
+      |              Elaborate a Chisel design. Needs Chisel + the design on the classpath.
+      |              --top accepts a no-arg class, an object's apply()/build(), or a
+      |              zero-arg factory method (mypkg.Gens.smallSoC).
+      |  convert     --fir-input <path> [--output <path>] [--source-root <dir>] [--strict]
+      |              Convert a CHIRRTL .fir file. No Chisel needed.
+      |  dump        --top <fqcn> --chirrtl-out <path>
+      |              Emit raw CHIRRTL to <path> and stop (capture a .fir fixture).
+      |  serve       serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]
+      |              Standalone loopback UI server: drag-drop a .fir (POST /convert),
+      |              or --watch one for a save-and-see loop. No Mill, no Python.
+      |
+      |Common flags:
+      |  --output <path>       design.json destination (default: ./design.json)
+      |  --source-root <dir>   embed source text by resolving the @[file ...] markers
+      |  --strict              exit nonzero if the export produced warnings
+      |  --help, -h            this message""".stripMargin
+
   /** Parsed representation of valid CLI arguments. */
   final case class LauncherConfig(
     top:        Option[String],
@@ -207,7 +232,7 @@ object Launcher {
     if (args.headOption.contains("serve")) { Serve.run(args.tail); return }
     parseArgs(args) match {
       case Left("help") =>
-        println(UsageLine)
+        println(HelpText)
         sys.exit(0)
 
       case Left(err) =>
