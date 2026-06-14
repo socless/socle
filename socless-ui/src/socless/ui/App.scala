@@ -129,14 +129,24 @@ object App {
       div(
         cls := "scl-panes",
         hierarchyPane(),
-        Schematic.render(
-          designSig        = designVar.signal,
-          moduleSig        = currentModuleSig,
-          pathSig          = pathVar.signal,
-          selectedVar      = selectedSigVar,
-          hoveredVar       = hoveredSigVar,
-          expandedPortsVar = expandedPortsVar,
-          drillInto        = drillInto,
+        // Center column: schematic above, the Source/Waveform/Ports panel below.
+        div(cls := "scl-center",
+          Schematic.render(
+            designSig        = designVar.signal,
+            moduleSig        = currentModuleSig,
+            pathSig          = pathVar.signal,
+            selectedVar      = selectedSigVar,
+            hoveredVar       = hoveredSigVar,
+            expandedPortsVar = expandedPortsVar,
+            drillInto        = drillInto,
+          ),
+          BottomPanel.render(
+            designSig   = designVar.signal,
+            moduleSig   = currentModuleSig,
+            selectedVar = selectedSigVar,
+            hoveredVar  = hoveredSigVar,
+            drillInto   = drillInto,
+          ),
         ),
         Inspector.render(
           designSig          = designVar.signal,

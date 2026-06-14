@@ -27,8 +27,9 @@ object Inspector {
   private val VecRe    = """^Vec\[(.+),\s*(\d+)\]$""".r
   private val GroundRe = """^(?:UInt|SInt)<(\d+)>$""".r
 
-  /** Total bit width of a bundle/Vec/ground key (ports the JS totalWidth). */
-  private def totalWidth(key: String, d: Design): Int =
+  /** Total bit width of a bundle/Vec/ground key (ports the JS totalWidth).
+    * Shared with the Ports table in [[BottomPanel]]. */
+  def totalWidth(key: String, d: Design): Int =
     d.bundles.get(key) match {
       case Some(b) if b.kind == "Bundle"    => b.channels.map(ch => totalWidth(ch.`type`, d)).sum
       case Some(b) if b.kind == "Decoupled" => b.fields.map(_.width).sum + 2 // + valid/ready
