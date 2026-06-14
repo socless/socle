@@ -15,6 +15,10 @@ import ChirrtlParser.{
   */
 object IrWalk {
 
+  // Single source of truth for path-index stripping, shared with the layout
+  // engine (also used by the Scala.js build): `in[0]` -> `in`.
+  import LayoutCore.stripIdx
+
   /** Bundle registry: deduplication is by FULL structural identity (names,
     * flips, ground kinds, widths, vec arity), tracked in `keyByFp`. Friendly
     * keys (AXI4, Decoupled_<hint>, <Hint>) go to the first structure that
@@ -304,11 +308,6 @@ object IrWalk {
     val portSet = m.ports.map(_.name).toSet
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
 
-    def stripIdx(s: String): String = {
-      val i = s.indexOf('[')
-      if (i < 0) s else s.substring(0, i)
-    }
-
     /** True if `t` is itself an aggregate (Bundle or Vec of Bundle) - used to
       * decide whether a path's sub-segment is worth keeping as its own wire,
       * versus collapsing into the parent port.
@@ -435,11 +434,6 @@ object IrWalk {
     bundles:  BundleReg,
   ): String = {
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
-
-    def stripIdx(s: String): String = {
-      val i = s.indexOf('[')
-      if (i < 0) s else s.substring(0, i)
-    }
 
     // An indexed path segment selects ONE vec element: `in[0]` against a
     // Vec[AXI4, 2] is an AXI4, not the whole vec. One unwrap per subscript

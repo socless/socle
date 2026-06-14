@@ -101,96 +101,6 @@ def openSoclessBrowser(url: String, log: String => Unit): Unit = {
   catch { case _: Exception => log(s"[socless] could not open a browser, visit $url manually") }
 }
 
-def buildSoclessServer(classpath: String): String = {
-  val q3 = "\"\"\""     // triple-quote, safely embedded in a triple-quoted Scala string
-  val cpEscaped = classpath.replace("\\", "\\\\")
-  s"""#!/usr/bin/env python3
-# SoCLess standalone UI server.
-# Serves static files and converts CHIRRTL to design.json on POST /convert.
-import http.server
-import os
-import subprocess
-import sys
-import tempfile
-
-CLASSPATH = $q3$cpEscaped$q3
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-# Loopback only: /convert runs a JVM on the request body, that must not be
-# reachable from the LAN. Set SOCLESS_BIND to override deliberately.
-HOST = os.environ.get("SOCLESS_BIND", "127.0.0.1")
-MAX_BODY = 128 * 1024 * 1024  # 128 MB of CHIRRTL is enough for anyone
-SERVE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-class Handler(http.server.SimpleHTTPRequestHandler):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=SERVE_DIR, **kwargs)
-
-    def log_message(self, fmt, *args):
-        print("[socless]", fmt % args, file=sys.stderr)
-
-    def do_POST(self):
-        if self.path != "/convert":
-            self.send_error(404, "Only POST /convert is supported")
-            return
-
-        length = int(self.headers.get("Content-Length", 0))
-        if length > MAX_BODY:
-            self.send_error(413, "Body too large (%d bytes, max %d)" % (length, MAX_BODY))
-            return
-        body = self.rfile.read(length).decode("utf-8", errors="replace")
-
-        with tempfile.TemporaryDirectory() as tmp:
-            fir_path = os.path.join(tmp, "input.fir")
-            json_path = os.path.join(tmp, "design.json")
-            with open(fir_path, "w", encoding="utf-8") as f:
-                f.write(body)
-
-            result = subprocess.run(
-                ["java", "-cp", CLASSPATH, "socless.Launcher",
-                 "--fir-input", fir_path,
-                 "--output", json_path],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                msg = (result.stderr or result.stdout or "launcher failed").strip()
-                # send_error puts the message into the status line: it must
-                # be a single line or the HTTP response is malformed.
-                first = msg.splitlines()[0] if msg else "launcher failed"
-                self.send_error(500, "Conversion failed: " + first[:200])
-                print("[socless] /convert error:", msg, file=sys.stderr)
-                return
-
-            with open(json_path, "rb") as f:
-                data = f.read()
-
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(data)))
-        self.end_headers()
-        self.wfile.write(data)
-
-
-if __name__ == "__main__":
-    # ThreadingHTTPServer: a slow /convert (JVM startup + elaboration) must
-    # not block static file serving.
-    try:
-        server = http.server.ThreadingHTTPServer((HOST, PORT), Handler)
-    except OSError as e:
-        print("[socless] cannot listen on %s:%d: %s" % (HOST, PORT, e), file=sys.stderr)
-        print("[socless] pick another port: mill <module>.soclessUI --port <N>", file=sys.stderr)
-        sys.exit(1)
-    print("[socless] serving on http://" + HOST + ":" + str(PORT) + "/SoCLess.html -- Ctrl-C to stop",
-          file=sys.stderr)
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        pass
-"""
-}
-
 // ─── Runtime library ────────────────────────────────────────────────────────
 object socless extends ChiselToolchain with SoclessPublish {
   def artifactName = "socless"
@@ -409,7 +319,8 @@ object example extends ChiselToolchain {
     val json = soclessRun().path
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
-    extractHtmlTo(uiDir, runClasspath())
+    // The UI HTML is served from the JAR by the forked server; only the
+    // design.json needs to live in the --dir so the UI auto-loads it.
     os.copy.over(json, uiDir / "design.json")
     serve(uiDir, runClasspath(), port, Task.log)
   }
@@ -434,34 +345,25 @@ object example extends ChiselToolchain {
     val port = parseSoclessPort(args.value, 8765)
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
-    extractHtmlTo(uiDir, runClasspath())
     // No design.json to pre-load; the user drops a .fir file in the browser.
+    // The UI HTML comes from the JAR via the forked server.
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
-  /** Extract SoCLess.html from the socless runtime JAR into `dir`. */
-  private def extractHtmlTo(dir: os.Path, cp: Seq[mill.api.PathRef]): Unit = {
-    val urls = cp.map(_.path.toNIO.toUri.toURL).toArray
-    val cl   = new java.net.URLClassLoader(urls, null)
-    try {
-      val stream = cl.getResourceAsStream("SoCLess.html")
-      if (stream == null)
-        throw new RuntimeException("[socless] SoCLess.html not found in JAR")
-      os.write.over(dir / "SoCLess.html", stream.readAllBytes())
-      stream.close()
-    } finally cl.close()
-  }
-
-  /** Write the dynamic Python server script and start it. Blocks until Ctrl-C. */
+  /** Fork the standalone JVM UI server (`socless.Launcher serve`) on the run
+    * classpath and block until Ctrl-C. The same server the published plugin and
+    * the standalone CLI use (issue #155): it serves the UI HTML embedded in the
+    * JAR, the JSONs from `uiDir` via `--dir`, and converts dropped `.fir` files
+    * in process via `POST /convert`. No `python3` dependency. */
   private def serve(uiDir: os.Path, cp: Seq[mill.api.PathRef], port: Int, log: mill.api.Logger): Unit = {
     val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
-    val serverScript = uiDir / "socless_server.py"
-    os.write.over(serverScript, buildSoclessServer(cpStr))
-    val url = s"http://localhost:$port/SoCLess.html"
+    val url   = s"http://localhost:$port/SoCLess.html"
     log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
     openSoclessBrowser(url, msg => log.info(msg))
-    os.proc("python3", serverScript, port.toString)
-      .call(stdout = os.Inherit, stderr = os.Inherit)
+    os.proc(
+      "java", "-cp", cpStr, "socless.Launcher", "serve",
+      "--port", port.toString, "--dir", uiDir.toString, "--no-open",
+    ).call(stdout = os.Inherit, stderr = os.Inherit)
   }
 
   /** Dump CHIRRTL for all example tops into socless/test/resources/chirrtl/.

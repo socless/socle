@@ -4,7 +4,7 @@ Production UMD builds inlined into `ui/SoCLess.dist.html` by `build.mjs`:
 
 - `react.production.min.js` - react@18.3.1 (`https://unpkg.com/react@18.3.1/umd/react.production.min.js`)
 - `react-dom.production.min.js` - react-dom@18.3.1 (`https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js`)
-- `elk.bundled.js` - elkjs@0.9.3 (`https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js`), the in-browser
+- `elk.bundled.js` - elkjs@0.9.1 (`https://unpkg.com/elkjs@0.9.1/lib/elk.bundled.js`), the in-browser
   layout engine (issue #167). Self-contained: bundles its own web worker, so it
   runs offline from the single-file dist with no network.
 

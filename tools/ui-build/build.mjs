@@ -77,7 +77,7 @@ vendorMatchingTag('react-dom', 'react-dom.production.min.js');
 // not usable. Pin the vendored bundle by SHA-256 instead: a stronger guarantee
 // that the inlined engine is exactly the reviewed artifact, and a bump of the
 // dev CDN tag without re-vendoring (+ updating this hash) fails the build.
-const ELK_SHA256 = 'b0745abd7f23cd91690a1587e377edbe19fd7233c783300290936720546216d4';
+const ELK_SHA256 = 'c7bafac4d951e7c82d9b2b72e6ae709e6abf61903610ddef0dafd01e1981aaf3';
 {
   const re = cdnTag('elkjs');
   const m = html.match(re);
