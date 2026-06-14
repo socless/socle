@@ -27,6 +27,7 @@ object App {
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
   private val expandedPortsVar = Var[Set[String]](Set.empty) // in-box expanded bundle pin paths
+  private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
 
   @JSExport
   def main(rootId: String): String = {
@@ -137,12 +138,20 @@ object App {
           expandedPortsVar = expandedPortsVar,
           drillInto        = drillInto,
         ),
-        pane("inspector", "INSPECTOR", "Wire / module details (Phase 3)"),
+        Inspector.render(
+          designSig          = designVar.signal,
+          moduleSig          = currentModuleSig,
+          selectedVar        = selectedSigVar,
+          hoveredVar         = hoveredSigVar,
+          expandedBundlesVar = expandedBundlesVar,
+        ),
       ),
       // Expansion paths are instance-relative, not scoped to the current module:
       // clear them (and the selection) on navigation so expanding a port in one
       // module does not auto-expand an identically named port elsewhere (issue #94).
-      pathVar.signal.changes --> { _ => expandedPortsVar.set(Set.empty); selectedSigVar.set(None) },
+      pathVar.signal.changes --> { _ =>
+        expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
+      },
     )
 
   private def topBar(): Element =
@@ -204,10 +213,4 @@ object App {
     )
   }
 
-  private def pane(id: String, title: String, body: Modifier[HtmlElement]): Element =
-    div(
-      cls := s"scl-pane scl-pane-$id", dataAttr("pane") := id,
-      div(cls := "scl-pane-title", title),
-      div(cls := "scl-pane-body", body),
-    )
 }

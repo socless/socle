@@ -48,6 +48,13 @@
   .scl-hier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .scl-hier-type { margin-left: auto; color: var(--ink3); font-size: 10.5px;
     max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Inspector pane (#172 Phase 3). */
+  .scl-pane-inspector { width: 304px; flex-shrink: 0; }
+  .scl-insp-clear { border: none; background: transparent; color: var(--ink3);
+    font-size: 11px; cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .scl-insp-leaf:hover { background: var(--panelAlt); }
+  .scl-insp-leaf .copy-btn { opacity: 0; transition: opacity .1s; }
+  .scl-insp-leaf:hover .copy-btn { opacity: 1; }
 </style>
 </head>
 <body>
