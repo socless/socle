@@ -7,7 +7,7 @@ import scala.scalajs.js.Thenable.Implicits._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
-import socless.Design
+import socless.{Design, ModuleDef}
 
 /** The Scala.js + Laminar frontend (epic #172).
   *
@@ -23,6 +23,10 @@ object App {
   private val pathVar     = Var[List[String]](Nil)     // drilled module path (instance names)
   private val expandedVar = Var[Set[String]](Set.empty) // expanded hierarchy row ids (path-joined)
   private val errorVar    = Var[Option[String]](None)
+  // Schematic + inspector shared state (Phase 2 / Phase 3).
+  private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
+  private val hoveredSigVar    = Var[Option[String]](None)
+  private val expandedPortsVar = Var[Set[String]](Set.empty) // in-box expanded bundle pin paths
 
   @JSExport
   def main(rootId: String): String = {
@@ -53,6 +57,34 @@ object App {
 
   private def topOf(d: Design): String =
     if (d.top.nonEmpty) d.top else d.modules.headOption.map(_.name).getOrElse("")
+
+  /** Resolve the [[ModuleDef]] currently in view: walk the drilled instance-name
+    * path (top, child, grandchild, ...) following each child's declared type. */
+  private def currentModule(d: Design, path: List[String]): Option[ModuleDef] =
+    if (path.isEmpty) None
+    else {
+      val byName = d.modules.iterator.map(m => m.name -> m).toMap
+      path.tail.foldLeft(byName.get(topOf(d))) { (acc, instName) =>
+        for { m <- acc; c <- m.children.find(_.name == instName); cm <- byName.get(c.`type`) } yield cm
+      }
+    }
+
+  private val currentModuleSig: Signal[Option[ModuleDef]] =
+    Signal.combine(designVar.signal, pathVar.signal).map {
+      case (Some(d), p) => currentModule(d, p)
+      case _            => None
+    }
+
+  /** Drill into a child instance: append it to the path (mirrors the JS
+    * drillInto). Leaves and blackboxes have no internals and are not drilled. */
+  private def drillInto(inst: String): Unit =
+    for {
+      d        <- designVar.now()
+      mod      <- currentModule(d, pathVar.now())
+      child    <- mod.children.find(_.name == inst)
+      childMod <- d.modules.find(_.name == child.`type`)
+      if childMod.kind != "external" && childMod.kind != "intrinsic"
+    } pathVar.update(_ :+ inst) // selectedSig / expandedPorts cleared by the path-change binder
 
   // ── Hierarchy model ────────────────────────────────────────────────────────
   private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String])
@@ -96,11 +128,21 @@ object App {
       div(
         cls := "scl-panes",
         hierarchyPane(),
-        pane("schematic", "SCHEMATIC",
-          child.text <-- pathVar.signal.map(p =>
-            if (p.isEmpty) "(no module loaded)" else s"viewing ${p.last}  -  ${p.mkString(" > ")}  (Phase 2: boxes + wires)")),
+        Schematic.render(
+          designSig        = designVar.signal,
+          moduleSig        = currentModuleSig,
+          pathSig          = pathVar.signal,
+          selectedVar      = selectedSigVar,
+          hoveredVar       = hoveredSigVar,
+          expandedPortsVar = expandedPortsVar,
+          drillInto        = drillInto,
+        ),
         pane("inspector", "INSPECTOR", "Wire / module details (Phase 3)"),
       ),
+      // Expansion paths are instance-relative, not scoped to the current module:
+      // clear them (and the selection) on navigation so expanding a port in one
+      // module does not auto-expand an identically named port elsewhere (issue #94).
+      pathVar.signal.changes --> { _ => expandedPortsVar.set(Set.empty); selectedSigVar.set(None) },
     )
 
   private def topBar(): Element =

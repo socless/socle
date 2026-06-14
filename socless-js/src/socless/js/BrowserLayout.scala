@@ -1,6 +1,6 @@
 package socless.js
 
-import socless.{Design, ModuleDef, LayoutCore}
+import socless.{Design, ModuleDef, ModuleLayout, LayoutCore}
 import scala.concurrent.Future
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
@@ -9,35 +9,75 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
 /** Browser schematic layout: the elkjs counterpart of the JVM [[socless.Layout]]
   * ELK shell (issue #167). Shares [[LayoutCore.prepare]] with the backend, then
-  * builds an elkjs JSON graph, runs it on `window.ELK`, and extracts geometry in
-  * the exact shape the UI already consumes for the baked layout:
+  * builds an elkjs JSON graph, runs it on `window.ELK`, and extracts geometry.
   *
-  * {{{ { nodes:[{id,x,y,w,h,kind,ports:[{path,x,y,side,interface,label,bundle}]}],
+  * Two entry points share one typed core ([[runTyped]] -> `Future[LaidOut]`):
+  *
+  *   - [[runTyped]] is the in-process seam the Scala.js + Laminar UI calls
+  *     directly (epic #172): it returns typed [[LaidOut]] case classes, no
+  *     `js.Dynamic`.
+  *   - [[run]] is the legacy `window.SoclessLayout` boundary used by the
+  *     still-shipped JS UI: a thin adapter that converts the JS `overrides`
+  *     object in and serializes the result back to the exact `js.Dynamic` shape
+  *     the JS renderer consumes (so its output is byte-for-byte unchanged):
+  *
+  * {{{ { nodes:[{id,kind,x,y,w,h,ports:[{path,x,y,side,interface,label,bundle,expandable}]}],
   *       edges:[{from,to,points:[[x,y]],junctionPoints:[[x,y]]}], w, h } }}}
   */
 object BrowserLayout {
 
+  // ── Typed layout result (the in-process shape) ─────────────────────────────
+
+  /** A laid-out pin: absolute `x`/`y` plus the carried pin metadata. */
+  case class LaidPortR(path: String, x: Int, y: Int, side: String, interface: Boolean,
+                       label: String, bundle: String, expandable: Boolean)
+
+  /** A laid-out box (`kind` == "inst" | "boundary"). */
+  case class LaidNodeR(id: String, kind: String, x: Int, y: Int, w: Int, h: Int,
+                       ports: Seq[LaidPortR])
+
+  /** A routed edge, source->sink, with optional fan-out/fan-in junction points. */
+  case class LaidEdgeR(from: String, to: String, points: Seq[(Int, Int)],
+                       junctionPoints: Seq[(Int, Int)])
+
+  /** One module's full laid-out geometry, in the shape the UI renders. */
+  case class LaidOut(nodes: Seq[LaidNodeR], edges: Seq[LaidEdgeR], w: Int, h: Int)
+
+  object LaidOut {
+    /** Adapt the backend's baked geometry ([[ModuleLayout]] from
+      * `Design.layouts`) into the same [[LaidOut]] shape, so the renderer
+      * consumes baked and engine results interchangeably. Baked edges carry no
+      * junction points. */
+    def fromBaked(L: ModuleLayout): LaidOut = {
+      val nodes = L.nodes.map { n =>
+        LaidNodeR(n.id, n.kind, n.x, n.y, n.w, n.h,
+          n.ports.map(p => LaidPortR(p.path, p.x, p.y, p.side, p.interface, p.label, p.bundle, p.expandable)))
+      }
+      val edges = L.edges.map(e => LaidEdgeR(e.from, e.to, e.points, Nil))
+      LaidOut(nodes, edges, L.w, L.h)
+    }
+  }
+
+  /** Expansion-aware geometry override for one box: its grown `height` (None =
+    * keep the prepared height) and per-pin box-relative `y` rows. */
+  case class BoxOverride(height: Option[Double], pins: Map[String, Double])
+
   /** elkjs node id: combine id + kind so a boundary stub whose path equals an
     * instance name cannot collide (the JVM keys its node map by (id, kind)). */
-  private def synthId(n: LayoutCore.PreparedNode): String = s"${n.kind}${n.id}"
+  private def synthId(n: LayoutCore.PreparedNode): String = s"${n.kind}${n.id}"
 
   /** Build the elkjs graph (a plain JS object) from the prepared graph.
     *
-    * `overrides` (may be null) carries the UI's expansion-aware geometry per
-    * node id: `{ height, pins:{ path -> yWithinBox } }`. Applying it means a box
-    * whose bundle was expanded is laid out at its grown height with its top-level
-    * pins at their shifted rows, so elkjs re-routes cleanly to the moved pins
-    * (this is what removes the up-then-down kink, issue #164). */
-  private def buildGraph(prep: LayoutCore.Prepared, mode: String, overrides: js.Dynamic): js.Dynamic = {
-    val ovDict =
-      if (overrides == null || js.isUndefined(overrides)) js.Dictionary.empty[js.Dynamic]
-      else overrides.asInstanceOf[js.Dictionary[js.Dynamic]]
-
+    * `overrides` carries the UI's expansion-aware geometry per node id. Applying
+    * it means a box whose bundle was expanded is laid out at its grown height
+    * with its top-level pins at their shifted rows, so elkjs re-routes cleanly
+    * to the moved pins (this is what removes the up-then-down kink, issue #164). */
+  private def buildGraph(prep: LayoutCore.Prepared, mode: String,
+                         overrides: Map[String, BoxOverride]): js.Dynamic = {
     val children = prep.nodes.map { n =>
-      val nodeOv  = ovDict.get(n.id)
-      val height  = nodeOv.flatMap(o => o.height.asInstanceOf[js.UndefOr[Double]].toOption).getOrElse(n.height)
-      val pinYOv  = nodeOv.flatMap(o => o.pins.asInstanceOf[js.UndefOr[js.Dictionary[Double]]].toOption)
-                          .getOrElse(js.Dictionary.empty[Double])
+      val ov     = overrides.get(n.id)
+      val height = ov.flatMap(_.height).getOrElse(n.height)
+      val pinYOv = ov.map(_.pins).getOrElse(Map.empty[String, Double])
       val ports = n.pins.map { p =>
         val py = pinYOv.getOrElse(p.path, p.y)
         js.Dynamic.literal(
@@ -88,8 +128,8 @@ object BrowserLayout {
     js.Dynamic.literal(id = "root", layoutOptions = opts, children = children, edges = edges)
   }
 
-  /** Pull the laid-out geometry back into the UI's layout shape. */
-  private def extract(prep: LayoutCore.Prepared, res: js.Dynamic): js.Dynamic = {
+  /** Pull the laid-out geometry back into the typed [[LaidOut]] shape. */
+  private def extractTyped(prep: LayoutCore.Prepared, res: js.Dynamic): LaidOut = {
     val resChildren = res.children.asInstanceOf[js.Array[js.Dynamic]]
     val childById = js.Dictionary.empty[js.Dynamic]
     resChildren.foreach(c => childById(c.id.asInstanceOf[String]) = c)
@@ -104,61 +144,93 @@ object BrowserLayout {
       c.ports.asInstanceOf[js.Array[js.Dynamic]].foreach(p => portById(p.id.asInstanceOf[String]) = p)
       val ports = n.pins.map { p =>
         val lp = portById(p.path)
-        js.Dynamic.literal(
-          path = p.path,
-          x = (nx + lp.x.asInstanceOf[Double]).toInt,
-          y = (ny + lp.y.asInstanceOf[Double]).toInt,
-          side = p.side, interface = p.interface, label = p.label, bundle = p.bundle, expandable = p.expandable,
+        LaidPortR(
+          p.path,
+          (nx + lp.x.asInstanceOf[Double]).toInt,
+          (ny + lp.y.asInstanceOf[Double]).toInt,
+          p.side, p.interface, p.label, p.bundle, p.expandable,
         )
-      }.toJSArray
-      js.Dynamic.literal(
-        id = n.id, kind = n.kind,
-        x = nx.toInt, y = ny.toInt,
-        w = c.width.asInstanceOf[Double].toInt, h = c.height.asInstanceOf[Double].toInt,
-        ports = ports,
-      )
-    }.toJSArray
+      }
+      LaidNodeR(n.id, n.kind, nx.toInt, ny.toInt,
+        c.width.asInstanceOf[Double].toInt, c.height.asInstanceOf[Double].toInt, ports)
+    }
 
     val resEdges = res.edges.asInstanceOf[js.Array[js.Dynamic]]
-    val edges = resEdges.flatMap { e =>
+    val edges = resEdges.toSeq.flatMap { e =>
       val sources = e.sources.asInstanceOf[js.Array[String]]
       val targets = e.targets.asInstanceOf[js.Array[String]]
       val sections = e.sections.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]]
-      val pts = js.Array[js.Array[Int]]()
+      val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
       sections.toOption.flatMap(_.headOption).foreach { sec =>
         val sp = sec.startPoint.asInstanceOf[js.Dynamic]
-        pts.push(js.Array(sp.x.asInstanceOf[Double].toInt, sp.y.asInstanceOf[Double].toInt))
+        pts += ((sp.x.asInstanceOf[Double].toInt, sp.y.asInstanceOf[Double].toInt))
         sec.bendPoints.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]].toOption.foreach(_.foreach { bp =>
-          pts.push(js.Array(bp.x.asInstanceOf[Double].toInt, bp.y.asInstanceOf[Double].toInt))
+          pts += ((bp.x.asInstanceOf[Double].toInt, bp.y.asInstanceOf[Double].toInt))
         })
         val ep = sec.endPoint.asInstanceOf[js.Dynamic]
-        pts.push(js.Array(ep.x.asInstanceOf[Double].toInt, ep.y.asInstanceOf[Double].toInt))
+        pts += ((ep.x.asInstanceOf[Double].toInt, ep.y.asInstanceOf[Double].toInt))
       }
       // junctionPoints mark where this edge shares a segment with others (the
       // fan-out branch dots, issue #166); pass them through when present.
-      val jps = js.Array[js.Array[Int]]()
+      val jps = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
       e.junctionPoints.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]].toOption.foreach(_.foreach { jp =>
-        jps.push(js.Array(jp.x.asInstanceOf[Double].toInt, jp.y.asInstanceOf[Double].toInt))
+        jps += ((jp.x.asInstanceOf[Double].toInt, jp.y.asInstanceOf[Double].toInt))
       })
-      if (pts.length < 2) js.Array[js.Dynamic]()
-      else js.Array(js.Dynamic.literal(
-        from = targets(0), to = sources(0), points = pts, junctionPoints = jps,
-      ))
+      if (pts.length < 2) Nil
+      else Seq(LaidEdgeR(targets(0), sources(0), pts.toSeq, jps.toSeq))
     }
 
-    js.Dynamic.literal(
-      nodes = nodes, edges = edges,
-      w = res.width.asInstanceOf[Double].toInt.max(1),
-      h = res.height.asInstanceOf[Double].toInt.max(1),
-    )
+    LaidOut(nodes, edges, res.width.asInstanceOf[Double].toInt.max(1),
+      res.height.asInstanceOf[Double].toInt.max(1))
   }
 
-  /** Lay out one module with elkjs, returning a Promise of the UI layout shape. */
-  def run(module: ModuleDef, design: Design, mode: String, overrides: js.Dynamic): js.Promise[js.Dynamic] = {
+  /** Lay out one module with elkjs, returning a [[LaidOut]] (the in-process
+    * seam for the Scala.js + Laminar UI, epic #172). */
+  def runTyped(module: ModuleDef, design: Design, mode: String,
+               overrides: Map[String, BoxOverride]): Future[LaidOut] = {
     val prep  = LayoutCore.prepare(module, design)
     val graph = buildGraph(prep, mode, overrides)
     val elk   = js.Dynamic.newInstance(js.Dynamic.global.ELK)()
     val laid: Future[js.Dynamic] = elk.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
-    laid.map(res => extract(prep, res)).toJSPromise
+    laid.map(res => extractTyped(prep, res))
   }
+
+  // ── Legacy js.Dynamic boundary (window.SoclessLayout, the JS UI) ───────────
+
+  /** Convert the JS UI's `overrides` object (`{inst: {height, pins:{path->y}}}`)
+    * into the typed [[BoxOverride]] map. */
+  private def overridesFromJs(overrides: js.Dynamic): Map[String, BoxOverride] =
+    if (overrides == null || js.isUndefined(overrides)) Map.empty
+    else overrides.asInstanceOf[js.Dictionary[js.Dynamic]].toMap.map { case (id, o) =>
+      val h = o.height.asInstanceOf[js.UndefOr[Double]].toOption
+      val pins = o.pins.asInstanceOf[js.UndefOr[js.Dictionary[Double]]].toOption
+        .map(_.toMap).getOrElse(Map.empty[String, Double])
+      id -> BoxOverride(h, pins)
+    }
+
+  /** Serialize a [[LaidOut]] into the exact `js.Dynamic` shape the JS renderer
+    * consumes (`bEngineLayout` in ui/SoCLess.html). */
+  private def toJs(out: LaidOut): js.Dynamic = {
+    val nodes = out.nodes.map { n =>
+      val ports = n.ports.map { p =>
+        js.Dynamic.literal(
+          path = p.path, x = p.x, y = p.y, side = p.side,
+          interface = p.interface, label = p.label, bundle = p.bundle, expandable = p.expandable,
+        )
+      }.toJSArray
+      js.Dynamic.literal(id = n.id, kind = n.kind, x = n.x, y = n.y, w = n.w, h = n.h, ports = ports)
+    }.toJSArray
+    val edges = out.edges.map { e =>
+      val pts = e.points.map { case (x, y) => js.Array(x, y) }.toJSArray
+      val jps = e.junctionPoints.map { case (x, y) => js.Array(x, y) }.toJSArray
+      js.Dynamic.literal(from = e.from, to = e.to, points = pts, junctionPoints = jps)
+    }.toJSArray
+    js.Dynamic.literal(nodes = nodes, edges = edges, w = out.w, h = out.h)
+  }
+
+  /** Lay out one module with elkjs, returning a Promise of the UI layout shape
+    * (the `window.SoclessLayout` boundary; output unchanged from before the
+    * typed-core refactor). */
+  def run(module: ModuleDef, design: Design, mode: String, overrides: js.Dynamic): js.Promise[js.Dynamic] =
+    runTyped(module, design, mode, overridesFromJs(overrides)).map(toJs).toJSPromise
 }
