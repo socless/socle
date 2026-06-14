@@ -221,6 +221,7 @@ case class LaidPort(
   interface: Boolean,
   label: String = "",
   bundle: String = "",        // bundle key; "" for scalar/unknown pins
+  expandable: Boolean = false, // bundle/Vec the UI can expand in-box (issue #170)
 )
 object LaidPort { implicit val rw: ReadWriter[LaidPort] = macroRW }
 

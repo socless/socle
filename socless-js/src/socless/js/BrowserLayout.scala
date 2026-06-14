@@ -108,7 +108,7 @@ object BrowserLayout {
           path = p.path,
           x = (nx + lp.x.asInstanceOf[Double]).toInt,
           y = (ny + lp.y.asInstanceOf[Double]).toInt,
-          side = p.side, interface = p.interface, label = p.label, bundle = p.bundle,
+          side = p.side, interface = p.interface, label = p.label, bundle = p.bundle, expandable = p.expandable,
         )
       }.toJSArray
       js.Dynamic.literal(

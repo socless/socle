@@ -129,7 +129,7 @@ object LayoutCore {
     * engine places the pin from `side`, so `x`/`y` are unused (0). `label` and
     * `bundle` carry through to the laid-out port. */
   case class PreparedPin(path: String, side: String, interface: Boolean, bundle: String,
-                         label: String, x: Double, y: Double)
+                         label: String, x: Double, y: Double, expandable: Boolean)
 
   /** One box: an instance component (`kind == "inst"`, ports at fixed rows) or a
     * boundary stub (`kind == "boundary"`, ports placed on their side). */
@@ -216,7 +216,8 @@ object LayoutCore {
         val maxLabelPx = pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         val bw = math.max(BoundaryW, maxLabelPx)
         val laidPins = pins.values.toSeq.map { p =>
-          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0)
+          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0,
+            BundleTree.isAggregateType(p.bundle, design))
         }
         PreparedNode(id, kind, bw, BoundaryH, laidPins)
       } else {
@@ -236,7 +237,8 @@ object LayoutCore {
                        else                   { val r = eastRow; eastRow += 1; r }
           val portY = HeaderH + PortPad + rowIdx * PortStep + PortStep / 2
           val portX = if (p.side == "EAST") w else 0.0
-          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY)
+          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
+            BundleTree.isAggregateType(p.bundle, design))
         }
         PreparedNode(id, kind, w, h, laidPins)
       }

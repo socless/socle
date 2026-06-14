@@ -195,6 +195,7 @@ object `socless-js` extends ScalaJSModule {
   def sharedSources = Task.Sources(
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "Schema.scala",
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "LayoutCore.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "BundleTree.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 }

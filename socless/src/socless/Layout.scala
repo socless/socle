@@ -139,7 +139,7 @@ object Layout {
       val nx = node.getX; val ny = node.getY
       val laidPorts = n.pins.map { p =>
         val ep = elkPort(p.path)
-        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, p.label, p.bundle)
+        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, p.label, p.bundle, p.expandable)
       }
       LaidNode(n.id, n.kind, nx.toInt, ny.toInt, node.getWidth.toInt, node.getHeight.toInt, laidPorts)
     }

@@ -1,6 +1,6 @@
 package socless.js
 
-import socless.Design
+import socless.{Design, BundleTree}
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
 
@@ -51,5 +51,34 @@ object LayoutExport {
     } catch {
       case t: Throwable => js.Promise.reject(new js.Error(s"layout failed: ${t.getMessage}"))
     }
+  }
+
+  // ── Bundle-tree walk for in-box port expansion (issue #170) ────────────────
+  // Synchronous (no elkjs): the UI calls these instead of its former JS
+  // portTree / resolvePinDir. The design is parse-cached by key like layout().
+
+  /** Expand `bundleKey` into its nested channel/Vec/Decoupled tree. `baseDir`
+    * is "out"/"in" or null. Returns `{name, path, bundleKey, isExpandable,
+    * dir, width, children:[...]}`. */
+  @JSExport
+  def portTree(designJson: String, designKey: String, bundleKey: String,
+               baseDir: String, parentPath: String): js.Dynamic =
+    nodeToJs(BundleTree.portTree(
+      bundleKey, Option(baseDir).filter(_.nonEmpty), parentPath, designOf(designJson, designKey)))
+
+  /** Resolve a pin's true direction ("out"/"in"), or "" when unresolvable. */
+  @JSExport
+  def resolvePinDir(designJson: String, designKey: String, instType: String, pinPath: String): String =
+    BundleTree.resolvePinDir(instType, pinPath, designOf(designJson, designKey)).getOrElse("")
+
+  private def nodeToJs(n: BundleTree.PortNode): js.Dynamic = {
+    val dirJs: js.Any = n.dir match { case Some(d) => d; case None => null }
+    js.Dynamic.literal(
+      name = n.name, path = n.path, bundleKey = n.bundleKey,
+      isExpandable = n.isExpandable,
+      dir = dirJs,
+      width = n.width,
+      children = js.Array(n.children.map(nodeToJs): _*),
+    )
   }
 }
