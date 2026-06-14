@@ -157,6 +157,14 @@ object Schematic {
     if (pts.length >= 2) "M " + pts.map { case (x, y) => s"$x $y" }.mkString(" L ")
     else ""
 
+  /** Subsequence fuzzy test: does `needle` appear in `hay` in order? (JS fuzzyHas) */
+  private def fuzzyHas(hay: String, needle: String): Boolean = {
+    if (needle.isEmpty) return true
+    var i = 0
+    hay.foreach(ch => if (i < needle.length && ch == needle(i)) i += 1)
+    i == needle.length
+  }
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   def render(
@@ -177,6 +185,8 @@ object Schematic {
     val optNonceVar = Var(0)
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
+    val filterVar   = Var("")              // schematic filter query (issue #121)
+    val viewSizeVar = Var((0.0, 0.0))      // viewport client size (for the minimap)
 
     val viewState = scala.collection.mutable.Map.empty[String, (Double, (Double, Double))]
     var prevPathKey: String = null
@@ -288,10 +298,33 @@ object Schematic {
     // ── content (boxes + wires), rebuilt on geom / selection / hover ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
-    def renderContent(g: Geom, sel: Option[String], hov: Option[String]): Seq[ReactiveElement.Base] = {
+    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String): Seq[ReactiveElement.Base] = {
       val c = g.c
       val selInst  = sel.map(s => ownerBoxId(g.boxById, s)).getOrElse("")
       val selClock = g.mod.children.find(_.name == selInst).map(_.clock).getOrElse("")
+
+      // Filter dimming (issue #121): fuzzy-match boxes on inst+type; matches AND
+      // their direct wire neighbors stay lit, everything else dims. None = no filter.
+      val filterActive: Option[Set[String]] = {
+        val q = filter.trim.toLowerCase
+        if (q.isEmpty) None
+        else {
+          val matched = g.layout.nodes.iterator.map(_.id).filter { inst =>
+            val hay = (inst + " " + g.mod.children.find(_.name == inst).map(_.`type`).getOrElse("")).toLowerCase
+            fuzzyHas(hay, q)
+          }.toSet
+          val act = scala.collection.mutable.Set.empty[String] ++= matched
+          g.wires.foreach { w =>
+            val a = ownerBoxId(g.boxById, w.fromPath); val b = ownerBoxId(g.boxById, w.toPath)
+            if (matched(a)) act += b
+            if (matched(b)) act += a
+          }
+          Some(act.toSet)
+        }
+      }
+      def boxActive(inst: String): Boolean = filterActive.forall(_.contains(inst))
+      def wireActive(w: Wire): Boolean =
+        filterActive.forall(s => s.contains(ownerBoxId(g.boxById, w.fromPath)) || s.contains(ownerBoxId(g.boxById, w.toPath)))
 
       // Wire highlight predicates (JS WireVisualLayer).
       def isHl(w: Wire): Boolean = sel.exists(s =>
@@ -319,7 +352,7 @@ object Schematic {
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (child.isEmpty || n.kind == "boundary") boundaryStub(g, n, top, sel, hov)
+        if (child.isEmpty || n.kind == "boundary") boundaryStub(g, n, top, boxActive(n.id))
         else {
           val ch         = child.get
           val childMod   = g.design.modules.find(_.name == ch.`type`)
@@ -337,9 +370,10 @@ object Schematic {
             dataAttr("box-drillable") := (if (drillable) "1" else "0"),
             dataAttr("pan-block") := "1",
             styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+              s"opacity:${if (boxActive(n.id)) "1" else "0.18"};" +
               s"background:${Tokens.panel};border:1px ${if (isBlackbox) "dashed" else "solid"} $borderCol;border-radius:6px;" +
               s"box-shadow:$boxShadow;cursor:${if (drillable) "pointer" else "default"};overflow:visible;" +
-              "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s",
+              "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
             onDblClick --> { (_: dom.MouseEvent) => if (drillable) drillInto(n.id) },
             // header
             div(
@@ -377,7 +411,7 @@ object Schematic {
           val sw     = if (hl) 4 else if (hov2) 3.5 else 3
           val halo   = if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
           val haloOp = if (hl) 0.18 else if (hov2) 0.10 else 0.07
-          val groupOp = if (dim) 0.32 else 1.0
+          val groupOp = if (!wireActive(w)) 0.12 else if (dim) 0.32 else 1.0
           val d = routePath(w.points)
           svg.g(
             sa("style") := s"opacity:$groupOp;transition:opacity .15s",
@@ -434,13 +468,14 @@ object Schematic {
     }
 
     // ── boundary stub box ──
-    def boundaryStub(g: Geom, n: LaidNodeR, top: Double, sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
+    def boundaryStub(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
       val hasLabel = n.ports.exists(_.label.nonEmpty)
       div(
         dataAttr("boundary-stub") := n.id,
         dataAttr("pan-block") := "1",
         title := n.id,
         styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
+          s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
           s"background:${Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
           s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
         onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
@@ -537,6 +572,16 @@ object Schematic {
               s"${mod.children.length} inst · ${mod.wires.length} connects")
             case None => emptyNode
           },
+          // Filter box (issue #121): dims non-matching boxes + wires.
+          div(styleAttr <-- filterVar.signal.map(f =>
+              s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-family:${Tokens.mono};font-size:11px"),
+            input(dataAttr("filter-input") := "1", placeholder := "filter…",
+              styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:inherit;font-size:11px;color:${Tokens.ink}",
+              controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
+              onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
+            child.maybe <-- filterVar.signal.map(f => if (f.nonEmpty)
+              Some(button(title := "Clear filter (Esc)", styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0",
+                onClick --> { _ => filterVar.set("") }, "×")) else None)),
         ),
       )
 
@@ -565,10 +610,49 @@ object Schematic {
     }
 
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
-      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal).map {
-        case (Some(g), sel, hov) => renderContent(g, sel, hov)
-        case _                   => Nil
+      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal).map {
+        case (Some(g), sel, hov, filter) => renderContent(g, sel, hov, filter)
+        case _                           => Nil
       }
+
+    // Recenter the main view on a content-space point (used by the minimap).
+    def centerOnContent(cx: Double, cy: Double): Unit = {
+      val (vw, vh) = viewSizeVar.now(); val z = zoomVar.now()
+      panVar.set((vw / 2 - cx * z, vh / 2 - cy * z))
+    }
+
+    // Minimap (issue #5): overview + draggable viewport rect, shown only when the
+    // content overflows the viewport at the current zoom.
+    def minimap(g: Geom, px: Double, py: Double, z: Double, vw: Double, vh: Double): Element = {
+      val maxW = 190.0; val maxH = 140.0
+      val s = math.min(maxW / g.layout.w, maxH / g.canvasH)
+      val w = math.max(1.0, g.layout.w * s); val h = math.max(1.0, g.canvasH * s)
+      val rx = (-px / z) * s; val ry = (-py / z) * s
+      val rw = (vw / z) * s;  val rh = (vh / z) * s
+      def centerAt(clientX: Double, clientY: Double, rect: dom.DOMRect): Unit = {
+        val mx = math.max(0.0, math.min(w, clientX - rect.left))
+        val my = math.max(0.0, math.min(h, clientY - rect.top))
+        centerOnContent(mx / s, my / s)
+      }
+      div(dataAttr("minimap") := "1", dataAttr("pan-block") := "1", title := "Click or drag to pan",
+        styleAttr := s"position:absolute;bottom:12px;left:12px;z-index:3;width:${w}px;height:${h}px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:4px;cursor:pointer;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.14)",
+        onMouseDown --> { (e: dom.MouseEvent) =>
+          if (e.button == 0) {
+            e.preventDefault(); e.stopPropagation()
+            val rect = e.currentTarget.asInstanceOf[dom.html.Element].getBoundingClientRect()
+            centerAt(e.clientX, e.clientY, rect)
+            lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => centerAt(ev.clientX, ev.clientY, rect)
+            lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
+              dom.window.removeEventListener("mousemove", moveL); dom.window.removeEventListener("mouseup", upL)
+            }
+            dom.window.addEventListener("mousemove", moveL); dom.window.addEventListener("mouseup", upL)
+          }
+        },
+        g.layout.nodes.map(n => div(styleAttr := s"position:absolute;left:${n.x * s}px;top:${n.y * s}px;width:${math.max(1.0, n.w * s)}px;height:${math.max(1.0, n.h * s)}px;background:${Tokens.ink4};opacity:0.45;border-radius:1px")),
+        div(dataAttr("minimap-viewport") := "1",
+          styleAttr := s"position:absolute;left:${rx}px;top:${ry}px;width:${rw}px;height:${rh}px;border:1.5px solid ${Tokens.accent};background:${Tokens.accentLine};box-sizing:border-box;pointer-events:none"),
+      )
+    }
 
     // ── pane root ──
     div(
@@ -583,6 +667,10 @@ object Schematic {
         onMountCallback { ctx =>
           viewportNode = ctx.thisNode.ref
           totalWVar.set(1.0); canvasHVar.set(1.0)
+          // Track viewport size for the minimap (initial + on window resize).
+          def measure(): Unit = viewSizeVar.set((viewportNode.clientWidth.toDouble, viewportNode.clientHeight.toDouble))
+          measure()
+          dom.window.addEventListener("resize", (_: dom.Event) => measure())
           // wheel-to-zoom, non-passive so preventDefault works
           val onWheel: js.Function1[dom.WheelEvent, Unit] = (e) => {
             e.preventDefault()
@@ -608,8 +696,17 @@ object Schematic {
         },
       ),
       controls(),
+      // Minimap, shown only when content overflows the viewport at this zoom.
+      child.maybe <-- Signal.combine(geomSig, panVar.signal, zoomVar.signal, viewSizeVar.signal).map {
+        case (Some(g), (px, py), z, (vw, vh))
+          if g.layout.nodes.nonEmpty && vw > 0 && (g.layout.w * z > vw + 1 || g.canvasH * z > vh + 1) =>
+          Some(minimap(g, px, py, z, vw, vh))
+        case _ => None
+      },
       // keep totalW/canvasH mirrors in sync with geometry
       geomSig --> { (gO: Option[Geom]) => gO.foreach { g => totalWVar.set(g.layout.w.toDouble); canvasHVar.set(g.canvasH) } },
+      // Clear the filter on navigation (JS clears it per path change).
+      pathSig.map(_.mkString("/")).changes --> { _ => filterVar.set("") },
       // auto-fit / restore per path
       Signal.combine(pathSig.map(_.mkString("/")), totalWVar.signal, canvasHVar.signal) --> {
         (t: (String, Double, Double)) => handleFit(t._1, t._2, t._3)

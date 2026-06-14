@@ -28,15 +28,34 @@ object App {
   private val hoveredSigVar    = Var[Option[String]](None)
   private val expandedPortsVar = Var[Set[String]](Set.empty) // in-box expanded bundle pin paths
   private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
+  private val paletteOpenVar = Var(false)                       // command palette (Ctrl/Cmd+K)
+  private val helpOpenVar    = Var(false)                       // keyboard-help overlay (?)
 
   @JSExport
   def main(rootId: String): String = {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
     render(container, shell())
+    installKeyboard()
     loadDesign()
     "mounted"
   }
+
+  // Global shortcuts: Ctrl/Cmd+K (or P) opens the palette, ? toggles help, Esc
+  // closes both. Mirrors the JS BenchApp keydown handler.
+  private def installKeyboard(): Unit =
+    dom.window.addEventListener("keydown", (e: dom.KeyboardEvent) => {
+      val tag    = Option(dom.document.activeElement).map(_.tagName).getOrElse("")
+      val typing = tag == "INPUT" || tag == "TEXTAREA"
+      val mod    = e.metaKey || e.ctrlKey
+      if (mod && Set("k", "K", "p", "P").contains(e.key)) {
+        e.preventDefault(); helpOpenVar.set(false); paletteOpenVar.set(true)
+      } else if (!typing && !mod && e.key == "?") {
+        e.preventDefault(); helpOpenVar.update(!_)
+      } else if (e.key == "Escape") {
+        paletteOpenVar.set(false); helpOpenVar.set(false)
+      }
+    })
 
   // ── Design loading ───────────────────────────────────────────────────────
   private def loadDesign(): Unit = {
@@ -65,7 +84,9 @@ object App {
     if (path.isEmpty) None
     else {
       val byName = d.modules.iterator.map(m => m.name -> m).toMap
-      path.tail.foldLeft(byName.get(topOf(d))) { (acc, instName) =>
+      // path.head is a MODULE name (the top, or a module jumped to via the
+      // palette); the rest are instance names walked down from there.
+      path.tail.foldLeft(byName.get(path.head)) { (acc, instName) =>
         for { m <- acc; c <- m.children.find(_.name == instName); cm <- byName.get(c.`type`) } yield cm
       }
     }
@@ -86,6 +107,9 @@ object App {
       childMod <- d.modules.find(_.name == child.`type`)
       if childMod.kind != "external" && childMod.kind != "intrinsic"
     } pathVar.update(_ :+ inst) // selectedSig / expandedPorts cleared by the path-change binder
+
+  /** Navigate up to the breadcrumb segment at `idx`. */
+  private def navTo(idx: Int): Unit = pathVar.update(_.take(idx + 1))
 
   // ── Hierarchy model ────────────────────────────────────────────────────────
   private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String])
@@ -126,6 +150,7 @@ object App {
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
       topBar(),
+      Chrome.warningsBanner(designVar.signal),
       div(
         cls := "scl-panes",
         hierarchyPane(),
@@ -162,13 +187,33 @@ object App {
       pathVar.signal.changes --> { _ =>
         expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
       },
+      // Command palette + keyboard-help overlays (fixed-position modals).
+      Chrome.commandPalette(designVar.signal, paletteOpenVar, onNavigate = p => pathVar.set(p)),
+      Chrome.helpOverlay(helpOpenVar),
     )
+
+  private val kHint = if (Chrome.macHint) "⌘K" else "Ctrl K"
 
   private def topBar(): Element =
     div(
       cls := "scl-topbar", dataAttr("topbar") := "1",
       span(cls := "scl-logo", "SoCLess"),
-      span(cls := "scl-sub", "Scala.js + Laminar frontend"),
+      // Breadcrumb: clickable segments navigate up the hierarchy.
+      div(cls := "scl-crumbs",
+        children <-- pathVar.signal.map { p =>
+          p.zipWithIndex.flatMap { case (seg, i) =>
+            val sep: Seq[Element] = if (i > 0) Seq(span(cls := "scl-crumb-sep", "›")) else Nil
+            sep :+ button(cls := "scl-crumb", cls.toggle("active") := (i == p.length - 1),
+              title := p.take(i + 1).mkString(" > "),
+              onClick --> { _ => navTo(i) }, seg)
+          }
+        }),
+      // Search trigger (opens the palette).
+      button(cls := "scl-search", dataAttr("search-trigger") := "1",
+        title := "Search modules, instances, ports",
+        onClick --> { _ => paletteOpenVar.set(true) },
+        span("Search modules…"),
+        span(cls := "scl-kbd", kHint)),
       span(
         cls := "scl-engine", dataAttr("design-loaded") <-- designVar.signal.map(_.isDefined.toString),
         child.text <-- designVar.signal.map {
@@ -176,6 +221,9 @@ object App {
           case None    => "loading design.json…"
         },
       ),
+      // Help affordance.
+      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
+        onClick --> { _ => helpOpenVar.set(true) }, "?"),
     )
 
   private def hierarchyPane(): Element = {

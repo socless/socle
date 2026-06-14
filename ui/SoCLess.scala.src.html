@@ -21,9 +21,28 @@
   .scl-shell { display: flex; flex-direction: column; height: 100vh; }
   .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     border-bottom: 1px solid var(--border); background: var(--panel); }
-  .scl-logo { font-weight: 700; }
+  .scl-logo { font-weight: 700; flex-shrink: 0; }
   .scl-sub { color: var(--ink3); }
-  .scl-engine { margin-left: auto; color: var(--accent); }
+  .scl-engine { color: var(--accent); flex-shrink: 0; }
+  /* Topbar chrome (#172 Phase 4). */
+  .scl-crumbs { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+    overflow: hidden; color: var(--ink2); margin-left: 4px; }
+  .scl-crumb { border: none; background: transparent; cursor: pointer; color: var(--ink2);
+    font-family: var(--mono); font-size: 11px; padding: 3px 6px; border-radius: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .scl-crumb:hover { background: var(--panelAlt); }
+  .scl-crumb.active { color: var(--ink); font-weight: 600; }
+  .scl-crumb-sep { color: var(--ink4); flex-shrink: 0; }
+  .scl-search { display: flex; align-items: center; gap: 6px; background: var(--panelAlt);
+    padding: 5px 10px; border-radius: 5px; color: var(--ink3); width: 220px; border: none;
+    cursor: pointer; text-align: left; flex-shrink: 0; font-size: 11.5px; }
+  .scl-search:hover { background: var(--border); }
+  .scl-kbd { margin-left: auto; font-family: var(--mono); font-size: 10px; padding: 1px 4px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
+  .scl-help-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
+    color: var(--ink3); border-radius: 50%; width: 20px; height: 20px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+  .scl-help-btn:hover { background: var(--panelAlt); color: var(--ink); }
   .scl-panes { display: flex; flex: 1; min-height: 0; }
   .scl-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: auto; }
   .scl-pane-hierarchy { width: 240px; }
