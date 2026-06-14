@@ -22,6 +22,8 @@ package build
 import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
+import mill.scalajslib._
+import mill.scalajslib.api.ModuleKind
 
 object V {
   val scala       = "2.13.16"
@@ -32,6 +34,7 @@ object V {
   val osLib       = "0.11.4"
   val utest       = "0.8.5"
   val elk         = "0.9.1"
+  val scalaJs     = "1.19.0"          // Scala.js for the in-browser layout (issue #167)
   val publishVer  = "0.1.0-SNAPSHOT"
 }
 
@@ -256,6 +259,34 @@ object socless extends ChiselToolchain with SoclessPublish {
     if (rc.exitCode != 0) throw new RuntimeException(s"regenerateGoldens failed (exit ${rc.exitCode})")
     Task.log.info("[socless] Goldens regenerated - review 'git diff socless/test/resources/golden/' before committing.")
   }
+}
+
+// ─── In-browser layout engine (Scala.js, issue #167) ────────────────────────
+// Compiles the browser-side schematic layout (elkjs facade + the port of
+// Layout.scala's graph build/extract) to a single NoModule script. The output
+// is vendored + inlined into ui/SoCLess.dist.html by tools/ui-build/build.mjs;
+// CI rebuilds and checks the committed artifact stays in sync. Shares the pure
+// Schema + LayoutCore sources with the JVM `socless` module so the two layout
+// implementations cannot drift.
+object `socless-js` extends ScalaJSModule {
+  def scalaVersion   = V.scala
+  def scalaJSVersion = V.scalaJs
+  // NoModule + @JSExportTopLevel => a plain global script (window.SoclessLayout),
+  // no require/exports, safe to inline into a single-file <script> tag offline.
+  def moduleKind = ModuleKind.NoModule
+  // upickle has a Scala.js build; needed by the shared Schema's ReadWriters.
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.lihaoyi::upickle::${V.upickle}",
+  )
+  // Compile the SHARED pure sources straight from the JVM `socless` module so
+  // the schema + engine-independent layout logic cannot drift between the two
+  // engines (issue #167). Only the genuinely ELK-free files are included; they
+  // are declared via Task.Sources so Mill permits reading them during the build.
+  def sharedSources = Task.Sources(
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "Schema.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "LayoutCore.scala",
+  )
+  def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────

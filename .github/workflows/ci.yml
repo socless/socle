@@ -65,6 +65,19 @@ jobs:
       - name: Run test suite
         run: ./mill socless.test
 
+      # The Scala.js layout engine (socless-js) is committed as ui/socless-layout.js
+      # (the dev page loads it, build.mjs inlines it into the dist). The dist-sync
+      # check above only proves dist == committed-artifact; this re-links from the
+      # Scala source and fails if the committed artifact is stale (issue #167).
+      - name: socless-js layout engine in sync with source
+        run: |
+          tools/refresh-socless-js.sh
+          if ! git diff --exit-code ui/socless-layout.js; then
+            echo "ui/socless-layout.js is stale vs the socless-js Scala source."
+            echo "Run: tools/refresh-socless-js.sh  &&  (cd tools/ui-build && node build.mjs)  then commit both."
+            exit 1
+          fi
+
       # The committed CHIRRTL fixtures are the input to every golden test.
       # Fail if they have drifted from the current example sources / Chisel
       # (otherwise the goldens test stale input with CI green, issue #135).

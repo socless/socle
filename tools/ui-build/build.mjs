@@ -21,6 +21,7 @@
 // The output is deterministic for a given source + dependency lockfile.
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import Babel from '@babel/standalone';
@@ -69,6 +70,42 @@ vendorMatchingTag('react-dom', 'react-dom.production.min.js');
   const re = cdnTag('@babel/standalone');
   if (!re.test(html)) throw new Error('CDN tag for @babel/standalone not found in SoCLess.html');
   html = html.replace(re, () => '<!-- @babel/standalone not needed: JSX precompiled by tools/ui-build/build.mjs -->');
+}
+
+// 1b. Inline elkjs (issue #167). Unlike React, the elk.bundled.js UMD does not
+// embed its own version string, so the version-substring assert used above is
+// not usable. Pin the vendored bundle by SHA-256 instead: a stronger guarantee
+// that the inlined engine is exactly the reviewed artifact, and a bump of the
+// dev CDN tag without re-vendoring (+ updating this hash) fails the build.
+const ELK_SHA256 = 'b0745abd7f23cd91690a1587e377edbe19fd7233c783300290936720546216d4';
+{
+  const re = cdnTag('elkjs');
+  const m = html.match(re);
+  if (!m) throw new Error('CDN tag for elkjs not found in SoCLess.html');
+  const version = m[1];
+  const code = vendor('elk.bundled.js');
+  const sha = createHash('sha256').update(code).digest('hex');
+  if (sha !== ELK_SHA256) {
+    throw new Error(
+      `vendor/elk.bundled.js sha256 ${sha} != pinned ${ELK_SHA256}. ` +
+      `Re-vendor elkjs (see tools/ui-build/vendor/README.md) and update ELK_SHA256 in build.mjs.`,
+    );
+  }
+  html = html.replace(re, () => `<script>/* elkjs@${version} bundled (vendored, sha256 ${ELK_SHA256.slice(0, 12)}…) */\n${code}\n</script>`);
+}
+
+// 1c. Inline the Scala.js layout engine (issue #167). Unlike the CDN deps this
+// is a LOCAL build artifact committed next to the dev page (ui/socless-layout.js,
+// from `./mill socless-js.fullLinkJS`), referenced by a relative <script src>.
+// Its integrity is guarded in CI by re-linking from the Scala source and diffing
+// the committed file (a SHA pin here would be redundant and re-edited on every
+// socless-js change), so we just inline it.
+{
+  const re = /<script src="socless-layout\.js"><\/script>/;
+  if (!re.test(html)) throw new Error('socless-layout.js script tag not found in SoCLess.html');
+  const code = readFileSync(join(repo, 'ui', 'socless-layout.js'), 'utf8');
+  if (code.includes('</script')) throw new Error('socless-layout.js contains </script and cannot be inlined safely');
+  html = html.replace(re, () => `<script>/* socless-js layout engine (Scala.js, vendored ui/socless-layout.js) */\n${code}\n</script>`);
 }
 
 // 2. Precompile every text/babel block in place.

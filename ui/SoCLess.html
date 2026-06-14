@@ -111,6 +111,15 @@
 <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<!-- elkjs: the in-browser layout engine (same ELK used by the backend). Exposes window.ELK.
+     Vendored + inlined into the dist by tools/ui-build/build.mjs (issue #167). -->
+<script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
+<!-- socless-js: the Scala.js schematic layout engine (issue #167), built by
+     `./mill socless-js.fullLinkJS`. Committed like SoCLess.dist.html; inlined
+     into the dist by build.mjs. NoModule exports a top-level `let`, so the next
+     line bridges it onto window. -->
+<script src="socless-layout.js"></script>
+<script>window.SoclessLayout = (typeof SoclessLayout !== 'undefined') ? SoclessLayout : window.SoclessLayout;</script>
 
 <script>
   window.__TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
@@ -2670,6 +2679,27 @@ function bBakedLayout(mod) {
   return { boxes, ports, edges, totalW: L.w, totalH: L.h };
 }
 
+// Convert the in-browser engine result (window.SoclessLayout.layout, issue #167)
+// into the same {boxes, ports, edges, totalW, totalH} shape bBakedLayout returns,
+// so BenchSchematic can consume either interchangeably. junctionByKey keeps the
+// per-edge junction points for the fan-out/fan-in markers (issue #166).
+function bEngineLayout(res) {
+  if (!res || !res.nodes) return null;
+  const boxes = {};
+  const ports = {};
+  res.nodes.forEach((n) => {
+    boxes[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, kind: n.kind };
+    ports[n.id] = n.ports;
+  });
+  const edges = {};
+  const junctionByKey = {};
+  res.edges.forEach((e) => {
+    edges[e.from + ' ' + e.to] = e.points;
+    if (e.junctionPoints && e.junctionPoints.length) junctionByKey[e.from + ' ' + e.to] = e.junctionPoints;
+  });
+  return { boxes, ports, edges, totalW: res.w, totalH: res.h, junctionByKey };
+}
+
 function bRoutePath(w) {
   if (w.points && w.points.length >= 2) {
     return 'M ' + w.points.map((p) => `${p[0]} ${p[1]}`).join(' L ');
@@ -2811,6 +2841,22 @@ function WireVisualLayer({
   wireActive,
 }) {
   const active = wireActive || (() => true);
+  // Fan-out / fan-in junction markers (issue #166). Wires are point-to-point,
+  // so a net that branches shows up as several wires sharing one endpoint:
+  //   fan-out = many wires share a SOURCE pin (w.toPath)  -> filled dot at it
+  //   fan-in  = many wires share a SINK  pin (w.fromPath) -> hollow dot at it
+  // x1,y1 is the source end, x2,y2 the sink end (set in the `wires` memo).
+  const junctions = (() => {
+    const bySource = new Map(), bySink = new Map();
+    for (const w of wires) {
+      (bySource.get(w.toPath)   || bySource.set(w.toPath,   []).get(w.toPath)).push(w);
+      (bySink.get(w.fromPath)   || bySink.set(w.fromPath,   []).get(w.fromPath)).push(w);
+    }
+    const fanOut = [], fanIn = [];
+    for (const ws of bySource.values()) if (ws.length > 1) fanOut.push({ x: ws[0].x1, y: ws[0].y1, n: ws.length });
+    for (const ws of bySink.values())   if (ws.length > 1) fanIn.push({ x: ws[0].x2, y: ws[0].y2, n: ws.length });
+    return { fanOut, fanIn };
+  })();
   const isHl = (w) => {
     if (!selectedSig) return false;
     return w.fromPath.startsWith(selectedSig) || w.toPath.startsWith(selectedSig)
@@ -2892,6 +2938,20 @@ function WireVisualLayer({
           </g>
         );
       })}
+      {/* Fan-out: filled junction dot where one source drives several sinks (#166). */}
+      {junctions.fanOut.map((j, i) => (
+        <circle key={'fo' + i} data-junction="1" cx={j.x} cy={j.y} r={3.5}
+          fill={benchTokens.ink2} stroke={benchTokens.bg} strokeWidth={1.5}>
+          <title>{j.n}-way fan-out</title>
+        </circle>
+      ))}
+      {/* Fan-in: hollow dot where several sources converge on one sink (#166). */}
+      {junctions.fanIn.map((j, i) => (
+        <circle key={'fi' + i} data-fanin="1" cx={j.x} cy={j.y} r={3.5}
+          fill={benchTokens.bg} stroke={benchTokens.ink2} strokeWidth={1.75}>
+          <title>{j.n}-way fan-in</title>
+        </circle>
+      ))}
     </svg>
   );
 }
@@ -3198,7 +3258,17 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { panRef.current  = pan;  }, [pan]);
 
-  const layoutResult = useMemo(() => bBakedLayout(mod), [mod]);
+  const baked = useMemo(() => bBakedLayout(mod), [mod]);
+  // Dynamic in-browser layout (issue #167): null until an interactive re-layout
+  // (a bundle expand, or the Optimize button) resolves, then it replaces the
+  // baked geometry. Async, so the baked layout stays the initial paint and the
+  // fallback on error. Because the engine is fed the same expansion-aware box
+  // heights + pin rows the UI computes, switching layoutResult to it makes the
+  // old boxShift / wire-terminal patch path a near-identity, which is what
+  // removes the up-then-down kink (issue #164).
+  const [engineLayout, setEngineLayout] = useState(null);
+  const [layoutPending, setLayoutPending] = useState(false);
+  const layoutResult = engineLayout || baked;
   const { boxes: layoutBoxes, ports: layoutPorts, totalW, totalH, edges: bakedEdges } = layoutResult || { boxes: {}, ports: {}, totalW: 1, totalH: 1, edges: {} };
   const containerH = totalH + 40;
 
@@ -3466,6 +3536,58 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
     return { shift, inserts, shiftAt, total };
   }, [layoutBoxes, boxRowsMap]);
 
+  // ── Dynamic in-browser re-layout (issue #167) ──────────────────────────────
+  // Feed the elkjs engine (window.SoclessLayout) the current expansion-aware box
+  // heights + top-level pin rows so it re-routes cleanly to the moved pins. The
+  // engine call is async; until it resolves the baked geometry shows. boxRowsMap
+  // and pinY are read through refs so the engine effect does NOT re-fire when its
+  // own result lands (that would loop): it fires only on module / expansion /
+  // Optimize changes.
+  const boxRowsMapRef = useRef(boxRowsMap);
+  const pinYRef = useRef(pinY);
+  useEffect(() => { boxRowsMapRef.current = boxRowsMap; pinYRef.current = pinY; });
+  const [optimizeNonce, setOptimizeNonce] = useState(0);
+  const nextModeRef = useRef('reroute');
+  // Stringify the design once per loaded design (not per expand): the engine
+  // parse-caches by key, but stringify itself is not free on large designs.
+  const designJson = useMemo(
+    () => (window.DESIGN && window.DESIGN.RAW) ? JSON.stringify(window.DESIGN.RAW) : null,
+    [window.DESIGN && window.DESIGN.VERSION],
+  );
+  useEffect(() => {
+    const engine = window.SoclessLayout;
+    const hasExpansion = expandedPorts.size > 0;
+    const mode = nextModeRef.current;
+    nextModeRef.current = 'reroute';            // consume one-shot Optimize
+    // Nothing to recompute, or engine unavailable: show the baked layout.
+    if (!engine || !designJson || (!hasExpansion && mode !== 'optimize')) {
+      setEngineLayout(null);
+      return;
+    }
+    let cancelled = false;
+    // Overrides: per expanded box, its grown height + its top-level pin rows.
+    const brm = boxRowsMapRef.current || {};
+    const py  = pinYRef.current || {};
+    const overrides = {};
+    for (const inst in brm) {
+      const baseH = (baked && baked.boxes[inst]) ? baked.boxes[inst].h : 0;
+      if (brm[inst].boxH > baseH) overrides[inst] = { height: brm[inst].boxH, pins: py[inst] || {} };
+    }
+    const key = (window.DESIGN.TOP || '') + ':' + (window.DESIGN.VERSION || 0);
+    setLayoutPending(true);
+    engine.layout(designJson, key, mod.name, mode, overrides)
+      .then((res) => { if (!cancelled) setEngineLayout(bEngineLayout(res)); })
+      .catch((err) => { if (!cancelled) { setEngineLayout(null); console.warn('[socless] in-browser layout failed, using baked:', err && err.message || err); } })
+      .finally(() => { if (!cancelled) setLayoutPending(false); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mod, expandedPorts, optimizeNonce, designJson]);
+
+  const optimizeLayout = useCallback(() => {
+    nextModeRef.current = 'optimize';
+    setOptimizeNonce((n) => n + 1);
+  }, []);
+
   // The box that owns an endpoint path: boundary stubs are keyed by the FULL
   // path ("io.in[0]"), instances by the head segment.
   const ownerBoxId = (path) => (layoutBoxes[path] ? path : path.split('.')[0]);
@@ -3564,7 +3686,7 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
   const wireActive = (w) => !filterActive || filterActive.has(ownerBoxId(w.from)) || filterActive.has(ownerBoxId(w.to));
 
   return (
-    <div style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
+    <div data-layout-ready={layoutPending ? '0' : '1'} style={{ flex: 1, position: 'relative', overflow: 'hidden', background: `radial-gradient(circle at 1px 1px, ${benchTokens.border} 1px, transparent 0) 0 0/20px 20px, ${benchTokens.bg}` }}>
       {/* Canvas chrome */}
       <div style={{ position: 'absolute', top: 12, left: 12, right: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', zIndex: 2, pointerEvents: 'none' }}>
         <div style={{ display: 'flex', gap: 6, pointerEvents: 'auto' }}>
@@ -3943,6 +4065,12 @@ function BenchSchematic({ mod, path, selectedSig, setSelectedSig, hoveredSig, se
             <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
           </>
         )}
+        <button data-optimize="1" onClick={optimizeLayout} disabled={layoutPending}
+          title="Re-layout to minimize wire length (in-browser elkjs, issue #167)"
+          style={{ ...zoomBtnStyle, color: layoutPending ? benchTokens.ink4 : (engineLayout ? benchTokens.accent : zoomBtnStyle.color), cursor: layoutPending ? 'default' : 'pointer' }}>
+          {layoutPending ? '…' : 'optimize'}
+        </button>
+        <span style={{ width: 1, alignSelf: 'stretch', background: benchTokens.borderSoft, margin: '0 2px' }} />
         <button onClick={fitToView} title="Fit to view" style={zoomBtnStyle}>fit</button>
         <button onClick={() => zoomBy(0.8)} title="Zoom out (or mouse wheel down)" style={zoomBtnStyle}>−</button>
         <span style={{ padding: '3px 6px', color: benchTokens.ink2, minWidth: 38, textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
