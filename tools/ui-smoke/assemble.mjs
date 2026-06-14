@@ -12,7 +12,9 @@ import { mkdirSync, copyFileSync, writeFileSync, existsSync } from 'node:fs';
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith('--')) || 'site';
-const UI = 'ui/SoCLess.scala.html';
+// The shipped UI is built by `mill socless-ui.dist` (no committed artifact,
+// issue #184). Default to its dest; override with SOCLESS_UI_HTML.
+const UI = process.env.SOCLESS_UI_HTML || 'out/socless-ui/dist.dest/SoCLess.html';
 const designs = [
   ['axisystem',    'soclessRun',          'AXISystem (AXI crossbar)'],
   ['rvpipeline',   'soclessRunPipeline',  'RVPipeline (4-stage)'],
@@ -23,7 +25,7 @@ const designs = [
 ];
 
 if (!existsSync(UI)) {
-  console.error(`${UI} is missing. Build it: tools/refresh-socless-ui.sh && (cd tools/ui-build && node build-scala.mjs)`);
+  console.error(`${UI} is missing. Build it: ./mill socless-ui.dist`);
   process.exit(1);
 }
 

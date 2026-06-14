@@ -120,11 +120,10 @@ No `chisel3.internal.*` imports anywhere — survives Chisel patch updates.
 
 ## The UI
 
-The viewer is a single self-contained HTML file (`ui/SoCLess.html` is the dev
-source; `ui/SoCLess.dist.html` is the shipped artifact with React vendored and
-the JSX precompiled, so it has **no network dependencies** and works offline).
-`soclessUI` serves it for you; you can also open the file directly and drop a
-`design.json` onto it.
+The viewer is a single self-contained HTML file: the **Scala.js + Laminar**
+frontend (`socless-ui`), built by `mill socless-ui.dist` with elkjs vendored
+inline, so it has **no network dependencies** and works offline. `soclessUI`
+serves it for you (it is embedded in the JAR); it loads `design.json` over HTTP.
 
 What you can do in it:
 

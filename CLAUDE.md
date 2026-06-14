@@ -35,7 +35,7 @@ mill myDesign.soclessUI           # Serve UI locally (default port 8765)
 mill myDesign.soclessUI --port 9000
 ```
 
-Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, WithLayoutsTest, and GoldenDesignTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against `ui/examples/` reference JSONs.
+Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, WithLayoutsTest, and GoldenDesignTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against the reference JSONs in `socless/test/resources/reference/`.
 
 **Golden/snapshot tests**: `GoldenDesignTest` compares the IrWalk-pipeline output (parse+design, no layout) against committed golden files in `socless/test/resources/golden/`. When you intentionally change the emitted schema, regenerate the goldens with `./mill socless.regenerateGoldens`, then `git diff` to review and commit.
 
@@ -63,29 +63,26 @@ example/src/
 socless-js/src/socless/js/
   BrowserLayout.scala    # Scala.js elkjs facade; runs the schematic layout in-browser (in-process to the UI)
 
-socless-ui/src/socless/ui/
-  App.scala              # Scala.js + Laminar frontend root: design load, hierarchy, state, keyboard, chrome
-  Schematic.scala        # Center pane: boxes/ports/wires, pan/zoom/drill, bundle expansion, filter, minimap, export
-  Inspector.scala        # Right pane: module/instance/wire-bundle detail
-  BottomPanel.scala      # Source / Waveform / Ports tabs
-  Chrome.scala           # Command palette, keyboard-help overlay, warnings banner
-  Export.scala           # SVG/PNG export + self-contained HTML snapshot
-  Tokens.scala / RowModel.scala  # Theme tokens; expansion row model (shared BundleTree)
-
-ui/
-  SoCLess.scala.html     # Shipped single-file UI (socless-ui.js + elkjs inlined offline); embedded in the JAR as SoCLess.html
-  SoCLess.scala.src.html # Template build-scala.mjs inlines into SoCLess.scala.html
-  socless-ui.js          # Committed socless-ui.fullLinkJS output (like a golden)
-  examples/              # Reference JSONs: axi.json, gcd.json, pipeline.json, vta.json
+socless-ui/                # Scala.js + Laminar frontend - owns all its UI assets
+  src/socless/ui/
+    App.scala              # frontend root: design load, hierarchy, state, keyboard, chrome
+    Schematic.scala        # center pane: boxes/ports/wires, pan/zoom/drill, expansion, filter, minimap, export
+    Inspector.scala        # right pane: module/instance/wire-bundle detail
+    BottomPanel.scala      # Source / Waveform / Ports tabs
+    Chrome.scala           # command palette, keyboard-help overlay, warnings banner
+    Export.scala           # SVG/PNG export + self-contained HTML snapshot
+    Tokens.scala / RowModel.scala  # theme tokens; expansion row model (shared BundleTree)
+  html/SoCLess.src.html    # template the `dist` task inlines into the single-file UI
+  vendor/elk.bundled.js    # vendored elkjs runtime, inlined offline
 ```
 
-The frontend is **Scala.js + Laminar** (`socless-ui`), built to the single-file
-`ui/SoCLess.scala.html` and embedded in the socless JAR (epic #172). It parses
-`design.json` into the typed `Design` and calls `socless-js`
-(`BrowserLayout.runTyped`) and `socless.BundleTree` in-process. Build loop after
-editing `socless-ui/` (or the shared `socless` sources): `tools/refresh-socless-ui.sh`
-then `(cd tools/ui-build && node build-scala.mjs)`, and commit `ui/socless-ui.js`
-+ `ui/SoCLess.scala.html` together (CI verifies they stay in sync).
+The frontend is **Scala.js + Laminar** (`socless-ui`). The shipped single-file
+UI is produced by the `socless-ui.dist` Mill task (link output + vendored elkjs
+inlined into the template, offline) and embedded in the socless JAR as
+`SoCLess.html` (epic #172). There is **no committed UI artifact and no Node
+build** - just `./mill socless-ui.dist`. It parses `design.json` into the typed
+`Design` and calls `socless-js` (`BrowserLayout.runTyped`) and
+`socless.BundleTree` in-process.
 
 ## Key Design Decisions
 

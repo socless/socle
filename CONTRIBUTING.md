@@ -58,24 +58,29 @@ The `example/` module uses `moduleDeps` (not the published plugin), so no
 
 ## Viewing the UI
 
-The easiest way is to open `ui/SoCLess.html` directly in a browser and place a
-`design.json` next to it. The UI fetches `design.json` on load; the top-bar
-status switches from "demo" to "live" when it succeeds.
-
-Alternatively, use the `soclessUI` task in a user project:
+The UI needs HTTP (the Laminar app fetches `design.json`), so serve it rather
+than opening from `file://`. The simplest path is the `soclessUI` task in a user
+project (it serves the UI embedded in the JAR and drops `design.json` next to it):
 
 ```bash
 ./mill myDesign.soclessUI           # serves the UI at http://localhost:8765
 ./mill myDesign.soclessUI --port 9000
 ```
 
+To build just the single-file UI for manual serving:
+
+```bash
+./mill socless-ui.dist              # writes out/socless-ui/dist.dest/SoCLess.html
+```
+
 ## Project layout
 
 ```
-socless/src/socless/    # runtime library (Scala 2.13 + Chisel)
+socless/src/socless/    # runtime exporter library (Scala 2.13 + Chisel)
+socless-js/             # Scala.js layout engine (shares pure sources with the backend)
+socless-ui/             # Scala.js + Laminar frontend (the shipped UI)
 mill-socless/           # Mill plugin trait (Scala 3)
 example/src/            # bundled demo designs
-ui/                     # single-file web UI (SoCLess.html) + reference JSONs
 ```
 
 See `CLAUDE.md` for a detailed breakdown of every source file and the key
@@ -110,20 +115,17 @@ Common prefixes: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`,
 
 - **Backend (Scala)**: standard `scalafmt` defaults; no `chisel3.internal.*`
   imports (use only public Chisel APIs).
-- **UI (`ui/SoCLess.html`)**: single-file React, JSX compiled in the browser
-  (dev CDN builds) so you can hack on it with zero tooling. The SHIPPED
-  artifact is `ui/SoCLess.dist.html` (JSX precompiled, production React
-  inlined, no network dependencies): after editing the source, regenerate it
-  and commit both files (CI fails if they drift):
-
-  ```bash
-  cd tools/ui-build && npm ci && node build.mjs
-  ```
+- **UI (`socless-ui/`)**: Scala.js + Laminar. The shipped single-file UI is
+  produced by `./mill socless-ui.dist` (the Scala.js link output + vendored
+  elkjs inlined into `socless-ui/html/SoCLess.src.html`, offline) - there is no
+  committed artifact and no Node build. Smoke interactivity changes with the
+  ui-smoke harness (`tools/ui-smoke/`).
 - **Prose and comments**: no em dashes. Use a hyphen, comma, colon, or
   parentheses instead.
 
 ## Schema contract
 
-`Schema.scala` case classes are the JSON contract with the UI. Adding fields is
-fine (the UI tolerates null/missing). Never remove or rename existing fields
-without updating `ui/SoCLess.html` in the same PR.
+`Schema.scala` case classes are the JSON contract with the `socless-ui`
+frontend. Adding fields is fine (use a trailing default so older `design.json`
+still parses). Never remove or rename existing fields without updating the UI
+in the same PR.

@@ -1,8 +1,0 @@
-{
-  "designs": [
-    { "id": "axi",      "label": "AXI4 Interconnect", "path": "examples/axi.json",      "doc": "2 masters, 2×2 crossbar, 2 slaves" },
-    { "id": "gcd",      "label": "GCD",               "path": "examples/gcd.json",      "doc": "Euclidean GCD — classic Chisel demo" },
-    { "id": "pipeline", "label": "RV Pipeline",       "path": "examples/pipeline.json", "doc": "4-stage RISC pipeline (Fetch→Decode→Exec→WB)" },
-    { "id": "vta",      "label": "VTA Shell",         "path": "examples/vta.json",      "doc": "VTA accelerator — 600 modules, deep hierarchy" }
-  ]
-}

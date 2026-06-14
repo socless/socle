@@ -87,12 +87,13 @@
 </head>
 <body>
 <div id="root"></div>
-<!-- elkjs: the layout engine (same as the JS UI). CDN tag for the dev loop;
-     build-scala.mjs swaps it for the vendored bundle inlined offline (epic #172). -->
+<!-- elkjs: the layout engine. CDN tag for the dev loop; the `socless-ui.dist`
+     Mill task swaps it for the vendored bundle inlined offline (epic #172). -->
 <script src="https://unpkg.com/elkjs@0.9.1/lib/elk.bundled.js"></script>
-<!-- socless-ui: the Scala.js + Laminar frontend, built by
-     `./mill socless-ui.fullLinkJS` and committed as ui/socless-ui.js (like
-     socless-layout.js). build-scala.mjs inlines it into ui/SoCLess.scala.html. -->
+<!-- socless-ui: the Scala.js + Laminar frontend. The `socless-ui.dist` task
+     inlines the fullLinkJS output here in place of this tag (no committed
+     artifact). For a manual dev loop, drop the linked main.js next to this
+     file as socless-ui.js and serve over HTTP. -->
 <script src="socless-ui.js"></script>
 <script>
   window.SoclessUI = (typeof SoclessUI !== 'undefined') ? SoclessUI : window.SoclessUI;

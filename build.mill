@@ -119,13 +119,11 @@ object socless extends ChiselToolchain with SoclessPublish {
   // Bundle ONLY the built UI at the JAR root (it is the single resource
   // SoclessModule.soclessUI extracts; embedding all of ui/ used to ship ~9 MB
   // of dev assets, issue #104). The shipped UI is the Scala.js + Laminar
-  // frontend (SoCLess.scala.html: socless-ui.js + elkjs inlined, zero network
-  // dependencies, epic #172). It is committed like the goldens, so the Scala
-  // build never needs Node; CI verifies it stays in sync with the source. The
-  // JAR resource keeps the name SoCLess.html so the server/plugin are unchanged.
-  def uiHtml = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" / "SoCLess.scala.html" }
+  // frontend, produced offline by the `socless-ui.dist` task (no committed
+  // artifact, epic #172 / issue #184). The JAR resource keeps the name
+  // SoCLess.html so the server/plugin are unchanged.
   def uiResource = Task {
-    os.copy.over(uiHtml().path, Task.dest / "SoCLess.html")
+    os.copy.over(`socless-ui`.dist().path, Task.dest / "SoCLess.html")
     PathRef(Task.dest)
   }
   override def resources = Task { super.resources() :+ uiResource() }
@@ -211,6 +209,42 @@ object `socless-ui` extends ScalaJSModule {
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.raquo::laminar::${V.laminar}",
   )
+
+  // The module owns its HTML template + vendored elkjs runtime.
+  def uiTemplate  = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "html" / "SoCLess.src.html")
+  def uiVendorElk = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk.bundled.js")
+
+  /** The shipped single-file UI: the fullLinkJS output + the vendored elkjs
+    * bundle inlined into the template, producing one offline file. Built
+    * entirely in Mill (no committed artifacts, no Node), issue #184. The
+    * standalone-server tests grep the served bytes for the GENERATED banner. */
+  def dist = Task {
+    val tpl = os.read(uiTemplate().path)
+    val elk = os.read(uiVendorElk().path)
+    val js  = os.read(fullLinkJS().dest.path / "main.js")
+      .replaceAll("(?s)\\n?//# sourceMappingURL=.*$", "\n") // drop the sourcemap comment
+    for (code <- Seq(elk, js)) if (code.contains("</script"))
+      sys.error("inlined script contains '</script' and cannot be embedded safely")
+
+    val elkRe = """<script src="https://unpkg\.com/elkjs@([^/"]+)[^"]*"[^>]*></script>""".r
+    val jsRe  = """<script src="socless-ui\.js"></script>""".r
+    val elkVer = elkRe.findFirstMatchIn(tpl).map(_.group(1))
+      .getOrElse(sys.error("elkjs CDN tag not found in SoCLess.src.html"))
+    if (jsRe.findFirstIn(tpl).isEmpty) sys.error("socless-ui.js script tag not found in SoCLess.src.html")
+
+    def quote(s: String) = java.util.regex.Matcher.quoteReplacement(s)
+    var html = elkRe.replaceFirstIn(tpl, quote(s"<script>/* elkjs@$elkVer bundled (vendored) */\n$elk\n</script>"))
+    html = jsRe.replaceFirstIn(html, quote(s"<script>/* socless-ui (Scala.js + Laminar) */\n$js\n</script>"))
+    val doctypeRe = """(?i)^<!doctype html>""".r
+    if (doctypeRe.findFirstIn(html).isEmpty) sys.error("expected the template to start with a doctype")
+    html = doctypeRe.replaceFirstIn(html, quote(
+      "<!doctype html>\n<!-- GENERATED FILE - DO NOT EDIT. Built by `mill socless-ui.dist` from\n" +
+      "     socless-ui/html/SoCLess.src.html (Scala.js + Laminar inlined offline, epic #172). -->"))
+
+    if (html.contains("unpkg.com")) sys.error("dist still references unpkg.com (offline guarantee broken)")
+    os.write(Task.dest / "SoCLess.html", html)
+    PathRef(Task.dest / "SoCLess.html")
+  }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────

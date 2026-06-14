@@ -2,10 +2,9 @@ package socless.ui
 
 import socless.Design
 
-/** Theme color tokens, mirroring the JS UI's `benchTokens` (ui/SoCLess.html:1555).
-  * Each is a `var(--x)` CSS custom property resolved from `:root` in
-  * ui/SoCLess.scala.src.html, so a single stylesheet drives both the Laminar
-  * inline styles here and any CSS classes. */
+/** Theme color tokens. Each is a `var(--x)` CSS custom property resolved from
+  * `:root` in `socless-ui/html/SoCLess.src.html`, so a single stylesheet drives
+  * both the Laminar inline styles here and any CSS classes. */
 object Tokens {
   val bg         = "var(--bg)"
   val panel      = "var(--panel)"

@@ -10,8 +10,11 @@ mill.*.lock
 .idea/
 # Build artifacts
 target/
+node_modules/
 # Release archives
 SoCLess.zip
 # Local tooling
 .superpowers/
 .claude/
+# AI-workflow plan/spec/screenshot artifacts (not project docs)
+docs/superpowers/

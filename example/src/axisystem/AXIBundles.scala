@@ -5,7 +5,7 @@ import chisel3.util._
 
 // ── AXI4 channel definitions ────────────────────────────────────────────────
 // Each channel is the `bits` payload of a Decoupled handshake. Widths follow
-// the standard AXI4 channel shapes (see ui/examples/axi.json).
+// the standard AXI4 channel shapes (see socless/test/resources/reference/axi.json).
 
 class AR extends Bundle {
   val id    = UInt(4.W)

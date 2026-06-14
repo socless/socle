@@ -1,7 +1,7 @@
 # SoCLess UI smoke test
 
 Headless interactivity check for the single-file Scala.js + Laminar UI
-(`ui/SoCLess.scala.html`). It catches regressions that the Scala unit tests
+(built by `./mill socless-ui.dist`). It catches regressions that the Scala unit tests
 cannot: anything that only breaks when a human clicks around (drill-down
 crashes, bundle-expand errors, blank pages).
 
@@ -24,7 +24,8 @@ It relies on test hooks baked into the UI: `data-hier-path`, `data-hier-toggle`,
 ## Run
 
 ```bash
-# 1. Elaborate the examples, then assemble + serve the per-design dirs:
+# 1. Build the UI dist, elaborate the examples, then assemble + serve per-design dirs:
+./mill socless-ui.dist
 for t in soclessRun soclessRunPipeline soclessRunGcd soclessRunDeepSoc soclessRunIoBundles soclessRunRegHeavy; do mill example.$t; done
 node tools/ui-smoke/assemble.mjs site && (cd site && python3 -m http.server 8765 &)
 
