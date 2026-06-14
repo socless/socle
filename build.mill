@@ -35,6 +35,7 @@ object V {
   val utest       = "0.8.5"
   val elk         = "0.9.1"
   val scalaJs     = "1.19.0"          // Scala.js for the in-browser layout (issue #167)
+  val laminar     = "17.2.0"          // Scala.js UI framework for the frontend (epic #172)
   val publishVer  = "0.1.0-SNAPSHOT"
 }
 
@@ -198,6 +199,20 @@ object `socless-js` extends ScalaJSModule {
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "BundleTree.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
+}
+
+// ─── In-browser UI (Scala.js + Laminar, epic #172) ──────────────────────────
+// The frontend, migrating off ui/SoCLess.html. Depends on socless-js so it can
+// call the layout engine + bundle tree in-process. NoModule so its fullLinkJS
+// output inlines into the single-file dist offline, like the engine.
+object `socless-ui` extends ScalaJSModule {
+  def scalaVersion   = V.scala
+  def scalaJSVersion = V.scalaJs
+  def moduleKind     = ModuleKind.NoModule
+  def moduleDeps     = Seq(`socless-js`)
+  def mvnDeps = super.mvnDeps() ++ Seq(
+    mvn"com.raquo::laminar::${V.laminar}",
+  )
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────

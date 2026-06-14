@@ -78,6 +78,19 @@ jobs:
             exit 1
           fi
 
+      # The Scala.js + Laminar frontend (socless-ui) is committed as
+      # ui/socless-ui.js and inlined into ui/SoCLess.scala.html. Re-link from
+      # source + rebuild the dist; fail if either committed file is stale (epic #172).
+      - name: socless-ui frontend in sync with source
+        run: |
+          tools/refresh-socless-ui.sh
+          (cd tools/ui-build && node build-scala.mjs)
+          if ! git diff --exit-code ui/socless-ui.js ui/SoCLess.scala.html; then
+            echo "ui/socless-ui.js / ui/SoCLess.scala.html are stale vs the socless-ui Scala source."
+            echo "Run: tools/refresh-socless-ui.sh  &&  (cd tools/ui-build && node build-scala.mjs)  then commit both."
+            exit 1
+          fi
+
       # The committed CHIRRTL fixtures are the input to every golden test.
       # Fail if they have drifted from the current example sources / Chisel
       # (otherwise the goldens test stale input with CI green, issue #135).

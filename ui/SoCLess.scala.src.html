@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoCLess</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --ink3: #8b949e;
+    --border: #30363d; --accent: #1f6feb;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
+  .scl-shell { display: flex; flex-direction: column; height: 100vh; }
+  .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    border-bottom: 1px solid var(--border); background: var(--panel); }
+  .scl-logo { font-weight: 700; }
+  .scl-sub { color: var(--ink3); }
+  .scl-engine { margin-left: auto; color: var(--accent); }
+  .scl-panes { display: flex; flex: 1; min-height: 0; }
+  .scl-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: auto; }
+  .scl-pane-hierarchy { width: 240px; }
+  .scl-pane-schematic { flex: 1;
+    background: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0/20px 20px, var(--bg); }
+  .scl-pane-inspector { width: 300px; border-right: none; }
+  .scl-pane-title { padding: 8px 12px; color: var(--ink3); font-size: 11px;
+    letter-spacing: .04em; border-bottom: 1px solid var(--border); }
+  .scl-pane-body { padding: 12px; color: var(--ink3); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<!-- elkjs: the layout engine (same as the JS UI). CDN tag for the dev loop;
+     build-scala.mjs swaps it for the vendored bundle inlined offline (epic #172). -->
+<script src="https://unpkg.com/elkjs@0.9.1/lib/elk.bundled.js"></script>
+<!-- socless-ui: the Scala.js + Laminar frontend, built by
+     `./mill socless-ui.fullLinkJS` and committed as ui/socless-ui.js (like
+     socless-layout.js). build-scala.mjs inlines it into ui/SoCLess.scala.html. -->
+<script src="socless-ui.js"></script>
+<script>
+  window.SoclessUI = (typeof SoclessUI !== 'undefined') ? SoclessUI : window.SoclessUI;
+  if (window.SoclessUI) window.SoclessUI.main('root');
+</script>
+</body>
+</html>
