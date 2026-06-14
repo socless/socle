@@ -4,12 +4,13 @@ import upickle.default._
 
 /** SoCLess design-export schema.
   *
-  * These case classes are the canonical JSON contract between the exporter
-  * and the UI. The UI's `data.js` shape mirrors this - any field added here
-  * must also be consumed (or tolerated as `null`) on the JS side.
+  * These case classes are the canonical JSON contract between the exporter and
+  * the `socless-ui` frontend, which reads `design.json` into this typed `Design`
+  * via the shared upickle ReadWriters. Any field added here must be
+  * backward-compatible (a trailing default so older `design.json` still parses).
   *
-  * Field naming follows the JSON conventions of the existing UI: camelCase,
-  * `type` is keyed as `"type"`, `children`/`wires`/`ports` are arrays.
+  * Field naming follows the JSON conventions: camelCase, `type` is keyed as
+  * `"type"`, `children`/`wires`/`ports` are arrays.
   */
 case class Design(
   top:     String,

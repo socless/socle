@@ -4,8 +4,8 @@ import chisel3._
 import chisel3.util._
 
 // ── AXI4 channel definitions ────────────────────────────────────────────────
-// Each channel is the `bits` payload of a Decoupled handshake. Widths match
-// the prototype's `data.js` so the JSON output is comparable.
+// Each channel is the `bits` payload of a Decoupled handshake. Widths follow
+// the standard AXI4 channel shapes (see ui/examples/axi.json).
 
 class AR extends Bundle {
   val id    = UInt(4.W)
