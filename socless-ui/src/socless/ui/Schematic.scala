@@ -175,6 +175,7 @@ object Schematic {
     hoveredVar: Var[Option[String]],
     expandedPortsVar: Var[Set[String]],
     drillInto: String => Unit,
+    designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -191,6 +192,8 @@ object Schematic {
     val viewState = scala.collection.mutable.Map.empty[String, (Double, (Double, Double))]
     var prevPathKey: String = null
     var viewportNode: dom.html.Element = null
+    var contentNode: dom.html.Element = null   // the transformed content div, for export
+    var curModName = ""                        // current module name, for export filenames
     var engineGen = 0
     var lastNonce = 0
 
@@ -585,6 +588,17 @@ object Schematic {
         ),
       )
 
+    // Run `capture` with selection/hover highlight cleared, then restore it, so a
+    // selected net doesn't export a washed-out one-net view (issue #131). Laminar
+    // applies the Var change synchronously, so the cloned DOM is already cleared.
+    def withCleared(capture: () => Unit): Unit = {
+      val ps = selectedVar.now(); val ph = hoveredVar.now()
+      if (ps.isEmpty && ph.isEmpty) capture()
+      else { selectedVar.set(None); hoveredVar.set(None); capture(); selectedVar.set(ps); hoveredVar.set(ph) }
+    }
+    def expW: Int = math.max(1, math.ceil(totalWVar.now()).toInt)
+    def expH: Int = math.max(1, math.ceil(canvasHVar.now()).toInt)
+
     // ── zoom / optimize controls (bottom-right) ──
     val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
     def controls(): Element =
@@ -602,6 +616,13 @@ object Schematic {
           child.text <-- zoomVar.signal.map(z => s"${math.round(z * 100)}%")),
         button(styleAttr := zbtn, title := "Zoom in", onClick --> { (_: dom.MouseEvent) => zoomBy(1.25) }, "+"),
         button(styleAttr := zbtn, title := "Reset to 100%", onClick --> { (_: dom.MouseEvent) => zoomVar.set(1.0); panVar.set((40.0, 40.0)) }, "1:1"),
+        span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
+        button(styleAttr := zbtn, dataAttr("export-svg") := "1", title := "Export schematic as SVG",
+          onClick --> { _ => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)) }, "svg"),
+        button(styleAttr := zbtn, dataAttr("export-png") := "1", title := "Export schematic as PNG (2x)",
+          onClick --> { _ => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)) }, "png"),
+        button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
+          onClick --> { _ => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) } }, "share"),
       )
 
     val transformSig = Signal.combine(panVar.signal, zoomVar.signal, totalWVar.signal, canvasHVar.signal).map {
@@ -685,7 +706,8 @@ object Schematic {
           // preventDefault stops the page scrolling under the schematic.
           viewportNode.asInstanceOf[js.Dynamic].addEventListener("wheel", onWheel, js.Dynamic.literal(passive = false))
         },
-        div(styleAttr <-- transformSig, children <-- contentSig),
+        div(styleAttr <-- transformSig, children <-- contentSig,
+          onMountCallback { ctx => contentNode = ctx.thisNode.ref }),
         // empty / missing notices
         child.maybe <-- Signal.combine(geomSig, designSig).map {
           case (Some(g), _) if g.layout.nodes.isEmpty && g.mod.children.isEmpty =>
@@ -703,8 +725,8 @@ object Schematic {
           Some(minimap(g, px, py, z, vw, vh))
         case _ => None
       },
-      // keep totalW/canvasH mirrors in sync with geometry
-      geomSig --> { (gO: Option[Geom]) => gO.foreach { g => totalWVar.set(g.layout.w.toDouble); canvasHVar.set(g.canvasH) } },
+      // keep totalW/canvasH mirrors + current module name in sync with geometry
+      geomSig --> { (gO: Option[Geom]) => gO.foreach { g => totalWVar.set(g.layout.w.toDouble); canvasHVar.set(g.canvasH); curModName = g.mod.name } },
       // Clear the filter on navigation (JS clears it per path change).
       pathSig.map(_.mkString("/")).changes --> { _ => filterVar.set("") },
       // auto-fit / restore per path

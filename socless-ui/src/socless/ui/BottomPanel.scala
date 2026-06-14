@@ -46,12 +46,13 @@ object BottomPanel {
         onClick --> { _ => tabVar.set(id) },
         span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink4}", icon), label)
 
-    val infoSig = Signal.combine(tabVar.signal, moduleSig).map {
-      case ("source", Some(mod)) => mod.source.file
-      case ("wave", _)           => "no waveform data"
-      case ("ports", Some(mod))  => s"${mod.children.length} instances"
-      case _                     => ""
-    }
+    val infoSig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
+      Signal.combine(tabVar.signal, moduleSig, designSig).map {
+        case ("source", Some(mod), Some(d)) => sourcePathChip(mod.source.file, mod.source.line, d)
+        case ("wave", _, _)                 => span("no waveform data")
+        case ("ports", Some(mod), _)        => span(s"${mod.children.length} instances")
+        case _                              => emptyNode
+      }
 
     val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
       Signal.combine(tabVar.signal, moduleSig, selectedVar.signal, designSig).map {
@@ -68,11 +69,29 @@ object BottomPanel {
         tabButton("wave", "∿", "Waveform"),
         tabButton("ports", "⊕", "Ports"),
         div(styleAttr := "flex:1"),
-        div(styleAttr := s"display:flex;align-items:center;padding:0 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink4};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:50%",
-          child.text <-- infoSig),
+        div(styleAttr := s"display:flex;align-items:center;gap:6px;padding:0 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink4};overflow:hidden;white-space:nowrap;max-width:50%",
+          child <-- infoSig),
       ),
       div(cls := "scl-bottom-body", child <-- bodySig),
     )
+  }
+
+  /** Source-tab header chip: the file path plus an open-in-editor link (#123).
+    * The link resolves the absolute path against `Design.sourceRoot` and hands
+    * off to the OS via a `vscode://` URL; disabled when no absolute path. */
+  private def sourcePathChip(file: String, line: Int, d: Design): Element = {
+    val absPath =
+      if (file.startsWith("/")) Some(file)
+      else if (d.sourceRoot.nonEmpty && file.nonEmpty) Some(d.sourceRoot.replaceAll("/$", "") + "/" + file)
+      else None
+    div(styleAttr := "display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden",
+      span(title := absPath.getOrElse(file), styleAttr := "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px", file),
+      if (file.nonEmpty) button(dataAttr("open-editor") := "1",
+        title := absPath.map(p => s"Open in VS Code at line $line").getOrElse("No absolute path (re-export with --source-root)"),
+        disabled := absPath.isEmpty,
+        styleAttr := s"border:1px solid ${Tokens.borderSoft};border-radius:4px;background:transparent;color:${if (absPath.isDefined) Tokens.ink2 else Tokens.ink4};cursor:${if (absPath.isDefined) "pointer" else "default"};font-family:${Tokens.mono};font-size:10px;line-height:14px;padding:0 5px",
+        onClick --> { _ => absPath.foreach(p => dom.window.location.href = s"vscode://file/$p:${if (line > 0) line else 1}") },
+        "↗") else emptyNode)
   }
 
   // ── Source ──────────────────────────────────────────────────────────────────

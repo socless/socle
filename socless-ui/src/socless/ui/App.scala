@@ -58,22 +58,36 @@ object App {
     })
 
   // ── Design loading ───────────────────────────────────────────────────────
+  private def applyDesign(d: Design): Unit = {
+    val top = topOf(d)
+    designVar.set(Some(d))
+    pathVar.set(if (top.nonEmpty) List(top) else Nil)
+    expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
+    errorVar.set(None)
+  }
+
   private def loadDesign(): Unit = {
-    val fetched: Future[String] =
-      dom.fetch("design.json").flatMap { r =>
-        if (r.ok) r.text() else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
-      }
-    fetched.map(txt => upickle.default.read[Design](txt)).onComplete {
-      case Success(d) =>
-        val top = topOf(d)
-        designVar.set(Some(d))
-        pathVar.set(if (top.nonEmpty) List(top) else Nil)
-        expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
-        errorVar.set(None)
-      case Failure(e) =>
-        errorVar.set(Some(Option(e.getMessage).getOrElse(e.toString)))
+    // A self-contained snapshot (the share button) inlines the design as an
+    // embedded block; prefer it so the page opens from file:// with no fetch.
+    val embedded = Option(dom.document.getElementById("socless-embedded-design"))
+      .map(_.textContent).filter(_.trim.nonEmpty)
+    embedded match {
+      case Some(txt) =>
+        try applyDesign(upickle.default.read[Design](txt))
+        catch { case e: Throwable => errorVar.set(Some(Option(e.getMessage).getOrElse(e.toString))) }
+      case None =>
+        dom.fetch("design.json").flatMap { r =>
+          if (r.ok) r.text() else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
+        }.map(txt => upickle.default.read[Design](txt)).onComplete {
+          case Success(d) => applyDesign(d)
+          case Failure(e) => errorVar.set(Some(Option(e.getMessage).getOrElse(e.toString)))
+        }
     }
   }
+
+  /** Raw JSON + top of the active design, for the snapshot/share button. */
+  private def designSnapshot(): Option[(String, String)] =
+    designVar.now().map(d => (upickle.default.write(d), topOf(d)))
 
   private def topOf(d: Design): String =
     if (d.top.nonEmpty) d.top else d.modules.headOption.map(_.name).getOrElse("")
@@ -164,6 +178,7 @@ object App {
             hoveredVar       = hoveredSigVar,
             expandedPortsVar = expandedPortsVar,
             drillInto        = drillInto,
+            designSnapshot   = () => designSnapshot(),
           ),
           BottomPanel.render(
             designSig   = designVar.signal,
