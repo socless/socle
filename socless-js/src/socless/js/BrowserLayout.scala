@@ -11,19 +11,8 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
   * ELK shell (issue #167). Shares [[LayoutCore.prepare]] with the backend, then
   * builds an elkjs JSON graph, runs it on `window.ELK`, and extracts geometry.
   *
-  * Two entry points share one typed core ([[runTyped]] -> `Future[LaidOut]`):
-  *
-  *   - [[runTyped]] is the in-process seam the Scala.js + Laminar UI calls
-  *     directly (epic #172): it returns typed [[LaidOut]] case classes, no
-  *     `js.Dynamic`.
-  *   - [[run]] is the legacy `window.SoclessLayout` boundary used by the
-  *     still-shipped JS UI: a thin adapter that converts the JS `overrides`
-  *     object in and serializes the result back to the exact `js.Dynamic` shape
-  *     the JS renderer consumes (so its output is byte-for-byte unchanged):
-  *
-  * {{{ { nodes:[{id,kind,x,y,w,h,ports:[{path,x,y,side,interface,label,bundle,expandable}]}],
-  *       edges:[{from,to,points:[[x,y]],junctionPoints:[[x,y]]}], w, h } }}}
-  */
+  * [[runTyped]] is the in-process seam the Scala.js + Laminar UI calls directly
+  * (epic #172): it returns typed [[LaidOut]] case classes, no `js.Dynamic`. */
 object BrowserLayout {
 
   // ── Typed layout result (the in-process shape) ─────────────────────────────
@@ -195,42 +184,4 @@ object BrowserLayout {
     laid.map(res => extractTyped(prep, res))
   }
 
-  // ── Legacy js.Dynamic boundary (window.SoclessLayout, the JS UI) ───────────
-
-  /** Convert the JS UI's `overrides` object (`{inst: {height, pins:{path->y}}}`)
-    * into the typed [[BoxOverride]] map. */
-  private def overridesFromJs(overrides: js.Dynamic): Map[String, BoxOverride] =
-    if (overrides == null || js.isUndefined(overrides)) Map.empty
-    else overrides.asInstanceOf[js.Dictionary[js.Dynamic]].toMap.map { case (id, o) =>
-      val h = o.height.asInstanceOf[js.UndefOr[Double]].toOption
-      val pins = o.pins.asInstanceOf[js.UndefOr[js.Dictionary[Double]]].toOption
-        .map(_.toMap).getOrElse(Map.empty[String, Double])
-      id -> BoxOverride(h, pins)
-    }
-
-  /** Serialize a [[LaidOut]] into the exact `js.Dynamic` shape the JS renderer
-    * consumes (`bEngineLayout` in ui/SoCLess.html). */
-  private def toJs(out: LaidOut): js.Dynamic = {
-    val nodes = out.nodes.map { n =>
-      val ports = n.ports.map { p =>
-        js.Dynamic.literal(
-          path = p.path, x = p.x, y = p.y, side = p.side,
-          interface = p.interface, label = p.label, bundle = p.bundle, expandable = p.expandable,
-        )
-      }.toJSArray
-      js.Dynamic.literal(id = n.id, kind = n.kind, x = n.x, y = n.y, w = n.w, h = n.h, ports = ports)
-    }.toJSArray
-    val edges = out.edges.map { e =>
-      val pts = e.points.map { case (x, y) => js.Array(x, y) }.toJSArray
-      val jps = e.junctionPoints.map { case (x, y) => js.Array(x, y) }.toJSArray
-      js.Dynamic.literal(from = e.from, to = e.to, points = pts, junctionPoints = jps)
-    }.toJSArray
-    js.Dynamic.literal(nodes = nodes, edges = edges, w = out.w, h = out.h)
-  }
-
-  /** Lay out one module with elkjs, returning a Promise of the UI layout shape
-    * (the `window.SoclessLayout` boundary; output unchanged from before the
-    * typed-core refactor). */
-  def run(module: ModuleDef, design: Design, mode: String, overrides: js.Dynamic): js.Promise[js.Dynamic] =
-    runTyped(module, design, mode, overridesFromJs(overrides)).map(toJs).toJSPromise
 }

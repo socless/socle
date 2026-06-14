@@ -124,18 +124,22 @@ object Chrome {
                 }),
               span(styleAttr := s"font-family:${Tokens.mono};font-size:10px;color:${Tokens.ink4}",
                 child.text <-- resultsVar.signal.map(r => s"${r.length} ${if (r.length == 1) "result" else "results"}"))),
+            // Build the list only on results change; bind each row's active
+            // highlight reactively to the cursor. (Rebuilding the list on cursor
+            // change destroyed the row a hover was about to click, issue: the
+            // palette never navigated under a real mouse click.)
             div(styleAttr := "overflow-y:auto;padding:4px",
-              children <-- Signal.combine(resultsVar.signal, cursorVar.signal).map { case (rs, cur) =>
+              children <-- resultsVar.signal.map { rs =>
                 if (rs.isEmpty) List(div(styleAttr := s"padding:24px 14px;color:${Tokens.ink3};font-size:12px;text-align:center",
                   child.text <-- qVar.signal.map(q => s"""No matches for "$q".""")))
                 else rs.zipWithIndex.map { case (r, i) =>
-                  val active = i == cur
+                  val activeSig = cursorVar.signal.map(_ == i)
                   button(dataAttr("cmd-result") := r.label,
-                    styleAttr := s"display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:6px;border:none;cursor:pointer;text-align:left;background:${if (active) Tokens.accentBg else "transparent"}",
+                    styleAttr <-- activeSig.map(a => s"display:flex;align-items:center;gap:10px;width:100%;padding:7px 10px;border-radius:6px;border:none;cursor:pointer;text-align:left;background:${if (a) Tokens.accentBg else "transparent"}"),
                     onMouseEnter --> { _ => cursorVar.set(i) },
                     onClick --> { _ => navigate(r) },
                     span(styleAttr := s"font-family:${Tokens.mono};font-size:9.5px;padding:1px 5px;border-radius:3px;color:${kindColor.getOrElse(r.kind, Tokens.ink3)};background:${Tokens.bg};border:1px solid ${Tokens.borderSoft};text-transform:uppercase;letter-spacing:.4px;min-width:60px;text-align:center", r.kind),
-                    span(title := r.label, styleAttr := s"font-family:${Tokens.mono};font-size:12px;color:${if (active) Tokens.accent else Tokens.ink};font-weight:${if (active) 600 else 400};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", r.label),
+                    span(title := r.label, styleAttr <-- activeSig.map(a => s"font-family:${Tokens.mono};font-size:12px;color:${if (a) Tokens.accent else Tokens.ink};font-weight:${if (a) 600 else 400};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0"), r.label),
                     span(styleAttr := s"margin-left:auto;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink4};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0;max-width:40%", r.sub))
                 }
               }),

@@ -1,11 +1,9 @@
 // Build ui/SoCLess.scala.html from ui/SoCLess.scala.src.html (epic #172).
 //
-// The Scala.js + Laminar frontend's shipped, self-contained artifact: the dev
-// template loads elkjs from a CDN and the Laminar app from a relative
-// ui/socless-ui.js; this inlines both so the result is one offline file, like
-// the JS UI's build.mjs. The Scala.js UI is a PARALLEL artifact during the
-// migration - the JS dist (ui/SoCLess.dist.html) stays the shipped UI until the
-// Phase 6 cutover.
+// The Scala.js + Laminar frontend's shipped, self-contained artifact (embedded
+// in the socless JAR as SoCLess.html): the dev template loads elkjs from a CDN
+// and the Laminar app from a relative ui/socless-ui.js; this inlines both so the
+// result is one offline single file.
 //
 // Usage:  cd tools/ui-build && node build-scala.mjs
 //   (run `tools/refresh-socless-ui.sh` first to refresh ui/socless-ui.js)

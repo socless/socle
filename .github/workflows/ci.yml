@@ -23,22 +23,6 @@ jobs:
         with:
           node-version: "20"
 
-      # The shipped UI (ui/SoCLess.dist.html: JSX precompiled, production React
-      # inlined, issue #105) is committed like the goldens. Rebuild it and fail
-      # if someone edited ui/SoCLess.html without regenerating. Runs FIRST so a
-      # UI-only PR fails in seconds instead of after the whole Scala pipeline
-      # has published and served the stale dist (issue #136).
-      - name: UI dist is in sync with its source
-        working-directory: tools/ui-build
-        run: |
-          npm ci
-          node build.mjs
-          if ! git diff --exit-code ../../ui/SoCLess.dist.html; then
-            echo "ui/SoCLess.dist.html is stale."
-            echo "Run: cd tools/ui-build && npm ci && node build.mjs   then commit the result."
-            exit 1
-          fi
-
       - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
@@ -65,22 +49,10 @@ jobs:
       - name: Run test suite
         run: ./mill socless.test
 
-      # The Scala.js layout engine (socless-js) is committed as ui/socless-layout.js
-      # (the dev page loads it, build.mjs inlines it into the dist). The dist-sync
-      # check above only proves dist == committed-artifact; this re-links from the
-      # Scala source and fails if the committed artifact is stale (issue #167).
-      - name: socless-js layout engine in sync with source
-        run: |
-          tools/refresh-socless-js.sh
-          if ! git diff --exit-code ui/socless-layout.js; then
-            echo "ui/socless-layout.js is stale vs the socless-js Scala source."
-            echo "Run: tools/refresh-socless-js.sh  &&  (cd tools/ui-build && node build.mjs)  then commit both."
-            exit 1
-          fi
-
-      # The Scala.js + Laminar frontend (socless-ui) is committed as
-      # ui/socless-ui.js and inlined into ui/SoCLess.scala.html. Re-link from
-      # source + rebuild the dist; fail if either committed file is stale (epic #172).
+      # The Scala.js + Laminar frontend (socless-ui) is the shipped UI: committed
+      # as ui/socless-ui.js and inlined into ui/SoCLess.scala.html (the JAR
+      # resource, epic #172). Re-link from source + rebuild the dist; fail if
+      # either committed file is stale.
       - name: socless-ui frontend in sync with source
         run: |
           tools/refresh-socless-ui.sh
@@ -214,14 +186,15 @@ jobs:
           npx --yes playwright@1.60.0 install --with-deps chromium
 
       - name: Assemble UI serve directory
-        run: node tools/ui-smoke/assemble.mjs site --require-dist
+        run: node tools/ui-smoke/assemble.mjs site
 
       - name: Run UI smoke test
         run: |
           (cd site && python3 -m http.server 8765 >/tmp/ui-server.log 2>&1 &)
           ok=0
           for i in $(seq 1 20); do
-            if curl -sf http://localhost:8765/SoCLess.html >/dev/null; then ok=1; break; fi
+            # The UI now lives in per-design subdirs; manifest.json is at the root.
+            if curl -sf http://localhost:8765/manifest.json >/dev/null; then ok=1; break; fi
             sleep 0.5
           done
           if [ "$ok" != 1 ]; then

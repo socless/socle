@@ -60,10 +60,32 @@ example/src/
   iobundles/             # Vec-of-bundle ports and nested/mixed-direction bundles: Interconnect
   regheavy/              # Register-heavy design: Datapath
 
+socless-js/src/socless/js/
+  BrowserLayout.scala    # Scala.js elkjs facade; runs the schematic layout in-browser (in-process to the UI)
+
+socless-ui/src/socless/ui/
+  App.scala              # Scala.js + Laminar frontend root: design load, hierarchy, state, keyboard, chrome
+  Schematic.scala        # Center pane: boxes/ports/wires, pan/zoom/drill, bundle expansion, filter, minimap, export
+  Inspector.scala        # Right pane: module/instance/wire-bundle detail
+  BottomPanel.scala      # Source / Waveform / Ports tabs
+  Chrome.scala           # Command palette, keyboard-help overlay, warnings banner
+  Export.scala           # SVG/PNG export + self-contained HTML snapshot
+  Tokens.scala / RowModel.scala  # Theme tokens; expansion row model (shared BundleTree)
+
 ui/
-  SoCLess.html           # Single-file bundled web UI; embedded in socless JAR at build time
+  SoCLess.scala.html     # Shipped single-file UI (socless-ui.js + elkjs inlined offline); embedded in the JAR as SoCLess.html
+  SoCLess.scala.src.html # Template build-scala.mjs inlines into SoCLess.scala.html
+  socless-ui.js          # Committed socless-ui.fullLinkJS output (like a golden)
   examples/              # Reference JSONs: axi.json, gcd.json, pipeline.json, vta.json
 ```
+
+The frontend is **Scala.js + Laminar** (`socless-ui`), built to the single-file
+`ui/SoCLess.scala.html` and embedded in the socless JAR (epic #172). It parses
+`design.json` into the typed `Design` and calls `socless-js`
+(`BrowserLayout.runTyped`) and `socless.BundleTree` in-process. Build loop after
+editing `socless-ui/` (or the shared `socless` sources): `tools/refresh-socless-ui.sh`
+then `(cd tools/ui-build && node build-scala.mjs)`, and commit `ui/socless-ui.js`
++ `ui/SoCLess.scala.html` together (CI verifies they stay in sync).
 
 ## Key Design Decisions
 
@@ -84,11 +106,13 @@ class MyTopForSocless extends MyTop(defaultParams)
 
 ## Schema Contract
 
-`Schema.scala` case classes are the JSON contract with `ui/SoCLess.html`. Adding fields must be backward-compatible (UI must tolerate `null`/missing for new fields). Never remove or rename existing fields without updating the UI.
+`Schema.scala` case classes are the JSON contract with the `socless-ui` frontend, which reads `design.json` into the typed `Design` via the shared upickle ReadWriters. Adding fields must be backward-compatible (use a trailing default so older `design.json` still parses). Never remove or rename existing fields without updating the UI.
 
 ## Dependencies
 
 | Module | Scala | Key deps |
 |--------|-------|----------|
 | `socless` | 2.13.16 | Chisel 7.11.0, upickle 4.0.2, os-lib 0.11.4 |
+| `socless-js` | 2.13.16 (Scala.js 1.19) | upickle; elkjs (`window.ELK`) at runtime |
+| `socless-ui` | 2.13.16 (Scala.js 1.19) | Laminar 17.2.0; depends on `socless-js` |
 | `mill-socless` | 3.8.2 | Mill 1.1.6 APIs |

@@ -118,11 +118,12 @@ object socless extends ChiselToolchain with SoclessPublish {
   )
   // Bundle ONLY the built UI at the JAR root (it is the single resource
   // SoclessModule.soclessUI extracts; embedding all of ui/ used to ship ~9 MB
-  // of dev assets, issue #104). The BUILT file (SoCLess.dist.html: JSX
-  // precompiled, production React inlined, zero network dependencies, issue
-  // #105) is committed like the goldens, so the Scala build never needs
-  // Node; CI verifies it stays in sync with the source.
-  def uiHtml = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" / "SoCLess.dist.html" }
+  // of dev assets, issue #104). The shipped UI is the Scala.js + Laminar
+  // frontend (SoCLess.scala.html: socless-ui.js + elkjs inlined, zero network
+  // dependencies, epic #172). It is committed like the goldens, so the Scala
+  // build never needs Node; CI verifies it stays in sync with the source. The
+  // JAR resource keeps the name SoCLess.html so the server/plugin are unchanged.
+  def uiHtml = Task.Source { mill.api.BuildCtx.workspaceRoot / "ui" / "SoCLess.scala.html" }
   def uiResource = Task {
     os.copy.over(uiHtml().path, Task.dest / "SoCLess.html")
     PathRef(Task.dest)
@@ -173,17 +174,14 @@ object socless extends ChiselToolchain with SoclessPublish {
 }
 
 // ─── In-browser layout engine (Scala.js, issue #167) ────────────────────────
-// Compiles the browser-side schematic layout (elkjs facade + the port of
-// Layout.scala's graph build/extract) to a single NoModule script. The output
-// is vendored + inlined into ui/SoCLess.dist.html by tools/ui-build/build.mjs;
-// CI rebuilds and checks the committed artifact stays in sync. Shares the pure
-// Schema + LayoutCore sources with the JVM `socless` module so the two layout
-// implementations cannot drift.
+// The browser-side schematic layout (elkjs facade + the port of Layout.scala's
+// graph build/extract). Consumed in-process by the `socless-ui` frontend via a
+// moduleDep (BrowserLayout.runTyped), so it no longer produces a standalone
+// artifact of its own. Shares the pure Schema + LayoutCore + BundleTree sources
+// with the JVM `socless` module so the two layout implementations cannot drift.
 object `socless-js` extends ScalaJSModule {
   def scalaVersion   = V.scala
   def scalaJSVersion = V.scalaJs
-  // NoModule + @JSExportTopLevel => a plain global script (window.SoclessLayout),
-  // no require/exports, safe to inline into a single-file <script> tag offline.
   def moduleKind = ModuleKind.NoModule
   // upickle has a Scala.js build; needed by the shared Schema's ReadWriters.
   def mvnDeps = super.mvnDeps() ++ Seq(
@@ -202,9 +200,9 @@ object `socless-js` extends ScalaJSModule {
 }
 
 // ─── In-browser UI (Scala.js + Laminar, epic #172) ──────────────────────────
-// The frontend, migrating off ui/SoCLess.html. Depends on socless-js so it can
-// call the layout engine + bundle tree in-process. NoModule so its fullLinkJS
-// output inlines into the single-file dist offline, like the engine.
+// The shipped frontend (embedded in the socless JAR as SoCLess.html). Depends
+// on socless-js so it can call the layout engine + bundle tree in-process.
+// NoModule so its fullLinkJS output inlines into the single-file dist offline.
 object `socless-ui` extends ScalaJSModule {
   def scalaVersion   = V.scala
   def scalaJSVersion = V.scalaJs

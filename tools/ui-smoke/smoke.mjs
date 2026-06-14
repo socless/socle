@@ -1,11 +1,11 @@
 // SoCLess UI interactivity smoke test.
 //
 // Drives the single-file UI in a headless browser and exercises the
-// interactive surface that unit tests cannot reach: switching designs,
-// drilling into every module in the hierarchy (including leaves), and
-// expanding every bundle port. It fails on any uncaught page exception or
-// console error, so regressions like "drilling into a leaf module blanks the
-// page" are caught automatically.
+// interactive surface that unit tests cannot reach: each design on its own page
+// (out/<id>/SoCLess.html), drilling into every module in the hierarchy
+// (including leaves), and expanding every bundle port. It fails on any uncaught
+// page exception or console error, so regressions like "drilling into a leaf
+// module blanks the page" are caught automatically.
 //
 // Usage:
 //   node smoke.mjs --base http://localhost:8765 [--design <id>] [--shots <dir>]
@@ -48,7 +48,7 @@ const browser = await chromium.launch(launchOpts);
 // Discover designs from the manifest.
 const ctx0 = await browser.newContext();
 const p0 = await ctx0.newPage();
-await p0.goto(`${BASE}/examples/manifest.json`);
+await p0.goto(`${BASE}/manifest.json`);
 const manifest = await p0.evaluate(() => JSON.parse(document.body.innerText));
 await ctx0.close();
 let designs = (manifest.designs || []).map((d) => d.id);
@@ -79,7 +79,7 @@ for (const design of designs) {
 
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
-  await page.goto(`${BASE}/SoCLess.html?design=${design}`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
   // A design that renders zero hierarchy nodes is a failure, not a skip:
   // every fixture has at least a top module (issue #103 - the blank-canvas
   // regression class must not pass silently).
