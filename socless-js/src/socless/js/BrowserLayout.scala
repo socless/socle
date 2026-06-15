@@ -79,6 +79,11 @@ object BrowserLayout {
       // each port at its precomputed (x, y) so the header never overlaps a pin.
       val portConstraints = if (n.kind == "boundary") "FIXED_SIDE" else "FIXED_POS"
       val nodeOpts = js.Dynamic.literal("elk.portConstraints" -> portConstraints)
+      // Pin boundary stubs into their own first/last layer so external I/O forms
+      // two aligned columns flanking the instances (issue #163). Same policy as
+      // the JVM backend (LayoutCore sets layerConstraint), applied as the elkjs
+      // option here so the two engines stay in sync.
+      n.layerConstraint.foreach(lc => nodeOpts.updateDynamic("elk.layered.layering.layerConstraint")(lc))
       js.Dynamic.literal(
         id = synthId(n),
         width = n.width, height = height,
@@ -106,6 +111,10 @@ object BrowserLayout {
       "elk.edgeRouting" -> "ORTHOGONAL",
       "elk.spacing.nodeNode" -> "40",
       "elk.layered.spacing.nodeNodeBetweenLayers" -> "64",
+      // One global layering for all components so the boundary layer constraints
+      // (issue #163) yield a single leftmost/rightmost column for the whole
+      // module, matching the JVM backend.
+      "elk.separateConnectedComponents" -> "false",
     )
     if (mode == "optimize") {
       // The Vivado-style "refresh to optimize": push elkjs toward shorter,

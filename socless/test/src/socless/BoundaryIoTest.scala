@@ -76,6 +76,39 @@ object BoundaryIoTest extends TestSuite {
     Map("Decoupled_out" -> BundleDef("Decoupled_out", "Decoupled")),
     Seq(tieMod, coreMod))
 
+  // Boundary-column alignment (issue #163). One connected component with a
+  // depth-3 instance chain (io.in -> c1 -> c2 -> c3). Some external pins attach
+  // to early nodes and some to late nodes: input io.in2 also feeds the deep c3,
+  // and output io.early is fed by the shallow c1 while io.late is fed by c3. By
+  // dataflow ranking alone io.in2 and io.early would strand in middle columns
+  // (the #163 symptom). All external inputs must instead share one leftmost
+  // column and all external outputs one rightmost column, neither holding an
+  // instance.
+  private val colMod = ModuleDef("Cols", "Cols", "", SourceRef.unknown,
+    ports = Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)),
+    children = Seq(
+      InstanceDef("c1", "Core", "", SourceRef.unknown),
+      InstanceDef("c2", "Core", "", SourceRef.unknown),
+      InstanceDef("c3", "Core", "", SourceRef.unknown),
+    ),
+    wires = Seq(
+      // chain: io.in -> c1 -> c2 -> c3 (from = sink, to = source)
+      WireDef("c1.io", "io.in", "AXI4", "", SourceRef.unknown),
+      WireDef("c2.io", "c1.io", "AXI4", "", SourceRef.unknown),
+      WireDef("c3.io", "c2.io", "AXI4", "", SourceRef.unknown),
+      // io.in2 is an input that feeds the deep node c3 (would rank mid-graph).
+      WireDef("c3.io", "io.in2", "AXI4", "", SourceRef.unknown),
+      // io.early is an output fed by the shallow c1 (would rank mid-graph).
+      WireDef("io.early", "c1.io", "AXI4", "", SourceRef.unknown),
+      // io.late is an output fed by the deep c3.
+      WireDef("io.late", "c3.io", "AXI4", "", SourceRef.unknown),
+    ),
+    metrics = Metrics(0, 0, 0))
+
+  private val colDesign = Design("Cols",
+    Map("AXI4" -> BundleDef("AXI4", "Bundle")),
+    Seq(colMod, coreMod))
+
   val tests = Tests {
 
     test("each external pin is its own boundary node, not a shared 'io' node") {
@@ -144,6 +177,33 @@ object BoundaryIoTest extends TestSuite {
       val L = Layout.layout(slaveMod, slaveDesign)
       val io = L.nodes.find(_.id == "io").get
       assert(io.ports.head.side == "EAST")
+    }
+
+    // Issue #163: external inputs align into one leftmost column and external
+    // outputs into one rightmost column, with no instance in either column.
+    test("external inputs share one leftmost column, outputs one rightmost column") {
+      val L = Layout.layout(colMod, colDesign)
+      val boundary = L.nodes.filter(_.kind == "boundary")
+      val inputs  = boundary.filter(_.ports.head.side == "EAST")  // drive into design
+      val outputs = boundary.filter(_.ports.head.side == "WEST")  // receive from design
+      val insts   = L.nodes.filter(_.kind == "inst")
+      assert(inputs.map(_.id).toSet  == Set("io.in", "io.in2"))
+      assert(outputs.map(_.id).toSet == Set("io.early", "io.late"))
+
+      // The pins (not the box left edges, which vary with label width) align
+      // into one column per side: all input pins at one x, all output pins at one.
+      val inPinX  = inputs.map(_.ports.head.x)
+      val outPinX = outputs.map(_.ports.head.x)
+      assert(inPinX.distinct.size == 1)
+      assert(outPinX.distinct.size == 1)
+
+      // The columns flank the instances: the input column is left of every
+      // instance and the output column right of every instance (no submodule in
+      // either I/O column).
+      val inputX  = inPinX.head
+      val outputX = outPinX.head
+      assert(insts.forall(n => inputX < n.x))
+      assert(insts.forall(n => n.x + n.w < outputX))
     }
   }
 }

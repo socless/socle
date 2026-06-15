@@ -4,7 +4,7 @@ import org.eclipse.elk.core.RecursiveGraphLayoutEngine
 import org.eclipse.elk.core.data.LayoutMetaDataService
 import org.eclipse.elk.core.options.{CoreOptions, Direction, EdgeRouting, PortConstraints, PortSide}
 import org.eclipse.elk.core.util.BasicProgressMonitor
-import org.eclipse.elk.alg.layered.options.{LayeredMetaDataProvider, LayeredOptions}
+import org.eclipse.elk.alg.layered.options.{LayerConstraint, LayeredMetaDataProvider, LayeredOptions}
 import org.eclipse.elk.graph.{ElkNode, ElkPort}
 import org.eclipse.elk.graph.util.ElkGraphUtil
 
@@ -42,6 +42,10 @@ object Layout {
     root.setProperty(CoreOptions.EDGE_ROUTING, EdgeRouting.ORTHOGONAL)
     root.setProperty(CoreOptions.SPACING_NODE_NODE, java.lang.Double.valueOf(40.0))
     root.setProperty(LayeredOptions.SPACING_NODE_NODE_BETWEEN_LAYERS, java.lang.Double.valueOf(64.0))
+    // Keep all components in one global layering so the boundary layer
+    // constraints (issue #163) produce a single leftmost/rightmost column for the
+    // whole module, not one per disconnected component.
+    root.setProperty(CoreOptions.SEPARATE_CONNECTED_COMPONENTS, java.lang.Boolean.FALSE)
     root
   }
 
@@ -103,6 +107,13 @@ object Layout {
     prep.nodes.foreach { n =>
       if (n.kind == "boundary") {
         val node = addNode(root, n.width, n.height)
+        // Pin boundary stubs into their own first/last layer so external I/O
+        // forms two aligned columns flanking the instances (issue #163).
+        n.layerConstraint.foreach {
+          case "FIRST_SEPARATE" => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.FIRST_SEPARATE)
+          case "LAST_SEPARATE"  => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.LAST_SEPARATE)
+          case _                => ()
+        }
         elkNode((n.id, n.kind)) = node
         n.pins.foreach { p =>
           val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST

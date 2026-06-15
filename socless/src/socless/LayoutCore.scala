@@ -132,8 +132,19 @@ object LayoutCore {
                          label: String, x: Double, y: Double, expandable: Boolean)
 
   /** One box: an instance component (`kind == "inst"`, ports at fixed rows) or a
-    * boundary stub (`kind == "boundary"`, ports placed on their side). */
-  case class PreparedNode(id: String, kind: String, width: Double, height: Double, pins: Seq[PreparedPin])
+    * boundary stub (`kind == "boundary"`, ports placed on their side).
+    *
+    * `layerConstraint` pins boundary stubs into a dedicated first/last ELK layer
+    * so all external inputs align into one leftmost column and all outputs into
+    * one rightmost column, neither sharing a column with an instance (issue #163).
+    * The value is an ELK `LayerConstraint` name ("FIRST_SEPARATE" /
+    * "LAST_SEPARATE"), applied by each engine. The SEPARATE variants (not plain
+    * FIRST/LAST) are required: a bidirectional boundary pin (e.g. a Decoupled
+    * output carrying `ready` back) has a "wrong-direction" edge that plain
+    * FIRST/LAST reject; SEPARATE tolerates it. None = unconstrained (instances
+    * rank by dataflow). */
+  case class PreparedNode(id: String, kind: String, width: Double, height: Double,
+                          pins: Seq[PreparedPin], layerConstraint: Option[String] = None)
 
   /** One edge oriented source->sink. `toPath` is the SOURCE pin (drives), and
     * `fromPath` is the SINK pin, matching [[WireDef]] semantics (from = sink,
@@ -208,45 +219,11 @@ object LayoutCore {
       nodePins((nodeId, kind)) = pins
     }
 
-    // 3. Compute node geometry + per-pin coordinates (pure; no engine objects).
-    val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
-      def lblOf(p: PinSpec): String = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
-      if (kind == "boundary") {
-        // Boundary: compact, but at least wide enough for the label (if any).
-        val maxLabelPx = pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
-        val bw = math.max(BoundaryW, maxLabelPx)
-        val laidPins = pins.values.toSeq.map { p =>
-          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0,
-            BundleTree.isAggregateType(p.bundle, design))
-        }
-        PreparedNode(id, kind, bw, BoundaryH, laidPins)
-      } else {
-        // Instance component: reserve HeaderH at top, ports in rows below.
-        val west = pins.values.count(_.side == "WEST")
-        val east = pins.values.count(_.side == "EAST")
-        val westMaxPx = pins.values.filter(_.side == "WEST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
-        val eastMaxPx = pins.values.filter(_.side == "EAST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
-        // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
-        val headerTextPx = id.length * 6.5 + 24.0
-        val w = math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
-        val h = nodeHeight(west, east)
-        // Independent row counters per side so WEST and EAST ports start at row 0.
-        var westRow = 0; var eastRow = 0
-        val laidPins = pins.values.toSeq.map { p =>
-          val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
-                       else                   { val r = eastRow; eastRow += 1; r }
-          val portY = HeaderH + PortPad + rowIdx * PortStep + PortStep / 2
-          val portX = if (p.side == "EAST") w else 0.0
-          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
-            BundleTree.isAggregateType(p.bundle, design))
-        }
-        PreparedNode(id, kind, w, h, laidPins)
-      }
-    }.toSeq
-
-    // 4. Collapse anti-parallel wire pairs (same unordered port pair, opposite
+    // 3. Collapse anti-parallel wire pairs (same unordered port pair, opposite
     //    direction). Keep the edge whose source drives EAST by vote; merge the
     //    group's labels so a dropped partner's count does not vanish (issue #102).
+    //    Done before node geometry because the per-boundary layer constraint
+    //    below depends on the FINAL (collapsed) edge directions.
     def antiParallelKey(e: E): (String, String) = {
       val a = e.to.path   // source
       val b = e.from.path // sink
@@ -271,6 +248,61 @@ object LayoutCore {
         PreparedEdge(kept.from.path, kept.to.path, label)
       }
       .toSeq
+
+    // Pins that drive / receive a collapsed edge. A boundary stub is column-pinned
+    // only when it is purely one-directional: ELK rejects a first-layer node with
+    // an incoming edge or a last-layer node with an outgoing edge, so a pin that
+    // both sends and receives (a Decoupled boundary still carrying `ready`, a
+    // fan-in/out) is left unconstrained and ranks naturally (issue #163).
+    val edgeSources = edges.iterator.map(_.toPath).toSet
+    val edgeSinks   = edges.iterator.map(_.fromPath).toSet
+
+    // 4. Compute node geometry + per-pin coordinates (pure; no engine objects).
+    val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
+      def lblOf(p: PinSpec): String = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+      if (kind == "boundary") {
+        // Boundary: compact, but at least wide enough for the label (if any).
+        val maxLabelPx = pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        val bw = math.max(BoundaryW, maxLabelPx)
+        val laidPins = pins.values.toSeq.map { p =>
+          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0,
+            BundleTree.isAggregateType(p.bundle, design))
+        }
+        // An EAST boundary pin drives into the design (a source): pin it to the
+        // first column. A WEST one receives (a sink): pin it to the last column.
+        // Skip the constraint for any pin that also carries a back-edge.
+        val side        = laidPins.headOption.map(_.side).getOrElse("EAST")
+        val paths       = laidPins.map(_.path)
+        val anyIncoming = paths.exists(edgeSinks.contains)
+        val anyOutgoing = paths.exists(edgeSources.contains)
+        val lc =
+          if (side == "EAST" && !anyIncoming)      Some("FIRST_SEPARATE")
+          else if (side == "WEST" && !anyOutgoing) Some("LAST_SEPARATE")
+          else                                     None
+        PreparedNode(id, kind, bw, BoundaryH, laidPins, lc)
+      } else {
+        // Instance component: reserve HeaderH at top, ports in rows below.
+        val west = pins.values.count(_.side == "WEST")
+        val east = pins.values.count(_.side == "EAST")
+        val westMaxPx = pins.values.filter(_.side == "WEST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        val eastMaxPx = pins.values.filter(_.side == "EAST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
+        val headerTextPx = id.length * 6.5 + 24.0
+        val w = math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
+        val h = nodeHeight(west, east)
+        // Independent row counters per side so WEST and EAST ports start at row 0.
+        var westRow = 0; var eastRow = 0
+        val laidPins = pins.values.toSeq.map { p =>
+          val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
+                       else                   { val r = eastRow; eastRow += 1; r }
+          val portY = HeaderH + PortPad + rowIdx * PortStep + PortStep / 2
+          val portX = if (p.side == "EAST") w else 0.0
+          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
+            BundleTree.isAggregateType(p.bundle, design))
+        }
+        PreparedNode(id, kind, w, h, laidPins)
+      }
+    }.toSeq
 
     Prepared(nodes, edges)
   }
