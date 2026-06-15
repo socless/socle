@@ -256,13 +256,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<3>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<3>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXIMaster",
@@ -324,6 +426,50 @@
       ],
       "wires": [
         {
+          "from": "io.aw",
+          "to": "const$io_aw_valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 38,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.w",
+          "to": "const$io_w_valid",
+          "bundle": "Decoupled_w",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 40,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.b",
+          "to": "const$io_b_ready",
+          "bundle": "Decoupled_b",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 35,
+            "col": 14
+          }
+        },
+        {
+          "from": "io.r",
+          "to": "const$io_r_ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 34,
+            "col": 14
+          }
+        },
+        {
           "from": "txQ.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -332,17 +478,6 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
-        },
-        {
-          "from": "txQ.io.deq",
-          "to": "io.ar",
-          "bundle": "Decoupled_enq",
-          "label": "",
-          "source": {
-            "file": "example/src/axisystem/AXISystem.scala",
-            "line": 27,
-            "col": 20
           }
         },
         {
@@ -357,22 +492,277 @@
           }
         },
         {
-          "from": "io.ar",
-          "to": "txQ.io.deq",
+          "from": "io.ar.bits.cache",
+          "to": "const$io_ar_bits_cache",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 25,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.prot",
+          "to": "const$io_ar_bits_prot",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 26,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.enq.bits",
+          "to": "const$txQ_io_enq_bits",
           "bundle": "Decoupled_enq",
-          "label": "2× ground connects",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 31,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.enq.valid",
+          "to": "const$txQ_io_enq_valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 30,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.burst",
+          "to": "const$io_ar_bits_burst",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 24,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.len",
+          "to": "const$io_ar_bits_len",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 22,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.size",
+          "to": "const$io_ar_bits_size",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 23,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.id",
+          "to": "idCnt~q",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 20,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.deq.ready",
+          "to": "io.ar.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 27,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.addr",
+          "to": "txQ.io.deq.bits",
+          "bundle": "Decoupled_enq",
+          "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 21,
             "col": 20
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.valid",
+          "to": "txQ.io.deq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 19,
+            "col": 15
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 1,
         "wires": 18,
         "lines": 33
-      }
+      },
+      "logic": [
+        {
+          "id": "idCnt",
+          "kind": "reg",
+          "label": "idCnt",
+          "bundle": "UInt<4>",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 16,
+            "col": 22
+          }
+        },
+        {
+          "id": "const$io_ar_bits_cache",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_prot",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_aw_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_w_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$txQ_io_enq_bits",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$txQ_io_enq_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_burst",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_b_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_r_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_len",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_size",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Queue8_UInt32_1",
@@ -419,13 +809,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<3>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<3>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXIMaster_1",
@@ -487,6 +979,50 @@
       ],
       "wires": [
         {
+          "from": "io.aw",
+          "to": "const$io_aw_valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 38,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.w",
+          "to": "const$io_w_valid",
+          "bundle": "Decoupled_w",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 40,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.b",
+          "to": "const$io_b_ready",
+          "bundle": "Decoupled_b",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 35,
+            "col": 14
+          }
+        },
+        {
+          "from": "io.r",
+          "to": "const$io_r_ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 34,
+            "col": 14
+          }
+        },
+        {
           "from": "txQ.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -495,17 +1031,6 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
-        },
-        {
-          "from": "txQ.io.deq",
-          "to": "io.ar",
-          "bundle": "Decoupled_enq",
-          "label": "",
-          "source": {
-            "file": "example/src/axisystem/AXISystem.scala",
-            "line": 27,
-            "col": 20
           }
         },
         {
@@ -520,22 +1045,277 @@
           }
         },
         {
-          "from": "io.ar",
-          "to": "txQ.io.deq",
+          "from": "io.ar.bits.cache",
+          "to": "const$io_ar_bits_cache",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 25,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.prot",
+          "to": "const$io_ar_bits_prot",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 26,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.enq.bits",
+          "to": "const$txQ_io_enq_bits",
           "bundle": "Decoupled_enq",
-          "label": "2× ground connects",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 31,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.enq.valid",
+          "to": "const$txQ_io_enq_valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 30,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.burst",
+          "to": "const$io_ar_bits_burst",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 24,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.len",
+          "to": "const$io_ar_bits_len",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 22,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.size",
+          "to": "const$io_ar_bits_size",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 23,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.id",
+          "to": "idCnt~q",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 20,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "txQ.io.deq.ready",
+          "to": "io.ar.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 27,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.bits.addr",
+          "to": "txQ.io.deq.bits",
+          "bundle": "Decoupled_enq",
+          "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 21,
             "col": 20
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.valid",
+          "to": "txQ.io.deq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 19,
+            "col": 15
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 1,
         "wires": 18,
         "lines": 33
-      }
+      },
+      "logic": [
+        {
+          "id": "idCnt",
+          "kind": "reg",
+          "label": "idCnt",
+          "bundle": "UInt<4>",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 16,
+            "col": 22
+          }
+        },
+        {
+          "id": "const$io_ar_bits_cache",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_prot",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_aw_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_w_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$txQ_io_enq_bits",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$txQ_io_enq_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_burst",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_b_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_r_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_len",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_ar_bits_size",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXICrossbar",
@@ -659,13 +1439,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXISlave",
@@ -727,6 +1609,39 @@
       ],
       "wires": [
         {
+          "from": "io.b",
+          "to": "const$io_b_valid",
+          "bundle": "Decoupled_b",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 66,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.aw",
+          "to": "const$io_aw_ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 64,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.w",
+          "to": "const$io_w_ready",
+          "bundle": "Decoupled_w",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 65,
+            "col": 15
+          }
+        },
+        {
           "from": "respQ.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -735,17 +1650,6 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
-        },
-        {
-          "from": "respQ.io.enq",
-          "to": "io.ar",
-          "bundle": "Decoupled_r",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/axisystem/AXISystem.scala",
-            "line": 54,
-            "col": 26
           }
         },
         {
@@ -782,22 +1686,151 @@
           }
         },
         {
-          "from": "io.ar",
-          "to": "respQ.io.enq",
+          "from": "respQ.io.enq.bits.resp",
+          "to": "const$respQ_io_enq_bits_resp",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 56,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.last",
+          "to": "const$respQ_io_enq_bits_last",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 57,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.data",
+          "to": "const$respQ_io_enq_bits_data",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 55,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.id",
+          "to": "io.ar.bits.id",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 54,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.valid",
+          "to": "io.ar.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 53,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.ready",
+          "to": "respQ.io.enq.ready",
           "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 58,
             "col": 15
-          }
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 0,
         "wires": 14,
         "lines": 20
-      }
+      },
+      "logic": [
+        {
+          "id": "const$io_b_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_resp",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_aw_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_w_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_last",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_data",
+          "kind": "const",
+          "label": "0hdeadbeef",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Queue4_R_1",
@@ -844,13 +1877,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXISlave_1",
@@ -912,6 +2047,39 @@
       ],
       "wires": [
         {
+          "from": "io.b",
+          "to": "const$io_b_valid",
+          "bundle": "Decoupled_b",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 66,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.aw",
+          "to": "const$io_aw_ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 64,
+            "col": 15
+          }
+        },
+        {
+          "from": "io.w",
+          "to": "const$io_w_ready",
+          "bundle": "Decoupled_w",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 65,
+            "col": 15
+          }
+        },
+        {
           "from": "respQ.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -920,17 +2088,6 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
-        },
-        {
-          "from": "respQ.io.enq",
-          "to": "io.ar",
-          "bundle": "Decoupled_r",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/axisystem/AXISystem.scala",
-            "line": 54,
-            "col": 26
           }
         },
         {
@@ -967,22 +2124,151 @@
           }
         },
         {
-          "from": "io.ar",
-          "to": "respQ.io.enq",
+          "from": "respQ.io.enq.bits.resp",
+          "to": "const$respQ_io_enq_bits_resp",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 56,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.last",
+          "to": "const$respQ_io_enq_bits_last",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 57,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.data",
+          "to": "const$respQ_io_enq_bits_data",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 55,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.bits.id",
+          "to": "io.ar.bits.id",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 54,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "respQ.io.enq.valid",
+          "to": "io.ar.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 53,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.ar.ready",
+          "to": "respQ.io.enq.ready",
           "bundle": "Decoupled_r",
           "label": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 58,
             "col": 15
-          }
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 0,
         "wires": 14,
         "lines": 20
-      }
+      },
+      "logic": [
+        {
+          "id": "const$io_b_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_resp",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_aw_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_w_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_last",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$respQ_io_enq_bits_data",
+          "kind": "const",
+          "label": "0hdeadbeef",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "AXISystem",

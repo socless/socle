@@ -3,7 +3,7 @@ package socless.ui
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.{Design, ModuleDef, InstanceDef, WireDef, BundleTree}
+import socless.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree}
 
 /** The inspector (right) pane (epic #172 Phase 3): details for whatever is
   * selected (or hovered) on the schematic. Behavioral port of the JS
@@ -60,10 +60,15 @@ object Inspector {
         case (Some(mod), sig, expanded, Some(d)) =>
           val wire = sig.flatMap(s => mod.wires.find(w =>
             w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")))
-          (sig, wire) match {
-            case (None, _)          => metaView(mod)
-            case (Some(_), Some(w)) => bundleView(w, sig.get, expanded, d, setSel, toggleBundle)
-            case (Some(s), None)    =>
+          // A selected logic node (register / constant, issue #188 B1) is keyed by
+          // its exact id; resolve it before the wire match so its dedicated panel
+          // wins over the incidental net the node terminates.
+          val logicNode = sig.flatMap(s => mod.logic.find(_.id == s))
+          (sig, logicNode, wire) match {
+            case (None, _, _)              => metaView(mod)
+            case (Some(_), Some(ln), _)    => logicView(ln, d)
+            case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle)
+            case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
                 case Some(inst) => instanceView(inst, mod.children, d, setSel)
                 case None       => emptyNode
@@ -134,6 +139,32 @@ object Inspector {
               span(styleAttr := s"color:${Tokens.ink2};word-break:break-all", v),
             ) }))
       else emptyNode,
+    )
+  }
+
+  // ── Logic node detail: register / constant (issue #188 B1) ──────────────────
+  private def logicView(ln: LogicNodeDef, d: Design): Element = {
+    val isReg = ln.kind == "reg"
+    def sourceRow: Element =
+      if (ln.source.file.nonEmpty)
+        div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
+          span(title := ln.source.file, s"${ln.source.file.split('/').lastOption.getOrElse(ln.source.file)}:${ln.source.line}"))
+      else div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "—")
+    div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
+        if (isReg) "register" else "constant"),
+      if (isReg) {
+        div(sectionTitle("Registered type"),
+          div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
+            span(styleAttr := s"color:${Tokens.ink3}", if (ln.bundle.nonEmpty) ln.bundle else "—"),
+            if (ln.bundle.nonEmpty) span(styleAttr := s"color:${Tokens.ink2}", s"${totalWidth(ln.bundle, d)} bits") else emptyNode))
+      } else {
+        div(sectionTitle("Value"),
+          div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))
+      },
+      sectionTitle("Source"),
+      sourceRow,
     )
   }
 

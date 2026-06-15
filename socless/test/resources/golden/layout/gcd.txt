@@ -1,4 +1,12 @@
 layout GCD
-  node io.in kind=boundary pins=io.in:EAST:iface
+  node busy kind=reg pins=busy:WEST
+  node const$busy kind=const pins=const$busy:EAST
+  node io.in.bits.a kind=boundary pins=io.in.bits.a:EAST:iface
+  node io.in.bits.b kind=boundary pins=io.in.bits.b:EAST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  edge io.out -> io.in
+  node x kind=reg pins=x:WEST,x~q:EAST
+  node y kind=reg pins=y:WEST
+  edge busy -> const$busy
+  edge io.out -> x~q
+  edge x -> io.in.bits.a
+  edge y -> io.in.bits.b

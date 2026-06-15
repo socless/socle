@@ -91,6 +91,18 @@ object Schematic {
   private def ownerBoxId(boxById: Map[String, LaidNodeR], path: String): String =
     if (boxById.contains(path)) path else path.split('.').headOption.getOrElse(path)
 
+  /** Strip a trailing `~q` from the HEAD segment of a pin label/path so a
+    * register's Q output pin reads `r` (not `r~q`) and `r~q.bits` reads `r.bits`.
+    * The `~q` suffix is an encoding artifact (issue #188 B1) and must never reach
+    * the user. Only a head-segment `~q` is stripped, never a literal mid-string. */
+  private def stripQ(label: String): String = {
+    if (label == null || label.isEmpty) return label
+    val dot  = label.indexOf('.')
+    val head = if (dot < 0) label else label.substring(0, dot)
+    val rest = if (dot < 0) "" else label.substring(dot)
+    if (head.endsWith("~q")) head.dropRight(2) + rest else label
+  }
+
   private def computeBoxShift(layout: LaidOut, rows: Map[String, RowModel.BoxRows]): BoxShift = {
     val raw = layout.nodes.flatMap { b =>
       rows.get(b.id).filter(_.boxH > b.h).map(br => (b.y + b.h).toDouble -> (br.boxH - b.h))
@@ -355,7 +367,12 @@ object Schematic {
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (child.isEmpty || n.kind == "boundary") boundaryStub(g, n, top, boxActive(n.id))
+        if (n.kind == "reg") regBox(g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == "const") constTag(g, n, top, boxActive(n.id))
+        // Any childless node (a boundary stub, or any non-instance kind without a
+        // child entry) renders as a stub; only a node with a child uses the
+        // instance box below (which needs the child for its type/drilldown).
+        else if (child.isEmpty || n.kind == "boundary") boundaryStub(g, n, top, boxActive(n.id))
         else {
           val ch         = child.get
           val childMod   = g.design.modules.find(_.name == ch.`type`)
@@ -476,6 +493,73 @@ object Schematic {
       None
     }
 
+    // ── register node (issue #188 B1) ──
+    // An instance-style box (header = register name + WEST `d` / EAST `q` pins)
+    // marked with a small clock-edge triangle in the bottom-right corner so it
+    // reads as a register, not a sub-instance.
+    def regBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
+               sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
+      val c            = g.c
+      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
+      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
+      val borderCol    = if (selectedHere) Tokens.accent else Tokens.border
+      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}" else "0 1px 2px rgba(0,0,0,.04)"
+      // Clock-edge triangle: a tiny right-pointing glyph anchored bottom-right.
+      val triH = 7.0; val triW = 5.0
+      val triX = n.w - triW - 5.0; val triY = boxInfo.boxH - triH - 5.0
+      div(
+        dataAttr("logic-node") := n.id,
+        dataAttr("box-inst") := n.id,
+        dataAttr("pan-block") := "1",
+        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+          s"opacity:${if (active) "1" else "0.18"};" +
+          s"background:${Tokens.panel};border:1px solid $borderCol;border-radius:6px;" +
+          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
+          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+        // header
+        div(
+          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
+            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+          onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
+          span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", "◆"),
+          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
+          div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
+            span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px", "reg")),
+        ),
+        // port rows
+        renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
+        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
+        // clock-edge marker
+        svg.svg(
+          sa("style") := s"position:absolute;left:${triX}px;top:${triY}px;width:${triW}px;height:${triH}px;overflow:visible;pointer-events:none",
+          svg.path(sa("d") := s"M 0 0 L ${triW} ${triH / 2} L 0 ${triH} Z",
+            sa("style") := s"fill:${Tokens.ink3}"),
+          svg.titleTag("register (clock edge)"),
+        ),
+      )
+    }
+
+    // ── constant node (issue #188 B1) ──
+    // A compact rounded-rect tag showing the literal value (the laid node's, or
+    // `g.mod.logic` label by id).
+    def constTag(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
+      val label = n.ports.iterator.map(_.label).find(_.nonEmpty)
+        .orElse(g.mod.logic.find(n2 => n2.id == n.id && n2.kind == "const").map(_.label))
+        .getOrElse(n.id)
+      div(
+        dataAttr("logic-node") := n.id,
+        dataAttr("pan-block") := "1",
+        title := s"constant $label",
+        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
+          s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
+          s"background:${Tokens.panelAlt};border:1px solid ${Tokens.border};border-radius:8px;" +
+          s"display:flex;align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box;" +
+          s"font-family:${Tokens.mono};font-size:9.5px;font-weight:600;color:${Tokens.ink2};overflow:hidden;cursor:default",
+        onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
+        span(styleAttr := "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%", stripQ(label)),
+      )
+    }
+
     // ── boundary stub box ──
     def boundaryStub(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
       val hasLabel = n.ports.exists(_.label.nonEmpty)
@@ -495,7 +579,7 @@ object Schematic {
           val isWest = p.side == "WEST"
           val labelStyle = if (isWest) s"left:${pw + 3}px;text-align:left" else s"right:${pw + 3}px;text-align:right"
           div(
-            div(title := p.path,
+            div(title := stripQ(p.path),
               styleAttr := s"position:absolute;left:${(p.x - n.x) - pw / 2.0}px;top:${(p.y - n.y) - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
                 s"background:${if (p.interface) Tokens.accent else Tokens.ink4};border-radius:${if (p.interface) 3 else 1}px;" +
                 (if (p.interface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px" else "")),
@@ -503,7 +587,7 @@ object Schematic {
               styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;font-family:${Tokens.mono};font-size:8.5px;" +
                 s"color:${if (p.interface) Tokens.ink2 else Tokens.ink3};white-space:nowrap;pointer-events:none;" +
                 s"max-width:${math.max(12.0, n.w - pw - 8)}px;overflow:hidden;text-overflow:ellipsis;line-height:10px",
-              p.label) else emptyNode,
+              stripQ(p.label)) else emptyNode,
           )
         },
       )
@@ -527,7 +611,7 @@ object Schematic {
           val pinBg  = if (pinSel) Tokens.accent else if (pinHov) Tokens.ink else if (isInterface) Tokens.accent else Tokens.ink3
           val labelSide = if (isWest) s"left:${pw + 4 + indentPx}px" else s"right:${pw + 4 + indentPx}px"
           div(
-            div(title := row.path,
+            div(title := stripQ(row.path),
               styleAttr := s"position:absolute;left:${pinAbsX - pw / 2.0}px;top:${rowY - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
                 s"background:$pinBg;border-radius:${if (isInterface) 3 else 1}px;" +
                 (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px;" else "") + "transition:background .12s"),
@@ -541,7 +625,7 @@ object Schematic {
               if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
               if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
                 child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-              span(title := row.path, styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", row.label),
+              span(title := stripQ(row.path), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
             ),
           )
         } else {
@@ -556,7 +640,7 @@ object Schematic {
             if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
             if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
               child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-            span(title := row.path, styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", row.label),
+            span(title := stripQ(row.path), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
             row.dir match {
               case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == "out") "→" else "←")
               case None    => emptyNode

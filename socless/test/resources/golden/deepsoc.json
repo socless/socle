@@ -298,14 +298,121 @@
       ],
       "wires": [
         {
+          "from": "busy",
+          "to": "const$busy",
+          "bundle": "UInt<1>",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 111,
+            "col": 28
+          }
+        },
+        {
+          "from": "alu.io.b",
+          "to": "const$alu_io_b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 99,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "alu.io.op",
+          "to": "const$alu_io_op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 100,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.raddr",
+          "to": "const$rf_io_raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 106,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.waddr",
+          "to": "const$rf_io_waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 101,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wdata",
+          "to": "const$rf_io_wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 102,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wen",
+          "to": "const$rf_io_wen",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 103,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "const$io_out_bits_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 109,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
-          "to": "alu.io.out",
+          "to": "acc~q",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 98,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "acc",
+          "to": "alu.io.out",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 92,
+            "col": 15
           },
           "fieldLevel": true
         },
@@ -318,6 +425,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "busy~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 107,
+            "col": 20
           },
           "fieldLevel": true
         },
@@ -398,7 +517,119 @@
         "registers": 2,
         "wires": 24,
         "lines": 39
-      }
+      },
+      "logic": [
+        {
+          "id": "acc",
+          "kind": "reg",
+          "label": "acc",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 83,
+            "col": 21
+          }
+        },
+        {
+          "id": "busy",
+          "kind": "reg",
+          "label": "busy",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 84,
+            "col": 21
+          }
+        },
+        {
+          "id": "const$alu_io_b",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$alu_io_op",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$busy",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_raddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_waddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wdata",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wen",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_out_bits_valid",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "ALU_1",
@@ -580,14 +811,121 @@
       ],
       "wires": [
         {
+          "from": "busy",
+          "to": "const$busy",
+          "bundle": "UInt<1>",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 111,
+            "col": 28
+          }
+        },
+        {
+          "from": "alu.io.b",
+          "to": "const$alu_io_b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 99,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "alu.io.op",
+          "to": "const$alu_io_op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 100,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.raddr",
+          "to": "const$rf_io_raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 106,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.waddr",
+          "to": "const$rf_io_waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 101,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wdata",
+          "to": "const$rf_io_wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 102,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wen",
+          "to": "const$rf_io_wen",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 103,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "const$io_out_bits_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 109,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
-          "to": "alu.io.out",
+          "to": "acc~q",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 98,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "acc",
+          "to": "alu.io.out",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 92,
+            "col": 15
           },
           "fieldLevel": true
         },
@@ -600,6 +938,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "busy~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 107,
+            "col": 20
           },
           "fieldLevel": true
         },
@@ -680,7 +1030,119 @@
         "registers": 2,
         "wires": 24,
         "lines": 39
-      }
+      },
+      "logic": [
+        {
+          "id": "acc",
+          "kind": "reg",
+          "label": "acc",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 83,
+            "col": 21
+          }
+        },
+        {
+          "id": "busy",
+          "kind": "reg",
+          "label": "busy",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 84,
+            "col": 21
+          }
+        },
+        {
+          "id": "const$alu_io_b",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$alu_io_op",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$busy",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_raddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_waddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wdata",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wen",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_out_bits_valid",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Cluster",
@@ -854,7 +1316,31 @@
         "registers": 2,
         "wires": 17,
         "lines": 35
-      }
+      },
+      "logic": [
+        {
+          "id": "sel",
+          "kind": "reg",
+          "label": "sel",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 128,
+            "col": 20
+          }
+        },
+        {
+          "id": "outSel",
+          "kind": "reg",
+          "label": "outSel",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 144,
+            "col": 23
+          }
+        }
+      ]
     },
     {
       "name": "ALU_2",
@@ -1036,14 +1522,121 @@
       ],
       "wires": [
         {
+          "from": "busy",
+          "to": "const$busy",
+          "bundle": "UInt<1>",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 111,
+            "col": 28
+          }
+        },
+        {
+          "from": "alu.io.b",
+          "to": "const$alu_io_b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 99,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "alu.io.op",
+          "to": "const$alu_io_op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 100,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.raddr",
+          "to": "const$rf_io_raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 106,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.waddr",
+          "to": "const$rf_io_waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 101,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wdata",
+          "to": "const$rf_io_wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 102,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wen",
+          "to": "const$rf_io_wen",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 103,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "const$io_out_bits_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 109,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
-          "to": "alu.io.out",
+          "to": "acc~q",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 98,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "acc",
+          "to": "alu.io.out",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 92,
+            "col": 15
           },
           "fieldLevel": true
         },
@@ -1056,6 +1649,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "busy~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 107,
+            "col": 20
           },
           "fieldLevel": true
         },
@@ -1136,7 +1741,119 @@
         "registers": 2,
         "wires": 24,
         "lines": 39
-      }
+      },
+      "logic": [
+        {
+          "id": "acc",
+          "kind": "reg",
+          "label": "acc",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 83,
+            "col": 21
+          }
+        },
+        {
+          "id": "busy",
+          "kind": "reg",
+          "label": "busy",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 84,
+            "col": 21
+          }
+        },
+        {
+          "id": "const$alu_io_b",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$alu_io_op",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$busy",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_raddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_waddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wdata",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wen",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_out_bits_valid",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "ALU_3",
@@ -1318,14 +2035,121 @@
       ],
       "wires": [
         {
+          "from": "busy",
+          "to": "const$busy",
+          "bundle": "UInt<1>",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 111,
+            "col": 28
+          }
+        },
+        {
+          "from": "alu.io.b",
+          "to": "const$alu_io_b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 99,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "alu.io.op",
+          "to": "const$alu_io_op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 100,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.raddr",
+          "to": "const$rf_io_raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 106,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.waddr",
+          "to": "const$rf_io_waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 101,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wdata",
+          "to": "const$rf_io_wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 102,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.io.wen",
+          "to": "const$rf_io_wen",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 103,
+            "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "const$io_out_bits_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 109,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
-          "to": "alu.io.out",
+          "to": "acc~q",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 98,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "acc",
+          "to": "alu.io.out",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 92,
+            "col": 15
           },
           "fieldLevel": true
         },
@@ -1338,6 +2162,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "busy~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 107,
+            "col": 20
           },
           "fieldLevel": true
         },
@@ -1418,7 +2254,119 @@
         "registers": 2,
         "wires": 24,
         "lines": 39
-      }
+      },
+      "logic": [
+        {
+          "id": "acc",
+          "kind": "reg",
+          "label": "acc",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 83,
+            "col": 21
+          }
+        },
+        {
+          "id": "busy",
+          "kind": "reg",
+          "label": "busy",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 84,
+            "col": 21
+          }
+        },
+        {
+          "id": "const$alu_io_b",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$alu_io_op",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$busy",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_raddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_waddr",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wdata",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rf_io_wen",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_out_bits_valid",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Cluster_1",
@@ -1592,7 +2540,31 @@
         "registers": 2,
         "wires": 17,
         "lines": 35
-      }
+      },
+      "logic": [
+        {
+          "id": "sel",
+          "kind": "reg",
+          "label": "sel",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 128,
+            "col": 20
+          }
+        },
+        {
+          "id": "outSel",
+          "kind": "reg",
+          "label": "outSel",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 144,
+            "col": 23
+          }
+        }
+      ]
     },
     {
       "name": "Queue4_Token",
@@ -1639,13 +2611,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "DeepSoc",

@@ -93,8 +93,11 @@ case class ModuleDef(
   // CHIRRTL does NOT carry Chisel constructor parameters (they're erased by
   // emission), so this is empty from the CHIRRTL path today; the field is the
   // UI contract for a future elaboration-time source to populate. Default-empty
-  // map is omitted, so goldens are unchanged. Kept LAST.
+  // map is omitted, so goldens are unchanged.
   parameters: Map[String, String] = Map.empty,
+  // Intra-module logic nodes (registers, constants) made visible in the
+  // schematic (issue #188 B1). Trailing default keeps older design.json loadable.
+  logic: Seq[LogicNodeDef] = Seq.empty,
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
 
@@ -127,6 +130,20 @@ case class InstanceDef(
   reset:  String = "",
 )
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
+
+/** A non-module schematic node: intra-module glue made visible (issue #188).
+  * `kind` is "reg" (a register) or "const" (an explicit literal driver). `id` is
+  * unique within the module (the register name, or a synthetic const id). `label`
+  * is what the UI shows (register name, or the literal value text). `bundle` is
+  * the registered type's key for a "reg" (for pin expansion); "" for a "const". */
+case class LogicNodeDef(
+  id:     String,
+  kind:   String,      // "reg" | "const"
+  label:  String,
+  bundle: String,
+  source: SourceRef,
+)
+object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 
 case class WireDef(
   from:   String,      // dotted path: "cpu.io" or "xbar.in[0].ar"
@@ -202,13 +219,15 @@ object ChannelDef { implicit val rw: ReadWriter[ChannelDef] = macroRW }
 case class ModuleLayout(nodes: Seq[LaidNode], edges: Seq[RoutedEdge], w: Int, h: Int)
 object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
 
-/** A laid-out box. `kind` is "inst" (a child instance, drilled/expandable) or
-  * "boundary" (one of this module's own ports, drawn as a port stub). `id` is
-  * the instance name for "inst"; for "boundary" it is the FULL endpoint path
-  * (e.g. "io.in[0]"), since issue #68 each external pin is its own stub.
+/** A laid-out box. `kind` is "inst" (a child instance, drilled/expandable),
+  * "boundary" (one of this module's own ports, drawn as a port stub),
+  * "reg" (a register node, issue #188), or "const" (a literal constant node,
+  * issue #188). `id` is the instance name for "inst"; for "boundary" it is
+  * the FULL endpoint path (e.g. "io.in[0]"), since issue #68 each external
+  * pin is its own stub.
   */
 case class LaidNode(
-  id: String, kind: String,   // "inst" | "boundary"
+  id: String, kind: String,   // "inst" | "boundary" | "reg" | "const"
   x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort],
 )
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }

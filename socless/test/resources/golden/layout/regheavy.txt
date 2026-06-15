@@ -1,4 +1,10 @@
 layout Controller
+  node const$state kind=const pins=const$state:EAST
+  node const$timer kind=const pins=const$timer:EAST
+  node state kind=reg pins=state:WEST
+  node timer kind=reg pins=timer:WEST
+  edge state -> const$state
+  edge timer -> const$timer
 layout Datapath
   node ctrl kind=inst pins=ctrl.io.enable:EAST:iface,ctrl.io.flush:EAST:iface,ctrl.io.hint:WEST:iface,ctrl.io.stall:EAST:iface
   node io.hint kind=boundary pins=io.hint:EAST:iface
@@ -19,8 +25,47 @@ layout Datapath
   edge stage1.io.out -> io.out
   edge stage1.io.stall -> ctrl.io.stall
 layout Queue2_PipePayload
+  node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
+  node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
+  node const$maybe_full kind=const pins=const$maybe_full:EAST
+  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST
+  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST
+  node maybe_full kind=reg pins=maybe_full:WEST
+  edge deq_ptr_value -> const$deq_ptr_value
+  edge enq_ptr_value -> const$enq_ptr_value
+  edge maybe_full -> const$maybe_full
 layout RegStage
-  node io.in kind=boundary pins=io.in:EAST:iface
-  node io.out kind=boundary pins=io.out:WEST:iface
-  edge io.out -> io.in
+  node const$rCount kind=const pins=const$rCount:EAST
+  node const$rData kind=const pins=const$rData:EAST
+  node const$rFlags kind=const pins=const$rFlags:EAST
+  node const$rTag kind=const pins=const$rTag:EAST
+  node const$rValid kind=const pins=const$rValid:EAST
+  node io.in.bits.data kind=boundary pins=io.in.bits.data:EAST:iface
+  node io.in.bits.flags kind=boundary pins=io.in.bits.flags:EAST:iface
+  node io.in.bits.tag kind=boundary pins=io.in.bits.tag:EAST:iface
+  node io.in.bits.valid kind=boundary pins=io.in.bits.valid:EAST:iface
+  node io.out.bits.data kind=boundary pins=io.out.bits.data:WEST:iface
+  node io.out.bits.flags kind=boundary pins=io.out.bits.flags:WEST:iface
+  node io.out.bits.tag kind=boundary pins=io.out.bits.tag:WEST:iface
+  node io.out.bits.valid kind=boundary pins=io.out.bits.valid:WEST:iface
+  node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node rCount kind=reg pins=rCount:WEST
+  node rData kind=reg pins=rData:WEST,rData~q:EAST
+  node rFlags kind=reg pins=rFlags:WEST,rFlags~q:EAST
+  node rTag kind=reg pins=rTag:WEST,rTag~q:EAST
+  node rValid kind=reg pins=rValid:WEST,rValid~q:EAST
+  edge io.out.bits.data -> rData~q
+  edge io.out.bits.flags -> rFlags~q
+  edge io.out.bits.tag -> rTag~q
+  edge io.out.bits.valid -> rValid~q
+  edge io.out.valid -> rValid~q
+  edge rCount -> const$rCount
+  edge rData -> const$rData
+  edge rData -> io.in.bits.data
+  edge rFlags -> const$rFlags
+  edge rFlags -> io.in.bits.flags
+  edge rTag -> const$rTag
+  edge rTag -> io.in.bits.tag
+  edge rValid -> const$rValid
+  edge rValid -> io.in.bits.valid
 layoutOf RegStage_1 -> RegStage

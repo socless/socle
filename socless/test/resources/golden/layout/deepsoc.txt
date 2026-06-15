@@ -9,14 +9,36 @@ layout Cluster
   edge cores_1.io.in.bits.data -> io.in.bits.data
   edge cores_1.io.in.bits.valid -> io.in.bits.valid
 layout Core
-  node alu kind=inst pins=alu.io.a:WEST:iface,alu.io.b:WEST:iface,alu.io.out:EAST:iface
+  node acc kind=reg pins=acc:WEST,acc~q:EAST
+  node alu kind=inst pins=alu.io.a:WEST:iface,alu.io.b:WEST:iface,alu.io.op:WEST:iface,alu.io.out:EAST:iface
+  node busy kind=reg pins=busy:WEST,busy~q:EAST
+  node const$alu_io_b kind=const pins=const$alu_io_b:EAST
+  node const$alu_io_op kind=const pins=const$alu_io_op:EAST
+  node const$busy kind=const pins=const$busy:EAST
+  node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
+  node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
+  node const$rf_io_waddr kind=const pins=const$rf_io_waddr:EAST
+  node const$rf_io_wdata kind=const pins=const$rf_io_wdata:EAST
+  node const$rf_io_wen kind=const pins=const$rf_io_wen:EAST
   node io.in.bits.data kind=boundary pins=io.in.bits.data:EAST:iface
   node io.out.bits.data kind=boundary pins=io.out.bits.data:WEST:iface
-  node rf kind=inst pins=rf.io.rdata:EAST:iface,rf.io.wdata:WEST:iface
-  edge alu.io.a -> alu.io.out
+  node io.out.bits.valid kind=boundary pins=io.out.bits.valid:WEST:iface
+  node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node rf kind=inst pins=rf.io.raddr:WEST:iface,rf.io.rdata:EAST:iface,rf.io.waddr:WEST:iface,rf.io.wdata:WEST:iface,rf.io.wen:WEST:iface
+  edge acc -> alu.io.out
+  edge alu.io.a -> acc~q
+  edge alu.io.b -> const$alu_io_b
   edge alu.io.b -> io.in.bits.data
+  edge alu.io.op -> const$alu_io_op
+  edge busy -> const$busy
   edge io.out.bits.data -> rf.io.rdata
+  edge io.out.bits.valid -> const$io_out_bits_valid
+  edge io.out.valid -> busy~q
+  edge rf.io.raddr -> const$rf_io_raddr
+  edge rf.io.waddr -> const$rf_io_waddr
   edge rf.io.wdata -> alu.io.out
+  edge rf.io.wdata -> const$rf_io_wdata
+  edge rf.io.wen -> const$rf_io_wen
 layout DeepSoc
   node cluster0 kind=inst pins=cluster0.io.in:WEST:iface,cluster0.io.out:EAST:iface
   node cluster1 kind=inst pins=cluster1.io.in:WEST:iface,cluster1.io.out:EAST:iface
@@ -28,6 +50,15 @@ layout DeepSoc
   edge io.out -> cluster1.io.out
   edge pipe.io.enq -> cluster0.io.out
 layout Queue4_Token
+  node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
+  node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
+  node const$maybe_full kind=const pins=const$maybe_full:EAST
+  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST
+  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST
+  node maybe_full kind=reg pins=maybe_full:WEST
+  edge deq_ptr_value -> const$deq_ptr_value
+  edge enq_ptr_value -> const$enq_ptr_value
+  edge maybe_full -> const$maybe_full
 layout RegFile
 layoutOf ALU_1 -> ALU
 layoutOf ALU_2 -> ALU

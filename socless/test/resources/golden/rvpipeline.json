@@ -324,33 +324,153 @@
       "children": [],
       "wires": [
         {
-          "from": "io.out",
-          "to": "io.imem",
+          "from": "io.imem.req.bits.wdata",
+          "to": "const$io_imem_req_bits_wdata",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 68,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.imem.req.bits.wen",
+          "to": "const$io_imem_req_bits_wen",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 69,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.imem.resp.ready",
+          "to": "const$io_imem_resp_ready",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 70,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.inst",
+          "to": "io.imem.resp.bits.rdata",
           "bundle": "Decoupled_out",
-          "label": "2× ground connects",
+          "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 73,
             "col": 25
-          }
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.imem",
-          "to": "io.out",
+          "from": "io.out.valid",
+          "to": "io.imem.resp.valid",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 71,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.imem.req.valid",
+          "to": "io.out.ready",
           "bundle": "Imem",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 66,
             "col": 25
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.imem.req.bits.addr",
+          "to": "pc~q",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 67,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.pc",
+          "to": "pc~q",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 72,
+            "col": 25
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 1,
         "wires": 9,
         "lines": 15
-      }
+      },
+      "logic": [
+        {
+          "id": "pc",
+          "kind": "reg",
+          "label": "pc",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 65,
+            "col": 19
+          }
+        },
+        {
+          "id": "const$io_imem_req_bits_wdata",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_imem_req_bits_wen",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_imem_resp_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Decode",
@@ -593,22 +713,106 @@
       "children": [],
       "wires": [
         {
-          "from": "io.rf",
-          "to": "io.in",
+          "from": "io.dmem.req.valid",
+          "to": "const$io_dmem_req_valid",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 117,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.dmem.resp.ready",
+          "to": "const$io_dmem_resp_ready",
+          "bundle": "Imem",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 119,
+            "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.in.ready",
+          "to": "const$io_in_ready",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 115,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rf.waddr",
+          "to": "io.in.bits.rd",
           "bundle": "Rf_d1479c",
-          "label": "2× ground connects",
+          "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 120,
             "col": 15
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rf.wdata",
+          "to": "io.in.bits.result",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 121,
+            "col": 15
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 0,
         "wires": 6,
         "lines": 14
-      }
+      },
+      "logic": [
+        {
+          "id": "const$io_dmem_req_valid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_dmem_resp_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$io_in_ready",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "RegFile",

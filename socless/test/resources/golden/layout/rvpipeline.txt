@@ -19,9 +19,29 @@ layout Exec
   node io.out kind=boundary pins=io.out:WEST:iface
   edge io.out -> io.in
 layout Fetch
-  node io.imem kind=boundary pins=io.imem:WEST:iface
-  node io.out kind=boundary pins=io.out:WEST:iface
-  edge io.out -> io.imem
+  node const$io_imem_req_bits_wdata kind=const pins=const$io_imem_req_bits_wdata:EAST
+  node const$io_imem_req_bits_wen kind=const pins=const$io_imem_req_bits_wen:EAST
+  node const$io_imem_resp_ready kind=const pins=const$io_imem_resp_ready:EAST
+  node io.imem.req.bits.addr kind=boundary pins=io.imem.req.bits.addr:WEST:iface
+  node io.imem.req.bits.wdata kind=boundary pins=io.imem.req.bits.wdata:WEST:iface
+  node io.imem.req.bits.wen kind=boundary pins=io.imem.req.bits.wen:WEST:iface
+  node io.imem.req.valid kind=boundary pins=io.imem.req.valid:WEST:iface
+  node io.imem.resp.bits.rdata kind=boundary pins=io.imem.resp.bits.rdata:EAST:iface
+  node io.imem.resp.ready kind=boundary pins=io.imem.resp.ready:WEST:iface
+  node io.imem.resp.valid kind=boundary pins=io.imem.resp.valid:EAST:iface
+  node io.out.bits.inst kind=boundary pins=io.out.bits.inst:WEST:iface
+  node io.out.bits.pc kind=boundary pins=io.out.bits.pc:WEST:iface
+  node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
+  node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node pc kind=reg pins=pc~q:EAST
+  edge io.imem.req.bits.addr -> pc~q
+  edge io.imem.req.bits.wdata -> const$io_imem_req_bits_wdata
+  edge io.imem.req.bits.wen -> const$io_imem_req_bits_wen
+  edge io.imem.req.valid -> io.out.ready
+  edge io.imem.resp.ready -> const$io_imem_resp_ready
+  edge io.out.bits.inst -> io.imem.resp.bits.rdata
+  edge io.out.bits.pc -> pc~q
+  edge io.out.valid -> io.imem.resp.valid
 layout RVPipeline
   node decode kind=inst pins=decode.io.in:WEST:iface,decode.io.out:EAST:iface,decode.io.rf:EAST:iface
   node exec kind=inst pins=exec.io.in:WEST:iface,exec.io.out:EAST:iface
@@ -39,6 +59,18 @@ layout RVPipeline
   edge wb.io.in -> exec.io.out
 layout RegFile
 layout WB
-  node io.in kind=boundary pins=io.in:EAST:iface
-  node io.rf kind=boundary pins=io.rf:WEST:iface
-  edge io.rf -> io.in
+  node const$io_dmem_req_valid kind=const pins=const$io_dmem_req_valid:EAST
+  node const$io_dmem_resp_ready kind=const pins=const$io_dmem_resp_ready:EAST
+  node const$io_in_ready kind=const pins=const$io_in_ready:EAST
+  node io.dmem.req.valid kind=boundary pins=io.dmem.req.valid:WEST:iface
+  node io.dmem.resp.ready kind=boundary pins=io.dmem.resp.ready:WEST:iface
+  node io.in.bits.rd kind=boundary pins=io.in.bits.rd:EAST:iface
+  node io.in.bits.result kind=boundary pins=io.in.bits.result:EAST:iface
+  node io.in.ready kind=boundary pins=io.in.ready:WEST:iface
+  node io.rf.waddr kind=boundary pins=io.rf.waddr:WEST:iface
+  node io.rf.wdata kind=boundary pins=io.rf.wdata:WEST:iface
+  edge io.dmem.req.valid -> const$io_dmem_req_valid
+  edge io.dmem.resp.ready -> const$io_dmem_resp_ready
+  edge io.in.ready -> const$io_in_ready
+  edge io.rf.waddr -> io.in.bits.rd
+  edge io.rf.wdata -> io.in.bits.result

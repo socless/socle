@@ -92,7 +92,16 @@ object IrWalk {
         reset  = driverOf(i.name, resetPorts),
       )
     }
-    val wires = coalesceWires(m, byName, bundles)
+    // Register logic nodes (issue #188 B1): each reg becomes a node whose name is
+    // a net terminal, so wires route THROUGH it (input pin `r`, output pin `r~q`).
+    val regNames: Set[String] = m.regs.map(_.name).toSet
+    val regLogic: Seq[LogicNodeDef] = m.regs.map { r =>
+      val (key, _) = registerType(r.tpe, "input", r.name, bundles)
+      LogicNodeDef(id = r.name, kind = "reg", label = r.name, bundle = key,
+        source = r.src.map(toRef).getOrElse(SourceRef.unknown))
+    }
+    val regType: Map[String, String] = regLogic.map(n => n.id -> n.bundle).toMap
+    val (wires, constLogic) = coalesceWires(m, byName, bundles, regNames, regType)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -110,6 +119,7 @@ object IrWalk {
       wires    = wires,
       metrics  = metrics,
       kind     = moduleKind(m.kind),
+      logic    = regLogic ++ constLogic,
     )
   }
 
@@ -298,10 +308,12 @@ object IrWalk {
     * instance port or this module's own port are kept.
     */
   private def coalesceWires(
-    m:       Mod,
-    byName:  Map[String, Mod],
-    bundles: BundleReg,
-  ): Seq[WireDef] = {
+    m:        Mod,
+    byName:   Map[String, Mod],
+    bundles:  BundleReg,
+    regNames: Set[String],
+    regType:  Map[String, String],
+  ): (Seq[WireDef], Seq[LogicNodeDef]) = {
     val instSet = m.insts.map(_.name).toSet
     val portSet = m.ports.map(_.name).toSet
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
@@ -335,15 +347,6 @@ object IrWalk {
       } else None
     }
 
-    /** Endpoint reaches the IO boundary somewhere - either it's an instance
-      * port or it's one of this module's own ports. Used to drop
-      * internal-net connects (wire-to-wire signals like `_oHot_WIRE`).
-      */
-    def isExternalEndpoint(path: String): Boolean = {
-      val head = stripIdx(path.split('.').headOption.getOrElse(""))
-      instSet.contains(head) || portSet.contains(head)
-    }
-
     def trim(path: String): String = {
       val rawParts = path.split('.').toIndexedSeq
       if (rawParts.isEmpty) return path
@@ -374,11 +377,63 @@ object IrWalk {
       parts.take(depth).mkString(".")
     }
 
+    // Literal constants (issue #188): a connect whose rhs is a UInt/SInt literal
+    // is a terminal SOURCE - the value is lifted into a `const` LogicNodeDef that
+    // feeds the sink, so the wire routes from the const node rather than dropping
+    // (a literal head is neither inst port, module port, nor register). Both the
+    // quoted `UInt<8>("h1f")` form and the bare CHIRRTL `UInt<2>(0h3)` form match.
+    val LitRe = """^(?:UInt|SInt)(?:<\d+>)?\("?([^"\)]*)"?\)$""".r
+    def litValue(path: String): Option[String] = path match {
+      case LitRe(v) => Some(v)
+      case _        => None
+    }
+    def prettyLit(v: String): String = if (v.startsWith("h")) "0x" + v.drop(1) else v
+
+    // Registers are net TERMINALS (issue #188): a path `a -> reg -> b` must not
+    // contract to one direct `a -> b` wire (the Part A caveat) - the wire routes
+    // THROUGH the reg node instead. So the terminal predicate stops the trace at
+    // instance ports, this module's own ports, and registers. Endpoints reaching
+    // none of these are internal nets (wire-to-wire `_oHot_WIRE`) and drop out.
+    def isTerminal(path: String): Boolean = {
+      if (litValue(path).isDefined) return true
+      val head = stripIdx(path.split('.').headOption.getOrElse(""))
+      instSet.contains(head) || portSet.contains(head) || regNames.contains(head)
+    }
+
     // Pass 1: resolve real driver->sink edges, contracting internal nets so a
-    // field's true destination is known even through alias wires / registers
-    // (issue #182). NetTrace takes (sink, source) = (lhs, rhs).
-    val resolved: Seq[(String, String)] =
-      NetTrace.resolve(m.conns.map(c => (c.lhs, c.rhs)), isExternalEndpoint)
+    // field's true destination is known even through alias wires (issue #182),
+    // but stopping at register terminals (issue #188). NetTrace takes
+    // (sink, source) = (lhs, rhs).
+    val resolved0: Seq[(String, String)] =
+      NetTrace.resolve(m.conns.map(c => (c.lhs, c.rhs)), isTerminal)
+
+    // A register only ever appears as a SOURCE for its Q-output and a SINK for
+    // its D-input; CHIRRTL spells both as the plain reg path. `~q`-suffix the
+    // HEAD segment of any resolved SOURCE that is a register so the Q pin (`r~q`)
+    // is distinct from the D pin (`r`).
+    def qSuffix(path: String): String = {
+      val i = path.indexOf('.')
+      if (i < 0) path + "~q" else path.substring(0, i) + "~q" + path.substring(i)
+    }
+    def isReg(path: String): Boolean = regNames.contains(stripIdx(path.split('.').head))
+    val resolved: Seq[(String, String)] = resolved0.map { case (src, sink) =>
+      (if (isReg(src)) qSuffix(src) else src, sink)
+    }
+
+    // Literal sources become deterministic `const` nodes; the edge source is
+    // rewritten to a dot-free synthetic id so `trim`/`classify` treat it as a
+    // whole atom carrying the value on its label (issue #188).
+    val constNodes = mutable.LinkedHashMap.empty[String, LogicNodeDef]
+    def constId(sink: String): String = "const$" + sink.replaceAll("[.\\[\\]]", "_")
+    val resolvedWithConst: Seq[(String, String)] = resolved.map { case (src, sink) =>
+      litValue(src) match {
+        case Some(v) =>
+          val id = constId(sink)
+          constNodes.getOrElseUpdate(id, LogicNodeDef(id, "const", prettyLit(v), "", SourceRef.unknown))
+          (id, sink)
+        case None => (src, sink)
+      }
+    }
 
     // Best-effort source marker: the connect landing on each external sink.
     val srcBySink: Map[String, SrcInfo] =
@@ -387,7 +442,7 @@ object IrWalk {
     // Trim each resolved endpoint to its bundle endpoint, descending one more
     // segment for split ancestors (bundles connected both whole and per-field).
     val trimmed: Seq[(String, String, String, String)] =
-      resolved.map { case (src, sink) => (src, sink, trim(src), trim(sink)) }
+      resolvedWithConst.map { case (src, sink) => (src, sink, trim(src), trim(sink)) }
     val endpoints = trimmed.flatMap { case (_, _, se, ke) => Seq(se, ke) }.toSet
     def isSplitAncestor(epName: String): Boolean = endpoints.exists(o => o != epName && o.startsWith(epName + "."))
     def ep(orig: String, t: String): String = if (isSplitAncestor(t)) trimDeep(orig) else t
@@ -419,7 +474,7 @@ object IrWalk {
         splitWires += WireDef(
           from       = sink,
           to         = src,
-          bundle     = inferBundle(m, sink, src, byName, bundles),
+          bundle     = inferBundle(m, sink, src, byName, bundles, regType),
           label      = "",
           source     = srcBySink.get(sink).map(toRef).getOrElse(SourceRef.unknown),
           fieldLevel = true,
@@ -431,12 +486,12 @@ object IrWalk {
       WireDef(
         from   = g.from,
         to     = g.to,
-        bundle = inferBundle(m, g.from, g.to, byName, bundles),
+        bundle = inferBundle(m, g.from, g.to, byName, bundles, regType),
         label  = if (g.count > 1) s"${g.count}× ground connects" else "",
         source = g.src.map(toRef).getOrElse(SourceRef.unknown),
       )
     }
-    collapsedWires ++ splitWires.toSeq
+    (collapsedWires ++ splitWires.toSeq.distinct, constNodes.values.toSeq)
   }
 
   /** Best-effort bundle type for a coalesced wire endpoint.
@@ -458,8 +513,18 @@ object IrWalk {
     to:       String,
     byName:   Map[String, Mod],
     bundles:  BundleReg,
+    regType:  Map[String, String],
   ): String = {
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
+
+    // A register pin (`r`, `r~q`, possibly `.field`) carries the register's own
+    // type, not a synthesized "Wire" (issue #188). Strip a vec index, then a
+    // trailing `~q` off the head to recover the reg name.
+    def regKeyOf(path: String): Option[String] = {
+      val head = stripIdx(path.split('.').head)
+      val base = if (head.endsWith("~q")) head.dropRight(2) else head
+      regType.get(base)
+    }
 
     // An indexed path segment selects ONE vec element: `in[0]` against a
     // Vec[AXI4, 2] is an AXI4, not the whole vec. One unwrap per subscript
@@ -516,6 +581,8 @@ object IrWalk {
       .orElse(resolveOnInst(to))
       .orElse(resolveOnSelf(from))
       .orElse(resolveOnSelf(to))
+      .orElse(regKeyOf(from))
+      .orElse(regKeyOf(to))
       .getOrElse("Wire")
   }
 

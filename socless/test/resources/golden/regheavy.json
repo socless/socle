@@ -173,12 +173,81 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "state",
+          "to": "const$state",
+          "bundle": "UInt<2>",
+          "label": "3× ground connects",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 114,
+            "col": 13
+          }
+        },
+        {
+          "from": "timer",
+          "to": "const$timer",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 115,
+            "col": 13
+          }
+        }
+      ],
       "metrics": {
         "registers": 2,
         "wires": 11,
         "lines": 39
-      }
+      },
+      "logic": [
+        {
+          "id": "state",
+          "kind": "reg",
+          "label": "state",
+          "bundle": "UInt<2>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 95,
+            "col": 23
+          }
+        },
+        {
+          "id": "timer",
+          "kind": "reg",
+          "label": "timer",
+          "bundle": "UInt<8>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 96,
+            "col": 23
+          }
+        },
+        {
+          "id": "const$state",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$timer",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "RegStage",
@@ -227,22 +296,290 @@
       "children": [],
       "wires": [
         {
-          "from": "io.out",
-          "to": "io.in",
+          "from": "rCount",
+          "to": "const$rCount",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 66,
+            "col": 12
+          }
+        },
+        {
+          "from": "rData",
+          "to": "const$rData",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 62,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rFlags",
+          "to": "const$rFlags",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rTag",
+          "to": "const$rTag",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 63,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rValid",
+          "to": "const$rValid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 68,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rData",
+          "to": "io.in.bits.data",
           "bundle": "Decoupled_in",
-          "label": "5× ground connects",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 62,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rFlags",
+          "to": "io.in.bits.flags",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rTag",
+          "to": "io.in.bits.tag",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 63,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rValid",
+          "to": "io.in.bits.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 68,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.data",
+          "to": "rData~q",
+          "bundle": "Decoupled_in",
+          "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 72,
             "col": 22
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.flags",
+          "to": "rFlags~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 74,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.tag",
+          "to": "rTag~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 73,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "rValid~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 75,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "rValid~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 71,
+            "col": 22
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 5,
         "wires": 18,
         "lines": 41
-      }
+      },
+      "logic": [
+        {
+          "id": "rData",
+          "kind": "reg",
+          "label": "rData",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 44,
+            "col": 24
+          }
+        },
+        {
+          "id": "rTag",
+          "kind": "reg",
+          "label": "rTag",
+          "bundle": "UInt<8>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 45,
+            "col": 24
+          }
+        },
+        {
+          "id": "rFlags",
+          "kind": "reg",
+          "label": "rFlags",
+          "bundle": "UInt<4>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 46,
+            "col": 24
+          }
+        },
+        {
+          "id": "rValid",
+          "kind": "reg",
+          "label": "rValid",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 47,
+            "col": 24
+          }
+        },
+        {
+          "id": "rCount",
+          "kind": "reg",
+          "label": "rCount",
+          "bundle": "UInt<16>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 48,
+            "col": 24
+          }
+        },
+        {
+          "id": "const$rCount",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rData",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rFlags",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rTag",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rValid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "RegStage_1",
@@ -291,22 +628,290 @@
       "children": [],
       "wires": [
         {
-          "from": "io.out",
-          "to": "io.in",
+          "from": "rCount",
+          "to": "const$rCount",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 66,
+            "col": 12
+          }
+        },
+        {
+          "from": "rData",
+          "to": "const$rData",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 62,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rFlags",
+          "to": "const$rFlags",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rTag",
+          "to": "const$rTag",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 63,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rValid",
+          "to": "const$rValid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 68,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rData",
+          "to": "io.in.bits.data",
           "bundle": "Decoupled_in",
-          "label": "5× ground connects",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 62,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rFlags",
+          "to": "io.in.bits.flags",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rTag",
+          "to": "io.in.bits.tag",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 63,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rValid",
+          "to": "io.in.bits.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 68,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.data",
+          "to": "rData~q",
+          "bundle": "Decoupled_in",
+          "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 72,
             "col": 22
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.flags",
+          "to": "rFlags~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 74,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.tag",
+          "to": "rTag~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 73,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.valid",
+          "to": "rValid~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 75,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "rValid~q",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 71,
+            "col": 22
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 5,
         "wires": 18,
         "lines": 41
-      }
+      },
+      "logic": [
+        {
+          "id": "rData",
+          "kind": "reg",
+          "label": "rData",
+          "bundle": "UInt<32>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 44,
+            "col": 24
+          }
+        },
+        {
+          "id": "rTag",
+          "kind": "reg",
+          "label": "rTag",
+          "bundle": "UInt<8>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 45,
+            "col": 24
+          }
+        },
+        {
+          "id": "rFlags",
+          "kind": "reg",
+          "label": "rFlags",
+          "bundle": "UInt<4>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 46,
+            "col": 24
+          }
+        },
+        {
+          "id": "rValid",
+          "kind": "reg",
+          "label": "rValid",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 47,
+            "col": 24
+          }
+        },
+        {
+          "id": "rCount",
+          "kind": "reg",
+          "label": "rCount",
+          "bundle": "UInt<16>",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 48,
+            "col": 24
+          }
+        },
+        {
+          "id": "const$rCount",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rData",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rFlags",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rTag",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$rValid",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Queue2_PipePayload",
@@ -353,13 +958,115 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "deq_ptr_value",
+          "to": "const$deq_ptr_value",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "const$enq_ptr_value",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "const$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          }
+        }
+      ],
       "metrics": {
         "registers": 3,
         "wires": 13,
         "lines": 70,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "enq_ptr_value",
+          "kind": "reg",
+          "label": "enq_ptr_value",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "deq_ptr_value",
+          "kind": "reg",
+          "label": "deq_ptr_value",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 61,
+            "col": 40
+          }
+        },
+        {
+          "id": "maybe_full",
+          "kind": "reg",
+          "label": "maybe_full",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 76,
+            "col": 27
+          }
+        },
+        {
+          "id": "const$deq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$enq_ptr_value",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$maybe_full",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     },
     {
       "name": "Datapath",

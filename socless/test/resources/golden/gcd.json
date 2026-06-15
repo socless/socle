@@ -93,8 +93,19 @@
       "children": [],
       "wires": [
         {
+          "from": "busy",
+          "to": "const$busy",
+          "bundle": "UInt<1>",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 50,
+            "col": 28
+          }
+        },
+        {
           "from": "io.out",
-          "to": "io.in",
+          "to": "x~q",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
@@ -102,13 +113,83 @@
             "line": 49,
             "col": 22
           }
+        },
+        {
+          "from": "x",
+          "to": "io.in.bits.a",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "y",
+          "to": "io.in.bits.b",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 3,
         "wires": 9,
         "lines": 27
-      }
+      },
+      "logic": [
+        {
+          "id": "x",
+          "kind": "reg",
+          "label": "x",
+          "bundle": "UInt<16>",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 30,
+            "col": 21
+          }
+        },
+        {
+          "id": "y",
+          "kind": "reg",
+          "label": "y",
+          "bundle": "UInt<16>",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 31,
+            "col": 21
+          }
+        },
+        {
+          "id": "busy",
+          "kind": "reg",
+          "label": "busy",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 32,
+            "col": 21
+          }
+        },
+        {
+          "id": "const$busy",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
     }
   ],
   "layoutConsts": {

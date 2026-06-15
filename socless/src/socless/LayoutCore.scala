@@ -110,6 +110,22 @@ object LayoutCore {
       val bundle   = portDef.map(_.bundle).getOrElse("Wire")
       Some(Endpoint(head, "inst", path, sideFor("inst", dir), isInterfaceBundle(bundle, design)))
     } else {
+      // Intra-module logic nodes: registers (a D input pin `r`/`r.field` on WEST
+      // and a Q output pin `r~q`/`r~q.field` on EAST) and constants (single EAST
+      // driver pin keyed by the whole `const$...` atom). These resolve before the
+      // boundary-port fallthrough so a logic node is never mistaken for a port and
+      // is never dropped (issue #188 B1).
+      val regIds   = module.logic.iterator.filter(_.kind == "reg").map(_.id).toSet
+      val constIds = module.logic.iterator.filter(_.kind == "const").map(_.id).toSet
+      def regIface(id: String): Boolean =
+        module.logic.find(n => n.id == id && n.kind == "reg").exists(n => isInterfaceBundle(n.bundle, design))
+      val rawHead = stripIdx(parts.head)
+      if (rawHead.endsWith("~q") && regIds.contains(rawHead.dropRight(2)))
+        return Some(Endpoint(rawHead.dropRight(2), "reg", path, "EAST", regIface(rawHead.dropRight(2))))
+      if (regIds.contains(rawHead))
+        return Some(Endpoint(rawHead, "reg", path, "WEST", regIface(rawHead)))
+      if (constIds.contains(rawHead))
+        return Some(Endpoint(rawHead, "const", path, "EAST", false))
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
         // grouped under the port head. A single shared node would force all of
@@ -260,8 +276,13 @@ object LayoutCore {
     // 4. Compute node geometry + per-pin coordinates (pure; no engine objects).
     val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
       def lblOf(p: PinSpec): String = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
-      if (kind == "boundary") {
-        // Boundary: compact, but at least wide enough for the label (if any).
+      // Const nodes share the boundary stub's compact geometry (a single small
+      // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
+      // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
+      // into the instance branch below (header + D/Q port rows).
+      val compact = kind == "boundary" || kind == "const"
+      if (compact) {
+        // Boundary/const: compact, but at least wide enough for the label (if any).
         val maxLabelPx = pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         val bw = math.max(BoundaryW, maxLabelPx)
         val laidPins = pins.values.toSeq.map { p =>
@@ -275,8 +296,11 @@ object LayoutCore {
         val paths       = laidPins.map(_.path)
         val anyIncoming = paths.exists(edgeSinks.contains)
         val anyOutgoing = paths.exists(edgeSources.contains)
+        // Only true boundary stubs get column-pinned (issue #163); const nodes
+        // share the compact box but rank by dataflow, so they stay unconstrained.
         val lc =
-          if (side == "EAST" && !anyIncoming)      Some("FIRST_SEPARATE")
+          if (kind != "boundary")                  None
+          else if (side == "EAST" && !anyIncoming) Some("FIRST_SEPARATE")
           else if (side == "WEST" && !anyOutgoing) Some("LAST_SEPARATE")
           else                                     None
         PreparedNode(id, kind, bw, BoundaryH, laidPins, lc)
