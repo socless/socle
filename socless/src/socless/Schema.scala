@@ -134,6 +134,11 @@ case class WireDef(
   bundle: String,      // bundle type of the wire (key into Design.bundles)
   label:  String,
   source: SourceRef,
+  // True when this wire is one scattered ground field of a bundle whose fields
+  // reach different destinations (issue #182 Part A), rather than a coalesced
+  // whole-bundle wire. The UI styles these distinctly. Trailing default keeps
+  // older design.json parseable and non-split wires terse.
+  fieldLevel: Boolean = false,
 )
 object WireDef { implicit val rw: ReadWriter[WireDef] = macroRW }
 

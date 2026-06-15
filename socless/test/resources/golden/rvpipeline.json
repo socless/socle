@@ -324,6 +324,17 @@
       "children": [],
       "wires": [
         {
+          "from": "io.out",
+          "to": "io.imem",
+          "bundle": "Decoupled_out",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 73,
+            "col": 25
+          }
+        },
+        {
           "from": "io.imem",
           "to": "io.out",
           "bundle": "Imem",
@@ -331,61 +342,6 @@
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 66,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.imem",
-          "to": "pc",
-          "bundle": "Imem",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 67,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.imem",
-          "to": "UInt<1>(0h0)",
-          "bundle": "Imem",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 68,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.imem",
-          "to": "UInt<1>(0h1)",
-          "bundle": "Imem",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 70,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "io.imem",
-          "bundle": "Decoupled_out",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 71,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "pc",
-          "bundle": "Decoupled_out",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 72,
             "col": 25
           }
         }
@@ -445,92 +401,64 @@
       "children": [],
       "wires": [
         {
-          "from": "io.rf",
-          "to": "_io_rf_raddr1_T",
-          "bundle": "Rf",
+          "from": "io.out.bits.pc",
+          "to": "io.in.bits.pc",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 83,
-            "col": 16
-          }
+            "line": 88,
+            "col": 22
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.rf",
-          "to": "_io_rf_raddr2_T",
-          "bundle": "Rf",
+          "from": "io.out.valid",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 84,
-            "col": 16
-          }
+            "line": 87,
+            "col": 22
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.in",
-          "to": "io.out",
+          "from": "io.in.ready",
+          "to": "io.out.ready",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 86,
             "col": 22
-          }
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.out",
-          "to": "io.in",
-          "bundle": "Decoupled_out_0112bf",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 87,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "_io_out_bits_op_T",
+          "from": "io.out.bits.rs1",
+          "to": "io.rf.rdata1",
           "bundle": "Decoupled_out_0112bf",
           "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 89,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "io.rf",
-          "bundle": "Decoupled_out_0112bf",
-          "label": "2× ground connects",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 90,
             "col": 22
-          }
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.out",
-          "to": "_io_out_bits_imm_T",
+          "from": "io.out.bits.rs2",
+          "to": "io.rf.rdata2",
           "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 92,
+            "line": 91,
             "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "_io_out_bits_rd_T",
-          "bundle": "Decoupled_out_0112bf",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 93,
-            "col": 22
-          }
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -588,6 +516,17 @@
       "children": [],
       "wires": [
         {
+          "from": "io.out",
+          "to": "io.in",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 105,
+            "col": 22
+          }
+        },
+        {
           "from": "io.in",
           "to": "io.out",
           "bundle": "Decoupled_out_0112bf",
@@ -595,39 +534,6 @@
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 101,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "io.in",
-          "bundle": "Decoupled_out_0778b8",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 102,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "_io_out_bits_result_T_1",
-          "bundle": "Decoupled_out_0778b8",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 104,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "_io_out_bits_wen_T",
-          "bundle": "Decoupled_out_0778b8",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 106,
             "col": 22
           }
         }
@@ -687,39 +593,6 @@
       "children": [],
       "wires": [
         {
-          "from": "io.in",
-          "to": "UInt<1>(0h1)",
-          "bundle": "Decoupled_out_0778b8",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 115,
-            "col": 15
-          }
-        },
-        {
-          "from": "io.dmem",
-          "to": "UInt<1>(0h0)",
-          "bundle": "Imem",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 117,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.dmem",
-          "to": "UInt<1>(0h1)",
-          "bundle": "Imem",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 119,
-            "col": 25
-          }
-        },
-        {
           "from": "io.rf",
           "to": "io.in",
           "bundle": "Rf_d1479c",
@@ -727,17 +600,6 @@
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 120,
-            "col": 15
-          }
-        },
-        {
-          "from": "io.rf",
-          "to": "_io_rf_wen_T",
-          "bundle": "Rf_d1479c",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 122,
             "col": 15
           }
         }
@@ -794,41 +656,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "io.rd",
-          "to": "io_rd_rdata1_MPORT",
-          "bundle": "Rf",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 131,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.rd",
-          "to": "io_rd_rdata2_MPORT",
-          "bundle": "Rf",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 132,
-            "col": 16
-          }
-        },
-        {
-          "from": "MPORT",
-          "to": "io.wr",
-          "bundle": "Rf_d1479c",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 134,
-            "col": 23
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 0,
         "wires": 3,
@@ -944,171 +772,6 @@
       ],
       "wires": [
         {
-          "from": "fetch.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "fetch.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "decode.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "decode.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "exec.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "exec.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "wb.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "wb.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "rf.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "rf.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "fetch.io.imem",
-          "to": "io.imem",
-          "bundle": "Imem",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 152,
-            "col": 18
-          }
-        },
-        {
-          "from": "io.imem",
-          "to": "fetch.io.imem",
-          "bundle": "Imem",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 152,
-            "col": 18
-          }
-        },
-        {
-          "from": "wb.io.dmem",
-          "to": "io.dmem",
-          "bundle": "Imem",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 153,
-            "col": 18
-          }
-        },
-        {
-          "from": "io.dmem",
-          "to": "wb.io.dmem",
-          "bundle": "Imem",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 153,
-            "col": 18
-          }
-        },
-        {
-          "from": "decode.io.in",
-          "to": "fetch.io.out",
-          "bundle": "Decoupled_out",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 154,
-            "col": 18
-          }
-        },
-        {
           "from": "exec.io.in",
           "to": "decode.io.out",
           "bundle": "Decoupled_out_0112bf",
@@ -1116,17 +779,6 @@
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 155,
-            "col": 18
-          }
-        },
-        {
-          "from": "wb.io.in",
-          "to": "exec.io.out",
-          "bundle": "Decoupled_out_0778b8",
-          "label": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 156,
             "col": 18
           }
         },
@@ -1142,6 +794,72 @@
           }
         },
         {
+          "from": "wb.io.in",
+          "to": "exec.io.out",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 156,
+            "col": 18
+          }
+        },
+        {
+          "from": "io.imem",
+          "to": "fetch.io.imem",
+          "bundle": "Imem",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 152,
+            "col": 18
+          }
+        },
+        {
+          "from": "decode.io.in",
+          "to": "fetch.io.out",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 154,
+            "col": 18
+          }
+        },
+        {
+          "from": "wb.io.dmem",
+          "to": "io.dmem",
+          "bundle": "Imem",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 153,
+            "col": 18
+          }
+        },
+        {
+          "from": "fetch.io.imem",
+          "to": "io.imem",
+          "bundle": "Imem",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 152,
+            "col": 18
+          }
+        },
+        {
+          "from": "io.dmem",
+          "to": "wb.io.dmem",
+          "bundle": "Imem",
+          "label": "2× ground connects",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 153,
+            "col": 18
+          }
+        },
+        {
           "from": "rf.io.wr",
           "to": "wb.io.rf",
           "bundle": "Rf_d1479c",
@@ -1151,6 +869,126 @@
             "line": 158,
             "col": 18
           }
+        },
+        {
+          "from": "decode.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "exec.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fetch.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wb.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "decode.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "exec.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fetch.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rf.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wb.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {

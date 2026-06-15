@@ -1,18 +1,22 @@
 layout ALU
 layout Cluster
-  node cores_0 kind=inst pins=cores_0.io.in:WEST:iface
-  node cores_1 kind=inst pins=cores_1.io.in:WEST:iface
-  node io.in kind=boundary pins=io.in:EAST:iface
-  edge cores_0.io.in -> io.in
-  edge cores_1.io.in -> io.in
+  node cores_0 kind=inst pins=cores_0.io.in.bits.data:WEST:iface,cores_0.io.in.bits.valid:WEST:iface
+  node cores_1 kind=inst pins=cores_1.io.in.bits.data:WEST:iface,cores_1.io.in.bits.valid:WEST:iface
+  node io.in.bits.data kind=boundary pins=io.in.bits.data:EAST:iface
+  node io.in.bits.valid kind=boundary pins=io.in.bits.valid:EAST:iface
+  edge cores_0.io.in.bits.data -> io.in.bits.data
+  edge cores_0.io.in.bits.valid -> io.in.bits.valid
+  edge cores_1.io.in.bits.data -> io.in.bits.data
+  edge cores_1.io.in.bits.valid -> io.in.bits.valid
 layout Core
-  node alu kind=inst pins=alu.io:EAST:iface
-  node io.in kind=boundary pins=io.in:EAST:iface
-  node io.out kind=boundary pins=io.out:WEST:iface
-  node rf kind=inst pins=rf.io:EAST:iface
-  edge alu.io -> io.in
-  edge io.out -> rf.io
-  edge rf.io -> alu.io
+  node alu kind=inst pins=alu.io.a:WEST:iface,alu.io.b:WEST:iface,alu.io.out:EAST:iface
+  node io.in.bits.data kind=boundary pins=io.in.bits.data:EAST:iface
+  node io.out.bits.data kind=boundary pins=io.out.bits.data:WEST:iface
+  node rf kind=inst pins=rf.io.rdata:EAST:iface,rf.io.wdata:WEST:iface
+  edge alu.io.a -> alu.io.out
+  edge alu.io.b -> io.in.bits.data
+  edge io.out.bits.data -> rf.io.rdata
+  edge rf.io.wdata -> alu.io.out
 layout DeepSoc
   node cluster0 kind=inst pins=cluster0.io.in:WEST:iface,cluster0.io.out:EAST:iface
   node cluster1 kind=inst pins=cluster1.io.in:WEST:iface,cluster1.io.out:EAST:iface

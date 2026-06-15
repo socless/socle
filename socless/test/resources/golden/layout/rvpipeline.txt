@@ -1,17 +1,27 @@
 layout Decode
-  node io.in kind=boundary pins=io.in:WEST:iface
-  node io.out kind=boundary pins=io.out:WEST:iface
-  node io.rf kind=boundary pins=io.rf:EAST:iface
-  edge io.out -> io.in
-  edge io.out -> io.rf
+  node io.in.bits.pc kind=boundary pins=io.in.bits.pc:EAST:iface
+  node io.in.ready kind=boundary pins=io.in.ready:WEST:iface
+  node io.in.valid kind=boundary pins=io.in.valid:EAST:iface
+  node io.out.bits.pc kind=boundary pins=io.out.bits.pc:WEST:iface
+  node io.out.bits.rs1 kind=boundary pins=io.out.bits.rs1:WEST:iface
+  node io.out.bits.rs2 kind=boundary pins=io.out.bits.rs2:WEST:iface
+  node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
+  node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node io.rf.rdata1 kind=boundary pins=io.rf.rdata1:EAST:iface
+  node io.rf.rdata2 kind=boundary pins=io.rf.rdata2:EAST:iface
+  edge io.in.ready -> io.out.ready
+  edge io.out.bits.pc -> io.in.bits.pc
+  edge io.out.bits.rs1 -> io.rf.rdata1
+  edge io.out.bits.rs2 -> io.rf.rdata2
+  edge io.out.valid -> io.in.valid
 layout Exec
   node io.in kind=boundary pins=io.in:WEST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  edge io.in -> io.out
+  edge io.out -> io.in
 layout Fetch
   node io.imem kind=boundary pins=io.imem:WEST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  edge io.imem -> io.out
+  edge io.out -> io.imem
 layout RVPipeline
   node decode kind=inst pins=decode.io.in:WEST:iface,decode.io.out:EAST:iface,decode.io.rf:EAST:iface
   node exec kind=inst pins=exec.io.in:WEST:iface,exec.io.out:EAST:iface
@@ -22,7 +32,7 @@ layout RVPipeline
   node wb kind=inst pins=wb.io.dmem:EAST:iface,wb.io.in:WEST:iface,wb.io.rf:EAST:iface
   edge decode.io.in -> fetch.io.out
   edge exec.io.in -> decode.io.out
-  edge fetch.io.imem -> io.imem
+  edge io.imem -> fetch.io.imem
   edge rf.io.rd -> decode.io.rf
   edge rf.io.wr -> wb.io.rf
   edge wb.io.dmem -> io.dmem

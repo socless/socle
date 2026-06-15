@@ -8,12 +8,12 @@ layout AXICrossbar
 layout AXIMaster
   node io.ar kind=boundary pins=io.ar:WEST:iface
   node txQ kind=inst pins=txQ.io.deq:EAST:iface
-  edge io.ar -> txQ.io.deq
+  edge txQ.io.deq -> io.ar
 layout AXISlave
   node io.ar kind=boundary pins=io.ar:EAST:iface
   node io.r kind=boundary pins=io.r:EAST:iface
   node respQ kind=inst pins=respQ.io.deq:EAST:iface,respQ.io.enq:EAST:iface
-  edge io.r -> respQ.io.deq
+  edge respQ.io.deq -> io.r
   edge respQ.io.enq -> io.ar
 layout AXISystem
   node cpu kind=inst pins=cpu.io:EAST:iface

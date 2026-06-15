@@ -302,8 +302,6 @@ object IrWalk {
     byName:  Map[String, Mod],
     bundles: BundleReg,
   ): Seq[WireDef] = {
-    case class Group(from: String, to: String, src: Option[SrcInfo], count: Int)
-    val groups = mutable.LinkedHashMap.empty[(String, String), Group]
     val instSet = m.insts.map(_.name).toSet
     val portSet = m.ports.map(_.name).toSet
     val instMap = m.insts.map(i => i.name -> i.ofModule).toMap
@@ -376,41 +374,69 @@ object IrWalk {
       parts.take(depth).mkString(".")
     }
 
-    // Pass 1: trim every external connect to its coalesced endpoints.
-    val conns = m.conns.filter(c => isExternalEndpoint(c.lhs) || isExternalEndpoint(c.rhs))
-    val pre   = conns.map(c => (c, trim(c.lhs), trim(c.rhs)))
+    // Pass 1: resolve real driver->sink edges, contracting internal nets so a
+    // field's true destination is known even through alias wires / registers
+    // (issue #182). NetTrace takes (sink, source) = (lhs, rhs).
+    val resolved: Seq[(String, String)] =
+      NetTrace.resolve(m.conns.map(c => (c.lhs, c.rhs)), isExternalEndpoint)
 
-    // A port is "split" when it is connected both as a whole (`inst.port`) and at
-    // sub-field granularity (`inst.port.x`) - e.g. RegStage's io, whose `in`/`out`
-    // sub-bundles descend while its scalar enable/flush/stall collapse onto `io`.
-    // Collapsing the scalars onto `io` makes a redundant pin that overlaps the
-    // `io.in`/`io.out` pins (issue #82). Detect such ancestors and, for the
-    // connects that landed on them, descend one more segment instead.
-    val endpoints = pre.flatMap { case (_, f, t) => Seq(f, t) }.toSet
-    def isSplitAncestor(ep: String): Boolean = endpoints.exists(o => o != ep && o.startsWith(ep + "."))
-    def resolve(orig: String, trimmed: String): String =
-      if (isSplitAncestor(trimmed)) trimDeep(orig) else trimmed
+    // Best-effort source marker: the connect landing on each external sink.
+    val srcBySink: Map[String, SrcInfo] =
+      m.conns.iterator.flatMap(c => c.src.map(s => c.lhs -> s)).toMap
 
-    for ((c, f0, t0) <- pre) {
-      val from = resolve(c.lhs, f0)
-      val to   = resolve(c.rhs, t0)
-      // Skip self-loops on the same port (these are the in-bundle subfield connects)
-      if (from != to) {
-        val k = (from, to)
-        val g = groups.get(k)
-        groups(k) = Group(from, to, g.flatMap(_.src).orElse(c.src), g.map(_.count).getOrElse(0) + 1)
+    // Trim each resolved endpoint to its bundle endpoint, descending one more
+    // segment for split ancestors (bundles connected both whole and per-field).
+    val trimmed: Seq[(String, String, String, String)] =
+      resolved.map { case (src, sink) => (src, sink, trim(src), trim(sink)) }
+    val endpoints = trimmed.flatMap { case (_, _, se, ke) => Seq(se, ke) }.toSet
+    def isSplitAncestor(epName: String): Boolean = endpoints.exists(o => o != epName && o.startsWith(epName + "."))
+    def ep(orig: String, t: String): String = if (isSplitAncestor(t)) trimDeep(orig) else t
+
+    val bundleEdges: Seq[((String, String), (String, String))] = trimmed.map {
+      case (src, sink, se, ke) => ((ep(src, se), ep(sink, ke)), (src, sink))
+    }
+
+    // Partner set per bundle endpoint (both directions). A bundle collapses only
+    // if it pairs with exactly one partner; otherwise its fields scatter.
+    val partners = mutable.LinkedHashMap.empty[String, mutable.LinkedHashSet[String]]
+    bundleEdges.foreach { case ((sEp, kEp), _) =>
+      partners.getOrElseUpdate(sEp, mutable.LinkedHashSet.empty) += kEp
+      partners.getOrElseUpdate(kEp, mutable.LinkedHashSet.empty) += sEp
+    }
+    def clean(epName: String): Boolean = partners.get(epName).exists(_.size == 1)
+
+    case class G(from: String, to: String, src: Option[SrcInfo], count: Int)
+    val collapsed = mutable.LinkedHashMap.empty[(String, String), G]
+    val splitWires = mutable.ArrayBuffer.empty[WireDef]
+
+    bundleEdges.foreach { case ((sEp, kEp), (src, sink)) =>
+      if (sEp != kEp && clean(sEp) && clean(kEp)) {
+        val k = (kEp, sEp) // (from = sink, to = source)
+        val g = collapsed.get(k)
+        collapsed(k) = G(kEp, sEp, g.flatMap(_.src).orElse(srcBySink.get(sink)),
+          g.map(_.count).getOrElse(0) + 1)
+      } else if (src != sink) {
+        splitWires += WireDef(
+          from       = sink,
+          to         = src,
+          bundle     = inferBundle(m, sink, src, byName, bundles),
+          label      = "",
+          source     = srcBySink.get(sink).map(toRef).getOrElse(SourceRef.unknown),
+          fieldLevel = true,
+        )
       }
     }
-    groups.values.toSeq.map { g =>
-      val bundle = inferBundle(m, g.from, g.to, byName, bundles)
+
+    val collapsedWires = collapsed.values.toSeq.map { g =>
       WireDef(
         from   = g.from,
         to     = g.to,
-        bundle = bundle,
+        bundle = inferBundle(m, g.from, g.to, byName, bundles),
         label  = if (g.count > 1) s"${g.count}× ground connects" else "",
         source = g.src.map(toRef).getOrElse(SourceRef.unknown),
       )
     }
+    collapsedWires ++ splitWires.toSeq
   }
 
   /** Best-effort bundle type for a coalesced wire endpoint.

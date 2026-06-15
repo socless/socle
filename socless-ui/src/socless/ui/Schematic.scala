@@ -403,6 +403,11 @@ object Schematic {
       val bySource = g.wires.groupBy(_.toPath).values.filter(_.length > 1).map(ws => (ws.head.x1, ws.head.y1, ws.length)).toSeq
       val bySink   = g.wires.groupBy(_.fromPath).values.filter(_.length > 1).map(ws => (ws.head.x2, ws.head.y2, ws.length)).toSeq
 
+      // Field-level (split) wires render thinner so a scattered bundle reads as
+      // many fine wires vs one bold bundle wire (issue #182).
+      val fieldLevelWires: Set[(String, String)] =
+        g.mod.wires.iterator.filter(_.fieldLevel).map(w => (w.from, w.to)).toSet
+
       // ── visual layer (stroke + halo + junctions) ──
       val vis = svg.svg(
         sa("style") := s"position:absolute;top:0;left:0;width:${g.layout.w}px;height:${g.canvasH}px;pointer-events:none;overflow:visible",
@@ -411,7 +416,8 @@ object Schematic {
           val hov2 = isHov(w) && !hl
           val dim = sel.isDefined && !hl
           val stroke = if (dim) Tokens.ink4 else if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
-          val sw     = if (hl) 4 else if (hov2) 3.5 else 3
+          val isField = fieldLevelWires.contains((w.fromPath, w.toPath))
+          val sw     = if (isField) 1.0 else if (hl) 4 else if (hov2) 3.5 else 3
           val halo   = if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
           val haloOp = if (hl) 0.18 else if (hov2) 0.10 else 0.07
           val groupOp = if (!wireActive(w)) 0.12 else if (dim) 0.32 else 1.0

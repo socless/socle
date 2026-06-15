@@ -173,41 +173,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "io",
-          "to": "_io_enable_T",
-          "bundle": "Io",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 119,
-            "col": 13
-          }
-        },
-        {
-          "from": "io",
-          "to": "_io_flush_T",
-          "bundle": "Io",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 120,
-            "col": 13
-          }
-        },
-        {
-          "from": "io",
-          "to": "_io_stall_T",
-          "bundle": "Io",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 121,
-            "col": 13
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 2,
         "wires": 11,
@@ -261,101 +227,13 @@
       "children": [],
       "wires": [
         {
-          "from": "io.in",
-          "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 50,
-            "col": 15
-          }
-        },
-        {
-          "from": "rData",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 62,
-            "col": 12
-          }
-        },
-        {
-          "from": "rTag",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 63,
-            "col": 12
-          }
-        },
-        {
-          "from": "rFlags",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 64,
-            "col": 12
-          }
-        },
-        {
-          "from": "rValid",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 65,
-            "col": 12
-          }
-        },
-        {
           "from": "io.out",
-          "to": "rValid",
+          "to": "io.in",
           "bundle": "Decoupled_in",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 71,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rData",
-          "bundle": "Decoupled_in",
-          "label": "",
+          "label": "5× ground connects",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 72,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rTag",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 73,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rFlags",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 74,
             "col": 22
           }
         }
@@ -413,101 +291,13 @@
       "children": [],
       "wires": [
         {
-          "from": "io.in",
-          "to": "_io_in_ready_T_3",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 50,
-            "col": 15
-          }
-        },
-        {
-          "from": "rData",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 62,
-            "col": 12
-          }
-        },
-        {
-          "from": "rTag",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 63,
-            "col": 12
-          }
-        },
-        {
-          "from": "rFlags",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 64,
-            "col": 12
-          }
-        },
-        {
-          "from": "rValid",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 65,
-            "col": 12
-          }
-        },
-        {
           "from": "io.out",
-          "to": "rValid",
+          "to": "io.in",
           "bundle": "Decoupled_in",
-          "label": "2× ground connects",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 71,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rData",
-          "bundle": "Decoupled_in",
-          "label": "",
+          "label": "5× ground connects",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
             "line": 72,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rTag",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 73,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "rFlags",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 74,
             "col": 22
           }
         }
@@ -563,63 +353,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "MPORT",
-          "to": "io.enq",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 87,
-            "col": 24
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 102,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.enq",
-          "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 103,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 110,
-            "col": 17
-          }
-        },
-        {
-          "from": "io.count",
-          "to": "_io_count_T_2",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 129,
-            "col": 14
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 3,
         "wires": 13,
@@ -723,105 +457,6 @@
       ],
       "wires": [
         {
-          "from": "ctrl.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "ctrl.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "stage0.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "stage0.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "stage1.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "stage1.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mid.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mid.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "ctrl.io",
-          "to": "io.hint",
-          "bundle": "Io",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 141,
-            "col": 16
-          }
-        },
-        {
           "from": "stage0.io.in",
           "to": "io.in",
           "bundle": "Decoupled_in",
@@ -833,35 +468,24 @@
           }
         },
         {
-          "from": "stage0.io.enable",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
+          "from": "stage1.io.out",
+          "to": "io.out",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
-            "line": 145,
-            "col": 20
+            "line": 158,
+            "col": 10
           }
         },
         {
-          "from": "stage0.io.flush",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
+          "from": "stage1.io.in",
+          "to": "mid.io.deq",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
-            "line": 146,
-            "col": 20
-          }
-        },
-        {
-          "from": "stage0.io.stall",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 147,
+            "line": 153,
             "col": 20
           }
         },
@@ -877,50 +501,6 @@
           }
         },
         {
-          "from": "stage1.io.in",
-          "to": "mid.io.deq",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 153,
-            "col": 20
-          }
-        },
-        {
-          "from": "stage1.io.enable",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 154,
-            "col": 20
-          }
-        },
-        {
-          "from": "stage1.io.flush",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 155,
-            "col": 20
-          }
-        },
-        {
-          "from": "stage1.io.stall",
-          "to": "ctrl.io",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 156,
-            "col": 20
-          }
-        },
-        {
           "from": "io.out",
           "to": "stage1.io.out",
           "bundle": "Decoupled_in",
@@ -932,15 +512,184 @@
           }
         },
         {
-          "from": "stage1.io.out",
-          "to": "io.out",
-          "bundle": "Decoupled_in",
+          "from": "ctrl.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mid.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage0.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage1.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage0.io.enable",
+          "to": "ctrl.io.enable",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
             "file": "example/src/regheavy/Datapath.scala",
-            "line": 158,
-            "col": 10
-          }
+            "line": 145,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage1.io.enable",
+          "to": "ctrl.io.enable",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 154,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage0.io.flush",
+          "to": "ctrl.io.flush",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 146,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage1.io.flush",
+          "to": "ctrl.io.flush",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 155,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage0.io.stall",
+          "to": "ctrl.io.stall",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 147,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage1.io.stall",
+          "to": "ctrl.io.stall",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 156,
+            "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ctrl.io.hint",
+          "to": "io.hint",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 141,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ctrl.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mid.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage0.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "stage1.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {

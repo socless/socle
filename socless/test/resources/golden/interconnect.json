@@ -163,52 +163,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "io.req",
-          "to": "_io_req_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 54,
-            "col": 16
-          }
-        },
-        {
-          "from": "reg",
-          "to": "io.req",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.ack",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 62,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.busy",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 63,
-            "col": 11
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 2,
         "wires": 6,
@@ -260,52 +215,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "io.req",
-          "to": "_io_req_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 54,
-            "col": 16
-          }
-        },
-        {
-          "from": "reg",
-          "to": "io.req",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.ack",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 62,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.busy",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 63,
-            "col": 11
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 2,
         "wires": 6,
@@ -357,52 +267,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "io.req",
-          "to": "_io_req_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 54,
-            "col": 16
-          }
-        },
-        {
-          "from": "reg",
-          "to": "io.req",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.ack",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 62,
-            "col": 11
-          }
-        },
-        {
-          "from": "io.busy",
-          "to": "valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 63,
-            "col": 11
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 2,
         "wires": 6,
@@ -456,96 +321,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "valids[0]",
-          "to": "io.in[0]",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 77,
-            "col": 25
-          }
-        },
-        {
-          "from": "valids[1]",
-          "to": "io.in[1]",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 77,
-            "col": 25
-          }
-        },
-        {
-          "from": "valids[2]",
-          "to": "io.in[2]",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 77,
-            "col": 25
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "anyValid",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 81,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "_io_out_bits_T_5",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 82,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.in[0]",
-          "to": "_io_in_0_ready_T_2",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 86,
-            "col": 20
-          }
-        },
-        {
-          "from": "io.in[1]",
-          "to": "_io_in_1_ready_T_2",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 86,
-            "col": 20
-          }
-        },
-        {
-          "from": "io.in[2]",
-          "to": "_io_in_2_ready_T_2",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 86,
-            "col": 20
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 0,
         "wires": 8,
@@ -597,63 +373,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "MPORT",
-          "to": "io.enq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 87,
-            "col": 24
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 102,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.enq",
-          "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 103,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 110,
-            "col": 17
-          }
-        },
-        {
-          "from": "io.count",
-          "to": "_io_count_T_2",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 129,
-            "col": 14
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 3,
         "wires": 13,
@@ -706,63 +426,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "MPORT",
-          "to": "io.enq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 87,
-            "col": 24
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 102,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.enq",
-          "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 103,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 110,
-            "col": 17
-          }
-        },
-        {
-          "from": "io.count",
-          "to": "_io_count_T_2",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 129,
-            "col": 14
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 3,
         "wires": 13,
@@ -815,63 +479,7 @@
         }
       ],
       "children": [],
-      "wires": [
-        {
-          "from": "MPORT",
-          "to": "io.enq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 87,
-            "col": 24
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "_io_deq_valid_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 102,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.enq",
-          "to": "_io_enq_ready_T",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 103,
-            "col": 16
-          }
-        },
-        {
-          "from": "io.deq",
-          "to": "io_deq_bits_MPORT",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 110,
-            "col": 17
-          }
-        },
-        {
-          "from": "io.count",
-          "to": "_io_count_T_2",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 129,
-            "col": 14
-          }
-        }
-      ],
+      "wires": [],
       "metrics": {
         "registers": 3,
         "wires": 13,
@@ -1011,146 +619,14 @@
       ],
       "wires": [
         {
-          "from": "endpoints_0.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "endpoints_0.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "endpoints_1.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "endpoints_1.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "endpoints_2.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "endpoints_2.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "agg.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "agg.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q.io.enq",
-          "to": "io.in[0]",
+          "from": "io.out[0]",
+          "to": "agg.io.out",
           "bundle": "Decoupled_req",
-          "label": "",
+          "label": "2× ground connects",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
-            "line": 127,
-            "col": 27
-          }
-        },
-        {
-          "from": "endpoints_0.io.req",
-          "to": "q.io.deq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 128,
-            "col": 27
-          }
-        },
-        {
-          "from": "agg.io.in[0]",
-          "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 132,
-            "col": 27
+            "line": 140,
+            "col": 13
           }
         },
         {
@@ -1176,61 +652,6 @@
           }
         },
         {
-          "from": "q_1.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q_1.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q_1.io.enq",
-          "to": "io.in[1]",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 127,
-            "col": 27
-          }
-        },
-        {
-          "from": "endpoints_1.io.req",
-          "to": "q_1.io.deq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 128,
-            "col": 27
-          }
-        },
-        {
-          "from": "agg.io.in[1]",
-          "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 132,
-            "col": 27
-          }
-        },
-        {
           "from": "io.ack[1]",
           "to": "endpoints_1.io.ack",
           "bundle": "UInt<1>",
@@ -1250,61 +671,6 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 136,
             "col": 16
-          }
-        },
-        {
-          "from": "q_2.clock",
-          "to": "clock",
-          "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q_2.reset",
-          "to": "reset",
-          "bundle": "Reset",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "q_2.io.enq",
-          "to": "io.in[2]",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 127,
-            "col": 27
-          }
-        },
-        {
-          "from": "endpoints_2.io.req",
-          "to": "q_2.io.deq",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 128,
-            "col": 27
-          }
-        },
-        {
-          "from": "agg.io.in[2]",
-          "to": "UInt<1>(0h0)",
-          "bundle": "Decoupled_req",
-          "label": "",
-          "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 132,
-            "col": 27
           }
         },
         {
@@ -1330,14 +696,36 @@
           }
         },
         {
-          "from": "io.out[0]",
-          "to": "agg.io.out",
+          "from": "q.io.enq",
+          "to": "io.in[0]",
           "bundle": "Decoupled_req",
-          "label": "2× ground connects",
+          "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
-            "line": 140,
-            "col": 13
+            "line": 127,
+            "col": 27
+          }
+        },
+        {
+          "from": "q_1.io.enq",
+          "to": "io.in[1]",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 127,
+            "col": 27
+          }
+        },
+        {
+          "from": "q_2.io.enq",
+          "to": "io.in[2]",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 127,
+            "col": 27
           }
         },
         {
@@ -1352,26 +740,205 @@
           }
         },
         {
-          "from": "io.out[1]",
-          "to": "UInt<1>(0h0)",
+          "from": "endpoints_0.io.req",
+          "to": "q.io.deq",
           "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
-            "line": 144,
-            "col": 21
+            "line": 128,
+            "col": 27
           }
         },
         {
-          "from": "io.out[2]",
-          "to": "UInt<1>(0h0)",
+          "from": "endpoints_1.io.req",
+          "to": "q_1.io.deq",
           "bundle": "Decoupled_req",
           "label": "",
           "source": {
             "file": "example/src/iobundles/Interconnect.scala",
-            "line": 144,
-            "col": 21
+            "line": 128,
+            "col": 27
           }
+        },
+        {
+          "from": "endpoints_2.io.req",
+          "to": "q_2.io.deq",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 128,
+            "col": 27
+          }
+        },
+        {
+          "from": "agg.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_0.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_1.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_2.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q_1.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q_2.clock",
+          "to": "clock",
+          "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "agg.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_0.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_1.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "endpoints_2.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q_1.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "q_2.reset",
+          "to": "reset",
+          "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {

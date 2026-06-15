@@ -1,1 +1,4 @@
 layout GCD
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  edge io.out -> io.in

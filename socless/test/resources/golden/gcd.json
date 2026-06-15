@@ -93,52 +93,8 @@
       "children": [],
       "wires": [
         {
-          "from": "io.in",
-          "to": "_io_in_ready_T",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 35,
-            "col": 15
-          }
-        },
-        {
-          "from": "x",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 37,
-            "col": 10
-          }
-        },
-        {
-          "from": "y",
-          "to": "io.in",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 38,
-            "col": 10
-          }
-        },
-        {
           "from": "io.out",
-          "to": "_io_out_valid_T_1",
-          "bundle": "Decoupled_out",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 48,
-            "col": 22
-          }
-        },
-        {
-          "from": "io.out",
-          "to": "x",
+          "to": "io.in",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
