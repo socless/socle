@@ -17,8 +17,9 @@ import scala.collection.mutable
   *   - register declarations (reg, regreset) counted per module
   *   - memory declarations (mem, cmem, smem) counted per module
   *
-  * Out of scope (ignored without error): when blocks, wires/nodes, ops.
-  * The exporter doesn't need them - they don't change topology.
+  * Out of scope (ignored without error): when blocks, wires, ops.
+  * Node declarations (node <name> = <expr>) ARE parsed into NodeDecl and
+  * accumulated in Mod.nodes; when blocks and raw wires are still skipped.
   */
 object ChirrtlParser {
 
@@ -52,6 +53,15 @@ object ChirrtlParser {
     */
   case class MemDecl(name: String, src: Option[SrcInfo])
 
+  /** A node declaration inside a module body: `node <name> = <expr>`.
+    *
+    * `op` is the leading primop keyword (e.g. "add", "mux", "bits"); it is ""
+    * when the rhs is a bare reference or literal (a simple alias node).
+    * `operands` are the top-level argument tokens - a reference, a literal, or
+    * a nested expression rendered as text.
+    */
+  case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo])
+
   case class Mod(
     name: String,
     kind: String,    // "module" | "extmodule" | "intmodule"
@@ -68,6 +78,7 @@ object ChirrtlParser {
     // because clock/reset and expression-only inputs never appear in a connect
     // yet are clearly used (issue #74).
     refs: Set[String] = Set.empty,
+    nodes: Seq[NodeDecl] = Seq.empty,
   )
   case class Circ(name: String, modules: Seq[Mod], warnings: Seq[Warning] = Seq.empty)
 
@@ -106,16 +117,17 @@ object ChirrtlParser {
     val curRegs                   = mutable.Buffer.empty[RegDecl]
     val curMems                   = mutable.Buffer.empty[MemDecl]
     val curRefs                   = mutable.Set.empty[String]
+    val curNodes                  = mutable.Buffer.empty[NodeDecl]
 
     def flush(): Unit = curMod.foreach { name =>
       modules += Mod(
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
-        curRegs.toSeq, curMems.toSeq, curRefs.toSet,
+        curRegs.toSeq, curMems.toSeq, curRefs.toSet, curNodes.toSeq,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
-      curRegs.clear(); curMems.clear(); curRefs.clear()
+      curRegs.clear(); curMems.clear(); curRefs.clear(); curNodes.clear()
     }
 
     // Collect referenced identifiers (used to detect which ports are actually
@@ -179,13 +191,14 @@ object ChirrtlParser {
               case Some(i: Inst)    => curInsts += i
               // Connects reference exactly their two endpoint expressions.
               case Some(c: Conn)    => curConns += c; collectRefs(c.lhs); collectRefs(c.rhs)
-              case Some(r: RegDecl) => curRegs += r; collectRefs(other)
-              case Some(m: MemDecl) => curMems += m; collectRefs(other)
+              case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
+              case Some(m: MemDecl)  => curMems += m; collectRefs(other)
+              case Some(n: NodeDecl) => curNodes += n; collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
                 else if (t.startsWith("attach")) skippedAttach += 1
-                collectRefs(other) // nodes, whens, ops, etc.
+                collectRefs(other) // whens, ops, etc.
             }
           } catch {
             case _: Exception => () // skip malformed line, keep going
@@ -213,7 +226,7 @@ object ChirrtlParser {
   // Each statement may carry one or more `@[...]` source markers - Chisel 7
   // attaches them per parent macro frame. We accept zero-or-more and parse
   // only the first (innermost). Stmt lines we don't recognize are dropped
-  // without error; the exporter doesn't need wires/nodes/whens/ops.
+  // without error; the exporter doesn't need raw wires, when blocks, or ops.
   private val PortRe = """^\s+(input|output)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   private val InstRe = """^\s+inst\s+([\w$]+)\s+of\s+([\w$]+)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   // Chisel 7 emits `connect lhs, rhs` (was `lhs <= rhs` in older versions).
@@ -245,6 +258,36 @@ object ChirrtlParser {
   private val MemRe =
     """^\s+(?:cmem|smem|mem)\s+([\w$]+)\s*[:\s](.*?)((?:@\[[^\]]*\]\s*)*)$""".r
 
+  // Node declarations: node <name> = <expr>  @[...]
+  private val NodeRe =
+    """^\s+node\s+([\w$]+)\s*=\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+  // Matches a primop call: <op>(<args>)
+  private val CallRe = """^([\w$]+)\((.*)\)$""".r
+
+  /** Split a primop argument list at top-level commas only (ignores commas
+    * inside nested parens, angle brackets, or square brackets). Trims each
+    * token and drops empties. */
+  private def splitTopLevel(args: String): Seq[String] = {
+    val out   = mutable.ListBuffer.empty[String]
+    val sb    = new StringBuilder
+    var depth = 0
+    args.foreach {
+      case c @ ('(' | '<' | '[') => depth += 1; sb += c
+      case c @ (')' | '>' | ']') => depth -= 1; sb += c
+      case ',' if depth == 0     => out += sb.toString.trim; sb.clear()
+      case c                     => sb += c
+    }
+    if (sb.nonEmpty) out += sb.toString.trim
+    out.toList.filter(_.nonEmpty)
+  }
+
+  /** Parse a node rhs expression into (op, operands). A bare reference or
+    * literal yields ("", Seq(expr)). */
+  private def parseNodeExpr(expr: String): (String, Seq[String]) = expr.trim match {
+    case CallRe(op, args) => (op, splitTopLevel(args))
+    case bare             => ("", Seq(bare))
+  }
+
   private def parseStmt(line: String): Option[AnyRef] = line match {
     case PortRe(dir, name, typeStr, srcOpt) =>
       val (tpe, _) = parseType(typeStr)
@@ -261,6 +304,9 @@ object ChirrtlParser {
       Some(RegDecl(name, tpe, parseSrc(Option(srcOpt))))
     case MemRe(name, _, srcOpt) =>
       Some(MemDecl(name, parseSrc(Option(srcOpt))))
+    case NodeRe(name, expr, srcOpt) =>
+      val (op, operands) = parseNodeExpr(expr)
+      Some(NodeDecl(name, op, operands, parseSrc(Option(srcOpt))))
     case _ => None
   }
 

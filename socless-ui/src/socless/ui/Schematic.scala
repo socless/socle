@@ -91,16 +91,36 @@ object Schematic {
   private def ownerBoxId(boxById: Map[String, LaidNodeR], path: String): String =
     if (boxById.contains(path)) path else path.split('.').headOption.getOrElse(path)
 
-  /** Strip a trailing `~q` from the HEAD segment of a pin label/path so a
-    * register's Q output pin reads `r` (not `r~q`) and `r~q.bits` reads `r.bits`.
-    * The `~q` suffix is an encoding artifact (issue #188 B1) and must never reach
-    * the user. Only a head-segment `~q` is stripped, never a literal mid-string. */
-  private def stripQ(label: String): String = {
-    if (label == null || label.isEmpty) return label
-    val dot  = label.indexOf('.')
-    val head = if (dot < 0) label else label.substring(0, dot)
-    val rest = if (dot < 0) "" else label.substring(dot)
-    if (head.endsWith("~q")) head.dropRight(2) + rest else label
+  // Shared op/register label helpers (`stripQ`, `OpInRe`, `inRole`) live in
+  // [[LogicLabels]] so the Inspector agrees with the schematic (issue #188 B2).
+  import LogicLabels.{OpInRe, stripQ, inRole}
+
+  /** The glyph shown in an op node's box, chosen from its CHIRRTL primop. Unknown
+    * ops fall back to the raw op text so nothing renders blank. */
+  private def opGlyph(op: String): String = op match {
+    case "add"  => "+"
+    case "sub"  => "-"
+    case "mul"  => "×"
+    case "div"  => "÷"
+    case "rem"  => "%"
+    case "neg"  => "-"
+    case "lt"   => "<"
+    case "leq"  => "≤"
+    case "gt"   => ">"
+    case "geq"  => "≥"
+    case "eq"   => "="
+    case "neq"  => "≠"
+    case "and"  => "&"
+    case "or"   => "|"
+    case "xor"  => "^"
+    case "not"  => "~"
+    case "andr" => "&r"
+    case "orr"  => "|r"
+    case "xorr" => "^r"
+    case "shl" | "dshl" => "<<"
+    case "shr" | "dshr" => ">>"
+    case "mux"  => "mux"
+    case other  => if (other.nonEmpty) other else "?"
   }
 
   private def computeBoxShift(layout: LaidOut, rows: Map[String, RowModel.BoxRows]): BoxShift = {
@@ -369,6 +389,9 @@ object Schematic {
         val top   = n.y + shift
         if (n.kind == "reg") regBox(g, n, top, boxActive(n.id), sel, hov)
         else if (n.kind == "const") constTag(g, n, top, boxActive(n.id))
+        // Op nodes have no `children` entry, so (like reg/const) they must be
+        // intercepted before the childless-boundary arm below (issue #188 B2).
+        else if (n.kind == "op") opBox(g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
@@ -539,6 +562,59 @@ object Schematic {
       )
     }
 
+    // ── combinational op node (issue #188 B2) ──
+    // An instance-style box like a register, but the header badge shows the op
+    // glyph (`+`, `<`, `mux`, ...) and the WEST input pins are role-labelled
+    // (`sel`/`a`/`b`/`amt`) instead of the raw `~in<i>` encoding.
+    def opBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
+              sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
+      val c            = g.c
+      val op           = g.mod.logic.find(_.id == n.id).map(_.op).getOrElse("")
+      val glyph        = opGlyph(op)
+      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
+      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
+      val borderCol    = if (selectedHere) Tokens.accent else Tokens.border
+      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}" else "0 1px 2px rgba(0,0,0,.04)"
+      // Role-label each WEST input row by its `~in<i>` index, falling back to the
+      // generic stripQ cleanup for any pin that doesn't match (defensive).
+      val westRoled = boxInfo.westRows.map { r =>
+        r.path match {
+          case OpInRe(_, i) => r.copy(label = inRole(op, i.toInt))
+          case _            => r
+        }
+      }
+      // Tooltip must match the visible role label (issue #188 B2): the row's
+      // `path` is still the raw `<id>~in<i>`, so stripQ alone would show `in<i>`.
+      def westTitle(r: RowModel.Row): String = r.path match {
+        case OpInRe(_, i) => inRole(op, i.toInt)
+        case _            => stripQ(r.path)
+      }
+      div(
+        dataAttr("logic-node") := n.id,
+        dataAttr("box-inst") := n.id,
+        dataAttr("pan-block") := "1",
+        title := (if (op.nonEmpty) s"op $op" else "op"),
+        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+          s"opacity:${if (active) "1" else "0.18"};" +
+          s"background:${Tokens.panel};border:1px solid $borderCol;border-radius:6px;" +
+          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
+          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+        // header
+        div(
+          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
+            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+          onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
+          span(styleAttr := s"width:14px;display:inline-flex;justify-content:center;font-weight:700;color:${if (selectedHere) Tokens.accent else Tokens.ink2};font-size:11px;font-family:${Tokens.mono}", glyph),
+          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
+          div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
+            span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px", "op")),
+        ),
+        // port rows (WEST inputs role-labelled, EAST output unchanged)
+        renderPortRows(g, n, westRoled, "WEST", sel, hov, westTitle),
+        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
+      )
+    }
+
     // ── constant node (issue #188 B1) ──
     // A compact rounded-rect tag showing the literal value (the laid node's, or
     // `g.mod.logic` label by id).
@@ -595,7 +671,8 @@ object Schematic {
 
     // ── port rows inside an instance box ──
     def renderPortRows(g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String,
-                       sel: Option[String], hov: Option[String]): Seq[ReactiveElement.Base] = {
+                       sel: Option[String], hov: Option[String],
+                       titleOf: RowModel.Row => String = r => stripQ(r.path)): Seq[ReactiveElement.Base] = {
       val c = g.c
       val isWest = side == "WEST"
       rows.zipWithIndex.map { case (row, rowIdx) =>
@@ -611,7 +688,7 @@ object Schematic {
           val pinBg  = if (pinSel) Tokens.accent else if (pinHov) Tokens.ink else if (isInterface) Tokens.accent else Tokens.ink3
           val labelSide = if (isWest) s"left:${pw + 4 + indentPx}px" else s"right:${pw + 4 + indentPx}px"
           div(
-            div(title := stripQ(row.path),
+            div(title := titleOf(row),
               styleAttr := s"position:absolute;left:${pinAbsX - pw / 2.0}px;top:${rowY - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
                 s"background:$pinBg;border-radius:${if (isInterface) 3 else 1}px;" +
                 (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px;" else "") + "transition:background .12s"),
@@ -625,7 +702,7 @@ object Schematic {
               if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
               if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
                 child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-              span(title := stripQ(row.path), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
+              span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
             ),
           )
         } else {
@@ -640,7 +717,7 @@ object Schematic {
             if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
             if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
               child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-            span(title := stripQ(row.path), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
+            span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
             row.dir match {
               case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == "out") "→" else "←")
               case None    => emptyNode

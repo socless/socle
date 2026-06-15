@@ -117,6 +117,7 @@ object LayoutCore {
       // is never dropped (issue #188 B1).
       val regIds   = module.logic.iterator.filter(_.kind == "reg").map(_.id).toSet
       val constIds = module.logic.iterator.filter(_.kind == "const").map(_.id).toSet
+      val opIds    = module.logic.iterator.filter(_.kind == "op").map(_.id).toSet
       def regIface(id: String): Boolean =
         module.logic.find(n => n.id == id && n.kind == "reg").exists(n => isInterfaceBundle(n.bundle, design))
       val rawHead = stripIdx(parts.head)
@@ -126,6 +127,11 @@ object LayoutCore {
         return Some(Endpoint(rawHead, "reg", path, "WEST", regIface(rawHead)))
       if (constIds.contains(rawHead))
         return Some(Endpoint(rawHead, "const", path, "EAST", false))
+      val inIdx = rawHead.indexOf("~in")
+      if (inIdx > 0 && opIds.contains(rawHead.substring(0, inIdx)))
+        return Some(Endpoint(rawHead.substring(0, inIdx), "op", path, "WEST", false))
+      if (opIds.contains(rawHead))
+        return Some(Endpoint(rawHead, "op", path, "EAST", false))
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
         // grouped under the port head. A single shared node would force all of

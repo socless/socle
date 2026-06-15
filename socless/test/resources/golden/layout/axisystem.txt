@@ -6,6 +6,9 @@ layout AXICrossbar
   edge io.out[0] -> io.in[0]
   edge io.out[1] -> io.in[1]
 layout AXIMaster
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _idCnt_T kind=op pins=_idCnt_T:EAST,_idCnt_T~in0:WEST,_idCnt_T~in1:WEST
+  node const$_idCnt_T~in1 kind=const pins=const$_idCnt_T~in1:EAST
   node const$io_ar_bits_burst kind=const pins=const$io_ar_bits_burst:EAST
   node const$io_ar_bits_cache kind=const pins=const$io_ar_bits_cache:EAST
   node const$io_ar_bits_len kind=const pins=const$io_ar_bits_len:EAST
@@ -17,7 +20,7 @@ layout AXIMaster
   node const$io_w_valid kind=const pins=const$io_w_valid:EAST
   node const$txQ_io_enq_bits kind=const pins=const$txQ_io_enq_bits:EAST
   node const$txQ_io_enq_valid kind=const pins=const$txQ_io_enq_valid:EAST
-  node idCnt kind=reg pins=idCnt~q:EAST
+  node idCnt kind=reg pins=idCnt:WEST,idCnt~q:EAST
   node io.ar.bits.addr kind=boundary pins=io.ar.bits.addr:WEST:iface
   node io.ar.bits.burst kind=boundary pins=io.ar.bits.burst:WEST:iface
   node io.ar.bits.cache kind=boundary pins=io.ar.bits.cache:WEST:iface
@@ -32,6 +35,11 @@ layout AXIMaster
   node io.r kind=boundary pins=io.r:WEST:iface
   node io.w kind=boundary pins=io.w:WEST:iface
   node txQ kind=inst pins=txQ.io.deq.bits:EAST:iface,txQ.io.deq.ready:WEST:iface,txQ.io.deq.valid:EAST:iface,txQ.io.enq.bits:WEST:iface,txQ.io.enq.valid:WEST:iface
+  edge _T~in0 -> io.ar.ready
+  edge _T~in1 -> io.ar.valid
+  edge _idCnt_T~in0 -> idCnt~q
+  edge _idCnt_T~in1 -> const$_idCnt_T~in1
+  edge idCnt -> _idCnt_T
   edge io.ar.bits.addr -> txQ.io.deq.bits
   edge io.ar.bits.burst -> const$io_ar_bits_burst
   edge io.ar.bits.cache -> const$io_ar_bits_cache
@@ -83,25 +91,169 @@ layout AXISystem
   edge xbar.io.in[0] -> cpu.io
   edge xbar.io.in[1] -> dma.io
 layout Queue4_R
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST
+  node _do_enq_T kind=op pins=_do_enq_T:EAST,_do_enq_T~in0:WEST,_do_enq_T~in1:WEST
+  node _empty_T kind=op pins=_empty_T:EAST,_empty_T~in0:WEST,_empty_T~in1:WEST
+  node _io_count_T kind=op pins=_io_count_T:EAST,_io_count_T~in0:WEST,_io_count_T~in1:WEST
+  node _io_count_T_1 kind=op pins=_io_count_T_1:EAST,_io_count_T_1~in0:WEST,_io_count_T_1~in1:WEST,_io_count_T_1~in2:WEST
+  node _io_count_T_2 kind=op pins=_io_count_T_2:EAST,_io_count_T_2~in0:WEST,_io_count_T_2~in1:WEST
+  node _io_deq_valid_T kind=op pins=_io_deq_valid_T:EAST,_io_deq_valid_T~in0:WEST,_io_deq_valid_T~in1:WEST
+  node _io_enq_ready_T kind=op pins=_io_enq_ready_T:EAST,_io_enq_ready_T~in0:WEST,_io_enq_ready_T~in1:WEST
+  node _ptr_diff_T kind=op pins=_ptr_diff_T:EAST,_ptr_diff_T~in0:WEST,_ptr_diff_T~in1:WEST
+  node _value_T kind=op pins=_value_T:EAST,_value_T~in0:WEST,_value_T~in1:WEST
+  node _value_T_2 kind=op pins=_value_T_2:EAST,_value_T_2~in0:WEST,_value_T_2~in1:WEST
+  node const$_empty_T~in1 kind=const pins=const$_empty_T~in1:EAST
+  node const$_io_count_T_1~in1 kind=const pins=const$_io_count_T_1~in1:EAST
+  node const$_io_count_T_1~in2 kind=const pins=const$_io_count_T_1~in2:EAST
+  node const$_io_deq_valid_T~in1 kind=const pins=const$_io_deq_valid_T~in1:EAST
+  node const$_io_enq_ready_T~in1 kind=const pins=const$_io_enq_ready_T~in1:EAST
+  node const$_value_T_2~in1 kind=const pins=const$_value_T_2~in1:EAST
+  node const$_value_T~in1 kind=const pins=const$_value_T~in1:EAST
   node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
   node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
   node const$maybe_full kind=const pins=const$maybe_full:EAST
-  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST
-  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST
-  node maybe_full kind=reg pins=maybe_full:WEST
+  node const$wrap_1~in1 kind=const pins=const$wrap_1~in1:EAST
+  node const$wrap~in1 kind=const pins=const$wrap~in1:EAST
+  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST,deq_ptr_value~q:EAST
+  node empty kind=op pins=empty:EAST,empty~in0:WEST,empty~in1:WEST
+  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST,enq_ptr_value~q:EAST
+  node full kind=op pins=full:EAST,full~in0:WEST,full~in1:WEST
+  node io.count kind=boundary pins=io.count:WEST:iface
+  node io.deq.ready kind=boundary pins=io.deq.ready:EAST:iface
+  node io.deq.valid kind=boundary pins=io.deq.valid:WEST:iface
+  node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
+  node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
+  node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
+  node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
+  node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
+  node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
+  edge _T~in0 -> _do_enq_T
+  edge _T~in1 -> _do_deq_T
+  edge _do_deq_T~in0 -> io.deq.ready
+  edge _do_deq_T~in1 -> io.deq.valid
+  edge _do_enq_T~in0 -> io.enq.ready
+  edge _do_enq_T~in1 -> io.enq.valid
+  edge _empty_T~in0 -> maybe_full~q
+  edge _empty_T~in1 -> const$_empty_T~in1
+  edge _io_count_T_1~in0 -> _io_count_T
+  edge _io_count_T_1~in1 -> const$_io_count_T_1~in1
+  edge _io_count_T_1~in2 -> const$_io_count_T_1~in2
+  edge _io_count_T_2~in0 -> _io_count_T_1
+  edge _io_count_T_2~in1 -> _ptr_diff_T
+  edge _io_count_T~in0 -> maybe_full~q
+  edge _io_count_T~in1 -> ptr_match
+  edge _io_deq_valid_T~in0 -> empty
+  edge _io_deq_valid_T~in1 -> const$_io_deq_valid_T~in1
+  edge _io_enq_ready_T~in0 -> full
+  edge _io_enq_ready_T~in1 -> const$_io_enq_ready_T~in1
+  edge _ptr_diff_T~in0 -> enq_ptr_value~q
+  edge _ptr_diff_T~in1 -> deq_ptr_value~q
+  edge _value_T_2~in0 -> deq_ptr_value~q
+  edge _value_T_2~in1 -> const$_value_T_2~in1
+  edge _value_T~in0 -> enq_ptr_value~q
+  edge _value_T~in1 -> const$_value_T~in1
+  edge deq_ptr_value -> _value_T_2
   edge deq_ptr_value -> const$deq_ptr_value
+  edge empty~in0 -> ptr_match
+  edge empty~in1 -> _empty_T
+  edge enq_ptr_value -> _value_T
   edge enq_ptr_value -> const$enq_ptr_value
+  edge full~in0 -> ptr_match
+  edge full~in1 -> maybe_full~q
+  edge io.count -> _io_count_T_2
+  edge io.deq.valid -> _io_deq_valid_T
+  edge io.enq.ready -> _io_enq_ready_T
+  edge maybe_full -> _do_enq_T
   edge maybe_full -> const$maybe_full
+  edge ptr_match~in0 -> enq_ptr_value~q
+  edge ptr_match~in1 -> deq_ptr_value~q
+  edge wrap_1~in0 -> deq_ptr_value~q
+  edge wrap_1~in1 -> const$wrap_1~in1
+  edge wrap~in0 -> enq_ptr_value~q
+  edge wrap~in1 -> const$wrap~in1
 layout Queue8_UInt32
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST
+  node _do_enq_T kind=op pins=_do_enq_T:EAST,_do_enq_T~in0:WEST,_do_enq_T~in1:WEST
+  node _empty_T kind=op pins=_empty_T:EAST,_empty_T~in0:WEST,_empty_T~in1:WEST
+  node _io_count_T kind=op pins=_io_count_T:EAST,_io_count_T~in0:WEST,_io_count_T~in1:WEST
+  node _io_count_T_1 kind=op pins=_io_count_T_1:EAST,_io_count_T_1~in0:WEST,_io_count_T_1~in1:WEST,_io_count_T_1~in2:WEST
+  node _io_count_T_2 kind=op pins=_io_count_T_2:EAST,_io_count_T_2~in0:WEST,_io_count_T_2~in1:WEST
+  node _io_deq_valid_T kind=op pins=_io_deq_valid_T:EAST,_io_deq_valid_T~in0:WEST,_io_deq_valid_T~in1:WEST
+  node _io_enq_ready_T kind=op pins=_io_enq_ready_T:EAST,_io_enq_ready_T~in0:WEST,_io_enq_ready_T~in1:WEST
+  node _ptr_diff_T kind=op pins=_ptr_diff_T:EAST,_ptr_diff_T~in0:WEST,_ptr_diff_T~in1:WEST
+  node _value_T kind=op pins=_value_T:EAST,_value_T~in0:WEST,_value_T~in1:WEST
+  node _value_T_2 kind=op pins=_value_T_2:EAST,_value_T_2~in0:WEST,_value_T_2~in1:WEST
+  node const$_empty_T~in1 kind=const pins=const$_empty_T~in1:EAST
+  node const$_io_count_T_1~in1 kind=const pins=const$_io_count_T_1~in1:EAST
+  node const$_io_count_T_1~in2 kind=const pins=const$_io_count_T_1~in2:EAST
+  node const$_io_deq_valid_T~in1 kind=const pins=const$_io_deq_valid_T~in1:EAST
+  node const$_io_enq_ready_T~in1 kind=const pins=const$_io_enq_ready_T~in1:EAST
+  node const$_value_T_2~in1 kind=const pins=const$_value_T_2~in1:EAST
+  node const$_value_T~in1 kind=const pins=const$_value_T~in1:EAST
   node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
   node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
   node const$maybe_full kind=const pins=const$maybe_full:EAST
-  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST
-  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST
-  node maybe_full kind=reg pins=maybe_full:WEST
+  node const$wrap_1~in1 kind=const pins=const$wrap_1~in1:EAST
+  node const$wrap~in1 kind=const pins=const$wrap~in1:EAST
+  node deq_ptr_value kind=reg pins=deq_ptr_value:WEST,deq_ptr_value~q:EAST
+  node empty kind=op pins=empty:EAST,empty~in0:WEST,empty~in1:WEST
+  node enq_ptr_value kind=reg pins=enq_ptr_value:WEST,enq_ptr_value~q:EAST
+  node full kind=op pins=full:EAST,full~in0:WEST,full~in1:WEST
+  node io.count kind=boundary pins=io.count:WEST:iface
+  node io.deq.ready kind=boundary pins=io.deq.ready:EAST:iface
+  node io.deq.valid kind=boundary pins=io.deq.valid:WEST:iface
+  node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
+  node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
+  node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
+  node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
+  node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
+  node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
+  edge _T~in0 -> _do_enq_T
+  edge _T~in1 -> _do_deq_T
+  edge _do_deq_T~in0 -> io.deq.ready
+  edge _do_deq_T~in1 -> io.deq.valid
+  edge _do_enq_T~in0 -> io.enq.ready
+  edge _do_enq_T~in1 -> io.enq.valid
+  edge _empty_T~in0 -> maybe_full~q
+  edge _empty_T~in1 -> const$_empty_T~in1
+  edge _io_count_T_1~in0 -> _io_count_T
+  edge _io_count_T_1~in1 -> const$_io_count_T_1~in1
+  edge _io_count_T_1~in2 -> const$_io_count_T_1~in2
+  edge _io_count_T_2~in0 -> _io_count_T_1
+  edge _io_count_T_2~in1 -> _ptr_diff_T
+  edge _io_count_T~in0 -> maybe_full~q
+  edge _io_count_T~in1 -> ptr_match
+  edge _io_deq_valid_T~in0 -> empty
+  edge _io_deq_valid_T~in1 -> const$_io_deq_valid_T~in1
+  edge _io_enq_ready_T~in0 -> full
+  edge _io_enq_ready_T~in1 -> const$_io_enq_ready_T~in1
+  edge _ptr_diff_T~in0 -> enq_ptr_value~q
+  edge _ptr_diff_T~in1 -> deq_ptr_value~q
+  edge _value_T_2~in0 -> deq_ptr_value~q
+  edge _value_T_2~in1 -> const$_value_T_2~in1
+  edge _value_T~in0 -> enq_ptr_value~q
+  edge _value_T~in1 -> const$_value_T~in1
+  edge deq_ptr_value -> _value_T_2
   edge deq_ptr_value -> const$deq_ptr_value
+  edge empty~in0 -> ptr_match
+  edge empty~in1 -> _empty_T
+  edge enq_ptr_value -> _value_T
   edge enq_ptr_value -> const$enq_ptr_value
+  edge full~in0 -> ptr_match
+  edge full~in1 -> maybe_full~q
+  edge io.count -> _io_count_T_2
+  edge io.deq.valid -> _io_deq_valid_T
+  edge io.enq.ready -> _io_enq_ready_T
+  edge maybe_full -> _do_enq_T
   edge maybe_full -> const$maybe_full
+  edge ptr_match~in0 -> enq_ptr_value~q
+  edge ptr_match~in1 -> deq_ptr_value~q
+  edge wrap_1~in0 -> deq_ptr_value~q
+  edge wrap_1~in1 -> const$wrap_1~in1
+  edge wrap~in0 -> enq_ptr_value~q
+  edge wrap~in1 -> const$wrap~in1
 layoutOf AXIMaster_1 -> AXIMaster
 layoutOf AXISlave_1 -> AXISlave
 layoutOf Queue4_R_1 -> Queue4_R

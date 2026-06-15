@@ -324,6 +324,28 @@
       "children": [],
       "wires": [
         {
+          "from": "_pc_T~in1",
+          "to": "const$_pc_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "pc",
+          "to": "_pc_T",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 74,
+            "col": 26
+          }
+        },
+        {
           "from": "io.imem.req.bits.wdata",
           "to": "const$io_imem_req_bits_wdata",
           "bundle": "Imem",
@@ -384,6 +406,18 @@
           "fieldLevel": true
         },
         {
+          "from": "_T~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.imem.req.valid",
           "to": "io.out.ready",
           "bundle": "Imem",
@@ -392,6 +426,30 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 66,
             "col": 25
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_pc_T~in0",
+          "to": "pc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -469,6 +527,41 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_pc_T~in1",
+          "kind": "const",
+          "label": "0h4",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_pc_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 74,
+            "col": 32
+          },
+          "op": "add"
         }
       ]
     },
@@ -520,6 +613,66 @@
       ],
       "children": [],
       "wires": [
+        {
+          "from": "io.out.bits.imm",
+          "to": "io.in.bits.inst",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 92,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.op",
+          "to": "io.in.bits.inst",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 89,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.rd",
+          "to": "io.in.bits.inst",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 93,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rf.raddr1",
+          "to": "io.in.bits.inst",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 83,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rf.raddr2",
+          "to": "io.in.bits.inst",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 84,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
         {
           "from": "io.out.bits.pc",
           "to": "io.in.bits.pc",
@@ -636,33 +789,155 @@
       "children": [],
       "wires": [
         {
-          "from": "io.out",
-          "to": "io.in",
+          "from": "_io_out_bits_wen_T~in1",
+          "to": "const$_io_out_bits_wen_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.out.bits.result",
+          "to": "_io_out_bits_result_T",
           "bundle": "Decoupled_out_0778b8",
-          "label": "2× ground connects",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 104,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.wen",
+          "to": "_io_out_bits_wen_T",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 106,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_wen_T~in0",
+          "to": "io.in.bits.rd",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.rd",
+          "to": "io.in.bits.rd",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 105,
             "col": 22
-          }
+          },
+          "fieldLevel": true
         },
         {
-          "from": "io.in",
-          "to": "io.out",
+          "from": "_io_out_bits_result_T~in0",
+          "to": "io.in.bits.rs1",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_result_T~in1",
+          "to": "io.in.bits.rs2",
+          "bundle": "Decoupled_out_0112bf",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 102,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.in.ready",
+          "to": "io.out.ready",
           "bundle": "Decoupled_out_0112bf",
           "label": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 101,
             "col": 22
-          }
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
         "registers": 0,
         "wires": 5,
         "lines": 11
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_io_out_bits_wen_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_io_out_bits_result_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 104,
+            "col": 40
+          },
+          "op": "add"
+        },
+        {
+          "id": "_io_out_bits_wen_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 106,
+            "col": 39
+          },
+          "op": "neq"
+        }
+      ]
     },
     {
       "name": "WB",
@@ -749,6 +1024,18 @@
           "fieldLevel": true
         },
         {
+          "from": "io.rf.wen",
+          "to": "_io_rf_wen_T",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 122,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.rf.waddr",
           "to": "io.in.bits.rd",
           "bundle": "Rf_d1479c",
@@ -769,6 +1056,30 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 121,
             "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_rf_wen_T~in1",
+          "to": "io.in.bits.wen",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_rf_wen_T~in0",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_out_0778b8",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         }
@@ -811,6 +1122,18 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_rf_wen_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 122,
+            "col": 30
+          },
+          "op": "and"
         }
       ]
     },
@@ -860,13 +1183,97 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "_T~in1",
+          "to": "const$_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.wr.waddr",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.wr.wen",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 3,
         "lines": 10,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 34
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 18
+          },
+          "op": "and"
+        }
+      ]
     },
     {
       "name": "RVPipeline",
@@ -1206,5 +1613,12 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  }
+  },
+  "warnings": [
+    {
+      "kind": "unresolved-endpoint",
+      "count": 4,
+      "message": "4 wire(s) had an unresolvable endpoint type and were labeled 'Wire'"
+    }
+  ]
 }

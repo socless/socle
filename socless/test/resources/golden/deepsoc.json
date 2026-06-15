@@ -165,12 +165,809 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "_io_out_T_10~in2",
+          "to": "const$_io_out_T_10~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in2",
+          "to": "const$_io_out_T_11~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in2",
+          "to": "const$_io_out_T_8~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in2",
+          "to": "const$_io_out_T_9~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T~in1",
+          "to": "const$_io_out_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_2~in1",
+          "to": "const$_io_out_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in1",
+          "to": "const$_sum_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_4~in1",
+          "to": "const$_io_out_T_4~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_6~in1",
+          "to": "const$_io_out_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in0",
+          "to": "_io_out_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in1",
+          "to": "_io_out_T_10",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in1",
+          "to": "_io_out_T_11",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in0",
+          "to": "_io_out_T_12",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in0",
+          "to": "_io_out_T_13",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in0",
+          "to": "_io_out_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in0",
+          "to": "_io_out_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in1",
+          "to": "_io_out_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in0",
+          "to": "_io_out_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in1",
+          "to": "_io_out_T_7",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in0",
+          "to": "_io_out_T_8",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in1",
+          "to": "_io_out_T_9",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in0",
+          "to": "_sum_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_4~in1",
+          "to": "_sum_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in1",
+          "to": "_sum_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in2",
+          "to": "_sum_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_T_14",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_8~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_9~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.cout",
+          "to": "_sum_T_6",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 48,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_4~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_1~in0",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_2~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_4~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 3,
         "lines": 21
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_io_out_T_10~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_11~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_8~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_9~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sum_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_4~in1",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_6~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_sum_T_1",
+          "kind": "op",
+          "label": "not",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 14
+          },
+          "op": "not"
+        },
+        {
+          "id": "_sum_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 20
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_4",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_5",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 40,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_6",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 38,
+            "col": 13
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 43,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 44,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_4",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_5",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 30
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_out_T_6",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_7",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 30
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_8",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_9",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_10",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_11",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_12",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_13",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_14",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        }
+      ]
     },
     {
       "name": "RegFile",
@@ -298,6 +1095,17 @@
       ],
       "wires": [
         {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "busy",
           "to": "const$busy",
           "bundle": "UInt<1>",
@@ -393,6 +1201,18 @@
           "fieldLevel": true
         },
         {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
           "to": "acc~q",
           "bundle": "UInt<32>",
@@ -425,6 +1245,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -473,6 +1305,54 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 99,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -539,6 +1419,17 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -628,6 +1519,42 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
         }
       ]
     },
@@ -678,12 +1605,809 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "_io_out_T_10~in2",
+          "to": "const$_io_out_T_10~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in2",
+          "to": "const$_io_out_T_11~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in2",
+          "to": "const$_io_out_T_8~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in2",
+          "to": "const$_io_out_T_9~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T~in1",
+          "to": "const$_io_out_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_2~in1",
+          "to": "const$_io_out_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in1",
+          "to": "const$_sum_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_4~in1",
+          "to": "const$_io_out_T_4~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_6~in1",
+          "to": "const$_io_out_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in0",
+          "to": "_io_out_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in1",
+          "to": "_io_out_T_10",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in1",
+          "to": "_io_out_T_11",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in0",
+          "to": "_io_out_T_12",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in0",
+          "to": "_io_out_T_13",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in0",
+          "to": "_io_out_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in0",
+          "to": "_io_out_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in1",
+          "to": "_io_out_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in0",
+          "to": "_io_out_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in1",
+          "to": "_io_out_T_7",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in0",
+          "to": "_io_out_T_8",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in1",
+          "to": "_io_out_T_9",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in0",
+          "to": "_sum_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_4~in1",
+          "to": "_sum_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in1",
+          "to": "_sum_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in2",
+          "to": "_sum_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_T_14",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_8~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_9~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.cout",
+          "to": "_sum_T_6",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 48,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_4~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_1~in0",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_2~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_4~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 3,
         "lines": 21
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_io_out_T_10~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_11~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_8~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_9~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sum_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_4~in1",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_6~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_sum_T_1",
+          "kind": "op",
+          "label": "not",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 14
+          },
+          "op": "not"
+        },
+        {
+          "id": "_sum_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 20
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_4",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_5",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 40,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_6",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 38,
+            "col": 13
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 43,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 44,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_4",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_5",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 30
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_out_T_6",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_7",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 30
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_8",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_9",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_10",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_11",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_12",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_13",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_14",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        }
+      ]
     },
     {
       "name": "RegFile_1",
@@ -811,6 +2535,17 @@
       ],
       "wires": [
         {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "busy",
           "to": "const$busy",
           "bundle": "UInt<1>",
@@ -906,6 +2641,18 @@
           "fieldLevel": true
         },
         {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
           "to": "acc~q",
           "bundle": "UInt<32>",
@@ -938,6 +2685,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -986,6 +2745,54 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 99,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1052,6 +2859,17 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -1141,6 +2959,42 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
         }
       ]
     },
@@ -1216,6 +3070,475 @@
       ],
       "wires": [
         {
+          "from": "_cores_0_io_in_valid_T~in1",
+          "to": "const$_cores_0_io_in_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_out_ready_T~in1",
+          "to": "const$_cores_0_io_out_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T~in1",
+          "to": "const$_io_out_bits_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T~in1",
+          "to": "const$_io_out_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in1",
+          "to": "const$_outSel_T_3~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_3~in1",
+          "to": "const$_sel_T_3~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_in_valid_T~in1",
+          "to": "const$_cores_1_io_in_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_out_ready_T~in1",
+          "to": "const$_cores_1_io_out_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_1~in1",
+          "to": "const$_io_in_ready_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_1~in1",
+          "to": "const$_io_out_bits_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_1~in1",
+          "to": "const$_io_out_valid_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_1~in1",
+          "to": "const$_outSel_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T~in1",
+          "to": "const$_outSel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_1~in1",
+          "to": "const$_sel_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T~in1",
+          "to": "const$_sel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_in_valid_T_1~in1",
+          "to": "_cores_0_io_in_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_out_ready_T_1~in1",
+          "to": "_cores_0_io_out_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_in_valid_T_1~in1",
+          "to": "_cores_1_io_in_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_out_ready_T_1~in1",
+          "to": "_cores_1_io_out_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_3~in0",
+          "to": "_io_in_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_2~in0",
+          "to": "_io_in_ready_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_3~in2",
+          "to": "_io_in_ready_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_3~in0",
+          "to": "_io_out_bits_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_2~in0",
+          "to": "_io_out_bits_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_3~in2",
+          "to": "_io_out_bits_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_3~in0",
+          "to": "_io_out_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_2~in0",
+          "to": "_io_out_valid_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_3~in2",
+          "to": "_io_out_valid_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in0",
+          "to": "_outSel_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in2",
+          "to": "_outSel_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "outSel",
+          "to": "_outSel_T_3",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 12
+          }
+        },
+        {
+          "from": "_sel_T_3~in0",
+          "to": "_sel_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_3~in2",
+          "to": "_sel_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "sel",
+          "to": "_sel_T_3",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 9
+          }
+        },
+        {
+          "from": "cores_0.io.in.valid",
+          "to": "_cores_0_io_in_valid_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_0.io.out.ready",
+          "to": "_cores_0_io_out_ready_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 27
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_1.io.in.valid",
+          "to": "_cores_1_io_in_valid_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_1.io.out.ready",
+          "to": "_cores_1_io_out_ready_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 27
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 136,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits",
+          "to": "_io_out_bits_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 147,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "_io_out_valid_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 145,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -1231,6 +3554,114 @@
           "from": "cores_1.clock",
           "to": "clock",
           "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_2~in2",
+          "to": "cores_0.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_3~in1",
+          "to": "cores_0.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_2~in2",
+          "to": "cores_0.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_3~in1",
+          "to": "cores_0.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_2~in2",
+          "to": "cores_0.io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_3~in1",
+          "to": "cores_0.io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_2~in1",
+          "to": "cores_1.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_2~in1",
+          "to": "cores_1.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_2~in1",
+          "to": "cores_1.io.out.valid",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "",
@@ -1288,6 +3719,198 @@
           "fieldLevel": true
         },
         {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_in_valid_T_1~in0",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_in_valid_T_1~in0",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_out_ready_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_out_ready_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_out_ready_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_out_ready_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_outSel_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_outSel_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.reset",
           "to": "reset",
           "bundle": "Reset",
@@ -1303,6 +3926,78 @@
           "from": "cores_1.reset",
           "to": "reset",
           "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_in_valid_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_in_valid_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_1~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sel_T_1~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sel_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
             "file": "",
@@ -1339,6 +4034,518 @@
             "line": 144,
             "col": 23
           }
+        },
+        {
+          "id": "const$_cores_0_io_in_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_0_io_out_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_bits_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T_3~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T_3~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_1_io_in_valid_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_1_io_out_ready_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_bits_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_valid_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_cores_0_io_in_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 49
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_0_io_in_valid_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 41
+          },
+          "op": "and"
+        },
+        {
+          "id": "_cores_1_io_in_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 49
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_1_io_in_valid_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 41
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 137,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_in_ready_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 137,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_in_ready_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_in_ready_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_sel_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 20
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_sel_T_1",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 49
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sel_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 15
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 146,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 146,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_valid_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_bits_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 148,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_bits_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 148,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_bits_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_bits_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_cores_0_io_out_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 54
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_0_io_out_ready_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 43
+          },
+          "op": "and"
+        },
+        {
+          "id": "_cores_1_io_out_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 54
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_1_io_out_ready_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 43
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_outSel_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 26
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_outSel_T_1",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 58
+          },
+          "op": "add"
+        },
+        {
+          "id": "_outSel_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 18
+          },
+          "op": "mux"
         }
       ]
     },
@@ -1389,12 +4596,809 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "_io_out_T_10~in2",
+          "to": "const$_io_out_T_10~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in2",
+          "to": "const$_io_out_T_11~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in2",
+          "to": "const$_io_out_T_8~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in2",
+          "to": "const$_io_out_T_9~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T~in1",
+          "to": "const$_io_out_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_2~in1",
+          "to": "const$_io_out_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in1",
+          "to": "const$_sum_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_4~in1",
+          "to": "const$_io_out_T_4~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_6~in1",
+          "to": "const$_io_out_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in0",
+          "to": "_io_out_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in1",
+          "to": "_io_out_T_10",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in1",
+          "to": "_io_out_T_11",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in0",
+          "to": "_io_out_T_12",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in0",
+          "to": "_io_out_T_13",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in0",
+          "to": "_io_out_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in0",
+          "to": "_io_out_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in1",
+          "to": "_io_out_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in0",
+          "to": "_io_out_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in1",
+          "to": "_io_out_T_7",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in0",
+          "to": "_io_out_T_8",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in1",
+          "to": "_io_out_T_9",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in0",
+          "to": "_sum_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_4~in1",
+          "to": "_sum_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in1",
+          "to": "_sum_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in2",
+          "to": "_sum_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_T_14",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_8~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_9~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.cout",
+          "to": "_sum_T_6",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 48,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_4~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_1~in0",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_2~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_4~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 3,
         "lines": 21
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_io_out_T_10~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_11~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_8~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_9~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sum_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_4~in1",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_6~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_sum_T_1",
+          "kind": "op",
+          "label": "not",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 14
+          },
+          "op": "not"
+        },
+        {
+          "id": "_sum_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 20
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_4",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_5",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 40,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_6",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 38,
+            "col": 13
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 43,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 44,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_4",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_5",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 30
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_out_T_6",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_7",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 30
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_8",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_9",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_10",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_11",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_12",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_13",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_14",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        }
+      ]
     },
     {
       "name": "RegFile_2",
@@ -1522,6 +5526,17 @@
       ],
       "wires": [
         {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "busy",
           "to": "const$busy",
           "bundle": "UInt<1>",
@@ -1617,6 +5632,18 @@
           "fieldLevel": true
         },
         {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
           "to": "acc~q",
           "bundle": "UInt<32>",
@@ -1649,6 +5676,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1697,6 +5736,54 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 99,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1763,6 +5850,17 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -1852,6 +5950,42 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
         }
       ]
     },
@@ -1902,12 +6036,809 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "_io_out_T_10~in2",
+          "to": "const$_io_out_T_10~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in2",
+          "to": "const$_io_out_T_11~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in2",
+          "to": "const$_io_out_T_8~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in2",
+          "to": "const$_io_out_T_9~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T~in1",
+          "to": "const$_io_out_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_2~in1",
+          "to": "const$_io_out_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in1",
+          "to": "const$_sum_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_4~in1",
+          "to": "const$_io_out_T_4~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_6~in1",
+          "to": "const$_io_out_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_8~in0",
+          "to": "_io_out_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in1",
+          "to": "_io_out_T_10",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in1",
+          "to": "_io_out_T_11",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_13~in0",
+          "to": "_io_out_T_12",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_14~in0",
+          "to": "_io_out_T_13",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_9~in0",
+          "to": "_io_out_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in0",
+          "to": "_io_out_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_10~in1",
+          "to": "_io_out_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in0",
+          "to": "_io_out_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_11~in1",
+          "to": "_io_out_T_7",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in0",
+          "to": "_io_out_T_8",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_T_12~in1",
+          "to": "_io_out_T_9",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_2~in0",
+          "to": "_sum_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_4~in1",
+          "to": "_sum_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in1",
+          "to": "_sum_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sum_T_6~in2",
+          "to": "_sum_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.out",
+          "to": "_io_out_T_14",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_8~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_9~in1",
+          "to": "_sum_T_6",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.cout",
+          "to": "_sum_T_6",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 48,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_4~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in0",
+          "to": "io.a",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_7~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_1~in0",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_5~in1",
+          "to": "io.b",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_2~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_4~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_T~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sum_T_6~in0",
+          "to": "io.op",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 3,
         "lines": 21
-      }
+      },
+      "logic": [
+        {
+          "id": "const$_io_out_T_10~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_11~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_8~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_9~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sum_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_4~in1",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_T_6~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_sum_T_1",
+          "kind": "op",
+          "label": "not",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 14
+          },
+          "op": "not"
+        },
+        {
+          "id": "_sum_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 20
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_4",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 39,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_5",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 40,
+            "col": 10
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sum_T_6",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 38,
+            "col": 13
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 43,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 44,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_4",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_5",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 45,
+            "col": 30
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_out_T_6",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 12
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_T_7",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 46,
+            "col": 30
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_8",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_9",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_10",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_11",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_T_12",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_13",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        },
+        {
+          "id": "_io_out_T_14",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 42,
+            "col": 19
+          },
+          "op": "or"
+        }
+      ]
     },
     {
       "name": "RegFile_3",
@@ -2035,6 +6966,17 @@
       ],
       "wires": [
         {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "busy",
           "to": "const$busy",
           "bundle": "UInt<1>",
@@ -2130,6 +7072,18 @@
           "fieldLevel": true
         },
         {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "alu.io.a",
           "to": "acc~q",
           "bundle": "UInt<32>",
@@ -2162,6 +7116,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 102,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2210,6 +7176,54 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 99,
             "col": 17
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2276,6 +7290,17 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -2365,6 +7390,42 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 86,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
         }
       ]
     },
@@ -2440,6 +7501,475 @@
       ],
       "wires": [
         {
+          "from": "_cores_0_io_in_valid_T~in1",
+          "to": "const$_cores_0_io_in_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_out_ready_T~in1",
+          "to": "const$_cores_0_io_out_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T~in1",
+          "to": "const$_io_out_bits_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T~in1",
+          "to": "const$_io_out_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in1",
+          "to": "const$_outSel_T_3~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_3~in1",
+          "to": "const$_sel_T_3~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_in_valid_T~in1",
+          "to": "const$_cores_1_io_in_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_out_ready_T~in1",
+          "to": "const$_cores_1_io_out_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_1~in1",
+          "to": "const$_io_in_ready_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_1~in1",
+          "to": "const$_io_out_bits_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_1~in1",
+          "to": "const$_io_out_valid_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_1~in1",
+          "to": "const$_outSel_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T~in1",
+          "to": "const$_outSel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_1~in1",
+          "to": "const$_sel_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T~in1",
+          "to": "const$_sel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_in_valid_T_1~in1",
+          "to": "_cores_0_io_in_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_0_io_out_ready_T_1~in1",
+          "to": "_cores_0_io_out_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_in_valid_T_1~in1",
+          "to": "_cores_1_io_in_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_cores_1_io_out_ready_T_1~in1",
+          "to": "_cores_1_io_out_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_3~in0",
+          "to": "_io_in_ready_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_2~in0",
+          "to": "_io_in_ready_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_in_ready_T_3~in2",
+          "to": "_io_in_ready_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_3~in0",
+          "to": "_io_out_bits_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_2~in0",
+          "to": "_io_out_bits_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_bits_T_3~in2",
+          "to": "_io_out_bits_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_3~in0",
+          "to": "_io_out_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_2~in0",
+          "to": "_io_out_valid_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_3~in2",
+          "to": "_io_out_valid_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in0",
+          "to": "_outSel_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_outSel_T_3~in2",
+          "to": "_outSel_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "outSel",
+          "to": "_outSel_T_3",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 12
+          }
+        },
+        {
+          "from": "_sel_T_3~in0",
+          "to": "_sel_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_sel_T_3~in2",
+          "to": "_sel_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "sel",
+          "to": "_sel_T_3",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 9
+          }
+        },
+        {
+          "from": "cores_0.io.in.valid",
+          "to": "_cores_0_io_in_valid_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_0.io.out.ready",
+          "to": "_cores_0_io_out_ready_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 27
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_1.io.in.valid",
+          "to": "_cores_1_io_in_valid_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 26
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "cores_1.io.out.ready",
+          "to": "_cores_1_io_out_ready_T_1",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 27
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 136,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits",
+          "to": "_io_out_bits_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 147,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "_io_out_valid_T_3",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 145,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.clock",
           "to": "clock",
           "bundle": "Clock",
@@ -2455,6 +7985,114 @@
           "from": "cores_1.clock",
           "to": "clock",
           "bundle": "Clock",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_2~in2",
+          "to": "cores_0.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_3~in1",
+          "to": "cores_0.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_2~in2",
+          "to": "cores_0.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_3~in1",
+          "to": "cores_0.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_2~in2",
+          "to": "cores_0.io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_3~in1",
+          "to": "cores_0.io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_2~in1",
+          "to": "cores_1.io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_2~in1",
+          "to": "cores_1.io.out.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_2~in1",
+          "to": "cores_1.io.out.valid",
+          "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "",
@@ -2512,6 +8150,198 @@
           "fieldLevel": true
         },
         {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_in_valid_T_1~in0",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_in_valid_T_1~in0",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_out_ready_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_out_ready_T_1~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_out_ready_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_out_ready_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_bits_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_outSel_T_1~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_outSel_T~in0",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.reset",
           "to": "reset",
           "bundle": "Reset",
@@ -2527,6 +8357,78 @@
           "from": "cores_1.reset",
           "to": "reset",
           "bundle": "Reset",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_0_io_in_valid_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_cores_1_io_in_valid_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T_1~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sel_T_1~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_sel_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
             "file": "",
@@ -2563,6 +8465,518 @@
             "line": 144,
             "col": 23
           }
+        },
+        {
+          "id": "const$_cores_0_io_in_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_0_io_out_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_bits_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T_3~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T_3~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_1_io_in_valid_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_cores_1_io_out_ready_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_in_ready_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_bits_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_out_valid_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_outSel_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T_1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_sel_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_cores_0_io_in_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 49
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_0_io_in_valid_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 41
+          },
+          "op": "and"
+        },
+        {
+          "id": "_cores_1_io_in_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 49
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_1_io_in_valid_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 132,
+            "col": 41
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 137,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_in_ready_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 137,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_in_ready_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_in_ready_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_sel_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 20
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_sel_T_1",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 49
+          },
+          "op": "add"
+        },
+        {
+          "id": "_sel_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 140,
+            "col": 15
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 146,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 146,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_valid_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_bits_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 148,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_bits_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 148,
+            "col": 39
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_bits_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_out_bits_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Mux.scala",
+            "line": 130,
+            "col": 16
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_cores_0_io_out_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 54
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_0_io_out_ready_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 43
+          },
+          "op": "and"
+        },
+        {
+          "id": "_cores_1_io_out_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 54
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_cores_1_io_out_ready_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 150,
+            "col": 43
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_outSel_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 26
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_outSel_T_1",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 58
+          },
+          "op": "add"
+        },
+        {
+          "id": "_outSel_T_3",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 153,
+            "col": 18
+          },
+          "op": "mux"
         }
       ]
     },
@@ -2613,6 +9027,193 @@
       "children": [],
       "wires": [
         {
+          "from": "_empty_T~in1",
+          "to": "const$_empty_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in2",
+          "to": "const$_io_count_T_1~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in1",
+          "to": "const$_io_deq_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in1",
+          "to": "const$_io_enq_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T_2~in1",
+          "to": "const$_value_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T~in1",
+          "to": "const$_value_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap_1~in1",
+          "to": "const$wrap_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap~in1",
+          "to": "const$wrap~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in1",
+          "to": "const$_io_count_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "empty~in1",
+          "to": "_empty_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in0",
+          "to": "_io_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_2~in0",
+          "to": "_io_count_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.count",
+          "to": "_io_count_T_2",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 14
+          }
+        },
+        {
+          "from": "_io_count_T_2~in1",
+          "to": "_ptr_diff_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in0",
+          "to": "empty",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in0",
+          "to": "full",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "deq_ptr_value",
           "to": "const$deq_ptr_value",
           "bundle": "UInt<2>",
@@ -2621,7 +9222,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "enq_ptr_value",
@@ -2632,7 +9234,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "maybe_full",
@@ -2643,7 +9246,296 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 99,
             "col": 16
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "maybe_full",
+          "to": "_do_enq_T",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.valid",
+          "to": "_io_deq_valid_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.enq.ready",
+          "to": "_io_enq_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "_value_T",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "deq_ptr_value",
+          "to": "_value_T_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap_1~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in0",
+          "to": "io.deq.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in1",
+          "to": "io.deq.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in0",
+          "to": "io.enq.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in1",
+          "to": "io.enq.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_empty_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in1",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "empty~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -2687,6 +9579,50 @@
           }
         },
         {
+          "id": "const$_empty_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_deq_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_enq_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$deq_ptr_value",
           "kind": "const",
           "label": "0h0",
@@ -2718,6 +9654,265 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_value_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_value_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap_1~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in1",
+          "kind": "const",
+          "label": "0h4",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "ptr_match",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 77,
+            "col": 33
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_empty_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 28
+          },
+          "op": "eq"
+        },
+        {
+          "id": "empty",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 25
+          },
+          "op": "and"
+        },
+        {
+          "id": "full",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 79,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_enq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_deq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "wrap",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "wrap_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 93,
+            "col": 15
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_io_deq_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_enq_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_ptr_diff_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 126,
+            "col": 32
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_count_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 32
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_count_T_1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 20
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_count_T_2",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 62
+          },
+          "op": "or"
         }
       ]
     },
@@ -2943,5 +10138,12 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  }
+  },
+  "warnings": [
+    {
+      "kind": "unresolved-endpoint",
+      "count": 198,
+      "message": "198 wire(s) had an unresolvable endpoint type and were labeled 'Wire'"
+    }
+  ]
 }

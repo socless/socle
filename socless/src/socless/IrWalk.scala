@@ -19,6 +19,21 @@ object IrWalk {
   // engine (also used by the Scala.js build): `in[0]` -> `in`.
   import LayoutCore.stripIdx
 
+  // Op classification (issue #188 B2). Logic ops are rendered as terminal nodes
+  // (their value is a net terminal: input pins `_T~in<i>`, output `_T`).
+  // Plumbing ops are contracted: NetTrace traces THROUGH their value so they
+  // never appear as logic nodes.
+  // Recognized logic ops (rendered): mux, add, sub, mul, div, rem, neg,
+  //   lt, leq, gt, geq, eq, neq, and, or, xor, not, andr, orr, xorr,
+  //   shl, shr, dshl, dshr - i.e. any op not in PlumbingOps below.
+  private val PlumbingOps = Set(
+    "bits", "head", "tail", "cat", "pad",
+    "asUInt", "asSInt", "asClock", "asAsyncReset", "cvt", "validif")
+  // Logic (rendered) vs plumbing (contracted). An empty op (bare alias
+  // `node _T = ref`) is plumbing. An unknown op renders generically.
+  private def isLogicOp(op: String): Boolean =
+    op.nonEmpty && !PlumbingOps.contains(op)
+
   /** Bundle registry: deduplication is by FULL structural identity (names,
     * flips, ground kinds, widths, vec arity), tracked in `keyByFp`. Friendly
     * keys (AXI4, Decoupled_<hint>, <Hint>) go to the first structure that
@@ -101,7 +116,26 @@ object IrWalk {
         source = r.src.map(toRef).getOrElse(SourceRef.unknown))
     }
     val regType: Map[String, String] = regLogic.map(n => n.id -> n.bundle).toMap
-    val (wires, constLogic) = coalesceWires(m, byName, bundles, regNames, regType)
+    // Combinational logic nodes (issue #188 B2). Logic ops render as nodes whose
+    // value is a net terminal (input pins `_T~in<i>`, output `_T`); plumbing ops
+    // are contracted (NetTrace traces through their value).
+    val logicNodes = m.nodes.filter(n => isLogicOp(n.op))
+    val opLogic: Seq[LogicNodeDef] = logicNodes.map { n =>
+      LogicNodeDef(id = n.name, kind = "op", label = n.op, bundle = "",
+        source = n.src.map(toRef).getOrElse(SourceRef.unknown), op = n.op)
+    }
+    val logicNodeNames: Set[String] = logicNodes.map(_.name).toSet
+    // Edges contributed by node declarations, in NetTrace (sink, source) form.
+    // Logic ops encode the input-pin index in the sink so the operands do not
+    // collapse onto one pin; plumbing nodes feed their bare value (contracted).
+    val nodeEdges: Seq[(String, String)] = m.nodes.flatMap { n =>
+      if (isLogicOp(n.op))
+        n.operands.zipWithIndex.map { case (arg, i) => (s"${n.name}~in$i", arg) }
+      else
+        n.operands.map(arg => (n.name, arg))
+    }
+    val (wires, constLogic) =
+      coalesceWires(m, byName, bundles, regNames, regType, logicNodeNames, nodeEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -119,7 +153,7 @@ object IrWalk {
       wires    = wires,
       metrics  = metrics,
       kind     = moduleKind(m.kind),
-      logic    = regLogic ++ constLogic,
+      logic    = regLogic ++ constLogic ++ opLogic,
     )
   }
 
@@ -308,11 +342,13 @@ object IrWalk {
     * instance port or this module's own port are kept.
     */
   private def coalesceWires(
-    m:        Mod,
-    byName:   Map[String, Mod],
-    bundles:  BundleReg,
-    regNames: Set[String],
-    regType:  Map[String, String],
+    m:              Mod,
+    byName:         Map[String, Mod],
+    bundles:        BundleReg,
+    regNames:       Set[String],
+    regType:        Map[String, String],
+    logicNodeNames: Set[String],
+    nodeEdges:      Seq[(String, String)],
   ): (Seq[WireDef], Seq[LogicNodeDef]) = {
     val instSet = m.insts.map(_.name).toSet
     val portSet = m.ports.map(_.name).toSet
@@ -394,18 +430,30 @@ object IrWalk {
     // THROUGH the reg node instead. So the terminal predicate stops the trace at
     // instance ports, this module's own ports, and registers. Endpoints reaching
     // none of these are internal nets (wire-to-wire `_oHot_WIRE`) and drop out.
+    // A net head may be a register Q pin (`r~q`) or a logic-op input pin
+    // (`_T~in<i>`); strip either suffix to recover the underlying node name so
+    // the terminal check matches the declared reg/logic-node (issue #188).
+    // `~` is not valid in CHIRRTL identifiers ([\w$]+), so `~q`/`~in<i>` are
+    // IrWalk-synthetic and cannot collide with a real signal name.
+    def baseOf(head: String): String =
+      if (head.endsWith("~q")) head.dropRight(2)
+      else { val i = head.indexOf("~in"); if (i >= 0) head.substring(0, i) else head }
     def isTerminal(path: String): Boolean = {
       if (litValue(path).isDefined) return true
       val head = stripIdx(path.split('.').headOption.getOrElse(""))
-      instSet.contains(head) || portSet.contains(head) || regNames.contains(head)
+      val base = baseOf(head)
+      instSet.contains(head) || portSet.contains(head) || regNames.contains(head) ||
+        logicNodeNames.contains(base)
     }
 
     // Pass 1: resolve real driver->sink edges, contracting internal nets so a
     // field's true destination is known even through alias wires (issue #182),
-    // but stopping at register terminals (issue #188). NetTrace takes
-    // (sink, source) = (lhs, rhs).
+    // but stopping at register and logic-node terminals (issue #188). NetTrace
+    // takes (sink, source) = (lhs, rhs). Node-declaration edges (logic input
+    // pins, contracted plumbing values) join the connect edges here.
+    val allEdges = m.conns.map(c => (c.lhs, c.rhs)) ++ nodeEdges
     val resolved0: Seq[(String, String)] =
-      NetTrace.resolve(m.conns.map(c => (c.lhs, c.rhs)), isTerminal)
+      NetTrace.resolve(allEdges, isTerminal)
 
     // A register only ever appears as a SOURCE for its Q-output and a SINK for
     // its D-input; CHIRRTL spells both as the plain reg path. `~q`-suffix the

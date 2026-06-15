@@ -24,6 +24,26 @@ object LogicNodeTest extends TestSuite {
       |    connect io_cfg, UInt<8>("h1f")
       |""".stripMargin
 
+  private val opAdd =
+    """circuit M :
+      |  module M :
+      |    input a : UInt<8>
+      |    input b : UInt<8>
+      |    output o : UInt<8>
+      |    node sum = add(a, b)
+      |    node sliced = bits(sum, 3, 0)
+      |    connect o, sliced
+      |""".stripMargin
+
+  private val constToLogic =
+    """circuit M :
+      |  module M :
+      |    input a : UInt<8>
+      |    output o : UInt<1>
+      |    node eqz = eq(a, UInt<8>("h0"))
+      |    connect o, eqz
+      |""".stripMargin
+
   val tests = Tests {
     test("register becomes a reg logic node") {
       val m = mod(designOf(regPass), "M")
@@ -43,6 +63,28 @@ object LogicNodeTest extends TestSuite {
       val c = m.logic.find(_.kind == "const").get
       assert(c.label.contains("1f") || c.label.contains("31")) // value shown (hex or dec)
       assert(m.wires.exists(w => w.to == c.id && w.from == "io_cfg")) // const(source) -> io_cfg(sink)
+    }
+    test("logic op becomes an op node routed through; plumbing is contracted") {
+      val m = mod(designOf(opAdd), "M")
+      val op = m.logic.find(_.kind == "op").get
+      assert(op.id == "sum" && op.op == "add")
+      // inputs a -> sum~in0, b -> sum~in1
+      assert(m.wires.exists(w => w.to == "a" && w.from == "sum~in0"))
+      assert(m.wires.exists(w => w.to == "b" && w.from == "sum~in1"))
+      // output sum -> o (the `bits` plumbing node is contracted, so o is driven by sum directly)
+      assert(m.wires.exists(w => w.to == "sum" && w.from == "o"))
+      // no `sliced` (bits) op node
+      assert(!m.logic.exists(_.id == "sliced"))
+    }
+    test("literal operand creates a const node driving a logic op input pin") {
+      val m = mod(designOf(constToLogic), "M")
+      // eq is a logic op - rendered as an op node
+      val op = m.logic.find(n => n.kind == "op" && n.id == "eqz").get
+      assert(op.op == "eq")
+      // the literal UInt<8>("h0") becomes a const node
+      val c = m.logic.find(_.kind == "const").get
+      // the const node drives eqz's second input pin (eqz~in1)
+      assert(m.wires.exists(w => w.to == c.id && w.from == "eqz~in1"))
     }
   }
 }

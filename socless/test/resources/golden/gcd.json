@@ -93,6 +93,17 @@
       "children": [],
       "wires": [
         {
+          "from": "_io_in_ready_T~in1",
+          "to": "const$_io_in_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "busy",
           "to": "const$busy",
           "bundle": "UInt<1>",
@@ -104,15 +115,110 @@
           }
         },
         {
-          "from": "io.out",
-          "to": "x~q",
+          "from": "_T_2~in1",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_out_valid_T_1~in1",
+          "to": "_io_out_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.in.ready",
+          "to": "_io_in_ready_T",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 35,
+            "col": 15
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.valid",
+          "to": "_io_out_valid_T_1",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 49,
+            "line": 48,
             "col": 22
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "x",
+          "to": "_x_T",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "y",
+          "to": "_y_T",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_2~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_in_ready_T~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T_1~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         },
         {
           "from": "x",
@@ -135,6 +241,186 @@
             "file": "example/src/gcd/GCD.scala",
             "line": 44,
             "col": 46
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "io.in.ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.in.valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_4~in0",
+          "to": "io.out.ready",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_4~in1",
+          "to": "io.out.valid",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "x~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_3~in0",
+          "to": "x~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T~in0",
+          "to": "x~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_x_T~in0",
+          "to": "x~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_y_T~in1",
+          "to": "x~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.out.bits.result",
+          "to": "x~q",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 49,
+            "col": 22
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "y~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_3~in1",
+          "to": "y~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_out_valid_T~in1",
+          "to": "y~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_x_T~in1",
+          "to": "y~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_y_T~in0",
+          "to": "y~q",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         }
@@ -179,6 +465,17 @@
           }
         },
         {
+          "id": "const$_io_in_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$busy",
           "kind": "const",
           "label": "0h0",
@@ -188,6 +485,126 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_io_in_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 35,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 43,
+            "col": 18
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_T_2",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 43,
+            "col": 13
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_3",
+          "kind": "op",
+          "label": "gt",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 12
+          },
+          "op": "gt"
+        },
+        {
+          "id": "_x_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 26
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_y_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 51
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_out_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 48,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 48,
+            "col": 30
+          },
+          "op": "and"
+        },
+        {
+          "id": "_T_4",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
         }
       ]
     }
@@ -196,5 +613,12 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  }
+  },
+  "warnings": [
+    {
+      "kind": "unresolved-endpoint",
+      "count": 3,
+      "message": "3 wire(s) had an unresolvable endpoint type and were labeled 'Wire'"
+    }
+  ]
 }

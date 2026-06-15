@@ -132,16 +132,20 @@ case class InstanceDef(
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 
 /** A non-module schematic node: intra-module glue made visible (issue #188).
-  * `kind` is "reg" (a register) or "const" (an explicit literal driver). `id` is
-  * unique within the module (the register name, or a synthetic const id). `label`
-  * is what the UI shows (register name, or the literal value text). `bundle` is
-  * the registered type's key for a "reg" (for pin expansion); "" for a "const". */
+  * `kind` is "reg" (a register), "const" (an explicit literal driver), or "op"
+  * (a combinational operation). `id` is unique within the module (the register
+  * name, a synthetic const id, or a synthetic op id). `label` is what the UI
+  * shows. `bundle` is the registered type's key for a "reg" (for pin
+  * expansion); "" for "const"/"op". */
 case class LogicNodeDef(
   id:     String,
-  kind:   String,      // "reg" | "const"
+  kind:   String,      // "reg" | "const" | "op"
   label:  String,
   bundle: String,
   source: SourceRef,
+  // For kind "op": the CHIRRTL primop ("mux", "add", "lt", ...). Empty for
+  // reg/const. Trailing default keeps older design.json loadable (issue #188 B2).
+  op: String = "",
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 

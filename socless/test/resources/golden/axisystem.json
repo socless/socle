@@ -258,6 +258,193 @@
       "children": [],
       "wires": [
         {
+          "from": "_empty_T~in1",
+          "to": "const$_empty_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in2",
+          "to": "const$_io_count_T_1~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in1",
+          "to": "const$_io_deq_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in1",
+          "to": "const$_io_enq_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T_2~in1",
+          "to": "const$_value_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T~in1",
+          "to": "const$_value_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap_1~in1",
+          "to": "const$wrap_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap~in1",
+          "to": "const$wrap~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in1",
+          "to": "const$_io_count_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "empty~in1",
+          "to": "_empty_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in0",
+          "to": "_io_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_2~in0",
+          "to": "_io_count_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.count",
+          "to": "_io_count_T_2",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 14
+          }
+        },
+        {
+          "from": "_io_count_T_2~in1",
+          "to": "_ptr_diff_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in0",
+          "to": "empty",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in0",
+          "to": "full",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "deq_ptr_value",
           "to": "const$deq_ptr_value",
           "bundle": "UInt<3>",
@@ -266,7 +453,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "enq_ptr_value",
@@ -277,7 +465,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "maybe_full",
@@ -288,7 +477,296 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 99,
             "col": 16
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "maybe_full",
+          "to": "_do_enq_T",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.valid",
+          "to": "_io_deq_valid_T",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.enq.ready",
+          "to": "_io_enq_ready_T",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "_value_T",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "deq_ptr_value",
+          "to": "_value_T_2",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap_1~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in0",
+          "to": "io.deq.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in1",
+          "to": "io.deq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in0",
+          "to": "io.enq.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in1",
+          "to": "io.enq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_empty_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in1",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "empty~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -332,6 +810,50 @@
           }
         },
         {
+          "id": "const$_empty_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_deq_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_enq_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$deq_ptr_value",
           "kind": "const",
           "label": "0h0",
@@ -363,6 +885,265 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_value_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_value_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap_1~in1",
+          "kind": "const",
+          "label": "0h7",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap~in1",
+          "kind": "const",
+          "label": "0h7",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in1",
+          "kind": "const",
+          "label": "0h8",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "ptr_match",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 77,
+            "col": 33
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_empty_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 28
+          },
+          "op": "eq"
+        },
+        {
+          "id": "empty",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 25
+          },
+          "op": "and"
+        },
+        {
+          "id": "full",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 79,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_enq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_deq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "wrap",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "wrap_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 93,
+            "col": 15
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_io_deq_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_enq_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_ptr_diff_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 126,
+            "col": 32
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_count_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 32
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_count_T_1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 20
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_count_T_2",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 62
+          },
+          "op": "or"
         }
       ]
     },
@@ -448,6 +1229,17 @@
           }
         },
         {
+          "from": "_idCnt_T~in1",
+          "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "io.b",
           "to": "const$io_b_ready",
           "bundle": "Decoupled_b",
@@ -467,6 +1259,17 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 34,
             "col": 14
+          }
+        },
+        {
+          "from": "idCnt",
+          "to": "_idCnt_T",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
           }
         },
         {
@@ -576,6 +1379,18 @@
           "fieldLevel": true
         },
         {
+          "from": "_idCnt_T~in0",
+          "to": "idCnt~q",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.ar.bits.id",
           "to": "idCnt~q",
           "bundle": "Decoupled_ar",
@@ -588,6 +1403,18 @@
           "fieldLevel": true
         },
         {
+          "from": "_T~in0",
+          "to": "io.ar.ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "txQ.io.deq.ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_enq",
@@ -596,6 +1423,18 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 27,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.ar.valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -708,6 +1547,17 @@
           }
         },
         {
+          "id": "const$_idCnt_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$io_ar_bits_burst",
           "kind": "const",
           "label": "0h1",
@@ -761,6 +1611,30 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_idCnt_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 38
+          },
+          "op": "add"
         }
       ]
     },
@@ -811,6 +1685,193 @@
       "children": [],
       "wires": [
         {
+          "from": "_empty_T~in1",
+          "to": "const$_empty_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in2",
+          "to": "const$_io_count_T_1~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in1",
+          "to": "const$_io_deq_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in1",
+          "to": "const$_io_enq_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T_2~in1",
+          "to": "const$_value_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T~in1",
+          "to": "const$_value_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap_1~in1",
+          "to": "const$wrap_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap~in1",
+          "to": "const$wrap~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in1",
+          "to": "const$_io_count_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "empty~in1",
+          "to": "_empty_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in0",
+          "to": "_io_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_2~in0",
+          "to": "_io_count_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.count",
+          "to": "_io_count_T_2",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 14
+          }
+        },
+        {
+          "from": "_io_count_T_2~in1",
+          "to": "_ptr_diff_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in0",
+          "to": "empty",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in0",
+          "to": "full",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "deq_ptr_value",
           "to": "const$deq_ptr_value",
           "bundle": "UInt<3>",
@@ -819,7 +1880,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "enq_ptr_value",
@@ -830,7 +1892,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "maybe_full",
@@ -841,7 +1904,296 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 99,
             "col": 16
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "maybe_full",
+          "to": "_do_enq_T",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.valid",
+          "to": "_io_deq_valid_T",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.enq.ready",
+          "to": "_io_enq_ready_T",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "_value_T",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "deq_ptr_value",
+          "to": "_value_T_2",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap_1~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in0",
+          "to": "io.deq.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in1",
+          "to": "io.deq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in0",
+          "to": "io.enq.ready",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in1",
+          "to": "io.enq.valid",
+          "bundle": "Decoupled_enq",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_empty_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in1",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "empty~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -885,6 +2237,50 @@
           }
         },
         {
+          "id": "const$_empty_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_deq_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_enq_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$deq_ptr_value",
           "kind": "const",
           "label": "0h0",
@@ -916,6 +2312,265 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_value_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_value_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap_1~in1",
+          "kind": "const",
+          "label": "0h7",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap~in1",
+          "kind": "const",
+          "label": "0h7",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in1",
+          "kind": "const",
+          "label": "0h8",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "ptr_match",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 77,
+            "col": 33
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_empty_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 28
+          },
+          "op": "eq"
+        },
+        {
+          "id": "empty",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 25
+          },
+          "op": "and"
+        },
+        {
+          "id": "full",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 79,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_enq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_deq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "wrap",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "wrap_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 93,
+            "col": 15
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_io_deq_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_enq_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_ptr_diff_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 126,
+            "col": 32
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_count_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 32
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_count_T_1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 20
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_count_T_2",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 62
+          },
+          "op": "or"
         }
       ]
     },
@@ -1001,6 +2656,17 @@
           }
         },
         {
+          "from": "_idCnt_T~in1",
+          "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "io.b",
           "to": "const$io_b_ready",
           "bundle": "Decoupled_b",
@@ -1020,6 +2686,17 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 34,
             "col": 14
+          }
+        },
+        {
+          "from": "idCnt",
+          "to": "_idCnt_T",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
           }
         },
         {
@@ -1129,6 +2806,18 @@
           "fieldLevel": true
         },
         {
+          "from": "_idCnt_T~in0",
+          "to": "idCnt~q",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.ar.bits.id",
           "to": "idCnt~q",
           "bundle": "Decoupled_ar",
@@ -1141,6 +2830,18 @@
           "fieldLevel": true
         },
         {
+          "from": "_T~in0",
+          "to": "io.ar.ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "txQ.io.deq.ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_enq",
@@ -1149,6 +2850,18 @@
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 27,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "io.ar.valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1261,6 +2974,17 @@
           }
         },
         {
+          "id": "const$_idCnt_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$io_ar_bits_burst",
           "kind": "const",
           "label": "0h1",
@@ -1314,6 +3038,30 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_idCnt_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 38
+          },
+          "op": "add"
         }
       ]
     },
@@ -1441,6 +3189,193 @@
       "children": [],
       "wires": [
         {
+          "from": "_empty_T~in1",
+          "to": "const$_empty_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in2",
+          "to": "const$_io_count_T_1~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in1",
+          "to": "const$_io_deq_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in1",
+          "to": "const$_io_enq_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T_2~in1",
+          "to": "const$_value_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T~in1",
+          "to": "const$_value_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap_1~in1",
+          "to": "const$wrap_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap~in1",
+          "to": "const$wrap~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in1",
+          "to": "const$_io_count_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "empty~in1",
+          "to": "_empty_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in0",
+          "to": "_io_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_2~in0",
+          "to": "_io_count_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.count",
+          "to": "_io_count_T_2",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 14
+          }
+        },
+        {
+          "from": "_io_count_T_2~in1",
+          "to": "_ptr_diff_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in0",
+          "to": "empty",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in0",
+          "to": "full",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "deq_ptr_value",
           "to": "const$deq_ptr_value",
           "bundle": "UInt<2>",
@@ -1449,7 +3384,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "enq_ptr_value",
@@ -1460,7 +3396,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "maybe_full",
@@ -1471,7 +3408,296 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 99,
             "col": 16
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "maybe_full",
+          "to": "_do_enq_T",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.valid",
+          "to": "_io_deq_valid_T",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.enq.ready",
+          "to": "_io_enq_ready_T",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "_value_T",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "deq_ptr_value",
+          "to": "_value_T_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap_1~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in0",
+          "to": "io.deq.ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in1",
+          "to": "io.deq.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in0",
+          "to": "io.enq.ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in1",
+          "to": "io.enq.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_empty_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in1",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "empty~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -1515,6 +3741,50 @@
           }
         },
         {
+          "id": "const$_empty_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_deq_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_enq_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$deq_ptr_value",
           "kind": "const",
           "label": "0h0",
@@ -1546,6 +3816,265 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_value_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_value_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap_1~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in1",
+          "kind": "const",
+          "label": "0h4",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "ptr_match",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 77,
+            "col": 33
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_empty_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 28
+          },
+          "op": "eq"
+        },
+        {
+          "id": "empty",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 25
+          },
+          "op": "and"
+        },
+        {
+          "id": "full",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 79,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_enq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_deq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "wrap",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "wrap_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 93,
+            "col": 15
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_io_deq_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_enq_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_ptr_diff_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 126,
+            "col": 32
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_count_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 32
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_count_T_1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 20
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_count_T_2",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 62
+          },
+          "op": "or"
         }
       ]
     },
@@ -1879,6 +4408,193 @@
       "children": [],
       "wires": [
         {
+          "from": "_empty_T~in1",
+          "to": "const$_empty_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in2",
+          "to": "const$_io_count_T_1~in2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in1",
+          "to": "const$_io_deq_valid_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in1",
+          "to": "const$_io_enq_ready_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T_2~in1",
+          "to": "const$_value_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_value_T~in1",
+          "to": "const$_value_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap_1~in1",
+          "to": "const$wrap_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "wrap~in1",
+          "to": "const$wrap~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in1",
+          "to": "const$_io_count_T_1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "empty~in1",
+          "to": "_empty_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_1~in0",
+          "to": "_io_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_count_T_2~in0",
+          "to": "_io_count_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "io.count",
+          "to": "_io_count_T_2",
+          "bundle": "UInt<3>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 14
+          }
+        },
+        {
+          "from": "_io_count_T_2~in1",
+          "to": "_ptr_diff_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_deq_valid_T~in0",
+          "to": "empty",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_io_enq_ready_T~in0",
+          "to": "full",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "deq_ptr_value",
           "to": "const$deq_ptr_value",
           "bundle": "UInt<2>",
@@ -1887,7 +4603,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "enq_ptr_value",
@@ -1898,7 +4615,8 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 98,
             "col": 11
-          }
+          },
+          "fieldLevel": true
         },
         {
           "from": "maybe_full",
@@ -1909,7 +4627,296 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 99,
             "col": 16
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "maybe_full",
+          "to": "_do_enq_T",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 99,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.valid",
+          "to": "_io_deq_valid_T",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.enq.ready",
+          "to": "_io_enq_ready_T",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "enq_ptr_value",
+          "to": "_value_T",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "deq_ptr_value",
+          "to": "_value_T_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 98,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in1",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap_1~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_ptr_diff_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ptr_match~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "wrap~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in0",
+          "to": "io.deq.ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_deq_T~in1",
+          "to": "io.deq.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in0",
+          "to": "io.enq.ready",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_do_enq_T~in1",
+          "to": "io.enq.valid",
+          "bundle": "Decoupled_r",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_empty_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in0",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_io_count_T~in1",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "empty~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "full~in0",
+          "to": "ptr_match",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -1953,6 +4960,50 @@
           }
         },
         {
+          "id": "const$_empty_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_deq_valid_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_enq_ready_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "const$deq_ptr_value",
           "kind": "const",
           "label": "0h0",
@@ -1984,6 +5035,265 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_value_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_value_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap_1~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$wrap~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_io_count_T_1~in1",
+          "kind": "const",
+          "label": "0h4",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "ptr_match",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 77,
+            "col": 33
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_empty_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 28
+          },
+          "op": "eq"
+        },
+        {
+          "id": "empty",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 78,
+            "col": 25
+          },
+          "op": "and"
+        },
+        {
+          "id": "full",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 79,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_enq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_do_deq_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "wrap",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "wrap_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 73,
+            "col": 24
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_value_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Counter.scala",
+            "line": 77,
+            "col": 24
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 93,
+            "col": 15
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_io_deq_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 102,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_enq_ready_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 103,
+            "col": 19
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_ptr_diff_T",
+          "kind": "op",
+          "label": "sub",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 126,
+            "col": 32
+          },
+          "op": "sub"
+        },
+        {
+          "id": "_io_count_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 32
+          },
+          "op": "and"
+        },
+        {
+          "id": "_io_count_T_1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 20
+          },
+          "op": "mux"
+        },
+        {
+          "id": "_io_count_T_2",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 129,
+            "col": 62
+          },
+          "op": "or"
         }
       ]
     },
@@ -2554,5 +5864,12 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  }
+  },
+  "warnings": [
+    {
+      "kind": "unresolved-endpoint",
+      "count": 82,
+      "message": "82 wire(s) had an unresolvable endpoint type and were labeled 'Wire'"
+    }
+  ]
 }

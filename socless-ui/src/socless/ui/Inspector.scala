@@ -66,7 +66,7 @@ object Inspector {
           val logicNode = sig.flatMap(s => mod.logic.find(_.id == s))
           (sig, logicNode, wire) match {
             case (None, _, _)              => metaView(mod)
-            case (Some(_), Some(ln), _)    => logicView(ln, d)
+            case (Some(_), Some(ln), _)    => logicView(ln, mod, d)
             case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle)
             case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
@@ -142,23 +142,54 @@ object Inspector {
     )
   }
 
-  // ── Logic node detail: register / constant (issue #188 B1) ──────────────────
-  private def logicView(ln: LogicNodeDef, d: Design): Element = {
+  // ── Logic node detail: register / constant / op (issue #188 B1, B2) ─────────
+  private def logicView(ln: LogicNodeDef, mod: ModuleDef, d: Design): Element = {
     val isReg = ln.kind == "reg"
+    val isOp  = ln.kind == "op"
     def sourceRow: Element =
       if (ln.source.file.nonEmpty)
         div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
           span(title := ln.source.file, s"${ln.source.file.split('/').lastOption.getOrElse(ln.source.file)}:${ln.source.line}"))
       else div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "—")
+    // Op operands: the source (`to`) of each wire whose sink (`from`) is one of
+    // this op's `<id>~in<i>` input pins, ordered by input index. The source path
+    // is cleaned (`~q`/`~in<i>`) so a register-fed operand reads `myReg`, not
+    // `myReg~q`, matching the schematic (issue #188 B2). Roles come from the
+    // shared [[LogicLabels.inRole]] so the two panels agree.
+    val operands: Seq[(Int, String)] =
+      if (!isOp) Nil
+      else mod.wires.flatMap { w =>
+        val head = w.from.split('.').headOption.getOrElse("")
+        head match {
+          case LogicLabels.OpInRe(id, i) if id == ln.id => Some(i.toInt -> LogicLabels.stripQ(w.to))
+          case _                                        => None
+        }
+      }.sortBy(_._1)
+    val kindLabel = if (isReg) "register" else if (isOp) "operation" else "constant"
     div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
-        if (isReg) "register" else "constant"),
+        if (isOp && ln.op.nonEmpty) s"$kindLabel · ${ln.op}" else kindLabel),
       if (isReg) {
         div(sectionTitle("Registered type"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
             span(styleAttr := s"color:${Tokens.ink3}", if (ln.bundle.nonEmpty) ln.bundle else "—"),
             if (ln.bundle.nonEmpty) span(styleAttr := s"color:${Tokens.ink2}", s"${totalWidth(ln.bundle, d)} bits") else emptyNode))
+      } else if (isOp) {
+        div(
+          div(sectionTitle("Operation"),
+            div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all",
+              if (ln.op.nonEmpty) ln.op else "—")),
+          sectionTitle(s"Operands (${operands.length})"),
+          if (operands.nonEmpty)
+            div(styleAttr := "margin-bottom:12px;display:flex;flex-direction:column;gap:3px",
+              operands.map { case (i, src) =>
+                div(styleAttr := s"display:flex;align-items:center;gap:8px;font-family:${Tokens.mono};font-size:10.5px",
+                  span(styleAttr := s"color:${Tokens.ink4};flex-shrink:0", LogicLabels.inRole(ln.op, i)),
+                  span(title := src, styleAttr := s"color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap", src))
+              })
+          else div(styleAttr := s"margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "—"),
+        )
       } else {
         div(sectionTitle("Value"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))
