@@ -18,6 +18,28 @@ import socless.{Design, ModuleDef}
   *   - Ports    : a table of this module's ports plus each child instance's. */
 object BottomPanel {
 
+  // Open-in-editor presets (#123): id, label, URL template ({path}/{line}).
+  // The chosen editor persists in localStorage so it survives reloads; an empty
+  // template means "off". Right-clicking the chip cycles through them.
+  private val EditorPresets: List[(String, String, String)] = List(
+    ("vscode", "VS Code",   "vscode://file/{path}:{line}"),
+    ("idea",   "IntelliJ",  "idea://open?file={path}&line={line}"),
+    ("off",    "no editor", ""),
+  )
+  private def presetOf(id: String): (String, String, String) =
+    EditorPresets.find(_._1 == id).getOrElse(EditorPresets.head)
+  private def loadEditor(): String =
+    try Option(dom.window.localStorage.getItem("socless-editor"))
+      .filter(id => EditorPresets.exists(_._1 == id)).getOrElse("vscode")
+    catch { case _: Throwable => "vscode" }
+  private val editorVar = Var[String](loadEditor())
+  private def cycleEditor(): Unit = {
+    val ids  = EditorPresets.map(_._1)
+    val next = ids((ids.indexOf(editorVar.now()) + 1) % ids.size)
+    editorVar.set(next)
+    try dom.window.localStorage.setItem("socless-editor", next) catch { case _: Throwable => () }
+  }
+
   // Scala token colors (port the JS tokenizeScala palette).
   private val KwCol   = "oklch(0.5 0.15 290)"
   private val TyCol   = "oklch(0.5 0.13 200)"
@@ -78,19 +100,38 @@ object BottomPanel {
 
   /** Source-tab header chip: the file path plus an open-in-editor link (#123).
     * The link resolves the absolute path against `Design.sourceRoot` and hands
-    * off to the OS via a `vscode://` URL; disabled when no absolute path. */
+    * off to the OS via the chosen editor's URL scheme; right-click cycles the
+    * editor (VS Code / IntelliJ / off, persisted). Disabled when off or when no
+    * absolute path is available (e.g. a shared snapshot). */
   private def sourcePathChip(file: String, line: Int, d: Design): Element = {
     val absPath =
       if (file.startsWith("/")) Some(file)
       else if (d.sourceRoot.nonEmpty && file.nonEmpty) Some(d.sourceRoot.replaceAll("/$", "") + "/" + file)
       else None
+    val ln = if (line > 0) line else 1
+    // The OS-handoff URL for an editor id, or None when off / no absolute path.
+    def urlFor(id: String): Option[String] = {
+      val tmpl = presetOf(id)._3
+      if (tmpl.isEmpty) None
+      else absPath.map(p => tmpl.replace("{path}", p).replace("{line}", ln.toString))
+    }
     div(styleAttr := "display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden",
       span(title := absPath.getOrElse(file), styleAttr := "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px", file),
       if (file.nonEmpty) button(dataAttr("open-editor") := "1",
-        title := absPath.map(p => s"Open in VS Code at line $line").getOrElse("No absolute path (re-export with --source-root)"),
-        disabled := absPath.isEmpty,
-        styleAttr := s"border:1px solid ${Tokens.borderSoft};border-radius:4px;background:transparent;color:${if (absPath.isDefined) Tokens.ink2 else Tokens.ink4};cursor:${if (absPath.isDefined) "pointer" else "default"};font-family:${Tokens.mono};font-size:10px;line-height:14px;padding:0 5px",
-        onClick --> { _ => absPath.foreach(p => dom.window.location.href = s"vscode://file/$p:${if (line > 0) line else 1}") },
+        dataAttr("editor") <-- editorVar.signal,
+        title <-- editorVar.signal.map { id =>
+          val (_, label, tmpl) = presetOf(id)
+          if (urlFor(id).isDefined) s"Open in $label at line $ln (right-click to switch editor)"
+          else if (tmpl.nonEmpty) "No absolute path available (re-export with --source-root); right-click to switch editor"
+          else "Open-in-editor is off; right-click to choose an editor"
+        },
+        disabled <-- editorVar.signal.map(id => urlFor(id).isEmpty),
+        styleAttr <-- editorVar.signal.map { id =>
+          val on = urlFor(id).isDefined
+          s"border:1px solid ${Tokens.borderSoft};border-radius:4px;background:transparent;color:${if (on) Tokens.ink2 else Tokens.ink4};cursor:${if (on) "pointer" else "default"};font-family:${Tokens.mono};font-size:10px;line-height:14px;padding:0 5px"
+        },
+        onClick      --> { _ => urlFor(editorVar.now()).foreach(u => dom.window.location.href = u) },
+        onContextMenu --> { (e: dom.MouseEvent) => e.preventDefault(); cycleEditor() },
         "↗") else emptyNode)
   }
 

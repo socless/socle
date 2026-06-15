@@ -193,3 +193,16 @@ jobs:
             echo "UI server never came up"; cat /tmp/ui-server.log; exit 1
           fi
           node tools/ui-smoke/smoke.mjs --base http://localhost:8765
+
+      # The design-INPUT layer (#194): drag-drop a .fir (-> POST /convert), the
+      # live poller (#120), the LIVE badge, and the SOURCE indicator. Drives the
+      # UI in a browser against the real standalone server, which smoke.mjs (a
+      # pre-baked design.json per page) structurally cannot reach.
+      - name: Build the standalone assembly
+        run: ./mill socless.assembly
+
+      - name: Run UI server smoke (drag-drop /convert + live poller)
+        run: |
+          node tools/ui-smoke/serve-smoke.mjs \
+            --jar out/socless/assembly.dest/out.jar \
+            --fixtures socless/test/resources/chirrtl

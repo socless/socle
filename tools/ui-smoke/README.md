@@ -19,7 +19,30 @@ design: `<id>/SoCLess.html` + `<id>/design.json`):
 It relies on test hooks baked into the UI: `data-hier-path`, `data-hier-toggle`,
 `data-box-inst`, `data-bundle-toggle`, `data-wire`, `data-command-palette` /
 `data-cmd-input` / `data-cmd-result`, `data-help-overlay`,
-`data-inspector-toggle`.
+`data-inspector-toggle`, `data-source` / `data-top` / `data-live` (the SOURCE
+indicator + LIVE badge), `data-dropzone` / `data-toast` (drag-drop chrome),
+`data-theme-toggle` (the light/dark theme button), and `data-open-editor` /
+`data-editor` (the open-in-editor preset chip).
+
+## serve-smoke: the design-input layer (#194)
+
+`smoke.mjs` loads a pre-baked `design.json`, so it cannot exercise the
+design-INPUT layer: drag-dropping a `.fir` (which the UI POSTs to `/convert`)
+or the live poller (#120, which re-fetches `design.json` when `serve --watch`
+re-converts a changed `.fir`). `serve-smoke.mjs` runs the real
+`socless.Launcher serve` from the assembled jar and checks all of it:
+
+```bash
+./mill socless.assembly
+node tools/ui-smoke/serve-smoke.mjs \
+  --jar out/socless/assembly.dest/out.jar \
+  --fixtures socless/test/resources/chirrtl [--shots /tmp/shots]
+```
+
+It asserts: a `serve --watch a.fir` page shows `data-source="live"` + a LIVE
+badge; overwriting the watched `.fir` hot-reloads the schematic in place;
+dropping a `.fir` on a plain `serve` renders it via `/convert`; and dropping a
+`design.json` renders it directly.
 
 ## Run
 

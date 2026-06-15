@@ -5,14 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SoCLess</title>
 <style>
+  /* Theme tokens (issue #2). Every color resolves to one of these CSS variables
+     (see Tokens.scala), so flipping data-theme on <html> re-themes the whole app
+     at paint time. Light is the default; dark overrides below. The set-before-
+     paint script and the topbar toggle (App.scala) drive data-theme. */
   :root {
-    --bg: #0d1117; --panel: #161b22; --ink: #e6edf3; --ink3: #8b949e;
-    --border: #30363d; --accent: #1f6feb;
+    --bg: #fbfbfa; --panel: #ffffff; --panelAlt: #f5f5f4;
+    --border: #e5e5e3; --borderSoft: #ececea;
+    --ink: #1a1a18; --ink2: #525250; --ink3: #70706e; --ink4: #767674;
+    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.96 0.02 250);
+    --accentLine: oklch(0.55 0.16 250 / 0.18);
+    --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    /* Schematic theme tokens (mirror the JS UI's dark theme benchTokens). */
-    --panelAlt: #21262d; --borderSoft: #21262d;
-    --ink2: #c9d1d9; --ink4: #6e7681;
-    --accentBg: #11213a; --accentLine: rgba(56,139,253,0.4);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --panel: #161b22; --panelAlt: #21262d;
+    --border: #30363d; --borderSoft: #21262d;
+    --ink: #e6edf3; --ink2: #c9d1d9; --ink3: #8b949e; --ink4: #6e7681;
+    --accent: #1f6feb; --accentBg: #11213a; --accentLine: rgba(56,139,253,0.4);
     --hi: rgba(56,139,253,0.15); --ok: #3fb950; --warn: #d29922;
   }
   * { box-sizing: border-box; }
@@ -24,6 +34,34 @@
   .scl-logo { font-weight: 700; flex-shrink: 0; }
   .scl-sub { color: var(--ink3); }
   .scl-engine { color: var(--accent); flex-shrink: 0; }
+  /* SOURCE indicator + LIVE badge (#194 / #120). */
+  .scl-live { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    color: var(--ok); font-size: 11px; }
+  .scl-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+    animation: scl-pulse 1.8s ease-in-out infinite; }
+  .scl-live-ago { color: var(--ink4); }
+  @keyframes scl-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
+    70%  { box-shadow: 0 0 0 5px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+  /* Drag-drop overlay (#194): full-window, click-through (drop is on window). */
+  .scl-dropzone { position: fixed; inset: 0; z-index: 9000; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+    background: rgba(13,17,23,0.72); backdrop-filter: blur(2px); }
+  .scl-dropzone.on { display: flex; }
+  .scl-dropzone-card { border: 2px dashed var(--accent); border-radius: 10px;
+    padding: 28px 40px; background: var(--panel); color: var(--ink); text-align: center; font-size: 14px; }
+  .scl-dropzone-card strong { display: block; margin-bottom: 6px; font-weight: 600; }
+  .scl-dropzone-sub { color: var(--ink3); font-size: 12px; }
+  /* Toasts (#194): transient drag-drop / conversion feedback. */
+  .scl-toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 9100; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  .scl-toast { padding: 8px 14px; border-radius: 6px; font-size: 12px; color: var(--ink);
+    background: var(--panelAlt); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .scl-toast-err  { border-color: #f85149; color: #ffb4ab; }
+  .scl-toast-ok   { border-color: var(--ok); }
+  .scl-toast-info { border-color: var(--accent); }
   /* Topbar chrome (#172 Phase 4). */
   .scl-crumbs { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
     overflow: hidden; color: var(--ink2); margin-left: 4px; }
@@ -43,6 +81,11 @@
     color: var(--ink3); border-radius: 50%; width: 20px; height: 20px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
   .scl-help-btn:hover { background: var(--panelAlt); color: var(--ink); }
+  /* Theme toggle (issue #2): same chrome as the help button, sun/moon glyph. */
+  .scl-theme-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
+    color: var(--ink3); border-radius: 50%; width: 22px; height: 22px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+  .scl-theme-btn:hover { background: var(--panelAlt); color: var(--ink); }
   .scl-panes { display: flex; flex: 1; min-height: 0; }
   .scl-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: auto; }
   .scl-pane-hierarchy { width: 240px; }
@@ -84,6 +127,18 @@
   .scl-insp-leaf .copy-btn { opacity: 0; transition: opacity .1s; }
   .scl-insp-leaf:hover .copy-btn { opacity: 1; }
 </style>
+<script>
+  // Set the theme before first paint so there is no light/dark flash (issue #2).
+  // Order: saved choice in localStorage, else the OS prefers-color-scheme.
+  (function () {
+    try {
+      var saved = localStorage.getItem('socless-theme');
+      var dark = saved ? saved === 'dark'
+        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    } catch (e) { /* private mode / no storage - default light */ }
+  })();
+</script>
 </head>
 <body>
 <div id="root"></div>

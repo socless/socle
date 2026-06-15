@@ -2,8 +2,10 @@ package socless.ui
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
+import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.Thenable.Implicits._
+import scala.scalajs.js.timers._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
@@ -30,13 +32,31 @@ object App {
   private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
   private val paletteOpenVar = Var(false)                       // command palette (Ctrl/Cmd+K)
   private val helpOpenVar    = Var(false)                       // keyboard-help overlay (?)
+  private val themeVar       = Var[String]("light")             // "light" | "dark" (issue #2)
+  // Where the active design came from (#194): "live" (fetched design.json),
+  // "snapshot" (embedded), "file" (dropped .json), "fir" (dropped .fir). The
+  // tuple is (kind, human label). None until the first design loads.
+  private val sourceVar       = Var[Option[(String, String)]](None)
+  private val liveUpdatedAtVar = Var[Double](0d)                // ms of the last live auto-reload; 0 = never
+  private val dragActiveVar    = Var(false)                     // drop-zone overlay visibility
+  private val toastVar         = Var[Option[(String, String)]](None) // (message, kind: info|ok|err)
+  private val tickVar          = Var(0)                         // 1 Hz clock for the "updated Ns ago" badge
+  private var toastTimer       = Option.empty[SetTimeoutHandle]
+  private var liveWatchStarted = false
+  // Last-Modified of the live design currently shown. The poller compares the
+  // server's stamp against this, so a change that lands between the initial
+  // load and the first poll is still caught (no baseline race). None = unknown.
+  private var liveBaseline     = Option.empty[String]
 
   @JSExport
   def main(rootId: String): String = {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
+    themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
     render(container, shell())
     installKeyboard()
+    installDragDrop()
+    setInterval(1000d) { tickVar.update(_ + 1) } // drives the "updated Ns ago" badge
     loadDesign()
     "mounted"
   }
@@ -57,12 +77,49 @@ object App {
       }
     })
 
+  // ── Theme toggle (issue #2) ────────────────────────────────────────────────
+  // The set-before-paint script in the template sets data-theme="dark" from the
+  // saved choice / OS preference; light is the default (no attribute). The toggle
+  // flips data-theme on <html>, persists to localStorage, and mirrors into
+  // themeVar so the button glyph re-renders.
+  private def currentTheme(): String =
+    if (dom.document.documentElement.getAttribute("data-theme") == "dark") "dark" else "light"
+
+  private def applyTheme(theme: String): Unit = {
+    if (theme == "dark") dom.document.documentElement.setAttribute("data-theme", "dark")
+    else dom.document.documentElement.removeAttribute("data-theme")
+    try dom.window.localStorage.setItem("socless-theme", theme) catch { case _: Throwable => () }
+    themeVar.set(theme)
+  }
+
+  private def toggleTheme(): Unit = applyTheme(if (currentTheme() == "dark") "light" else "dark")
+
   // ── Design loading ───────────────────────────────────────────────────────
-  private def applyDesign(d: Design): Unit = {
+  private def msgOf(e: Throwable): String = Option(e.getMessage).getOrElse(e.toString)
+
+  /** Install a freshly loaded design, resetting navigation to its top. `source`
+    * is (kind, label) recording where it came from (#194). */
+  private def setDesign(d: Design, source: (String, String)): Unit = {
     val top = topOf(d)
     designVar.set(Some(d))
     pathVar.set(if (top.nonEmpty) List(top) else Nil)
     expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
+    sourceVar.set(Some(source))
+    errorVar.set(None)
+  }
+
+  /** Live reload (#120): swap in a re-converted design but keep the user's
+    * drill path/expansion when it still resolves, so re-elaboration does not
+    * throw away navigation. Stamps the "updated Ns ago" clock. */
+  private def reloadLiveDesign(d: Design): Unit = {
+    designVar.set(Some(d))
+    if (currentModule(d, pathVar.now()).isEmpty) {
+      val top = topOf(d)
+      pathVar.set(if (top.nonEmpty) List(top) else Nil)
+      expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty)
+    }
+    sourceVar.set(Some(("live", "live (design.json)")))
+    liveUpdatedAtVar.set(js.Date.now())
     errorVar.set(None)
   }
 
@@ -73,16 +130,124 @@ object App {
       .map(_.textContent).filter(_.trim.nonEmpty)
     embedded match {
       case Some(txt) =>
-        try applyDesign(upickle.default.read[Design](txt))
-        catch { case e: Throwable => errorVar.set(Some(Option(e.getMessage).getOrElse(e.toString))) }
+        try { val d = upickle.default.read[Design](txt); setDesign(d, ("snapshot", s"${topOf(d)} (snapshot)")) }
+        catch { case e: Throwable => errorVar.set(Some(msgOf(e))) }
       case None =>
         dom.fetch("design.json").flatMap { r =>
-          if (r.ok) r.text() else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
+          if (r.ok) { liveBaseline = headerStamp(r); r.text() }
+          else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
         }.map(txt => upickle.default.read[Design](txt)).onComplete {
-          case Success(d) => applyDesign(d)
-          case Failure(e) => errorVar.set(Some(Option(e.getMessage).getOrElse(e.toString)))
+          case Success(d) => setDesign(d, ("live", "live (design.json)")); startLiveWatch()
+          case Failure(e) => errorVar.set(Some(msgOf(e)))
         }
     }
+  }
+
+  /** The freshness stamp of a response: Last-Modified, else ETag, else None. */
+  private def headerStamp(r: dom.Response): Option[String] =
+    Option(r.headers.get("Last-Modified")).filter(_.nonEmpty)
+      .orElse(Option(r.headers.get("ETag")).filter(_.nonEmpty))
+
+  // ── Design input: drag-drop a .json / .fir (#194) ──────────────────────────
+  private def hasFiles(e: dom.DragEvent): Boolean = {
+    val dt = e.dataTransfer
+    dt != null && dt.types != null && dt.types.exists(_ == "Files")
+  }
+
+  /** Window-level drag-drop: a dropped `.json` loads directly; a dropped `.fir`
+    * is POSTed to the standalone server's `/convert`. Ref-counts enter/leave so
+    * the overlay does not flicker across nested children (mirrors the JS UI). */
+  private def installDragDrop(): Unit = {
+    var dragDepth = 0
+    dom.window.addEventListener("dragenter", (e: dom.DragEvent) =>
+      if (hasFiles(e)) { e.preventDefault(); dragDepth += 1; dragActiveVar.set(true) })
+    dom.window.addEventListener("dragover", (e: dom.DragEvent) =>
+      if (hasFiles(e)) { e.preventDefault(); if (e.dataTransfer != null) e.dataTransfer.dropEffect = dom.DataTransferDropEffectKind.copy })
+    dom.window.addEventListener("dragleave", (e: dom.DragEvent) =>
+      if (hasFiles(e)) { dragDepth = math.max(0, dragDepth - 1); if (dragDepth == 0) dragActiveVar.set(false) })
+    dom.window.addEventListener("drop", (e: dom.DragEvent) => {
+      val dt = e.dataTransfer
+      if (dt != null && dt.files.length > 0) {
+        e.preventDefault(); dragDepth = 0; dragActiveVar.set(false)
+        val f    = dt.files(0)
+        val name = if (f.name.nonEmpty) f.name else "file"
+        if (name.toLowerCase.endsWith(".fir")) loadFirFromFile(f, name)
+        else if (name.toLowerCase.endsWith(".json")) loadJsonFromFile(f, name)
+        else toast(s"expected a .json or .fir file, got $name", "err")
+      }
+    })
+  }
+
+  private def loadJsonFromFile(f: dom.File, name: String): Unit =
+    f.text().onComplete {
+      case Success(text) =>
+        try setDesign(upickle.default.read[Design](text), ("file", name))
+        catch { case e: Throwable => toast(s"couldn't read $name: ${msgOf(e)}", "err") }
+      case Failure(e) => toast(s"couldn't read $name: ${msgOf(e)}", "err")
+    }
+
+  /** Convert a dropped CHIRRTL `.fir` via `POST /convert` (served by the
+    * standalone server). A network failure means no server is running. */
+  private def loadFirFromFile(f: dom.File, name: String): Unit = {
+    toast(s"converting $name…", "info")
+    f.text().onComplete {
+      case Failure(e) => toast(s"couldn't read $name: ${msgOf(e)}", "err")
+      case Success(text) =>
+        val init = js.Dynamic.literal(
+          method  = "POST",
+          headers = js.Dynamic.literal("Content-Type" -> "text/plain; charset=utf-8"),
+          body    = text,
+        ).asInstanceOf[dom.RequestInit]
+        dom.fetch("/convert", init).onComplete {
+          case Failure(_) =>
+            toast("POST /convert failed: no SoCLess server running. Start one with: mill example.soclessServe", "err")
+          case Success(resp) if resp.status == 200 =>
+            resp.text().onComplete {
+              case Success(json) =>
+                try setDesign(upickle.default.read[Design](json), ("fir", name))
+                catch { case e: Throwable => toast(s"couldn't load $name: ${msgOf(e)}", "err") }
+              case Failure(e) => toast(s"couldn't load $name: ${msgOf(e)}", "err")
+            }
+          case Success(resp) =>
+            resp.text().recover { case _ => resp.statusText }.foreach { m =>
+              toast(s"conversion failed (${resp.status}): ${m.take(120)}", "err")
+            }
+        }
+    }
+  }
+
+  private def toast(msg: String, kind: String): Unit = {
+    toastVar.set(Some((msg, kind)))
+    toastTimer.foreach(clearTimeout)
+    toastTimer = Some(setTimeout(if (kind == "err") 6000d else 3000d) { toastVar.set(None) })
+  }
+
+  /** Live watch (#120): while showing the live design and the tab is visible,
+    * poll design.json's Last-Modified and reload in place when it changes, so
+    * re-running elaboration (`serve --watch`, `soclessUI -w`) refreshes the
+    * schematic with no manual reload. Started once, after the first live load. */
+  private def startLiveWatch(): Unit = {
+    if (liveWatchStarted) return
+    liveWatchStarted = true
+    def poll(): Unit = {
+      if (!sourceVar.now().exists(_._1 == "live")) return
+      if (dom.document.visibilityState.asInstanceOf[String] != "visible") return
+      val init = js.Dynamic.literal(method = "HEAD", cache = "no-store").asInstanceOf[dom.RequestInit]
+      dom.fetch("design.json", init).foreach { r =>
+        if (r.ok) headerStamp(r).foreach { stamp =>
+          liveBaseline match {
+            case None              => liveBaseline = Some(stamp)     // no stamp from load; baseline now
+            case Some(s) if s != stamp =>
+              liveBaseline = Some(stamp)                             // changed: reload in place
+              dom.fetch("design.json").flatMap(rr => rr.text())
+                .map(t => upickle.default.read[Design](t))
+                .foreach(d => reloadLiveDesign(d))
+            case _ => ()                                            // unchanged
+          }
+        }
+      }
+    }
+    setInterval(1500d) { poll() }
   }
 
   /** Raw JSON + top of the active design, for the snapshot/share button. */
@@ -205,9 +370,46 @@ object App {
       // Command palette + keyboard-help overlays (fixed-position modals).
       Chrome.commandPalette(designVar.signal, paletteOpenVar, onNavigate = p => pathVar.set(p)),
       Chrome.helpOverlay(helpOpenVar),
+      // Design-input chrome (#194): drag-drop overlay + transient toasts.
+      dropOverlay(),
+      toastEl(),
     )
 
   private val kHint = if (Chrome.macHint) "⌘K" else "Ctrl K"
+
+  /** "LIVE · updated Ns ago" badge. Mounted only while the source is live; the
+    * 1 Hz `tickVar` re-renders the elapsed time. */
+  private def liveBadge(): Element = {
+    val agoSig: Signal[String] =
+      Signal.combine(liveUpdatedAtVar.signal, tickVar.signal).map { case (at, _) =>
+        if (at <= 0d) ""
+        else {
+          val secs = math.max(0L, ((js.Date.now() - at) / 1000d).round)
+          if (secs < 60) s"updated ${secs}s ago" else s"updated ${secs / 60}m ago"
+        }
+      }
+    span(cls := "scl-live", dataAttr("live") := "1",
+      span(cls := "scl-live-dot"),
+      span("LIVE"),
+      span(cls := "scl-live-ago", dataAttr("live-ago") <-- agoSig, child.text <-- agoSig),
+    )
+  }
+
+  /** Full-window drop-zone overlay, shown while a file is dragged over the page. */
+  private def dropOverlay(): Element =
+    div(cls := "scl-dropzone", dataAttr("dropzone") := "1",
+      cls.toggle("on") <-- dragActiveVar.signal,
+      dataAttr("on")   <-- dragActiveVar.signal.map(if (_) "1" else "0"),
+      div(cls := "scl-dropzone-card",
+        strong("Drop a design.json or .fir file"),
+        div(cls := "scl-dropzone-sub", "SoCLess loads it into the current view (.fir needs a running server)")))
+
+  /** Transient toast for drag-drop / conversion feedback. */
+  private def toastEl(): Element =
+    div(cls := "scl-toasts",
+      child.maybe <-- toastVar.signal.map(_.map { case (msg, kind) =>
+        div(cls := s"scl-toast scl-toast-$kind", dataAttr("toast") := kind, msg)
+      }))
 
   private def topBar(): Element =
     div(
@@ -230,12 +432,27 @@ object App {
         span("Search modules…"),
         span(cls := "scl-kbd", kHint)),
       span(
-        cls := "scl-engine", dataAttr("design-loaded") <-- designVar.signal.map(_.isDefined.toString),
-        child.text <-- designVar.signal.map {
-          case Some(d) => s"${topOf(d)}  -  ${d.modules.length} modules"
-          case None    => "loading design.json…"
+        cls := "scl-engine",
+        dataAttr("design-loaded") <-- designVar.signal.map(_.isDefined.toString),
+        // SOURCE indicator (#194): kind drives the live poller + badge; top is a
+        // stable hook the smoke watches to confirm a live reload swapped designs.
+        dataAttr("source") <-- sourceVar.signal.map(_.map(_._1).getOrElse("none")),
+        dataAttr("top")    <-- designVar.signal.map(_.map(topOf).getOrElse("")),
+        child.text <-- Signal.combine(designVar.signal, sourceVar.signal).map {
+          case (Some(d), src) =>
+            val label = src.map(_._2).getOrElse("")
+            s"${topOf(d)}  -  ${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
+          case (None, _) => "loading design.json…"
         },
       ),
+      // LIVE badge + "updated Ns ago" (#120): only while showing the live design.
+      child.maybe <-- sourceVar.signal.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
+      // Theme toggle (issue #2): sun while dark (click -> light), moon while light.
+      button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
+        dataAttr("theme") <-- themeVar.signal,
+        title <-- themeVar.signal.map(t => if (t == "dark") "Switch to light theme" else "Switch to dark theme"),
+        onClick --> { _ => toggleTheme() },
+        child.text <-- themeVar.signal.map(t => if (t == "dark") "☀" else "☾")),
       // Help affordance.
       button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),

@@ -92,6 +92,50 @@ for (const design of designs) {
     continue;
   }
 
+  // SOURCE indicator (#194): a design fetched from design.json is the "live"
+  // source. The top bar must expose it via data-source so the live poller and
+  // LIVE badge know to engage; its absence is the migration regression.
+  const src = await page.getAttribute('[data-source]', 'data-source').catch(() => null);
+  if (src !== 'live') {
+    note(design, 'source indicator',
+      src === null ? 'no [data-source] element in the top bar' : `expected data-source="live", got "${src}"`);
+  }
+  drain('source indicator');
+
+  // Theme toggle (issue #2): the top-bar button flips data-theme on <html> and
+  // persists the choice. Its absence is the migration regression we restored.
+  {
+    const before = await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light');
+    const btn = page.locator('[data-theme-toggle]');
+    if (await btn.count() === 0) {
+      note(design, 'theme toggle', 'no [data-theme-toggle] button in the top bar');
+    } else {
+      await btn.click().catch((e) => note(design, 'theme toggle', e.message));
+      const after = await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light');
+      if (after === before) note(design, 'theme toggle', `clicking did not change the theme (stayed "${before}")`);
+      const saved = await page.evaluate(() => { try { return localStorage.getItem('socless-theme'); } catch { return null; } });
+      if (saved !== after) note(design, 'theme toggle', `theme not persisted (data-theme="${after}", localStorage="${saved}")`);
+      await btn.click().catch(() => {}); // restore so later steps render in the original theme
+    }
+  }
+  drain('theme toggle');
+
+  // Open-in-editor presets (#123): right-clicking the Source-tab chip cycles
+  // VS Code -> IntelliJ -> off and persists the choice. Only present when the
+  // module embedded a source file (the Source tab is active on load).
+  {
+    const btn = page.locator('[data-open-editor]');
+    if (await btn.count() > 0) {
+      const before = await btn.first().getAttribute('data-editor');
+      await btn.first().click({ button: 'right' }).catch((e) => note(design, 'editor presets', e.message));
+      const after = await btn.first().getAttribute('data-editor');
+      if (after === before) note(design, 'editor presets', `right-click did not cycle the editor (stayed "${before}")`);
+      const saved = await page.evaluate(() => { try { return localStorage.getItem('socless-editor'); } catch { return null; } });
+      if (saved !== after) note(design, 'editor presets', `editor choice not persisted (data-editor="${after}", localStorage="${saved}")`);
+    }
+  }
+  drain('editor presets');
+
   // Fully expand the hierarchy tree (repeat until row count is stable).
   for (let i = 0; i < 12; i++) {
     const before = await page.locator('[data-hier-path]').count();
@@ -179,12 +223,16 @@ for (const design of designs) {
   drain('keyboard help');
 
   // Wire hover + select, then expand the inspector bundle tree it populates.
+  // Hovering/selecting a wire re-renders the schematic, detaching the path
+  // mid-action; .hover()/.click() then flake on "not visible / detached".
+  // dispatchEvent re-resolves the locator and fires without an actionability
+  // wait (the pattern the bundle toggles above already use).
   const wire = page.locator('[data-wire]').first();
   if (await page.locator('[data-wire]').count()) {
-    await wire.hover({ force: true }).catch((e) => note(design, 'wire hover', e.message));
+    await wire.dispatchEvent('mouseover').catch((e) => note(design, 'wire hover', e.message));
     await page.waitForTimeout(80);
     drain('wire hover');
-    await wire.click({ force: true }).catch((e) => note(design, 'wire select', e.message));
+    await wire.dispatchEvent('click').catch((e) => note(design, 'wire select', e.message));
     await page.waitForTimeout(150);
     drain('wire select');
     // Inspector tree: expand every aggregate node the selection populated.
