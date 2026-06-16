@@ -41,7 +41,7 @@ object Launcher {
 
   val UsageLine: String =
     "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
-    "       socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
+    "       socless.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
   /** Fuller help printed for `--help`/`-h`; errors print the terse [[UsageLine]].
     * Spells out the four modes one main supports and explains every flag, since

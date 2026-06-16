@@ -6,14 +6,19 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.Executors
 
 /** Standalone, dependency-free UI server (issue #115): `socless.Launcher serve`
-  * extracts the embedded SoCLess.html and serves it on loopback, converting
-  * dropped `.fir` files in-process via `POST /convert`. No Mill and no Python
-  * required, so it works from an sbt project (or any build): dump CHIRRTL from
-  * your own build, then point this at it.
+  * extracts the embedded SoCLess.html and serves it, converting dropped `.fir`
+  * files in-process via `POST /convert`. No Mill and no Python required, so it
+  * works from an sbt project (or any build): dump CHIRRTL from your own build,
+  * then point this at it.
+  *
+  * Binds loopback (`127.0.0.1`) by default, but auto-binds `0.0.0.0` under WSL:
+  * WSL2's localhost-forwarding relay does not forward to a `127.0.0.1`-only
+  * service inside the VM, so the Windows-side browser would otherwise get
+  * ERR_CONNECTION_REFUSED and a blank page. `--host` overrides either way.
   *
   * Usage:
   * {{{
-  *   socless.Launcher serve [--port N] [--dir <static-dir>] [--watch <file.fir>] [--no-open]
+  *   socless.Launcher serve [--port N] [--host <addr>] [--dir <static-dir>] [--watch <file.fir>] [--no-open]
   * }}}
   * `--dir` additionally serves static files from a directory (drop a
   * `design.json` / `designs.json` there to have the UI auto-load it).
@@ -42,12 +47,35 @@ object Serve {
   @volatile private var sourceRoot: Option[os.Path] = None
 
   private val Usage =
-    "usage: socless.Launcher serve [--port N] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
+    "usage: socless.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
+
+  /** True when running inside WSL (any version). WSL2 runs services in a NAT'd
+    * VM; a server bound only to `127.0.0.1` inside that VM is unreachable from
+    * the Windows-side browser, so we widen the default bind there (see
+    * [[resolveBindHost]]). Detected via the interop env vars Microsoft sets, or
+    * the "microsoft" marker in the kernel release string. */
+  private[socless] def isWsl: Boolean =
+    sys.env.contains("WSL_DISTRO_NAME") || sys.env.contains("WSL_INTEROP") || {
+      try new String(java.nio.file.Files.readAllBytes(
+            java.nio.file.Paths.get("/proc/sys/kernel/osrelease")), UTF_8)
+            .toLowerCase.contains("microsoft")
+      catch { case _: Throwable => false }
+    }
+
+  /** Resolve the address to bind. An explicit `--host` always wins. Otherwise
+    * default to `0.0.0.0` under WSL (so the Windows-side browser reaches the
+    * server through the WSL2 localhost-forwarding relay, which ignores
+    * `127.0.0.1`-only services), and to loopback-only `127.0.0.1` on a normal
+    * machine (the server should not be exposed beyond the host). */
+  private[socless] def resolveBindHost(explicit: Option[String], wsl: Boolean): String =
+    explicit.getOrElse(if (wsl) "0.0.0.0" else "127.0.0.1")
 
   /** Per-flag explanations for the `serve` subcommand. Shared so the top-level
     * `--help` and `serve --help` describe the flags identically (issue #157). */
   val FlagsHelp: String =
-    """  --port N             TCP port to listen on (default 8765; bound to 127.0.0.1 only)
+    """  --port N             TCP port to listen on (default 8765)
+      |  --host <addr>        address to bind (default 127.0.0.1; auto 0.0.0.0 under WSL so the
+      |                       Windows-side browser can reach it). Use 0.0.0.0 to expose on the LAN.
       |  --dir <dir>          also serve static files from <dir>. Drop a design.json there
       |                       (or designs.json for multiple tops) and the UI auto-loads it
       |                       on open, instead of you drag-dropping a .fir
@@ -66,6 +94,7 @@ object Serve {
 
   def run(args: Array[String]): Unit = {
     var port    = 8765
+    var host    = Option.empty[String]
     var dir     = Option.empty[os.Path]
     var watch   = Option.empty[os.Path]
     var srcRoot = Option.empty[os.Path]
@@ -80,6 +109,8 @@ object Serve {
             Console.err.println(s"[socless] serve: invalid port '${args(i + 1)}'"); sys.exit(2)
           }
           i += 2
+        case "--host" if i + 1 < args.length =>
+          host = Some(args(i + 1)); i += 2
         case "--dir" if i + 1 < args.length =>
           dir = Some(os.Path(args(i + 1), os.pwd)); i += 2
         case "--watch" if i + 1 < args.length =>
@@ -101,11 +132,12 @@ object Serve {
       sys.exit(1)
     }
 
+    val bindHost = resolveBindHost(host, isWsl)
     val server =
-      try HttpServer.create(new InetSocketAddress("127.0.0.1", port), 0)
+      try HttpServer.create(new InetSocketAddress(bindHost, port), 0)
       catch {
         case e: java.io.IOException =>
-          Console.err.println(s"[socless] cannot listen on 127.0.0.1:$port: ${e.getMessage}")
+          Console.err.println(s"[socless] cannot listen on $bindHost:$port: ${e.getMessage}")
           Console.err.println("[socless] pick another port: serve --port <N>")
           sys.exit(1)
       }
@@ -113,8 +145,13 @@ object Serve {
     server.setExecutor(Executors.newFixedThreadPool(4))
     server.start()
 
-    val url = s"http://127.0.0.1:$port/SoCLess.html"
-    Console.err.println(s"[socless] serving on $url (drag-drop a .fir, or POST /convert) -- Ctrl-C to stop")
+    // `localhost` works for both binds: loopback on a normal machine, and via
+    // the WSL2 relay when bound to 0.0.0.0 (a 127.0.0.1-only bind is invisible
+    // to that relay, which was the WSL "blank page" bug).
+    val url = s"http://localhost:$port/SoCLess.html"
+    Console.err.println(s"[socless] serving on $url (bound $bindHost) (drag-drop a .fir, or POST /convert) -- Ctrl-C to stop")
+    if (bindHost == "0.0.0.0")
+      Console.err.println(s"[socless] also reachable on this host's LAN/VM IP, e.g. http://<ip>:$port/SoCLess.html")
     if (open) openBrowser(url)
     // Block forever; the JVM exits on Ctrl-C.
     try Thread.currentThread.join()
