@@ -45,6 +45,7 @@ object LogicLabels {
       case "mux"                                  => Seq("sel", "1", "0")
       case "sub" | "lt" | "leq" | "gt" | "geq"
          | "eq" | "neq" | "div" | "rem"           => Seq("a", "b")
+      case "add" | "mul" | "and" | "or" | "xor"   => Seq("a", "b")
       case "shl" | "shr" | "dshl" | "dshr"        => Seq("in", "amt")
       case "neg" | "not" | "andr" | "orr" | "xorr" => Seq("in")
       case _                                       => Seq.empty

@@ -41,6 +41,9 @@ const note = (design, where, msg) => {
   console.log(`  FAIL [${design}] ${where}: ${msg}`);
 };
 
+// Union of every data-symbol value seen across all designs/views (#203).
+const seenSymbolKinds = new Set();
+
 const launchOpts = { args: ['--no-sandbox'] };
 if (EXEC) launchOpts.executablePath = EXEC;
 const browser = await chromium.launch(launchOpts);
@@ -165,10 +168,19 @@ for (const design of designs) {
       stubs: document.querySelectorAll('[data-boundary-stub]').length,
       empty: !!document.querySelector('[data-empty-module]'),
       layoutMissing: !!document.querySelector('[data-layout-missing]'),
+      logicNodes: document.querySelectorAll('[data-logic-node]').length,
+      symbols: Array.from(document.querySelectorAll('[data-logic-node]'))
+        .filter(e => (e.getAttribute('data-symbol') || '').length > 0).length,
+      symbolKinds: Array.from(new Set(Array.from(document.querySelectorAll('[data-symbol]'))
+        .map(e => e.getAttribute('data-symbol')).filter(Boolean))),
     }));
     const where = `drill ${path}${leaf ? ' (leaf)' : ''}`;
     if (content.layoutMissing) note(design, where, 'missing-layout notice shown for a fixture exported with layouts');
     else if (content.boxes + content.stubs === 0 && !content.empty) note(design, where, 'blank canvas: no boxes, stubs, or empty-module notice');
+    // #203 (Task 4): every logic node must render a non-empty data-symbol.
+    if (content.logicNodes !== content.symbols)
+      note(design, 'symbols', `${content.logicNodes - content.symbols} logic node(s) missing data-symbol`);
+    for (const k of content.symbolKinds) seenSymbolKinds.add(k);
     drain(where);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
   }
@@ -248,6 +260,16 @@ for (const design of designs) {
 }
 
 await browser.close();
+
+// #203 (Task 5): the expected symbol families must render at least once across
+// the whole run. Registers (ff) appear in regheavy/datapath; combinational ops
+// (block) in rvpipeline/gcd/datapath. No bundled example exercises a mux op, so
+// 'mux' is intentionally not required here. Lenient (presence, not counts) so
+// design changes do not break it.
+console.log(`Symbol families seen: ${Array.from(seenSymbolKinds).sort().join(', ') || '(none)'}`);
+const need = ['block', 'ff'];
+for (const k of need)
+  if (!seenSymbolKinds.has(k)) note('(all)', 'symbol-family', `no node rendered data-symbol="${k}" in any design`);
 
 console.log('\n=== SMOKE SUMMARY ===');
 if (failures.length === 0) {

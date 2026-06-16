@@ -20,6 +20,10 @@ object LayoutCore {
 
   // ── Header / port-row geometry (single source of truth, emitted via consts) ──
   val NodeW: Double    = 160.0
+  // Logic-op / register nodes render as a compact centered symbol (issue #203),
+  // not a header+label box, so they get a small fixed width and the symbol's
+  // stubs reach the WEST/EAST pins closely instead of crossing a wide footprint.
+  val LogicNodeW: Double = 80.0
   val PortStep: Double = 24.0
   val PortPad: Double  = 18.0
   /** Height of the component header band (name + type). */
@@ -327,7 +331,12 @@ object LayoutCore {
         val eastMaxPx = pins.values.filter(_.side == "EAST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
         val headerTextPx = id.length * 6.5 + 24.0
-        val w = math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
+        // Op/reg logic nodes render as a compact symbol (no header, short or no
+        // pin labels), so they use a small fixed width; real instances size to
+        // their header + label columns (issue #203).
+        val isLogic = kind == "op" || kind == "reg"
+        val w = if (isLogic) LogicNodeW
+                else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
         val h = nodeHeight(west, east)
         // Independent row counters per side so WEST and EAST ports start at row 0.
         var westRow = 0; var eastRow = 0

@@ -57,7 +57,23 @@ object IrWalk {
     // Carry parser warnings through, and add a walk-level one: wires whose
     // endpoint type could not be resolved fall back to bundle "Wire" (issue
     // #118 - the user should know those are best-effort, not real types).
-    val unresolved = modules.flatMap(_.wires).count(_.bundle == "Wire")
+    // Wires between intra-module logic nodes (const -> op, op -> op, reg) are
+    // anonymous ground nets by nature: they carry no named bundle, so a "Wire"
+    // label is expected rather than a resolution failure. Counting them made the
+    // warning noisy after B2 added op nodes (issue #188). Count only wires whose
+    // endpoints are instances/module ports - a genuinely unresolvable type - so
+    // the warning stays meaningful (issue #118).
+    def logicBase(head: String): String =
+      if (head.endsWith("~q")) head.dropRight(2)
+      else { val i = head.indexOf("~in"); if (i >= 0) head.substring(0, i) else head }
+    val unresolved = modules.iterator.map { m =>
+      val logicIds = m.logic.iterator.map(_.id).toSet
+      def isLogicEnd(e: String): Boolean = {
+        val head = e.split('.').headOption.getOrElse("")
+        head.startsWith("const$") || logicIds.contains(head) || logicIds.contains(logicBase(head))
+      }
+      m.wires.count(w => w.bundle == "Wire" && !(isLogicEnd(w.from) || isLogicEnd(w.to)))
+    }.sum
     val walkWarnings =
       if (unresolved > 0)
         Seq(Warning("unresolved-endpoint", unresolved,

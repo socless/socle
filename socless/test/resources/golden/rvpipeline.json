@@ -1613,12 +1613,5 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  },
-  "warnings": [
-    {
-      "kind": "unresolved-endpoint",
-      "count": 4,
-      "message": "4 wire(s) had an unresolvable endpoint type and were labeled 'Wire'"
-    }
-  ]
+  }
 }

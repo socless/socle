@@ -55,7 +55,10 @@ object Schematic {
     // (LayoutCore.prepare filters them), so they have no laid pin to attach to.
     // Drop them here too, so the schematic neither silently loses them nor draws
     // them as misleading dangling stubs; clock/reset distribution is implicit.
-    mod.wires.filterNot(socless.LayoutCore.isClockReset).foreach { w =>
+    // Constant drivers are not drawn as a node + wire; they render as a small
+    // value label + `|-` stub at the driven port instead (issue #203). The wire
+    // to a `const$...` source is therefore dropped here.
+    mod.wires.filterNot(socless.LayoutCore.isClockReset).filterNot(_.to.startsWith("const$")).foreach { w =>
       val a = w.from.split('.').headOption.getOrElse("")
       val b = w.to.split('.').headOption.getOrElse("")
       if (a.isEmpty || b.isEmpty || a == b) out += new DWire(w.from, w.to, w.bundle, w.label, false, groundCount(w.label))
@@ -384,10 +387,17 @@ object Schematic {
       if (isMiddle || isLeftOnBg) {
         e.preventDefault()
         val (px, py) = panVar.now(); val sx = e.clientX; val sy = e.clientY
-        lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => panVar.set((px + (ev.clientX - sx), py + (ev.clientY - sy)))
+        var moved = false
+        lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => {
+          if (math.abs(ev.clientX - sx) + math.abs(ev.clientY - sy) > 3) moved = true
+          panVar.set((px + (ev.clientX - sx), py + (ev.clientY - sy)))
+        }
         lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
           dom.window.removeEventListener("mousemove", moveL)
           dom.window.removeEventListener("mouseup", upL)
+          // A left-click on empty canvas (no drag) clears the selection, so a
+          // selected wire/component can be unselected (issue #203 follow-up).
+          if (!moved && isLeftOnBg) selectedVar.set(None)
         }
         dom.window.addEventListener("mousemove", moveL)
         dom.window.addEventListener("mouseup", upL)
@@ -439,21 +449,63 @@ object Schematic {
             sa("data-wire") := w.fromPath,
             sa("data-pan-block") := "1",
             sa("style") := "stroke:transparent;stroke-width:14;fill:none;cursor:pointer;pointer-events:stroke",
-            onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(w.fromPath)) },
+            onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(w.fromPath)) None else Some(w.fromPath)) },
             onMouseEnter --> { (_: dom.MouseEvent) => hoveredVar.set(Some(w.fromPath)) },
             onMouseLeave --> { (_: dom.MouseEvent) => hoveredVar.set(None) },
           )
         },
       )
 
+      // ── constant annotations (issue #203) ──
+      // A constant is not a node: it renders as a small value label at the port
+      // it drives (const logic id is `const$<sinkPath>`). For a register the
+      // constant is the init value, so it sits as a label ABOVE the symbol;
+      // otherwise it is a `|-` stub on the driven side of the port.
+      val constEls: Seq[ReactiveElement.Base] = g.mod.logic.iterator.filter(_.kind == "const").flatMap { cn =>
+        val sinkPath = cn.id.stripPrefix("const$")
+        val raw = if (cn.label.nonEmpty) cn.label else cn.id
+        val value = raw.indexOf(": ") match { case i if i > 0 => raw.take(i); case _ => raw }
+        g.layout.nodes.iterator.flatMap(b => b.ports.find(_.path == sinkPath).map(p => (b, p))).toSeq.headOption.map { case (b, p) =>
+          val shift  = g.boxShift.shift.getOrElse(b.id, 0.0)
+          val py     = p.y + shift
+          val lblBase = s"font-family:${Tokens.mono};font-size:9px;font-weight:600;color:${Tokens.ink2};white-space:nowrap"
+          if (b.kind == "reg") {
+            // Register init value: label centered just above the flip-flop symbol.
+            val cx     = b.x + b.w / 2.0
+            val symTop = py - 18.0
+            div(
+              dataAttr("const-stub") := cn.id, dataAttr("pan-block") := "1",
+              title := s"register init $value",
+              span(styleAttr := s"position:absolute;left:${cx}px;top:${symTop - 13}px;transform:translateX(-50%);text-align:center;$lblBase", value),
+            )
+          } else {
+            val isWest = p.side == "WEST"
+            val px     = p.x.toDouble
+            val len    = 18.0
+            // Stub: a short wire out of the port ending in a perpendicular bar (|-).
+            val d = if (isWest) s"M $px $py L ${px - len} $py M ${px - len} ${py - 5} L ${px - len} ${py + 5}"
+                    else        s"M $px $py L ${px + len} $py M ${px + len} ${py - 5} L ${px + len} ${py + 5}"
+            val labelStyle =
+              if (isWest) s"position:absolute;left:${px - len - 4}px;top:${py - 7}px;transform:translateX(-100%);text-align:right"
+              else        s"position:absolute;left:${px + len + 4}px;top:${py - 7}px;text-align:left"
+            div(
+              dataAttr("const-stub") := cn.id, dataAttr("pan-block") := "1",
+              title := s"constant $value",
+              svg.svg(sa("style") := "position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none",
+                svg.path(sa("d") := d, sa("style") := s"stroke:${Tokens.ink3};stroke-width:1.2;fill:none")),
+              span(styleAttr := s"$labelStyle;$lblBase", value),
+            )
+          }
+        }
+      }.toSeq
+
       // ── boxes ──
-      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.map { n =>
+      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(_.kind == "const").map { n =>
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
         if (n.kind == "reg") regBox(g, n, top, boxActive(n.id), sel, hov)
-        else if (n.kind == "const") constTag(g, n, top, boxActive(n.id))
-        // Op nodes have no `children` entry, so (like reg/const) they must be
+        // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
         else if (n.kind == "op") opBox(g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
@@ -492,7 +544,7 @@ object Schematic {
             div(
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-              onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
+              onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
               span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", glyph(g.design, ch.`type`)),
               span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
               div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
@@ -570,7 +622,7 @@ object Schematic {
         },
       )
 
-      (Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)
+      (Seq[ReactiveElement.Base](hit) ++ boxEls ++ constEls) :+ (vis: ReactiveElement.Base)
     }
 
     // Bidirectional cue: a mid-wire opposed double-chevron (JS bidirChevrons).
@@ -606,48 +658,34 @@ object Schematic {
     }
 
     // ── register node (issue #188 B1) ──
-    // An instance-style box (header = register name + WEST `d` / EAST `q` pins)
-    // marked with a small clock-edge triangle in the bottom-right corner so it
-    // reads as a register, not a sub-instance.
+    // A naked flip-flop symbol (`LogicSymbols.ff`) with WEST `D` / EAST `Q` pins.
+    // The clock notch is intrinsic to the symbol, replacing the old box + corner
+    // clock triangle. Pins are still rendered via renderPortRows (Approach A) so
+    // wire anchoring is unchanged.
     def regBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
                sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
       val c            = g.c
       val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
       val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      val borderCol    = if (selectedHere) Tokens.accent else Tokens.border
-      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}" else "0 1px 2px rgba(0,0,0,.04)"
-      // Clock-edge triangle: a tiny right-pointing glyph anchored bottom-right.
-      val triH = 7.0; val triW = 5.0
-      val triX = n.w - triW - 5.0; val triY = boxInfo.boxH - triH - 5.0
+      def rowY(i: Int): Double = c.headerH + c.portPad + i * c.portStep + c.portStep / 2
+      val inYs   = boxInfo.westRows.indices.map(rowY)
+      val outY   = if (boxInfo.eastRows.nonEmpty) rowY(0) else boxInfo.boxH / 2
+      val stroke = if (selectedHere) Tokens.accent else Tokens.ink2
+      // No D/Q labels: the flip-flop symbol + clock mark convey it (issue #203).
+      val westBlank = boxInfo.westRows.map(_.copy(label = ""))
+      val eastBlank = boxInfo.eastRows.map(_.copy(label = ""))
       div(
         dataAttr("logic-node") := n.id,
         dataAttr("box-inst") := n.id,
+        dataAttr("symbol") := "ff",
         dataAttr("pan-block") := "1",
+        title := s"register (${n.id})",
         styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-          s"opacity:${if (active) "1" else "0.18"};" +
-          s"background:${Tokens.panel};border:1px solid $borderCol;border-radius:6px;" +
-          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
-          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
-        // header
-        div(
-          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
-            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-          onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
-          span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", "◆"),
-          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
-          div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
-            span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px", "reg")),
-        ),
-        // port rows
-        renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
-        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
-        // clock-edge marker
-        svg.svg(
-          sa("style") := s"position:absolute;left:${triX}px;top:${triY}px;width:${triW}px;height:${triH}px;overflow:visible;pointer-events:none",
-          svg.path(sa("d") := s"M 0 0 L ${triW} ${triH / 2} L 0 ${triH} Z",
-            sa("style") := s"fill:${Tokens.ink3}"),
-          svg.titleTag("register (clock edge)"),
-        ),
+          s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
+        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+        LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
+        renderPortRows(g, n, westBlank, "WEST", sel, hov),
+        renderPortRows(g, n, eastBlank, "EAST", sel, hov),
       )
     }
 
@@ -662,73 +700,39 @@ object Schematic {
       val glyph        = opGlyph(op)
       val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
       val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      val borderCol    = if (selectedHere) Tokens.accent else Tokens.border
-      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}" else "0 1px 2px rgba(0,0,0,.04)"
-      // Role-label each WEST input row by its `~in<i>` index, falling back to the
-      // generic stripQ cleanup for any pin that doesn't match (defensive).
-      val westRoled = boxInfo.westRows.map { r =>
-        r.path match {
-          case OpInRe(_, i) => r.copy(label = inRole(op, i.toInt))
-          case _            => r
-        }
-      }
       // Tooltip must match the visible role label (issue #188 B2): the row's
       // `path` is still the raw `<id>~in<i>`, so stripQ alone would show `in<i>`.
       def westTitle(r: RowModel.Row): String = r.path match {
         case OpInRe(_, i) => inRole(op, i.toInt)
         case _            => stripQ(r.path)
       }
-      div(
-        dataAttr("logic-node") := n.id,
-        dataAttr("box-inst") := n.id,
-        dataAttr("pan-block") := "1",
-        title := (if (op.nonEmpty) s"op $op" else "op"),
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-          s"opacity:${if (active) "1" else "0.18"};" +
-          s"background:${Tokens.panel};border:1px solid $borderCol;border-radius:6px;" +
-          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
-          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
-        // header
-        div(
-          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
-            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-          onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
-          span(styleAttr := s"width:14px;display:inline-flex;justify-content:center;font-weight:700;color:${if (selectedHere) Tokens.accent else Tokens.ink2};font-size:11px;font-family:${Tokens.mono}", glyph),
-          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
-          div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
-            span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px", "op")),
-        ),
-        // port rows (WEST inputs role-labelled, EAST output unchanged)
-        renderPortRows(g, n, westRoled, "WEST", sel, hov, westTitle),
-        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
-      )
-    }
-
-    // ── constant node (issue #188 B1) ──
-    // A compact rounded-rect tag showing the literal value (the laid node's, or
-    // `g.mod.logic` label by id).
-    def constTag(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
-      // Show ONLY the literal value: prefer the const logic node's label
-      // (`0x0`, `false`), never the synthetic `const$...` id or a `path: bundle`
-      // pin label. Strip any `: bundle` suffix defensively (issue #188 follow-up).
-      val rawLabel = g.mod.logic.find(n2 => n2.id == n.id && n2.kind == "const").map(_.label).filter(_.nonEmpty)
-        .orElse(n.ports.iterator.map(_.label).find(l => l.nonEmpty && !l.startsWith("const$")))
-        .getOrElse(n.id)
-      val label = rawLabel.indexOf(": ") match {
-        case i if i > 0 => rawLabel.take(i)
-        case _          => rawLabel
+      val famTag = LogicSymbols.tag(op)
+      def rowY(i: Int): Double = c.headerH + c.portPad + i * c.portStep + c.portStep / 2
+      val inYs    = boxInfo.westRows.indices.map(rowY)
+      val outY    = if (boxInfo.eastRows.nonEmpty) rowY(0) else boxInfo.boxH / 2
+      // Op nodes carry no visible pin labels: the symbol conveys the operation,
+      // and the input role / output type stay available on hover and in the
+      // Inspector (issue #203). Blank the row labels but keep the pins + stubs.
+      val westBlank = boxInfo.westRows.map(_.copy(label = ""))
+      val eastBlank = boxInfo.eastRows.map(_.copy(label = ""))
+      val stroke  = if (selectedHere) Tokens.accent else Tokens.ink2
+      val symbol  = LogicSymbols.familyOf(op) match {
+        case LogicSymbols.Mux   => LogicSymbols.mux(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
+        case LogicSymbols.Gate  => LogicSymbols.gate(op, negated = false, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
+        case LogicSymbols.Block => LogicSymbols.opBlock(glyph, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
       }
       div(
         dataAttr("logic-node") := n.id,
+        dataAttr("box-inst") := n.id,
+        dataAttr("symbol") := famTag,
         dataAttr("pan-block") := "1",
-        title := s"constant $label",
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
-          s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
-          s"background:${Tokens.panelAlt};border:1px solid ${Tokens.border};border-radius:8px;" +
-          s"display:flex;align-items:center;justify-content:center;padding:0 6px;box-sizing:border-box;" +
-          s"font-family:${Tokens.mono};font-size:9.5px;font-weight:600;color:${Tokens.ink2};overflow:hidden;cursor:default",
-        onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
-        span(styleAttr := "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%", stripQ(label)),
+        title := (if (op.nonEmpty) s"op $op (${n.id})" else s"op (${n.id})"),
+        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+          s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
+        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+        symbol,
+        renderPortRows(g, n, westBlank, "WEST", sel, hov, westTitle),
+        renderPortRows(g, n, eastBlank, "EAST", sel, hov),
       )
     }
 
@@ -743,7 +747,7 @@ object Schematic {
           s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
           s"background:${Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
           s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
-        onClick --> { (_: dom.MouseEvent) => selectedVar.set(Some(n.id)) },
+        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
         if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
         n.ports.map { p =>
           val pw = if (p.interface) 8 else 3
