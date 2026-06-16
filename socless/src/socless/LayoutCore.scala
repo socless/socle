@@ -289,7 +289,16 @@ object LayoutCore {
       val compact = kind == "boundary" || kind == "const"
       if (compact) {
         // Boundary/const: compact, but at least wide enough for the label (if any).
-        val maxLabelPx = pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        // A const shows ONLY its literal value (the logic node's `label`, e.g.
+        // `0x0`), never the synthetic `const$...` pin id or its bundle suffix,
+        // so size it to that value rather than the pin label (issue #188 follow-up).
+        val constLabel =
+          if (kind == "const") module.logic.find(_.id == id).map(_.label).filter(_.nonEmpty)
+          else None
+        val maxLabelPx = constLabel match {
+          case Some(v) => labelPx(v)
+          case None    => pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        }
         val bw = math.max(BoundaryW, maxLabelPx)
         val laidPins = pins.values.toSeq.map { p =>
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0,

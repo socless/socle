@@ -42,5 +42,21 @@ object LogicLayoutTest extends TestSuite {
       assert(op.ports.exists(p => p.path == "sum~in1" && p.side == "WEST"))
       assert(op.ports.exists(p => p.path == "sum" && p.side == "EAST"))
     }
+
+    test("const node is sized to its literal value, not the synthetic id") {
+      val src =
+        """circuit M :
+          |  module M :
+          |    output o : UInt<8>
+          |    connect o, UInt<8>("h0")
+          |""".stripMargin
+      val d = IrWalk.design(ChirrtlParser.parse(src))
+      val L = Layout.layout(d.modules.find(_.name == "M").get, d)
+      val c = L.nodes.find(_.kind == "const").get
+      val lbl = d.modules.find(_.name == "M").get.logic.find(_.id == c.id).get.label
+      assert(!lbl.startsWith("const$"))
+      assert(lbl.nonEmpty)
+      assert(c.w <= 48.0)
+    }
   }
 }

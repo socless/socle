@@ -132,6 +132,13 @@ object BrowserLayout {
     val childById = js.Dictionary.empty[js.Dynamic]
     resChildren.foreach(c => childById(c.id.asInstanceOf[String]) = c)
 
+    // Absolute (root-relative) CENTER of each laid port, keyed by pin path. This
+    // is the elkjs counterpart of the JVM `Layout.portAnchor` (node origin +
+    // port offset + half the port box). Used to synthesize a straight route for
+    // a sectionless edge in the SAME coordinate space the routed points use, so
+    // the wire is never silently dropped (mirrors the JVM fix d0e8cba).
+    val portAnchor = js.Dictionary.empty[(Int, Int)]
+
     val nodes = prep.nodes.map { n =>
       val c  = childById(synthId(n))
       val nx = c.x.asInstanceOf[Double]
@@ -142,10 +149,15 @@ object BrowserLayout {
       c.ports.asInstanceOf[js.Array[js.Dynamic]].foreach(p => portById(p.id.asInstanceOf[String]) = p)
       val ports = n.pins.map { p =>
         val lp = portById(p.path)
+        val px = lp.x.asInstanceOf[Double]
+        val py = lp.y.asInstanceOf[Double]
+        val pw = lp.width.asInstanceOf[js.UndefOr[Double]].getOrElse(0.0)
+        val ph = lp.height.asInstanceOf[js.UndefOr[Double]].getOrElse(0.0)
+        portAnchor(p.path) = ((nx + px + pw / 2.0).toInt, (ny + py + ph / 2.0).toInt)
         LaidPortR(
           p.path,
-          (nx + lp.x.asInstanceOf[Double]).toInt,
-          (ny + lp.y.asInstanceOf[Double]).toInt,
+          (nx + px).toInt,
+          (ny + py).toInt,
           p.side, p.interface, p.label, p.bundle, p.expandable,
         )
       }
@@ -174,6 +186,18 @@ object BrowserLayout {
       e.junctionPoints.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]].toOption.foreach(_.foreach { jp =>
         jps += ((jp.x.asInstanceOf[Double].toInt, jp.y.asInstanceOf[Double].toInt))
       })
+      // elkjs occasionally lays out an edge's endpoints but emits no usable
+      // route section (<2 points). Rather than drop the wire (it then vanishes
+      // from the render), synthesize a straight 2-point route between the two
+      // port anchors, in the same node-origin/offset coordinate space the
+      // sectioned points use (mirrors the JVM fix d0e8cba). sources(0) is the
+      // SOURCE pin (toPath) and targets(0) is the SINK pin (fromPath).
+      if (pts.length < 2) {
+        for {
+          src  <- portAnchor.get(sources(0))
+          sink <- portAnchor.get(targets(0))
+        } pts ++= Seq(src, sink)
+      }
       if (pts.length < 2) Nil
       else Seq(LaidEdgeR(targets(0), sources(0), pts.toSeq, jps.toSeq))
     }

@@ -78,6 +78,35 @@ object Layout {
 
   case class Box(x: Int, y: Int, w: Int, h: Int)
 
+  /** Absolute (root-relative) CENTER of an ELK port: its owning node origin +
+    * the port offset + half the port box. This is the same node-origin/offset
+    * transform [[layout]] applies when emitting LaidPort coordinates, so an
+    * anchor computed here lands in the coordinate space of routed edge points. */
+  private def portAnchor(p: ElkPort): (Int, Int) = {
+    val n = p.getParent
+    ((n.getX + p.getX + p.getWidth / 2.0).toInt,
+     (n.getY + p.getY + p.getHeight / 2.0).toInt)
+  }
+
+  /** Smoke fixture for the sectionless-edge fallback: lay out two connected
+    * nodes, strip the routed edge's sections to simulate ELK returning an edge
+    * without a usable route, then synthesize the straight 2-point fallback the
+    * way [[layout]] does. Returns (synthesized points, source anchor, sink
+    * anchor) so the test can assert the route is exactly the two port anchors. */
+  def smokeSectionlessRoute(): (Seq[(Int, Int)], (Int, Int), (Int, Int)) = elkLock.synchronized {
+    val root = newGraph()
+    val a  = addNode(root, 160, 80)
+    val ap = addPort(a, PortSide.EAST)
+    val b  = addNode(root, 160, 80)
+    val bp = addPort(b, PortSide.WEST)
+    val ed = ElkGraphUtil.createSimpleEdge(ap, bp)
+    new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
+    ed.getSections.clear() // simulate the sectionless case
+    val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
+    if (ed.getSections.isEmpty) { pts += portAnchor(ap); pts += portAnchor(bp) }
+    (pts.toSeq, portAnchor(ap), portAnchor(bp))
+  }
+
   // The header/port-row geometry constants moved to LayoutCore (shared with the
   // browser engine, issue #167). Forwarded here so existing callers and tests
   // keep reaching them through Layout.
@@ -192,11 +221,20 @@ object Layout {
               sec.getBendPoints.asScala.foreach(bp => pts += ((bp.getX.toInt, bp.getY.toInt)))
               pts += ((sec.getEndX.toInt, sec.getEndY.toInt))
             }
-            // An ELK edge without sections has no usable route: drop it rather
-            // than emit a polyline that violates the >=2-points invariant (issue #102).
-            if (pts.size < 2) None
+            // ELK occasionally lays out an edge's endpoints but emits no route
+            // section. Rather than drop the wire (it then vanishes from the
+            // render, issue 2c), synthesize a straight 2-point route between the
+            // two port anchors (portAnchor uses the same node-origin/offset
+            // transform laidNodes applies, so these points share the coordinate
+            // space of sectioned routes).
+            if (pts.size < 2) {
+              pts.clear()
+              pts += portAnchor(s) // source (toPath) port anchor
+              pts += portAnchor(d) // sink   (fromPath) port anchor
+            }
             // points run source->sink (toPath -> fromPath); from/to keep WireDef
             // semantics so the UI looks up the polyline by (w.from, w.to).
+            if (pts.size < 2) None
             else Some(RoutedEdge(e.fromPath, e.toPath, pts.toSeq, e.label))
           }
         case _ => None

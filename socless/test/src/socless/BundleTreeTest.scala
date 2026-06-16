@@ -61,6 +61,25 @@ object BundleTreeTest extends TestSuite {
       assert(d.children.find(_.name == "ready").get.dir.contains("in"))
     }
 
+    // Regression guard for issue 1 ("weird recursive thing"): a Decoupled port
+    // must expand exactly ONE level into valid / ready / bits.* leaves, with NO
+    // child re-expanding into the same valid/ready set. The trigger would be a
+    // bits/valid/ready leaf whose bundleKey is (wrongly) a registered aggregate,
+    // making isExpandable true and re-splitting. We gate isExpandable strictly on
+    // registered-bundle membership so flattened ground leaves never re-expand.
+    test("Decoupled expands one level: valid/ready/bits.* leaves, none re-expandable into the same set") {
+      val children = BundleTree.portTree("Decoupled_X", Some("out"), "p.io", design).children
+      val names    = children.map(_.name).toSet
+      assert(names.contains("valid") && names.contains("ready"))
+      assert(children.exists(_.name.startsWith("bits")))
+      children.foreach { c =>
+        if (c.isExpandable) {
+          val sub = BundleTree.portTree(c.bundleKey, c.dir, c.path, design).children.map(_.name).toSet
+          assert(!(sub.contains("valid") && sub.contains("ready")))
+        }
+      }
+    }
+
     test("portTree with no base direction leaves child dirs unresolved") {
       val axi = BundleTree.portTree("AXI4", None, "x.io", design)
       assert(axi.children.forall(_.dir.isEmpty))

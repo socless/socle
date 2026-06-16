@@ -23,7 +23,7 @@ object Schematic {
 
   private final case class Wire(
     id: String, fromPath: String, toPath: String, fromInst: String, toInst: String,
-    bundle: String, bidir: Boolean, points: Seq[(Double, Double)],
+    bundle: String, bidir: Boolean, points: Seq[(Double, Double)], dangling: Boolean = false,
   ) {
     def x1: Double = points.head._1; def y1: Double = points.head._2
     def x2: Double = points.last._1; def y2: Double = points.last._2
@@ -51,7 +51,11 @@ object Schematic {
     def pairKey(a: String, b: String) = if (a < b) a + "|" + b else b + "|" + a
     val seen = scala.collection.mutable.Map.empty[String, scala.collection.mutable.ListBuffer[DWire]]
     val out  = scala.collection.mutable.ListBuffer.empty[DWire]
-    mod.wires.foreach { w =>
+    // Clock/reset connects are intentionally excluded from the layout graph
+    // (LayoutCore.prepare filters them), so they have no laid pin to attach to.
+    // Drop them here too, so the schematic neither silently loses them nor draws
+    // them as misleading dangling stubs; clock/reset distribution is implicit.
+    mod.wires.filterNot(socless.LayoutCore.isClockReset).foreach { w =>
       val a = w.from.split('.').headOption.getOrElse("")
       val b = w.to.split('.').headOption.getOrElse("")
       if (a.isEmpty || b.isEmpty || a == b) out += new DWire(w.from, w.to, w.bundle, w.label, false, groundCount(w.label))
@@ -134,32 +138,92 @@ object Schematic {
     BoxShift(shift, shiftAt, inserts.map(_._2).sum)
   }
 
+  /** The box-relative anchor X of `path` on `box`: the pin's own x if the pin is
+    * laid out, else the box edge for the side the pin sits on (WEST = left,
+    * EAST = right). Used to synthesize a terminal for a wire whose ELK edge is
+    * missing (issue #188 follow-up). */
+  private def anchorX(box: LaidNodeR, path: String): Double =
+    box.ports.find(_.path == path).map(_.x.toDouble).getOrElse {
+      box.ports.find(p => path.startsWith(p.path)).map(_.x.toDouble).getOrElse(box.x + box.w / 2.0)
+    }
+
   private def buildWires(dwires: Seq[DWire], layout: LaidOut, boxById: Map[String, LaidNodeR],
                          pinYMap: Map[String, Map[String, Double]], boxShift: BoxShift): Seq[Wire] = {
     val edgeByKey = layout.edges.map(e => (e.from + " " + e.to) -> e).toMap
+
+    // Box-relative pin Y for `path` on `inst`. When the exact path is not a laid
+    // pin (e.g. the wire targets `io.in.bits.a` while the `io` bundle is
+    // collapsed), walk UP the path to the nearest ancestor pin that IS laid out
+    // (the collapsed bundle parent) instead of letting the caller fall back to
+    // the stale routed coordinate (issue #188 follow-up 2b). The exact-path case
+    // is unchanged, so already-correct wires keep their pin Y.
+    def pinYOf(inst: String, path: String): Option[Double] = {
+      val byPath = pinYMap.getOrElse(inst, Map.empty)
+      def up(p: String): Option[Double] =
+        byPath.get(p).orElse {
+          val i = p.lastIndexOf('.'); if (i < 0) None else up(p.substring(0, i))
+        }
+      up(path)
+    }
+
+    // The best-known absolute anchor point (x, y) for an endpoint, used to
+    // synthesize a straight segment when the ELK edge is missing. Resolves the
+    // owning box, then its pin Y (exact pin) or the box's vertical center.
+    def anchorOf(path: String): Option[(Double, Double)] = {
+      val inst = path.split('.').headOption.getOrElse("")
+      boxById.get(inst).map { box =>
+        val shift = boxShift.shift.getOrElse(ownerBoxId(boxById, path), 0.0)
+        val ay    = pinYOf(inst, path).map(box.y + shift + _).getOrElse(box.y + shift + box.h / 2.0)
+        (anchorX(box, path), ay)
+      }
+    }
+
     dwires.zipWithIndex.flatMap { case (w, i) =>
       val fromInst = w.from.split('.').headOption.getOrElse("")
       val toInst   = w.to.split('.').headOption.getOrElse("")
-      edgeByKey.get(w.from + " " + w.to).map(_.points).filter(_.length >= 2).map { ptsInt =>
-        val pts     = ptsInt.map { case (x, y) => (x.toDouble, y.toDouble) }
-        val fromBox = boxById.get(fromInst); val toBox = boxById.get(toInst)
-        val fromShift = boxShift.shift.getOrElse(ownerBoxId(boxById, w.from), 0.0)
-        val toShift   = boxShift.shift.getOrElse(ownerBoxId(boxById, w.to), 0.0)
-        // pts run source->sink: pts.head = w.to (source), pts.last = w.from (sink).
-        val toPinY = pinYMap.get(toInst).flatMap(_.get(w.to)) match {
-          case Some(y) => toBox.map(_.y + toShift + y).getOrElse(pts.head._2)
-          case None    => pts.head._2 + toShift
-        }
-        val fromPinY = pinYMap.get(fromInst).flatMap(_.get(w.from)) match {
-          case Some(y) => fromBox.map(_.y + fromShift + y).getOrElse(pts.last._2)
-          case None    => pts.last._2 + fromShift
-        }
-        val moved = pts.zipWithIndex.map { case ((x, y), idx) =>
-          if (idx == 0) (x, toPinY)
-          else if (idx == pts.length - 1) (x, fromPinY)
-          else (x, y + boxShift.shiftAt(y))
-        }
-        Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir, orthogonalize(moved))
+      edgeByKey.get(w.from + " " + w.to).map(_.points).filter(_.length >= 2) match {
+        case Some(ptsInt) =>
+          // Routed path present: keep the ELK polyline, retargeting only the
+          // terminal Y values onto the box pins (unchanged behavior).
+          val pts     = ptsInt.map { case (x, y) => (x.toDouble, y.toDouble) }
+          val fromBox = boxById.get(fromInst); val toBox = boxById.get(toInst)
+          val fromShift = boxShift.shift.getOrElse(ownerBoxId(boxById, w.from), 0.0)
+          val toShift   = boxShift.shift.getOrElse(ownerBoxId(boxById, w.to), 0.0)
+          // pts run source->sink: pts.head = w.to (source), pts.last = w.from (sink).
+          val toPinY = pinYOf(toInst, w.to) match {
+            case Some(y) => toBox.map(_.y + toShift + y).getOrElse(pts.head._2)
+            case None    => pts.head._2 + toShift
+          }
+          val fromPinY = pinYOf(fromInst, w.from) match {
+            case Some(y) => fromBox.map(_.y + fromShift + y).getOrElse(pts.last._2)
+            case None    => pts.last._2 + fromShift
+          }
+          val moved = pts.zipWithIndex.map { case ((x, y), idx) =>
+            if (idx == 0) (x, toPinY)
+            else if (idx == pts.length - 1) (x, fromPinY)
+            else (x, y + boxShift.shiftAt(y))
+          }
+          Some(Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir, orthogonalize(moved)))
+        case None =>
+          // No routed edge: surface the connection instead of dropping it
+          // silently (issue #188 follow-up 2a). Synthesize a straight segment
+          // between the best-known anchors, marking it dangling so it renders
+          // with a distinct stroke + end marker. If neither anchor resolves,
+          // warn (logged, not silently gone) and skip.
+          (anchorOf(w.to), anchorOf(w.from)) match {
+            case (Some(src), Some(sink)) =>
+              Some(Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir,
+                orthogonalize(Seq(src, sink)), dangling = true))
+            case (Some(src), None) =>
+              Some(Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir,
+                Seq(src, (src._1 + 24.0, src._2)), dangling = true))
+            case (None, Some(sink)) =>
+              Some(Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir,
+                Seq((sink._1 - 24.0, sink._2), sink), dangling = true))
+            case (None, None) =>
+              dom.console.warn(s"[socless] wire dropped, no anchor for ${w.from} -> ${w.to}")
+              None
+          }
       }
     }
   }
@@ -402,6 +466,12 @@ object Schematic {
           val isBlackbox = childMod.exists(m => m.kind == "external" || m.kind == "intrinsic")
           val extLabel: String = childMod.map(m => if (m.kind == "intrinsic") "intrinsic" else "ext").getOrElse("ext")
           val drillable  = childMod.exists(m => !isBlackbox && m.children.nonEmpty)
+          // Clock/reset are filtered from the wire graph (no laid pin, see
+          // displayWires), so a clocked instance carries a compact corner cue
+          // instead of a routed clock tree: a clock-input notch bottom-left and a
+          // reset ring bottom-right (issue #188 follow-up).
+          val hasClock = childMod.exists(_.ports.exists(_.bundle == "Clock"))
+          val hasReset = childMod.exists(_.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset"))
           val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
           val isClockPeer  = selClock.nonEmpty && n.id != selInst && child.exists(_.clock == selClock)
           val boxInfo    = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
@@ -435,6 +505,17 @@ object Schematic {
             // port rows
             renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
             renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
+            // clock-input notch (bottom-left) and reset ring (bottom-right)
+            opt(hasClock)(div(
+              dataAttr("clk-cue") := n.id, title := "clock input",
+              styleAttr := s"position:absolute;left:7px;bottom:3px;display:flex;align-items:center;gap:2px;" +
+                s"font-family:${Tokens.mono};font-size:7.5px;line-height:1;color:${Tokens.ink4};pointer-events:none",
+              span(styleAttr := "font-size:8px", "▷"), span("clk"))),
+            opt(hasReset)(div(
+              dataAttr("rst-cue") := n.id, title := "reset input",
+              styleAttr := s"position:absolute;right:7px;bottom:3px;display:flex;align-items:center;gap:2px;" +
+                s"font-family:${Tokens.mono};font-size:7.5px;line-height:1;color:${Tokens.ink4};pointer-events:none",
+              span("rst"), span(styleAttr := "font-size:8px", "○"))),
           )
         }
       }
@@ -462,11 +543,19 @@ object Schematic {
           val haloOp = if (hl) 0.18 else if (hov2) 0.10 else 0.07
           val groupOp = if (!wireActive(w)) 0.12 else if (dim) 0.32 else 1.0
           val d = routePath(w.points)
+          // Dangling wires (no routed ELK edge, issue #188 follow-up 2a) render
+          // dashed with a small open circle at the unresolved (sink) end, so an
+          // unrouted connection reads as visibly incomplete rather than absent.
+          val dashStyle = if (w.dangling) ";stroke-dasharray:5 4" else ""
           svg.g(
             sa("style") := s"opacity:$groupOp;transition:opacity .15s",
             svg.path(sa("d") := d, sa("style") := s"stroke:$halo;stroke-width:${sw + 6};fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:$haloOp"),
-            svg.path(sa("d") := d, sa("style") := s"stroke:$stroke;stroke-width:$sw;fill:none;stroke-linecap:round;stroke-linejoin:round"),
-            if (w.bidir) bidirGlyph(w.points, stroke) else emptyNode,
+            svg.path(sa("d") := d, sa("style") := s"stroke:$stroke;stroke-width:$sw;fill:none;stroke-linecap:round;stroke-linejoin:round$dashStyle"),
+            if (w.dangling)
+              svg.circle(sa("cx") := w.x2.toString, sa("cy") := w.y2.toString, sa("r") := "3.5",
+                sa("style") := s"fill:${Tokens.bg};stroke:$stroke;stroke-width:1.5",
+                svg.titleTag(s"unrouted wire: ${w.fromPath} ↔ ${w.toPath}"))
+            else if (w.bidir) bidirGlyph(w.points, stroke) else emptyNode,
           )
         },
         bySource.zipWithIndex.map { case ((x, y, count), _) =>
@@ -619,9 +708,16 @@ object Schematic {
     // A compact rounded-rect tag showing the literal value (the laid node's, or
     // `g.mod.logic` label by id).
     def constTag(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
-      val label = n.ports.iterator.map(_.label).find(_.nonEmpty)
-        .orElse(g.mod.logic.find(n2 => n2.id == n.id && n2.kind == "const").map(_.label))
+      // Show ONLY the literal value: prefer the const logic node's label
+      // (`0x0`, `false`), never the synthetic `const$...` id or a `path: bundle`
+      // pin label. Strip any `: bundle` suffix defensively (issue #188 follow-up).
+      val rawLabel = g.mod.logic.find(n2 => n2.id == n.id && n2.kind == "const").map(_.label).filter(_.nonEmpty)
+        .orElse(n.ports.iterator.map(_.label).find(l => l.nonEmpty && !l.startsWith("const$")))
         .getOrElse(n.id)
+      val label = rawLabel.indexOf(": ") match {
+        case i if i > 0 => rawLabel.take(i)
+        case _          => rawLabel
+      }
       div(
         dataAttr("logic-node") := n.id,
         dataAttr("pan-block") := "1",
