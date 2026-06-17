@@ -44,6 +44,41 @@ object LogicNodeTest extends TestSuite {
       |    connect o, eqz
       |""".stripMargin
 
+  private val muxDefault =
+    """circuit M :
+      |  module M :
+      |    input c : UInt<1>
+      |    input x : UInt<8>
+      |    input d : UInt<8>
+      |    output o : UInt<8>
+      |    connect o, d
+      |    when c :
+      |      connect o, x
+      |""".stripMargin
+
+  private val muxRegHold =
+    """circuit M :
+      |  module M :
+      |    input clock : Clock
+      |    input c : UInt<1>
+      |    input x : UInt<8>
+      |    reg r : UInt<8>, clock
+      |    when c :
+      |      connect r, x
+      |""".stripMargin
+
+  private val nestedIneligible =
+    """circuit M :
+      |  module M :
+      |    input a : UInt<1>
+      |    input b : UInt<1>
+      |    input x : UInt<8>
+      |    output o : UInt<8>
+      |    when a :
+      |      when b :
+      |        connect o, x
+      |""".stripMargin
+
   val tests = Tests {
     test("register becomes a reg logic node") {
       val m = mod(designOf(regPass), "M")
@@ -85,6 +120,27 @@ object LogicNodeTest extends TestSuite {
       val c = m.logic.find(_.kind == "const").get
       // the const node drives eqz's second input pin (eqz~in1)
       assert(m.wires.exists(w => w.to == c.id && w.from == "eqz~in1"))
+    }
+    test("default-then-when sink becomes a mux node routed to the sink") {
+      val m = mod(designOf(muxDefault), "M")
+      val mx = m.logic.find(n => n.kind == "op" && n.op == "mux").get
+      // sel/true/false inputs and the mux->sink output (WireDef.from = sink).
+      assert(m.wires.exists(w => w.from == s"${mx.id}~in0" && w.to == "c"))
+      assert(m.wires.exists(w => w.from == s"${mx.id}~in1" && w.to == "x"))
+      assert(m.wires.exists(w => w.from == s"${mx.id}~in2" && w.to == "d"))
+      assert(m.wires.exists(w => w.from == "o" && w.to == mx.id))
+    }
+    test("conditional register feeds its own Q into the mux (self-loop hold)") {
+      val m = mod(designOf(muxRegHold), "M")
+      val mx = m.logic.find(n => n.kind == "op" && n.op == "mux").get
+      assert(m.wires.exists(w => w.from == s"${mx.id}~in1" && w.to == "x"))
+      assert(m.wires.exists(w => w.from == s"${mx.id}~in2" && w.to == "r~q")) // held value
+      assert(m.wires.exists(w => w.from == "r" && w.to == mx.id))             // mux drives reg D
+    }
+    test("nested (depth-2) conditional is left as fan-in, no mux") {
+      val m = mod(designOf(nestedIneligible), "M")
+      assert(!m.logic.exists(n => n.kind == "op" && n.op == "mux"))
+      assert(m.wires.exists(w => w.from == "o" && w.to == "x")) // direct fan-in kept
     }
   }
 }

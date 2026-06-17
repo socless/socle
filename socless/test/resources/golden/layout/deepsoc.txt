@@ -74,8 +74,8 @@ layout ALU
   edge io.cout -> _sum_T_6
   edge io.out -> _io_out_T_14
 layout Cluster
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _cores_0_io_in_valid_T kind=op pins=_cores_0_io_in_valid_T:EAST,_cores_0_io_in_valid_T~in0:WEST,_cores_0_io_in_valid_T~in1:WEST
   node _cores_0_io_in_valid_T_1 kind=op pins=_cores_0_io_in_valid_T_1:EAST,_cores_0_io_in_valid_T_1~in0:WEST,_cores_0_io_in_valid_T_1~in1:WEST
   node _cores_0_io_out_ready_T kind=op pins=_cores_0_io_out_ready_T:EAST,_cores_0_io_out_ready_T~in0:WEST,_cores_0_io_out_ready_T~in1:WEST
@@ -127,6 +127,8 @@ layout Cluster
   node io.out.bits kind=boundary pins=io.out.bits:WEST:iface
   node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
   node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node mux$outSel kind=op pins=mux$outSel:EAST,mux$outSel~in0:WEST,mux$outSel~in1:WEST,mux$outSel~in2:WEST
+  node mux$sel kind=op pins=mux$sel:EAST,mux$sel~in0:WEST,mux$sel~in1:WEST,mux$sel~in2:WEST
   node outSel kind=reg pins=outSel:WEST,outSel~q:EAST
   node sel kind=reg pins=sel:WEST,sel~q:EAST
   edge _T_1~in0 -> io.out.ready
@@ -204,11 +206,17 @@ layout Cluster
   edge io.in.ready -> _io_in_ready_T_3
   edge io.out.bits -> _io_out_bits_T_3
   edge io.out.valid -> _io_out_valid_T_3
-  edge outSel -> _outSel_T_3
-  edge sel -> _sel_T_3
+  edge mux$outSel~in0 -> _T_1
+  edge mux$outSel~in1 -> _outSel_T_3
+  edge mux$outSel~in2 -> outSel~q
+  edge mux$sel~in0 -> _T
+  edge mux$sel~in1 -> _sel_T_3
+  edge mux$sel~in2 -> sel~q
+  edge outSel -> mux$outSel
+  edge sel -> mux$sel
 layout Core
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
   node acc kind=reg pins=acc:WEST,acc~q:EAST
   node alu kind=inst pins=alu.io.a:WEST:iface,alu.io.b:WEST:iface,alu.io.op:WEST:iface,alu.io.out:EAST:iface
@@ -216,8 +224,9 @@ layout Core
   node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
   node const$alu_io_b kind=const pins=const$alu_io_b:EAST
   node const$alu_io_op kind=const pins=const$alu_io_op:EAST
-  node const$busy kind=const pins=const$busy:EAST
   node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
+  node const$mux$busy$1~in1 kind=const pins=const$mux$busy$1~in1:EAST
+  node const$mux$busy~in1 kind=const pins=const$mux$busy~in1:EAST
   node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
   node const$rf_io_waddr kind=const pins=const$rf_io_waddr:EAST
   node const$rf_io_wdata kind=const pins=const$rf_io_wdata:EAST
@@ -229,6 +238,9 @@ layout Core
   node io.out.bits.valid kind=boundary pins=io.out.bits.valid:WEST:iface
   node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
   node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node mux$acc kind=op pins=mux$acc:EAST,mux$acc~in0:WEST,mux$acc~in1:WEST,mux$acc~in2:WEST
+  node mux$busy kind=op pins=mux$busy:EAST,mux$busy~in0:WEST,mux$busy~in1:WEST,mux$busy~in2:WEST
+  node mux$busy$1 kind=op pins=mux$busy$1:EAST,mux$busy$1~in0:WEST,mux$busy$1~in1:WEST,mux$busy$1~in2:WEST
   node rf kind=inst pins=rf.io.raddr:WEST:iface,rf.io.rdata:EAST:iface,rf.io.waddr:WEST:iface,rf.io.wdata:WEST:iface,rf.io.wen:WEST:iface
   edge _T_1~in0 -> io.out.ready
   edge _T_1~in1 -> io.out.valid
@@ -236,16 +248,25 @@ layout Core
   edge _T~in1 -> io.in.valid
   edge _io_in_ready_T~in0 -> busy~q
   edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
-  edge acc -> alu.io.out
+  edge acc -> mux$acc
   edge alu.io.a -> acc~q
   edge alu.io.b -> const$alu_io_b
   edge alu.io.b -> io.in.bits.data
   edge alu.io.op -> const$alu_io_op
-  edge busy -> const$busy
+  edge busy -> mux$busy
   edge io.in.ready -> _io_in_ready_T
   edge io.out.bits.data -> rf.io.rdata
   edge io.out.bits.valid -> const$io_out_bits_valid
   edge io.out.valid -> busy~q
+  edge mux$acc~in0 -> _T
+  edge mux$acc~in1 -> alu.io.out
+  edge mux$acc~in2 -> acc~q
+  edge mux$busy$1~in0 -> _T
+  edge mux$busy$1~in1 -> const$mux$busy$1~in1
+  edge mux$busy$1~in2 -> busy~q
+  edge mux$busy~in0 -> _T_1
+  edge mux$busy~in1 -> const$mux$busy~in1
+  edge mux$busy~in2 -> mux$busy$1
   edge rf.io.raddr -> const$rf_io_raddr
   edge rf.io.waddr -> const$rf_io_waddr
   edge rf.io.wdata -> alu.io.out
@@ -262,7 +283,7 @@ layout DeepSoc
   edge io.out -> cluster1.io.out
   edge pipe.io.enq -> cluster0.io.out
 layout Queue4_Token
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST
   node _do_enq_T kind=op pins=_do_enq_T:EAST,_do_enq_T~in0:WEST,_do_enq_T~in1:WEST
   node _empty_T kind=op pins=_empty_T:EAST,_empty_T~in0:WEST,_empty_T~in1:WEST
@@ -281,9 +302,12 @@ layout Queue4_Token
   node const$_io_enq_ready_T~in1 kind=const pins=const$_io_enq_ready_T~in1:EAST
   node const$_value_T_2~in1 kind=const pins=const$_value_T_2~in1:EAST
   node const$_value_T~in1 kind=const pins=const$_value_T~in1:EAST
-  node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
-  node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
-  node const$maybe_full kind=const pins=const$maybe_full:EAST
+  node const$mux$deq_ptr_value~in0 kind=const pins=const$mux$deq_ptr_value~in0:EAST
+  node const$mux$deq_ptr_value~in1 kind=const pins=const$mux$deq_ptr_value~in1:EAST
+  node const$mux$enq_ptr_value~in0 kind=const pins=const$mux$enq_ptr_value~in0:EAST
+  node const$mux$enq_ptr_value~in1 kind=const pins=const$mux$enq_ptr_value~in1:EAST
+  node const$mux$maybe_full~in0 kind=const pins=const$mux$maybe_full~in0:EAST
+  node const$mux$maybe_full~in1 kind=const pins=const$mux$maybe_full~in1:EAST
   node const$wrap_1~in1 kind=const pins=const$wrap_1~in1:EAST
   node const$wrap~in1 kind=const pins=const$wrap~in1:EAST
   node deq_ptr_value kind=reg pins=deq_ptr_value:WEST,deq_ptr_value~q:EAST
@@ -296,6 +320,12 @@ layout Queue4_Token
   node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
   node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
+  node mux$deq_ptr_value kind=op pins=mux$deq_ptr_value:EAST,mux$deq_ptr_value~in0:WEST,mux$deq_ptr_value~in1:WEST,mux$deq_ptr_value~in2:WEST
+  node mux$deq_ptr_value$1 kind=op pins=mux$deq_ptr_value$1:EAST,mux$deq_ptr_value$1~in0:WEST,mux$deq_ptr_value$1~in1:WEST,mux$deq_ptr_value$1~in2:WEST
+  node mux$enq_ptr_value kind=op pins=mux$enq_ptr_value:EAST,mux$enq_ptr_value~in0:WEST,mux$enq_ptr_value~in1:WEST,mux$enq_ptr_value~in2:WEST
+  node mux$enq_ptr_value$1 kind=op pins=mux$enq_ptr_value$1:EAST,mux$enq_ptr_value$1~in0:WEST,mux$enq_ptr_value$1~in1:WEST,mux$enq_ptr_value$1~in2:WEST
+  node mux$maybe_full kind=op pins=mux$maybe_full:EAST,mux$maybe_full~in0:WEST,mux$maybe_full~in1:WEST,mux$maybe_full~in2:WEST
+  node mux$maybe_full$1 kind=op pins=mux$maybe_full$1:EAST,mux$maybe_full$1~in0:WEST,mux$maybe_full$1~in1:WEST,mux$maybe_full$1~in2:WEST
   node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
   node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
@@ -324,19 +354,34 @@ layout Queue4_Token
   edge _value_T_2~in1 -> const$_value_T_2~in1
   edge _value_T~in0 -> enq_ptr_value~q
   edge _value_T~in1 -> const$_value_T~in1
-  edge deq_ptr_value -> _value_T_2
-  edge deq_ptr_value -> const$deq_ptr_value
+  edge deq_ptr_value -> mux$deq_ptr_value
   edge empty~in0 -> ptr_match
   edge empty~in1 -> _empty_T
-  edge enq_ptr_value -> _value_T
-  edge enq_ptr_value -> const$enq_ptr_value
+  edge enq_ptr_value -> mux$enq_ptr_value
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
   edge io.deq.valid -> _io_deq_valid_T
   edge io.enq.ready -> _io_enq_ready_T
-  edge maybe_full -> _do_enq_T
-  edge maybe_full -> const$maybe_full
+  edge maybe_full -> mux$maybe_full
+  edge mux$deq_ptr_value$1~in0 -> _do_deq_T
+  edge mux$deq_ptr_value$1~in1 -> _value_T_2
+  edge mux$deq_ptr_value$1~in2 -> deq_ptr_value~q
+  edge mux$deq_ptr_value~in0 -> const$mux$deq_ptr_value~in0
+  edge mux$deq_ptr_value~in1 -> const$mux$deq_ptr_value~in1
+  edge mux$deq_ptr_value~in2 -> mux$deq_ptr_value$1
+  edge mux$enq_ptr_value$1~in0 -> _do_enq_T
+  edge mux$enq_ptr_value$1~in1 -> _value_T
+  edge mux$enq_ptr_value$1~in2 -> enq_ptr_value~q
+  edge mux$enq_ptr_value~in0 -> const$mux$enq_ptr_value~in0
+  edge mux$enq_ptr_value~in1 -> const$mux$enq_ptr_value~in1
+  edge mux$enq_ptr_value~in2 -> mux$enq_ptr_value$1
+  edge mux$maybe_full$1~in0 -> _T
+  edge mux$maybe_full$1~in1 -> _do_enq_T
+  edge mux$maybe_full$1~in2 -> maybe_full~q
+  edge mux$maybe_full~in0 -> const$mux$maybe_full~in0
+  edge mux$maybe_full~in1 -> const$mux$maybe_full~in1
+  edge mux$maybe_full~in2 -> mux$maybe_full$1
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q

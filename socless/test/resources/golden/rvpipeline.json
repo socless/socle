@@ -335,14 +335,36 @@
           }
         },
         {
-          "from": "pc",
+          "from": "mux$pc~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$pc~in1",
           "to": "_pc_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "pc",
+          "to": "mux$pc",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 74,
-            "col": 26
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -476,6 +498,18 @@
             "col": 25
           },
           "fieldLevel": true
+        },
+        {
+          "from": "mux$pc~in2",
+          "to": "pc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -562,6 +596,18 @@
             "col": 32
           },
           "op": "add"
+        },
+        {
+          "id": "mux$pc",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },

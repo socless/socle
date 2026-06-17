@@ -1,9 +1,9 @@
 layout GCD
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _T_2 kind=op pins=_T_2~in0:WEST,_T_2~in1:WEST
   node _T_3 kind=op pins=_T_3~in0:WEST,_T_3~in1:WEST
-  node _T_4 kind=op pins=_T_4~in0:WEST,_T_4~in1:WEST
+  node _T_4 kind=op pins=_T_4:EAST,_T_4~in0:WEST,_T_4~in1:WEST
   node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
   node _io_out_valid_T kind=op pins=_io_out_valid_T:EAST,_io_out_valid_T~in0:WEST,_io_out_valid_T~in1:WEST
   node _io_out_valid_T_1 kind=op pins=_io_out_valid_T_1:EAST,_io_out_valid_T_1~in0:WEST,_io_out_valid_T_1~in1:WEST
@@ -11,7 +11,8 @@ layout GCD
   node _y_T kind=op pins=_y_T:EAST,_y_T~in0:WEST,_y_T~in1:WEST
   node busy kind=reg pins=busy:WEST,busy~q:EAST
   node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
-  node const$busy kind=const pins=const$busy:EAST
+  node const$mux$busy$1~in1 kind=const pins=const$mux$busy$1~in1:EAST
+  node const$mux$busy~in1 kind=const pins=const$mux$busy~in1:EAST
   node io.in.bits.a kind=boundary pins=io.in.bits.a:EAST:iface
   node io.in.bits.b kind=boundary pins=io.in.bits.b:EAST:iface
   node io.in.ready kind=boundary pins=io.in.ready:WEST:iface
@@ -19,6 +20,8 @@ layout GCD
   node io.out.bits.result kind=boundary pins=io.out.bits.result:WEST:iface
   node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
   node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
+  node mux$busy kind=op pins=mux$busy:EAST,mux$busy~in0:WEST,mux$busy~in1:WEST,mux$busy~in2:WEST
+  node mux$busy$1 kind=op pins=mux$busy$1:EAST,mux$busy$1~in0:WEST,mux$busy$1~in1:WEST,mux$busy$1~in2:WEST
   node x kind=reg pins=x:WEST,x~q:EAST
   node y kind=reg pins=y:WEST,y~q:EAST
   edge _T_1~in0 -> x~q
@@ -41,10 +44,16 @@ layout GCD
   edge _x_T~in1 -> y~q
   edge _y_T~in0 -> y~q
   edge _y_T~in1 -> x~q
-  edge busy -> const$busy
+  edge busy -> mux$busy
   edge io.in.ready -> _io_in_ready_T
   edge io.out.bits.result -> x~q
   edge io.out.valid -> _io_out_valid_T_1
+  edge mux$busy$1~in0 -> _T
+  edge mux$busy$1~in1 -> const$mux$busy$1~in1
+  edge mux$busy$1~in2 -> busy~q
+  edge mux$busy~in0 -> _T_4
+  edge mux$busy~in1 -> const$mux$busy~in1
+  edge mux$busy~in2 -> mux$busy$1
   edge x -> _x_T
   edge x -> io.in.bits.a
   edge y -> _y_T

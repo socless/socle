@@ -104,14 +104,36 @@
           }
         },
         {
-          "from": "busy",
-          "to": "const$busy",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$busy~in1",
+          "to": "const$mux$busy~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 50,
-            "col": 28
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in1",
+          "to": "const$mux$busy$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -126,8 +148,41 @@
           }
         },
         {
+          "from": "mux$busy~in0",
+          "to": "_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_io_out_valid_T_1~in1",
           "to": "_io_out_valid_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "busy",
+          "to": "mux$busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in2",
+          "to": "mux$busy$1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -210,6 +265,18 @@
         },
         {
           "from": "_io_out_valid_T_1~in0",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in2",
           "to": "busy~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -476,9 +543,20 @@
           }
         },
         {
-          "id": "const$busy",
+          "id": "const$mux$busy~in1",
           "kind": "const",
           "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$busy$1~in1",
+          "kind": "const",
+          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -605,6 +683,30 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$busy",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     }

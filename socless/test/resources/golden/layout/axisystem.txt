@@ -6,7 +6,7 @@ layout AXICrossbar
   edge io.out[0] -> io.in[0]
   edge io.out[1] -> io.in[1]
 layout AXIMaster
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _idCnt_T kind=op pins=_idCnt_T:EAST,_idCnt_T~in0:WEST,_idCnt_T~in1:WEST
   node const$_idCnt_T~in1 kind=const pins=const$_idCnt_T~in1:EAST
   node const$io_ar_bits_burst kind=const pins=const$io_ar_bits_burst:EAST
@@ -34,12 +34,13 @@ layout AXIMaster
   node io.b kind=boundary pins=io.b:WEST:iface
   node io.r kind=boundary pins=io.r:WEST:iface
   node io.w kind=boundary pins=io.w:WEST:iface
+  node mux$idCnt kind=op pins=mux$idCnt:EAST,mux$idCnt~in0:WEST,mux$idCnt~in1:WEST,mux$idCnt~in2:WEST
   node txQ kind=inst pins=txQ.io.deq.bits:EAST:iface,txQ.io.deq.ready:WEST:iface,txQ.io.deq.valid:EAST:iface,txQ.io.enq.bits:WEST:iface,txQ.io.enq.valid:WEST:iface
   edge _T~in0 -> io.ar.ready
   edge _T~in1 -> io.ar.valid
   edge _idCnt_T~in0 -> idCnt~q
   edge _idCnt_T~in1 -> const$_idCnt_T~in1
-  edge idCnt -> _idCnt_T
+  edge idCnt -> mux$idCnt
   edge io.ar.bits.addr -> txQ.io.deq.bits
   edge io.ar.bits.burst -> const$io_ar_bits_burst
   edge io.ar.bits.cache -> const$io_ar_bits_cache
@@ -52,6 +53,9 @@ layout AXIMaster
   edge io.b -> const$io_b_ready
   edge io.r -> const$io_r_ready
   edge io.w -> const$io_w_valid
+  edge mux$idCnt~in0 -> _T
+  edge mux$idCnt~in1 -> _idCnt_T
+  edge mux$idCnt~in2 -> idCnt~q
   edge txQ.io.deq.ready -> io.ar.ready
   edge txQ.io.enq.bits -> const$txQ_io_enq_bits
   edge txQ.io.enq.valid -> const$txQ_io_enq_valid
@@ -91,7 +95,7 @@ layout AXISystem
   edge xbar.io.in[0] -> cpu.io
   edge xbar.io.in[1] -> dma.io
 layout Queue4_R
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST
   node _do_enq_T kind=op pins=_do_enq_T:EAST,_do_enq_T~in0:WEST,_do_enq_T~in1:WEST
   node _empty_T kind=op pins=_empty_T:EAST,_empty_T~in0:WEST,_empty_T~in1:WEST
@@ -110,9 +114,12 @@ layout Queue4_R
   node const$_io_enq_ready_T~in1 kind=const pins=const$_io_enq_ready_T~in1:EAST
   node const$_value_T_2~in1 kind=const pins=const$_value_T_2~in1:EAST
   node const$_value_T~in1 kind=const pins=const$_value_T~in1:EAST
-  node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
-  node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
-  node const$maybe_full kind=const pins=const$maybe_full:EAST
+  node const$mux$deq_ptr_value~in0 kind=const pins=const$mux$deq_ptr_value~in0:EAST
+  node const$mux$deq_ptr_value~in1 kind=const pins=const$mux$deq_ptr_value~in1:EAST
+  node const$mux$enq_ptr_value~in0 kind=const pins=const$mux$enq_ptr_value~in0:EAST
+  node const$mux$enq_ptr_value~in1 kind=const pins=const$mux$enq_ptr_value~in1:EAST
+  node const$mux$maybe_full~in0 kind=const pins=const$mux$maybe_full~in0:EAST
+  node const$mux$maybe_full~in1 kind=const pins=const$mux$maybe_full~in1:EAST
   node const$wrap_1~in1 kind=const pins=const$wrap_1~in1:EAST
   node const$wrap~in1 kind=const pins=const$wrap~in1:EAST
   node deq_ptr_value kind=reg pins=deq_ptr_value:WEST,deq_ptr_value~q:EAST
@@ -125,6 +132,12 @@ layout Queue4_R
   node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
   node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
+  node mux$deq_ptr_value kind=op pins=mux$deq_ptr_value:EAST,mux$deq_ptr_value~in0:WEST,mux$deq_ptr_value~in1:WEST,mux$deq_ptr_value~in2:WEST
+  node mux$deq_ptr_value$1 kind=op pins=mux$deq_ptr_value$1:EAST,mux$deq_ptr_value$1~in0:WEST,mux$deq_ptr_value$1~in1:WEST,mux$deq_ptr_value$1~in2:WEST
+  node mux$enq_ptr_value kind=op pins=mux$enq_ptr_value:EAST,mux$enq_ptr_value~in0:WEST,mux$enq_ptr_value~in1:WEST,mux$enq_ptr_value~in2:WEST
+  node mux$enq_ptr_value$1 kind=op pins=mux$enq_ptr_value$1:EAST,mux$enq_ptr_value$1~in0:WEST,mux$enq_ptr_value$1~in1:WEST,mux$enq_ptr_value$1~in2:WEST
+  node mux$maybe_full kind=op pins=mux$maybe_full:EAST,mux$maybe_full~in0:WEST,mux$maybe_full~in1:WEST,mux$maybe_full~in2:WEST
+  node mux$maybe_full$1 kind=op pins=mux$maybe_full$1:EAST,mux$maybe_full$1~in0:WEST,mux$maybe_full$1~in1:WEST,mux$maybe_full$1~in2:WEST
   node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
   node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
@@ -153,19 +166,34 @@ layout Queue4_R
   edge _value_T_2~in1 -> const$_value_T_2~in1
   edge _value_T~in0 -> enq_ptr_value~q
   edge _value_T~in1 -> const$_value_T~in1
-  edge deq_ptr_value -> _value_T_2
-  edge deq_ptr_value -> const$deq_ptr_value
+  edge deq_ptr_value -> mux$deq_ptr_value
   edge empty~in0 -> ptr_match
   edge empty~in1 -> _empty_T
-  edge enq_ptr_value -> _value_T
-  edge enq_ptr_value -> const$enq_ptr_value
+  edge enq_ptr_value -> mux$enq_ptr_value
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
   edge io.deq.valid -> _io_deq_valid_T
   edge io.enq.ready -> _io_enq_ready_T
-  edge maybe_full -> _do_enq_T
-  edge maybe_full -> const$maybe_full
+  edge maybe_full -> mux$maybe_full
+  edge mux$deq_ptr_value$1~in0 -> _do_deq_T
+  edge mux$deq_ptr_value$1~in1 -> _value_T_2
+  edge mux$deq_ptr_value$1~in2 -> deq_ptr_value~q
+  edge mux$deq_ptr_value~in0 -> const$mux$deq_ptr_value~in0
+  edge mux$deq_ptr_value~in1 -> const$mux$deq_ptr_value~in1
+  edge mux$deq_ptr_value~in2 -> mux$deq_ptr_value$1
+  edge mux$enq_ptr_value$1~in0 -> _do_enq_T
+  edge mux$enq_ptr_value$1~in1 -> _value_T
+  edge mux$enq_ptr_value$1~in2 -> enq_ptr_value~q
+  edge mux$enq_ptr_value~in0 -> const$mux$enq_ptr_value~in0
+  edge mux$enq_ptr_value~in1 -> const$mux$enq_ptr_value~in1
+  edge mux$enq_ptr_value~in2 -> mux$enq_ptr_value$1
+  edge mux$maybe_full$1~in0 -> _T
+  edge mux$maybe_full$1~in1 -> _do_enq_T
+  edge mux$maybe_full$1~in2 -> maybe_full~q
+  edge mux$maybe_full~in0 -> const$mux$maybe_full~in0
+  edge mux$maybe_full~in1 -> const$mux$maybe_full~in1
+  edge mux$maybe_full~in2 -> mux$maybe_full$1
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q
@@ -173,7 +201,7 @@ layout Queue4_R
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
 layout Queue8_UInt32
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST
   node _do_enq_T kind=op pins=_do_enq_T:EAST,_do_enq_T~in0:WEST,_do_enq_T~in1:WEST
   node _empty_T kind=op pins=_empty_T:EAST,_empty_T~in0:WEST,_empty_T~in1:WEST
@@ -192,9 +220,12 @@ layout Queue8_UInt32
   node const$_io_enq_ready_T~in1 kind=const pins=const$_io_enq_ready_T~in1:EAST
   node const$_value_T_2~in1 kind=const pins=const$_value_T_2~in1:EAST
   node const$_value_T~in1 kind=const pins=const$_value_T~in1:EAST
-  node const$deq_ptr_value kind=const pins=const$deq_ptr_value:EAST
-  node const$enq_ptr_value kind=const pins=const$enq_ptr_value:EAST
-  node const$maybe_full kind=const pins=const$maybe_full:EAST
+  node const$mux$deq_ptr_value~in0 kind=const pins=const$mux$deq_ptr_value~in0:EAST
+  node const$mux$deq_ptr_value~in1 kind=const pins=const$mux$deq_ptr_value~in1:EAST
+  node const$mux$enq_ptr_value~in0 kind=const pins=const$mux$enq_ptr_value~in0:EAST
+  node const$mux$enq_ptr_value~in1 kind=const pins=const$mux$enq_ptr_value~in1:EAST
+  node const$mux$maybe_full~in0 kind=const pins=const$mux$maybe_full~in0:EAST
+  node const$mux$maybe_full~in1 kind=const pins=const$mux$maybe_full~in1:EAST
   node const$wrap_1~in1 kind=const pins=const$wrap_1~in1:EAST
   node const$wrap~in1 kind=const pins=const$wrap~in1:EAST
   node deq_ptr_value kind=reg pins=deq_ptr_value:WEST,deq_ptr_value~q:EAST
@@ -207,6 +238,12 @@ layout Queue8_UInt32
   node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
   node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
+  node mux$deq_ptr_value kind=op pins=mux$deq_ptr_value:EAST,mux$deq_ptr_value~in0:WEST,mux$deq_ptr_value~in1:WEST,mux$deq_ptr_value~in2:WEST
+  node mux$deq_ptr_value$1 kind=op pins=mux$deq_ptr_value$1:EAST,mux$deq_ptr_value$1~in0:WEST,mux$deq_ptr_value$1~in1:WEST,mux$deq_ptr_value$1~in2:WEST
+  node mux$enq_ptr_value kind=op pins=mux$enq_ptr_value:EAST,mux$enq_ptr_value~in0:WEST,mux$enq_ptr_value~in1:WEST,mux$enq_ptr_value~in2:WEST
+  node mux$enq_ptr_value$1 kind=op pins=mux$enq_ptr_value$1:EAST,mux$enq_ptr_value$1~in0:WEST,mux$enq_ptr_value$1~in1:WEST,mux$enq_ptr_value$1~in2:WEST
+  node mux$maybe_full kind=op pins=mux$maybe_full:EAST,mux$maybe_full~in0:WEST,mux$maybe_full~in1:WEST,mux$maybe_full~in2:WEST
+  node mux$maybe_full$1 kind=op pins=mux$maybe_full$1:EAST,mux$maybe_full$1~in0:WEST,mux$maybe_full$1~in1:WEST,mux$maybe_full$1~in2:WEST
   node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
   node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
@@ -235,19 +272,34 @@ layout Queue8_UInt32
   edge _value_T_2~in1 -> const$_value_T_2~in1
   edge _value_T~in0 -> enq_ptr_value~q
   edge _value_T~in1 -> const$_value_T~in1
-  edge deq_ptr_value -> _value_T_2
-  edge deq_ptr_value -> const$deq_ptr_value
+  edge deq_ptr_value -> mux$deq_ptr_value
   edge empty~in0 -> ptr_match
   edge empty~in1 -> _empty_T
-  edge enq_ptr_value -> _value_T
-  edge enq_ptr_value -> const$enq_ptr_value
+  edge enq_ptr_value -> mux$enq_ptr_value
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
   edge io.deq.valid -> _io_deq_valid_T
   edge io.enq.ready -> _io_enq_ready_T
-  edge maybe_full -> _do_enq_T
-  edge maybe_full -> const$maybe_full
+  edge maybe_full -> mux$maybe_full
+  edge mux$deq_ptr_value$1~in0 -> _do_deq_T
+  edge mux$deq_ptr_value$1~in1 -> _value_T_2
+  edge mux$deq_ptr_value$1~in2 -> deq_ptr_value~q
+  edge mux$deq_ptr_value~in0 -> const$mux$deq_ptr_value~in0
+  edge mux$deq_ptr_value~in1 -> const$mux$deq_ptr_value~in1
+  edge mux$deq_ptr_value~in2 -> mux$deq_ptr_value$1
+  edge mux$enq_ptr_value$1~in0 -> _do_enq_T
+  edge mux$enq_ptr_value$1~in1 -> _value_T
+  edge mux$enq_ptr_value$1~in2 -> enq_ptr_value~q
+  edge mux$enq_ptr_value~in0 -> const$mux$enq_ptr_value~in0
+  edge mux$enq_ptr_value~in1 -> const$mux$enq_ptr_value~in1
+  edge mux$enq_ptr_value~in2 -> mux$enq_ptr_value$1
+  edge mux$maybe_full$1~in0 -> _T
+  edge mux$maybe_full$1~in1 -> _do_enq_T
+  edge mux$maybe_full$1~in2 -> maybe_full~q
+  edge mux$maybe_full~in0 -> const$mux$maybe_full~in0
+  edge mux$maybe_full~in1 -> const$mux$maybe_full~in1
+  edge mux$maybe_full~in2 -> mux$maybe_full$1
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q

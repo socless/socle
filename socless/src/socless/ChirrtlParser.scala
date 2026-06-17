@@ -34,7 +34,10 @@ object ChirrtlParser {
 
   case class Port(name: String, dir: String /* "input" | "output" */, tpe: Type, src: Option[SrcInfo])
   case class Inst(name: String, ofModule: String, src: Option[SrcInfo])
-  case class Conn(lhs: String, rhs: String, src: Option[SrcInfo])
+  /** A condition frame on the path to a connect: the `when` condition reference
+    * and whether this connect sits in that when's `else` branch. */
+  case class Guard(cond: String, negated: Boolean)
+  case class Conn(lhs: String, rhs: String, src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty)
 
   /** A register declaration inside a module body.
     *
@@ -119,6 +122,12 @@ object ChirrtlParser {
     val curRefs                   = mutable.Set.empty[String]
     val curNodes                  = mutable.Buffer.empty[NodeDecl]
 
+    // When-scope stack: (indent, cond, negated). A `when c :` pushes a frame at
+    // its indent; `else :` flips the matching frame's polarity; a dedent pops it.
+    // Each Conn is tagged with the active stack (outermost-first) as its guard.
+    val whenStack = mutable.ArrayBuffer.empty[(Int, String, Boolean)]
+    def indentOf(s: String): Int = s.takeWhile(_ == ' ').length
+
     def flush(): Unit = curMod.foreach { name =>
       modules += Mod(
         name, curKind,
@@ -128,6 +137,7 @@ object ChirrtlParser {
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
       curRegs.clear(); curMems.clear(); curRefs.clear(); curNodes.clear()
+      whenStack.clear()
     }
 
     // Collect referenced identifiers (used to detect which ports are actually
@@ -161,6 +171,12 @@ object ChirrtlParser {
     // without buying anything.
     val ModLine  = """^(\s+)(?:public\s+)?(module|extmodule|intmodule)\s+([\w$]+)([^:]*)\s*:\s*((?:@\[[^\]]*\]\s*)*)\s*$""".r
 
+    // `when <cond> :` and `else :` lines (optional trailing source markers).
+    // Captured here (not via parseStmt) so the leading indentation - the only
+    // scope signal CHIRRTL gives us - drives the when-stack.
+    val WhenLine = """^(\s*)when\s+(.+?)\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
+    val ElseLine = """^(\s*)else\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
+
     // Constructs we recognize but do not represent (no topology for them):
     // counted and surfaced as structured warnings so users know what is
     // missing instead of wires silently vanishing (issues #101, #118).
@@ -178,7 +194,22 @@ object ChirrtlParser {
           curSrc  = parseSrc(Option(srcOpt))
         case other if curMod.isDefined && other.trim.startsWith(";") =>
           () // comment line: never a statement, never a reference
+        case WhenLine(_, cond) if curMod.isDefined =>
+          val ind = indentOf(raw)
+          while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
+          whenStack += ((ind, cond.trim, false))
+          collectRefs(raw) // harvest the condition ref(s)
+        case ElseLine(_) if curMod.isDefined =>
+          val ind = indentOf(raw)
+          while (whenStack.nonEmpty && whenStack.last._1 > ind) whenStack.remove(whenStack.length - 1)
+          if (whenStack.nonEmpty && whenStack.last._1 == ind) {
+            val (i, c, _) = whenStack.last
+            whenStack(whenStack.length - 1) = ((i, c, true))
+          }
         case other if curMod.isDefined =>
+          val ind = indentOf(other)
+          while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
+          val guard = whenStack.iterator.map { case (_, c, n) => Guard(c, n) }.toSeq
           // Wrap per-line parsing so a malformed statement never aborts the
           // whole parse; we skip unrecognised / unparseable lines gracefully.
           try {
@@ -190,7 +221,7 @@ object ChirrtlParser {
               // collecting it would add the instance and module names to refs.
               case Some(i: Inst)    => curInsts += i
               // Connects reference exactly their two endpoint expressions.
-              case Some(c: Conn)    => curConns += c; collectRefs(c.lhs); collectRefs(c.rhs)
+              case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
               case Some(m: MemDecl)  => curMems += m; collectRefs(other)
               case Some(n: NodeDecl) => curNodes += n; collectRefs(other)

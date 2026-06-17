@@ -106,7 +106,7 @@ object IrWalk {
     // lowered to UInt<1>) and look up `<inst>.<port>` on the LHS of a connect.
     def driverOf(instName: String, portNames: Seq[String]): String =
       portNames.iterator
-        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
+        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
         .find(_.nonEmpty)
         .getOrElse("")
 
@@ -150,8 +150,16 @@ object IrWalk {
       else
         n.operands.map(arg => (n.name, arg))
     }
+    // Slice 1 of #210: fold simple depth-1 conditional connects into mux nodes.
+    // The folded connects are removed from the stream; the mux nodes are
+    // terminals (like other op nodes) and their pin edges join nodeEdges.
+    val muxResult  = WhenMux.synthesize(m.conns, name => regNames.contains(stripIdx(name)))
+    val keptConns  = m.conns.iterator.zipWithIndex
+      .collect { case (c, i) if !muxResult.consumed(i) => c }.toSeq
+    val muxIds     = muxResult.nodes.map(_.id).toSet
     val (wires, constLogic) =
-      coalesceWires(m, byName, bundles, regNames, regType, logicNodeNames, nodeEdges)
+      coalesceWires(m, keptConns, byName, bundles, regNames, regType,
+        logicNodeNames ++ muxIds, nodeEdges ++ muxResult.edges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -169,7 +177,7 @@ object IrWalk {
       wires    = wires,
       metrics  = metrics,
       kind     = moduleKind(m.kind),
-      logic    = regLogic ++ constLogic ++ opLogic,
+      logic    = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes,
     )
   }
 
@@ -359,6 +367,7 @@ object IrWalk {
     */
   private def coalesceWires(
     m:              Mod,
+    conns:          Seq[Conn],
     byName:         Map[String, Mod],
     bundles:        BundleReg,
     regNames:       Set[String],
@@ -467,7 +476,7 @@ object IrWalk {
     // but stopping at register and logic-node terminals (issue #188). NetTrace
     // takes (sink, source) = (lhs, rhs). Node-declaration edges (logic input
     // pins, contracted plumbing values) join the connect edges here.
-    val allEdges = m.conns.map(c => (c.lhs, c.rhs)) ++ nodeEdges
+    val allEdges = conns.map(c => (c.lhs, c.rhs)) ++ nodeEdges
     val resolved0: Seq[(String, String)] =
       NetTrace.resolve(allEdges, isTerminal)
 
@@ -501,7 +510,7 @@ object IrWalk {
 
     // Best-effort source marker: the connect landing on each external sink.
     val srcBySink: Map[String, SrcInfo] =
-      m.conns.iterator.flatMap(c => c.src.map(s => c.lhs -> s)).toMap
+      conns.iterator.flatMap(c => c.src.map(s => c.lhs -> s)).toMap
 
     // Trim each resolved endpoint to its bundle endpoint, descending one more
     // segment for split ancestors (bundles connected both whole and per-field).

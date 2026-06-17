@@ -176,15 +176,94 @@
           }
         },
         {
-          "from": "valid",
-          "to": "const$valid",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$valid~in1",
+          "to": "const$mux$valid~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 60,
-            "col": 23
+            "file": "",
+            "line": 0,
+            "col": 0
           }
+        },
+        {
+          "from": "mux$valid$1~in1",
+          "to": "const$mux$valid$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "reg",
+          "to": "mux$reg",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "valid",
+          "to": "mux$valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$valid~in2",
+          "to": "mux$valid$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in2",
+          "to": "reg~q",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -199,14 +278,14 @@
           "fieldLevel": true
         },
         {
-          "from": "reg",
+          "from": "mux$reg~in1",
           "to": "io.req.bits.data.data",
           "bundle": "Decoupled_req",
           "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -269,6 +348,30 @@
             "col": 11
           },
           "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in2",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -311,9 +414,20 @@
           }
         },
         {
-          "id": "const$valid",
+          "id": "const$mux$valid~in1",
           "kind": "const",
           "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$valid$1~in1",
+          "kind": "const",
+          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -344,6 +458,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$reg",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -405,15 +555,94 @@
           }
         },
         {
-          "from": "valid",
-          "to": "const$valid",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$valid~in1",
+          "to": "const$mux$valid~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 60,
-            "col": 23
+            "file": "",
+            "line": 0,
+            "col": 0
           }
+        },
+        {
+          "from": "mux$valid$1~in1",
+          "to": "const$mux$valid$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "reg",
+          "to": "mux$reg",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "valid",
+          "to": "mux$valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$valid~in2",
+          "to": "mux$valid$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in2",
+          "to": "reg~q",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -428,14 +657,14 @@
           "fieldLevel": true
         },
         {
-          "from": "reg",
+          "from": "mux$reg~in1",
           "to": "io.req.bits.data.data",
           "bundle": "Decoupled_req",
           "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -498,6 +727,30 @@
             "col": 11
           },
           "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in2",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -540,9 +793,20 @@
           }
         },
         {
-          "id": "const$valid",
+          "id": "const$mux$valid~in1",
           "kind": "const",
           "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$valid$1~in1",
+          "kind": "const",
+          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -573,6 +837,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$reg",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -634,15 +934,94 @@
           }
         },
         {
-          "from": "valid",
-          "to": "const$valid",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$valid~in1",
+          "to": "const$mux$valid~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 60,
-            "col": 23
+            "file": "",
+            "line": 0,
+            "col": 0
           }
+        },
+        {
+          "from": "mux$valid$1~in1",
+          "to": "const$mux$valid$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "reg",
+          "to": "mux$reg",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "valid",
+          "to": "mux$valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$valid~in2",
+          "to": "mux$valid$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in2",
+          "to": "reg~q",
+          "bundle": "UInt<64>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$reg~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -657,14 +1036,14 @@
           "fieldLevel": true
         },
         {
-          "from": "reg",
+          "from": "mux$reg~in1",
           "to": "io.req.bits.data.data",
           "bundle": "Decoupled_req",
           "label": "",
           "source": {
-            "file": "example/src/iobundles/Interconnect.scala",
-            "line": 57,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -727,6 +1106,30 @@
             "col": 11
           },
           "fieldLevel": true
+        },
+        {
+          "from": "mux$valid$1~in2",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$valid~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -769,9 +1172,20 @@
           }
         },
         {
-          "id": "const$valid",
+          "id": "const$mux$valid~in1",
           "kind": "const",
           "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$valid$1~in1",
+          "kind": "const",
+          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -802,6 +1216,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$reg",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$valid$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -1811,6 +2261,72 @@
           }
         },
         {
+          "from": "mux$deq_ptr_value~in0",
+          "to": "const$mux$deq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in1",
+          "to": "const$mux$deq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in0",
+          "to": "const$mux$enq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in1",
+          "to": "const$mux$enq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in0",
+          "to": "const$mux$maybe_full~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in1",
+          "to": "const$mux$maybe_full~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_value_T_2~in1",
           "to": "const$_value_T_2~in1",
           "bundle": "Wire",
@@ -1866,8 +2382,8 @@
           }
         },
         {
-          "from": "_T~in1",
-          "to": "_do_deq_T",
+          "from": "mux$maybe_full$1~in0",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -1932,6 +2448,28 @@
           }
         },
         {
+          "from": "mux$enq_ptr_value$1~in1",
+          "to": "_value_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in1",
+          "to": "_value_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_io_deq_valid_T~in0",
           "to": "empty",
           "bundle": "Wire",
@@ -1955,37 +2493,91 @@
         },
         {
           "from": "deq_ptr_value",
-          "to": "const$deq_ptr_value",
+          "to": "mux$deq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in2",
+          "to": "mux$deq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         },
         {
           "from": "enq_ptr_value",
-          "to": "const$enq_ptr_value",
+          "to": "mux$enq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in2",
+          "to": "mux$enq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "mux$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in2",
+          "to": "mux$maybe_full$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
-          "to": "const$maybe_full",
-          "bundle": "UInt<1>",
+          "from": "mux$deq_ptr_value$1~in0",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2002,14 +2594,26 @@
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
+          "from": "mux$enq_ptr_value$1~in0",
           "to": "_do_enq_T",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in1",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2038,30 +2642,6 @@
           "fieldLevel": true
         },
         {
-          "from": "enq_ptr_value",
-          "to": "_value_T",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "deq_ptr_value",
-          "to": "_value_T_2",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "_ptr_diff_T~in1",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
@@ -2075,6 +2655,18 @@
         },
         {
           "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in2",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -2123,6 +2715,18 @@
         },
         {
           "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$enq_ptr_value$1~in2",
           "to": "enq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -2231,6 +2835,18 @@
         },
         {
           "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in2",
           "to": "maybe_full~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -2363,7 +2979,7 @@
           }
         },
         {
-          "id": "const$deq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -2374,7 +2990,7 @@
           }
         },
         {
-          "id": "const$enq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -2385,7 +3001,40 @@
           }
         },
         {
-          "id": "const$maybe_full",
+          "id": "const$mux$enq_ptr_value~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$enq_ptr_value~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -2653,6 +3302,78 @@
             "col": 62
           },
           "op": "or"
+        },
+        {
+          "id": "mux$enq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$enq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -2747,6 +3468,72 @@
           }
         },
         {
+          "from": "mux$deq_ptr_value~in0",
+          "to": "const$mux$deq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in1",
+          "to": "const$mux$deq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in0",
+          "to": "const$mux$enq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in1",
+          "to": "const$mux$enq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in0",
+          "to": "const$mux$maybe_full~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in1",
+          "to": "const$mux$maybe_full~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_value_T_2~in1",
           "to": "const$_value_T_2~in1",
           "bundle": "Wire",
@@ -2802,8 +3589,8 @@
           }
         },
         {
-          "from": "_T~in1",
-          "to": "_do_deq_T",
+          "from": "mux$maybe_full$1~in0",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -2868,6 +3655,28 @@
           }
         },
         {
+          "from": "mux$enq_ptr_value$1~in1",
+          "to": "_value_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in1",
+          "to": "_value_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_io_deq_valid_T~in0",
           "to": "empty",
           "bundle": "Wire",
@@ -2891,37 +3700,91 @@
         },
         {
           "from": "deq_ptr_value",
-          "to": "const$deq_ptr_value",
+          "to": "mux$deq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in2",
+          "to": "mux$deq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         },
         {
           "from": "enq_ptr_value",
-          "to": "const$enq_ptr_value",
+          "to": "mux$enq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in2",
+          "to": "mux$enq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "mux$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in2",
+          "to": "mux$maybe_full$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
-          "to": "const$maybe_full",
-          "bundle": "UInt<1>",
+          "from": "mux$deq_ptr_value$1~in0",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2938,14 +3801,26 @@
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
+          "from": "mux$enq_ptr_value$1~in0",
           "to": "_do_enq_T",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in1",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2974,30 +3849,6 @@
           "fieldLevel": true
         },
         {
-          "from": "enq_ptr_value",
-          "to": "_value_T",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "deq_ptr_value",
-          "to": "_value_T_2",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "_ptr_diff_T~in1",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
@@ -3011,6 +3862,18 @@
         },
         {
           "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in2",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -3059,6 +3922,18 @@
         },
         {
           "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$enq_ptr_value$1~in2",
           "to": "enq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -3167,6 +4042,18 @@
         },
         {
           "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in2",
           "to": "maybe_full~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -3299,7 +4186,7 @@
           }
         },
         {
-          "id": "const$deq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3310,7 +4197,7 @@
           }
         },
         {
-          "id": "const$enq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3321,7 +4208,40 @@
           }
         },
         {
-          "id": "const$maybe_full",
+          "id": "const$mux$enq_ptr_value~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$enq_ptr_value~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3589,6 +4509,78 @@
             "col": 62
           },
           "op": "or"
+        },
+        {
+          "id": "mux$enq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$enq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -3683,6 +4675,72 @@
           }
         },
         {
+          "from": "mux$deq_ptr_value~in0",
+          "to": "const$mux$deq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in1",
+          "to": "const$mux$deq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in0",
+          "to": "const$mux$enq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in1",
+          "to": "const$mux$enq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in0",
+          "to": "const$mux$maybe_full~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in1",
+          "to": "const$mux$maybe_full~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_value_T_2~in1",
           "to": "const$_value_T_2~in1",
           "bundle": "Wire",
@@ -3738,8 +4796,8 @@
           }
         },
         {
-          "from": "_T~in1",
-          "to": "_do_deq_T",
+          "from": "mux$maybe_full$1~in0",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -3804,6 +4862,28 @@
           }
         },
         {
+          "from": "mux$enq_ptr_value$1~in1",
+          "to": "_value_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in1",
+          "to": "_value_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_io_deq_valid_T~in0",
           "to": "empty",
           "bundle": "Wire",
@@ -3827,37 +4907,91 @@
         },
         {
           "from": "deq_ptr_value",
-          "to": "const$deq_ptr_value",
+          "to": "mux$deq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in2",
+          "to": "mux$deq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         },
         {
           "from": "enq_ptr_value",
-          "to": "const$enq_ptr_value",
+          "to": "mux$enq_ptr_value",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in2",
+          "to": "mux$enq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "mux$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in2",
+          "to": "mux$maybe_full$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
-          "to": "const$maybe_full",
-          "bundle": "UInt<1>",
+          "from": "mux$deq_ptr_value$1~in0",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -3874,14 +5008,26 @@
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
+          "from": "mux$enq_ptr_value$1~in0",
           "to": "_do_enq_T",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in1",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -3910,30 +5056,6 @@
           "fieldLevel": true
         },
         {
-          "from": "enq_ptr_value",
-          "to": "_value_T",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "deq_ptr_value",
-          "to": "_value_T_2",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "_ptr_diff_T~in1",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
@@ -3947,6 +5069,18 @@
         },
         {
           "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in2",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -3995,6 +5129,18 @@
         },
         {
           "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$enq_ptr_value$1~in2",
           "to": "enq_ptr_value~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -4103,6 +5249,18 @@
         },
         {
           "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in2",
           "to": "maybe_full~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -4235,7 +5393,7 @@
           }
         },
         {
-          "id": "const$deq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -4246,7 +5404,7 @@
           }
         },
         {
-          "id": "const$enq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -4257,7 +5415,40 @@
           }
         },
         {
-          "id": "const$maybe_full",
+          "id": "const$mux$enq_ptr_value~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$enq_ptr_value~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -4525,6 +5716,78 @@
             "col": 62
           },
           "op": "or"
+        },
+        {
+          "id": "mux$enq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$enq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },

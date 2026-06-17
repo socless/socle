@@ -1106,14 +1106,69 @@
           }
         },
         {
-          "from": "busy",
-          "to": "const$busy",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$busy~in1",
+          "to": "const$mux$busy~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 111,
-            "col": 28
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in1",
+          "to": "const$mux$busy$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "acc",
+          "to": "mux$acc",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "busy",
+          "to": "mux$busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in2",
+          "to": "mux$busy$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -1201,6 +1256,30 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$acc~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.in.ready",
           "to": "_io_in_ready_T",
           "bundle": "Decoupled_in",
@@ -1225,14 +1304,26 @@
           "fieldLevel": true
         },
         {
-          "from": "acc",
+          "from": "mux$acc~in2",
+          "to": "acc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$acc~in1",
           "to": "alu.io.out",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 92,
-            "col": 15
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1269,6 +1360,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 107,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in2",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1455,7 +1558,7 @@
           }
         },
         {
-          "id": "const$busy",
+          "id": "const$mux$busy~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -1521,6 +1624,17 @@
           }
         },
         {
+          "id": "const$mux$busy$1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "_io_in_ready_T",
           "kind": "op",
           "label": "eq",
@@ -1555,6 +1669,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$acc",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -2546,14 +2696,69 @@
           }
         },
         {
-          "from": "busy",
-          "to": "const$busy",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$busy~in1",
+          "to": "const$mux$busy~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 111,
-            "col": 28
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in1",
+          "to": "const$mux$busy$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "acc",
+          "to": "mux$acc",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "busy",
+          "to": "mux$busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in2",
+          "to": "mux$busy$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -2641,6 +2846,30 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$acc~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.in.ready",
           "to": "_io_in_ready_T",
           "bundle": "Decoupled_in",
@@ -2665,14 +2894,26 @@
           "fieldLevel": true
         },
         {
-          "from": "acc",
+          "from": "mux$acc~in2",
+          "to": "acc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$acc~in1",
           "to": "alu.io.out",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 92,
-            "col": 15
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2709,6 +2950,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 107,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in2",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -2895,7 +3148,7 @@
           }
         },
         {
-          "id": "const$busy",
+          "id": "const$mux$busy~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -2961,6 +3214,17 @@
           }
         },
         {
+          "id": "const$mux$busy$1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "_io_in_ready_T",
           "kind": "op",
           "label": "eq",
@@ -2995,6 +3259,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$acc",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -3246,6 +3546,28 @@
           }
         },
         {
+          "from": "mux$sel~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$outSel~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_cores_0_io_in_valid_T_1~in1",
           "to": "_cores_0_io_in_valid_T",
           "bundle": "Wire",
@@ -3411,14 +3733,14 @@
           }
         },
         {
-          "from": "outSel",
+          "from": "mux$outSel~in1",
           "to": "_outSel_T_3",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 153,
-            "col": 12
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -3444,14 +3766,36 @@
           }
         },
         {
-          "from": "sel",
+          "from": "mux$sel~in1",
           "to": "_sel_T_3",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "outSel",
+          "to": "mux$outSel",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 140,
-            "col": 9
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "sel",
+          "to": "mux$sel",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -3911,6 +4255,18 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$outSel~in2",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.reset",
           "to": "reset",
           "bundle": "Reset",
@@ -3996,6 +4352,18 @@
         },
         {
           "from": "_sel_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$sel~in2",
           "to": "sel~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -4544,6 +4912,30 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 153,
             "col": 18
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$sel",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$outSel",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "op": "mux"
         }
@@ -5537,14 +5929,69 @@
           }
         },
         {
-          "from": "busy",
-          "to": "const$busy",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$busy~in1",
+          "to": "const$mux$busy~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 111,
-            "col": 28
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in1",
+          "to": "const$mux$busy$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "acc",
+          "to": "mux$acc",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "busy",
+          "to": "mux$busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in2",
+          "to": "mux$busy$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -5632,6 +6079,30 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$acc~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.in.ready",
           "to": "_io_in_ready_T",
           "bundle": "Decoupled_in",
@@ -5656,14 +6127,26 @@
           "fieldLevel": true
         },
         {
-          "from": "acc",
+          "from": "mux$acc~in2",
+          "to": "acc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$acc~in1",
           "to": "alu.io.out",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 92,
-            "col": 15
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -5700,6 +6183,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 107,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in2",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -5886,7 +6381,7 @@
           }
         },
         {
-          "id": "const$busy",
+          "id": "const$mux$busy~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -5952,6 +6447,17 @@
           }
         },
         {
+          "id": "const$mux$busy$1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "_io_in_ready_T",
           "kind": "op",
           "label": "eq",
@@ -5986,6 +6492,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$acc",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -6977,14 +7519,69 @@
           }
         },
         {
-          "from": "busy",
-          "to": "const$busy",
-          "bundle": "UInt<1>",
-          "label": "2× ground connects",
+          "from": "mux$busy~in1",
+          "to": "const$mux$busy~in1",
+          "bundle": "Wire",
+          "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 111,
-            "col": 28
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy$1~in1",
+          "to": "const$mux$busy$1~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "acc",
+          "to": "mux$acc",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "busy",
+          "to": "mux$busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$busy~in2",
+          "to": "mux$busy$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -7072,6 +7669,30 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$acc~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "io.in.ready",
           "to": "_io_in_ready_T",
           "bundle": "Decoupled_in",
@@ -7096,14 +7717,26 @@
           "fieldLevel": true
         },
         {
-          "from": "acc",
+          "from": "mux$acc~in2",
+          "to": "acc~q",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$acc~in1",
           "to": "alu.io.out",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 92,
-            "col": 15
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -7140,6 +7773,18 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 107,
             "col": 20
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$busy$1~in2",
+          "to": "busy~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -7326,7 +7971,7 @@
           }
         },
         {
-          "id": "const$busy",
+          "id": "const$mux$busy~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -7392,6 +8037,17 @@
           }
         },
         {
+          "id": "const$mux$busy$1~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "id": "_io_in_ready_T",
           "kind": "op",
           "label": "eq",
@@ -7426,6 +8082,42 @@
             "col": 35
           },
           "op": "and"
+        },
+        {
+          "id": "mux$acc",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$busy$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -7677,6 +8369,28 @@
           }
         },
         {
+          "from": "mux$sel~in0",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$outSel~in0",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_cores_0_io_in_valid_T_1~in1",
           "to": "_cores_0_io_in_valid_T",
           "bundle": "Wire",
@@ -7842,14 +8556,14 @@
           }
         },
         {
-          "from": "outSel",
+          "from": "mux$outSel~in1",
           "to": "_outSel_T_3",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 153,
-            "col": 12
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -7875,14 +8589,36 @@
           }
         },
         {
-          "from": "sel",
+          "from": "mux$sel~in1",
           "to": "_sel_T_3",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "outSel",
+          "to": "mux$outSel",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "example/src/deephier/DeepSoc.scala",
-            "line": 140,
-            "col": 9
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "sel",
+          "to": "mux$sel",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           }
         },
         {
@@ -8342,6 +9078,18 @@
           "fieldLevel": true
         },
         {
+          "from": "mux$outSel~in2",
+          "to": "outSel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "cores_0.reset",
           "to": "reset",
           "bundle": "Reset",
@@ -8427,6 +9175,18 @@
         },
         {
           "from": "_sel_T~in0",
+          "to": "sel~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$sel~in2",
           "to": "sel~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -8977,6 +9737,30 @@
             "col": 18
           },
           "op": "mux"
+        },
+        {
+          "id": "mux$sel",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$outSel",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
@@ -9071,6 +9855,72 @@
           }
         },
         {
+          "from": "mux$deq_ptr_value~in0",
+          "to": "const$mux$deq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in1",
+          "to": "const$mux$deq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in0",
+          "to": "const$mux$enq_ptr_value~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in1",
+          "to": "const$mux$enq_ptr_value~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in0",
+          "to": "const$mux$maybe_full~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in1",
+          "to": "const$mux$maybe_full~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_value_T_2~in1",
           "to": "const$_value_T_2~in1",
           "bundle": "Wire",
@@ -9126,8 +9976,8 @@
           }
         },
         {
-          "from": "_T~in1",
-          "to": "_do_deq_T",
+          "from": "mux$maybe_full$1~in0",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -9192,6 +10042,28 @@
           }
         },
         {
+          "from": "mux$enq_ptr_value$1~in1",
+          "to": "_value_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in1",
+          "to": "_value_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_io_deq_valid_T~in0",
           "to": "empty",
           "bundle": "Wire",
@@ -9215,37 +10087,91 @@
         },
         {
           "from": "deq_ptr_value",
-          "to": "const$deq_ptr_value",
+          "to": "mux$deq_ptr_value",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$deq_ptr_value~in2",
+          "to": "mux$deq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         },
         {
           "from": "enq_ptr_value",
-          "to": "const$enq_ptr_value",
+          "to": "mux$enq_ptr_value",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$enq_ptr_value~in2",
+          "to": "mux$enq_ptr_value$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "maybe_full",
+          "to": "mux$maybe_full",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "mux$maybe_full~in2",
+          "to": "mux$maybe_full$1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T~in1",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
-          "to": "const$maybe_full",
-          "bundle": "UInt<1>",
+          "from": "mux$deq_ptr_value$1~in0",
+          "to": "_do_deq_T",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -9262,14 +10188,26 @@
           "fieldLevel": true
         },
         {
-          "from": "maybe_full",
+          "from": "mux$enq_ptr_value$1~in0",
           "to": "_do_enq_T",
-          "bundle": "UInt<1>",
+          "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/Queue.scala",
-            "line": 99,
-            "col": 16
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in1",
+          "to": "_do_enq_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -9298,30 +10236,6 @@
           "fieldLevel": true
         },
         {
-          "from": "enq_ptr_value",
-          "to": "_value_T",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "deq_ptr_value",
-          "to": "_value_T_2",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/Counter.scala",
-            "line": 98,
-            "col": 11
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "_ptr_diff_T~in1",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<2>",
@@ -9335,6 +10249,18 @@
         },
         {
           "from": "_value_T_2~in0",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$deq_ptr_value$1~in2",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -9383,6 +10309,18 @@
         },
         {
           "from": "_value_T~in0",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$enq_ptr_value$1~in2",
           "to": "enq_ptr_value~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -9491,6 +10429,18 @@
         },
         {
           "from": "full~in1",
+          "to": "maybe_full~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mux$maybe_full$1~in2",
           "to": "maybe_full~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -9623,7 +10573,7 @@
           }
         },
         {
-          "id": "const$deq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -9634,7 +10584,7 @@
           }
         },
         {
-          "id": "const$enq_ptr_value",
+          "id": "const$mux$deq_ptr_value~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -9645,7 +10595,40 @@
           }
         },
         {
-          "id": "const$maybe_full",
+          "id": "const$mux$enq_ptr_value~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$enq_ptr_value~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$mux$maybe_full~in1",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -9913,6 +10896,78 @@
             "col": 62
           },
           "op": "or"
+        },
+        {
+          "id": "mux$enq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$enq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$deq_ptr_value$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
+        },
+        {
+          "id": "mux$maybe_full$1",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "op": "mux"
         }
       ]
     },
