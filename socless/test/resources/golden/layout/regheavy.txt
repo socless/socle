@@ -1,62 +1,31 @@
 layout Controller
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
-  node _T_2 kind=op pins=_T_2:EAST,_T_2~in0:WEST,_T_2~in1:WEST
-  node _T_3 kind=op pins=_T_3~in0:WEST,_T_3~in1:WEST
-  node _T_5 kind=op pins=_T_5~in0:WEST,_T_5~in1:WEST
-  node _T_6 kind=op pins=_T_6~in0:WEST,_T_6~in1:WEST
-  node _T_8 kind=op pins=_T_8~in0:WEST,_T_8~in1:WEST
   node _io_enable_T kind=op pins=_io_enable_T:EAST,_io_enable_T~in0:WEST,_io_enable_T~in1:WEST
   node _io_flush_T kind=op pins=_io_flush_T:EAST,_io_flush_T~in0:WEST,_io_flush_T~in1:WEST
   node _io_stall_T kind=op pins=_io_stall_T:EAST,_io_stall_T~in0:WEST,_io_stall_T~in1:WEST
-  node _timer_T kind=op pins=_timer_T:EAST,_timer_T~in0:WEST,_timer_T~in1:WEST
-  node _timer_T_2 kind=op pins=_timer_T_2:EAST,_timer_T_2~in0:WEST,_timer_T_2~in1:WEST
-  node const$_T_1~in0 kind=const pins=const$_T_1~in0:EAST
-  node const$_T_2~in1 kind=const pins=const$_T_2~in1:EAST
-  node const$_T_5~in0 kind=const pins=const$_T_5~in0:EAST
-  node const$_T_6~in1 kind=const pins=const$_T_6~in1:EAST
-  node const$_T_8~in0 kind=const pins=const$_T_8~in0:EAST
   node const$_io_enable_T~in1 kind=const pins=const$_io_enable_T~in1:EAST
   node const$_io_flush_T~in1 kind=const pins=const$_io_flush_T~in1:EAST
   node const$_io_stall_T~in1 kind=const pins=const$_io_stall_T~in1:EAST
-  node const$_timer_T_2~in1 kind=const pins=const$_timer_T_2~in1:EAST
-  node const$_timer_T~in1 kind=const pins=const$_timer_T~in1:EAST
-  node const$state kind=const pins=const$state:EAST
-  node const$timer kind=const pins=const$timer:EAST
+  node fsm$Controller$state kind=fsm pins=fsm$Controller$state.io_hint:WEST,fsm$Controller$state.state:EAST,fsm$Controller$state.state_q:WEST,fsm$Controller$state.timer:EAST,fsm$Controller$state.timer_q:WEST
   node io.enable kind=boundary pins=io.enable:WEST:iface
   node io.flush kind=boundary pins=io.flush:WEST:iface
   node io.hint kind=boundary pins=io.hint:EAST:iface
   node io.stall kind=boundary pins=io.stall:WEST:iface
   node state kind=reg pins=state:WEST,state~q:EAST
   node timer kind=reg pins=timer:WEST,timer~q:EAST
-  edge _T_1~in0 -> const$_T_1~in0
-  edge _T_1~in1 -> state~q
-  edge _T_2~in0 -> timer~q
-  edge _T_2~in1 -> const$_T_2~in1
-  edge _T_3~in0 -> _T_2
-  edge _T_3~in1 -> io.hint
-  edge _T_5~in0 -> const$_T_5~in0
-  edge _T_5~in1 -> state~q
-  edge _T_6~in0 -> timer~q
-  edge _T_6~in1 -> const$_T_6~in1
-  edge _T_8~in0 -> const$_T_8~in0
-  edge _T_8~in1 -> state~q
   edge _io_enable_T~in0 -> state~q
   edge _io_enable_T~in1 -> const$_io_enable_T~in1
   edge _io_flush_T~in0 -> state~q
   edge _io_flush_T~in1 -> const$_io_flush_T~in1
   edge _io_stall_T~in0 -> state~q
   edge _io_stall_T~in1 -> const$_io_stall_T~in1
-  edge _timer_T_2~in0 -> timer~q
-  edge _timer_T_2~in1 -> const$_timer_T_2~in1
-  edge _timer_T~in0 -> timer~q
-  edge _timer_T~in1 -> const$_timer_T~in1
+  edge fsm$Controller$state.io_hint -> io.hint
+  edge fsm$Controller$state.state_q -> state~q
+  edge fsm$Controller$state.timer_q -> timer~q
   edge io.enable -> _io_enable_T
   edge io.flush -> _io_flush_T
   edge io.stall -> _io_stall_T
-  edge state -> const$state
-  edge timer -> _timer_T
-  edge timer -> _timer_T_2
-  edge timer -> const$timer
+  edge state -> fsm$Controller$state.state
+  edge timer -> fsm$Controller$state.timer
 layout Datapath
   node ctrl kind=inst pins=ctrl.io.enable:EAST:iface,ctrl.io.flush:EAST:iface,ctrl.io.hint:WEST:iface,ctrl.io.stall:EAST:iface
   node io.hint kind=boundary pins=io.hint:EAST:iface

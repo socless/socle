@@ -13,5 +13,6 @@ object Fixtures {
     "deepsoc.fir"      -> "deepsoc",
     "interconnect.fir" -> "interconnect",
     "regheavy.fir"     -> "regheavy",
+    "fsm.fir"          -> "fsm",
   )
 }

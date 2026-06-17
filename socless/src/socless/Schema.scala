@@ -55,6 +55,12 @@ case class Design(
   // dismissible banner so "missing wire vs parser drop" is self-diagnosing on
   // large designs (issue #118). Additive, last: older design.json omits it.
   warnings: Seq[Warning] = Seq.empty,
+  // Stored bodies of collapsed control-flow regions (issue #210): the internal
+  // logic of a recognized FSM, keyed by the fsm node's id. Kept OUT of
+  // `modules`, so regions never appear in the hierarchy tree, module picker, or
+  // metrics. Not rendered yet (the FSM box is collapsed/non-drillable in this
+  // slice); stored so a future drill-in view is pure UI. Additive, last.
+  regions: Map[String, ModuleDef] = Map.empty,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 
@@ -132,8 +138,9 @@ case class InstanceDef(
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 
 /** A non-module schematic node: intra-module glue made visible (issue #188).
-  * `kind` is "reg" (a register), "const" (an explicit literal driver), or "op"
-  * (a combinational operation). `id` is unique within the module (the register
+  * `kind` is "reg" (a register), "const" (an explicit literal driver), "op"
+  * (a combinational operation), or "fsm" (a recognized state machine collapsed
+  * to one box; its body lives in `Design.regions`, issue #210). `id` is unique within the module (the register
   * name, a synthetic const id, or a synthetic op id). `label` is what the UI
   * shows. `bundle` is the registered type's key for a "reg" (for pin
   * expansion); "" for "const"/"op". */
@@ -231,7 +238,7 @@ object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
   * pin is its own stub.
   */
 case class LaidNode(
-  id: String, kind: String,   // "inst" | "boundary" | "reg" | "const"
+  id: String, kind: String,   // "inst" | "boundary" | "reg" | "const" | "op" | "fsm"
   x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort],
 )
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }

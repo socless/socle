@@ -22,6 +22,7 @@ const designs = [
   ['deepsoc',      'soclessRunDeepSoc',   'DeepSoc (deep hierarchy)'],
   ['interconnect', 'soclessRunIoBundles', 'Interconnect (Vec-of-bundle)'],
   ['datapath',     'soclessRunRegHeavy',  'Datapath (register-heavy)'],
+  ['fsm',          'soclessRunFsm',       'TrafficFsm (3-state FSM)'],
 ];
 
 if (!existsSync(UI)) {

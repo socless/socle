@@ -508,6 +508,10 @@ object Schematic {
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
         else if (n.kind == "op") opBox(g, n, top, boxActive(n.id), sel, hov)
+        // A collapsed FSM (issue #210): an instance-style box with boundary pins,
+        // but non-drillable and tinted to read as a state machine. Intercepted
+        // before the childless-boundary arm since it has no `children` entry.
+        else if (n.kind == "fsm") fsmBox(g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
@@ -766,6 +770,45 @@ object Schematic {
               stripQ(p.label)) else emptyNode,
           )
         },
+      )
+    }
+
+    // ── collapsed FSM box (issue #210) ──
+    // Shares the instance box shape (header + WEST/EAST pin rows) but is
+    // non-drillable: it represents a state machine collapsed into a single node,
+    // so there is nothing to drill into. Styled distinctly (accent tint + a
+    // double border) to read as an FSM, and tagged with `data-fsm` for ui-smoke.
+    def fsmBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
+               sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
+      val c            = g.c
+      val label        = g.mod.logic.find(_.id == n.id).map(_.label).filter(_.nonEmpty).getOrElse(n.id)
+      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
+      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
+      val borderCol    = if (selectedHere) Tokens.accent else Tokens.accentLine
+      // Double border (inset ring) + faint accent tint mark this as an FSM, while
+      // selection still promotes the outer border + shadow like other boxes.
+      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}, inset 0 0 0 2px ${Tokens.accentLine}"
+                         else s"inset 0 0 0 2px ${Tokens.accentLine}"
+      div(
+        dataAttr("fsm") := n.id,
+        dataAttr("box-inst") := n.id,
+        dataAttr("pan-block") := "1",
+        title := s"FSM ($label)",
+        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+          s"opacity:${if (active) "1" else "0.18"};" +
+          s"background:${Tokens.accentBg};border:1px solid $borderCol;border-radius:6px;" +
+          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
+          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+        // header (no drill handler: an FSM box is non-drillable)
+        div(
+          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.accentLine};" +
+            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+          onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+          span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
+          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
+        ),
+        renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
+        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
       )
     }
 

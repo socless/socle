@@ -63,7 +63,7 @@ object ChirrtlParser {
     * `operands` are the top-level argument tokens - a reference, a literal, or
     * a nested expression rendered as text.
     */
-  case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo])
+  case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty)
 
   case class Mod(
     name: String,
@@ -224,7 +224,7 @@ object ChirrtlParser {
               case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
               case Some(m: MemDecl)  => curMems += m; collectRefs(other)
-              case Some(n: NodeDecl) => curNodes += n; collectRefs(other)
+              case Some(n: NodeDecl) => curNodes += n.copy(guard = guard); collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1

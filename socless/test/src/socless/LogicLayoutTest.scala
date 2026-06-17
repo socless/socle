@@ -14,6 +14,25 @@ object LogicLayoutTest extends TestSuite {
       |    connect io_out, r
       |""".stripMargin
 
+  private val fsmLayoutMod =
+    """circuit M :
+      |  module M :
+      |    input clock : Clock
+      |    input go : UInt<1>
+      |    output out : UInt<1>
+      |    regreset state : UInt<1>, clock, reset, UInt<1>(0h0)
+      |    node _T = asUInt(state)
+      |    node _T_1 = eq(UInt<1>(0h0), _T)
+      |    when _T_1 :
+      |      connect state, go
+      |    else :
+      |      node _T_2 = asUInt(state)
+      |      node _T_3 = eq(UInt<1>(0h1), _T_2)
+      |      when _T_3 :
+      |        connect state, UInt<1>(0h0)
+      |    connect out, _T_1
+      |""".stripMargin
+
   val tests = Tests {
     test("register lays out as a reg node with west input and east output pins") {
       val d = IrWalk.design(ChirrtlParser.parse(regPass))
@@ -57,6 +76,14 @@ object LogicLayoutTest extends TestSuite {
       assert(!lbl.startsWith("const$"))
       assert(lbl.nonEmpty)
       assert(c.w <= 48.0)
+    }
+
+    test("fsm node lays out as a box with pins") {
+      val d = Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(fsmLayoutMod)))
+      val lay = d.layouts(d.layoutOf.getOrElse("M", "M"))
+      val box = lay.nodes.find(_.id == "fsm$M$state").get
+      assert(box.kind == "fsm")
+      assert(box.ports.nonEmpty)
     }
   }
 }

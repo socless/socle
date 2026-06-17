@@ -1,0 +1,11 @@
+layout TrafficFsm
+  node _io_green_T kind=op pins=_io_green_T:EAST,_io_green_T~in0:WEST,_io_green_T~in1:WEST
+  node const$_io_green_T~in1 kind=const pins=const$_io_green_T~in1:EAST
+  node fsm$TrafficFsm$state kind=fsm pins=fsm$TrafficFsm$state.state:EAST,fsm$TrafficFsm$state.state_q:WEST
+  node io kind=boundary pins=io:WEST:iface
+  node state kind=reg pins=state:WEST,state~q:EAST
+  edge _io_green_T~in0 -> state~q
+  edge _io_green_T~in1 -> const$_io_green_T~in1
+  edge fsm$TrafficFsm$state.state_q -> state~q
+  edge io -> _io_green_T
+  edge state -> fsm$TrafficFsm$state.state

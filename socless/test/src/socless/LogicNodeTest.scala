@@ -79,6 +79,66 @@ object LogicNodeTest extends TestSuite {
       |        connect o, x
       |""".stripMargin
 
+  private val fsmMod =
+    """circuit M :
+      |  module M :
+      |    input clock : Clock
+      |    input go : UInt<1>
+      |    output out : UInt<1>
+      |    regreset state : UInt<1>, clock, reset, UInt<1>(0h0)
+      |    node _T = asUInt(state)
+      |    node _T_1 = eq(UInt<1>(0h0), _T)
+      |    when _T_1 :
+      |      connect state, go
+      |    else :
+      |      node _T_2 = asUInt(state)
+      |      node _T_3 = eq(UInt<1>(0h1), _T_2)
+      |      when _T_3 :
+      |        connect state, UInt<1>(0h0)
+      |    connect out, _T_1
+      |""".stripMargin
+
+  private val fsmIoMod =
+    """circuit M :
+      |  module M :
+      |    input clock : Clock
+      |    input cmd : UInt<1>
+      |    output busy : UInt<1>
+      |    regreset state : UInt<1>, clock, reset, UInt<1>(0h0)
+      |    node _T = asUInt(state)
+      |    node _T_1 = eq(UInt<1>(0h0), _T)
+      |    when _T_1 :
+      |      connect state, cmd
+      |      connect busy, UInt<1>(0h0)
+      |    else :
+      |      node _T_2 = asUInt(state)
+      |      node _T_3 = eq(UInt<1>(0h1), _T_2)
+      |      when _T_3 :
+      |        connect state, UInt<1>(0h0)
+      |        connect busy, UInt<1>(0h1)
+      |""".stripMargin
+
+  private val fsmBundleSink =
+    """circuit M :
+      |  module M :
+      |    input clock : Clock
+      |    input cmd : UInt<1>
+      |    output io : { a : UInt<1>, b : UInt<1>}
+      |    regreset state : UInt<1>, clock, reset, UInt<1>(0h0)
+      |    node _T = asUInt(state)
+      |    node _T_1 = eq(UInt<1>(0h0), _T)
+      |    when _T_1 :
+      |      connect state, cmd
+      |      connect io.a, cmd
+      |    else :
+      |      node _T_2 = asUInt(state)
+      |      node _T_3 = eq(UInt<1>(0h1), _T_2)
+      |      when _T_3 :
+      |        connect state, UInt<1>(0h0)
+      |        connect io.a, UInt<1>(0h0)
+      |    connect io.b, cmd
+      |""".stripMargin
+
   val tests = Tests {
     test("register becomes a reg logic node") {
       val m = mod(designOf(regPass), "M")
@@ -141,6 +201,57 @@ object LogicNodeTest extends TestSuite {
       val m = mod(designOf(nestedIneligible), "M")
       assert(!m.logic.exists(n => n.kind == "op" && n.op == "mux"))
       assert(m.wires.exists(w => w.from == "o" && w.to == "x")) // direct fan-in kept
+    }
+    test("an FSM collapses to one fsm box with a stored body") {
+      val d = designOf(fsmMod)
+      val m = mod(d, "M")
+      val fsm = m.logic.find(_.kind == "fsm").get
+      assert(fsm.id == "fsm$M$state" && fsm.label == "FSM: state")
+      // the eq chain nodes are gone from the parent (collapsed)
+      assert(!m.logic.exists(n => n.kind == "op" && n.id == "_T_1"))
+      // the body is stored in Design.regions and holds the chain nodes
+      val body = d.regions("fsm$M$state")
+      assert(body.logic.exists(_.id == "_T_1"))
+      // the state register stays parent-level
+      assert(m.logic.exists(n => n.kind == "reg" && n.id == "state"))
+      // the eq operand const is absorbed into the body, not stranded in the parent
+      assert(body.logic.exists(_.kind == "const"))
+      assert(!m.logic.exists(n => n.kind == "const" && n.id.contains("~in")))
+      // const->op wires live inside the body, not as parent wires/pins
+      assert(body.wires.nonEmpty)
+      // no parent wire references a node that only exists in the body
+      val bodyOnlyIds = body.logic.map(_.id).toSet -- m.logic.map(_.id).toSet
+      assert(!m.wires.exists(w => bodyOnlyIds.contains(w.from) || bodyOnlyIds.contains(w.to)))
+    }
+    test("FSM boundary pins are distinct per signal with correct direction") {
+      val d = designOf(fsmIoMod)
+      val body = d.regions("fsm$M$state")
+      // distinct pins for distinct external signals (no collapse onto one "io"/head pin)
+      val pinNames = body.ports.map(_.name)
+      assert(pinNames.distinct.size == pinNames.size)
+      // an input pin (cmd, read by the FSM) and an output pin (busy, written) both exist
+      assert(body.ports.exists(p => p.name.contains("cmd")))
+      assert(body.ports.exists(p => p.name.contains("busy")))
+      // busy is driven by the FSM -> out; cmd feeds the FSM -> in
+      assert(body.ports.find(_.name.contains("busy")).get.dir == "out")
+      assert(body.ports.find(_.name.contains("cmd")).get.dir == "in")
+    }
+    test("FSM absorbs only its own bundle-field sink, not sibling fields") {
+      val d = designOf(fsmBundleSink)
+      val m = mod(d, "M")
+      val body = d.regions("fsm$M$state")
+      // io.a (written inside the switch) is the FSM's output; io.b (written
+      // outside) must stay in the parent and NOT appear in the body.
+      val bodyPaths = (body.ports.map(_.name) ++ body.wires.flatMap(w => Seq(w.from, w.to))).mkString(" ")
+      assert(bodyPaths.contains("io_a"))       // io.a is the FSM output
+      assert(!bodyPaths.contains("io_b"))      // io.b sibling not absorbed
+      // io.b stays a parent wire, driven from outside the FSM
+      assert(m.wires.exists(w => w.from.contains("io") && w.from.contains("b")))
+    }
+    test("a non-FSM module is unchanged (no fsm node, empty regions)") {
+      val d = designOf(opAdd) // existing fixture in this file: node add + connect
+      assert(!mod(d, "M").logic.exists(_.kind == "fsm"))
+      assert(d.regions.isEmpty)
     }
   }
 }

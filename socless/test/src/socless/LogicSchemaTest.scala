@@ -22,5 +22,22 @@ object LogicSchemaTest extends TestSuite {
       val oldJson = """{"id":"_T","kind":"reg","label":"r","bundle":"","source":{"file":"","line":0,"col":0}}"""
       assert(read[LogicNodeDef](oldJson).op == "")
     }
+    test("Design.regions round-trips and defaults empty") {
+      import upickle.default._
+      val body = ModuleDef("fsm$M$state", "fsm$M$state", "", SourceRef.unknown,
+        Nil, Nil, Nil, Metrics(0, 0, 0))
+      val d = Design(top = "M", bundles = Map.empty, modules = Nil,
+        regions = Map("fsm$M$state" -> body))
+      val rt = read[Design](write(d))
+      assert(rt.regions.contains("fsm$M$state"))
+      // Old JSON without `regions` still parses (additive).
+      val old = """{"top":"M","bundles":{},"modules":[]}"""
+      assert(read[Design](old).regions.isEmpty)
+    }
+    test("an fsm LogicNodeDef round-trips") {
+      import upickle.default._
+      val n = LogicNodeDef("fsm$M$state", "fsm", "FSM: state", "", SourceRef.unknown)
+      assert(read[LogicNodeDef](write(n)).kind == "fsm")
+    }
   }
 }

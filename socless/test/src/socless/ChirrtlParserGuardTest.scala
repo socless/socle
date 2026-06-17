@@ -37,6 +37,33 @@ object ChirrtlParserGuardTest extends TestSuite {
       val c = conns(nested).filter(c => c.lhs == "o" && c.rhs == "x").maxBy(_.guard.length)
       assert(c.guard == Seq(Guard("a", negated = true), Guard("b", negated = false)))
     }
+    test("a node declared inside a when carries the guard") {
+      val s =
+        """circuit M :
+          |  module M :
+          |    input a : UInt<1>
+          |    input x : UInt<8>
+          |    output o : UInt<8>
+          |    when a :
+          |      node t = add(x, x)
+          |      connect o, t
+          |""".stripMargin
+      val m = ChirrtlParser.parse(s).modules.head
+      val n = m.nodes.find(_.name == "t").get
+      assert(n.guard == Seq(Guard("a", negated = false)))
+    }
+    test("a node declared at module scope has empty guard") {
+      val s =
+        """circuit M :
+          |  module M :
+          |    input x : UInt<8>
+          |    output o : UInt<8>
+          |    node t = add(x, x)
+          |    connect o, t
+          |""".stripMargin
+      val n = ChirrtlParser.parse(s).modules.head.nodes.find(_.name == "t").get
+      assert(n.guard.isEmpty)
+    }
     test("scope is cleared across module boundaries") {
       val two =
         """circuit M :

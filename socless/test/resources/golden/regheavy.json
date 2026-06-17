@@ -187,7 +187,7 @@
         },
         {
           "from": "state",
-          "to": "const$state",
+          "to": "fsm$Controller$state.state",
           "bundle": "UInt<2>",
           "label": "3× ground connects",
           "source": {
@@ -208,61 +208,6 @@
           }
         },
         {
-          "from": "_timer_T_2~in1",
-          "to": "const$_timer_T_2~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_timer_T~in1",
-          "to": "const$_timer_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_1~in0",
-          "to": "const$_T_1~in0",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_5~in0",
-          "to": "const$_T_5~in0",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_8~in0",
-          "to": "const$_T_8~in0",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "_io_flush_T~in1",
           "to": "const$_io_flush_T~in1",
           "bundle": "Wire",
@@ -274,41 +219,8 @@
           }
         },
         {
-          "from": "_T_6~in1",
-          "to": "const$_T_6~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_2~in1",
-          "to": "const$_T_2~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_3~in0",
-          "to": "_T_2",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "timer",
-          "to": "const$timer",
+          "to": "fsm$Controller$state.timer",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -355,31 +267,7 @@
           "fieldLevel": true
         },
         {
-          "from": "timer",
-          "to": "_timer_T",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 115,
-            "col": 13
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "timer",
-          "to": "_timer_T_2",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 115,
-            "col": 13
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_3~in1",
+          "from": "fsm$Controller$state.io_hint",
           "to": "io.hint",
           "bundle": "UInt<1>",
           "label": "",
@@ -391,31 +279,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_1~in1",
-          "to": "state~q",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_5~in1",
-          "to": "state~q",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_8~in1",
+          "from": "fsm$Controller$state.state_q",
           "to": "state~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -463,43 +327,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_2~in0",
-          "to": "timer~q",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_6~in0",
-          "to": "timer~q",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_timer_T_2~in0",
-          "to": "timer~q",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_timer_T~in0",
+          "from": "fsm$Controller$state.timer_q",
           "to": "timer~q",
           "bundle": "UInt<8>",
           "label": "",
@@ -551,86 +379,9 @@
           }
         },
         {
-          "id": "const$state",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$timer",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "const$_io_stall_T~in1",
           "kind": "const",
           "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_timer_T_2~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_timer_T~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_T_1~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_T_5~in0",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_T_8~in0",
-          "kind": "const",
-          "label": "0h2",
           "bundle": "",
           "source": {
             "file": "",
@@ -648,124 +399,6 @@
             "line": 0,
             "col": 0
           }
-        },
-        {
-          "id": "const$_T_6~in1",
-          "kind": "const",
-          "label": "0h3",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_T_2~in1",
-          "kind": "const",
-          "label": "0hf",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_T_1",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 98,
-            "col": 17
-          },
-          "op": "eq"
-        },
-        {
-          "id": "_timer_T",
-          "kind": "op",
-          "label": "add",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 100,
-            "col": 22
-          },
-          "op": "add"
-        },
-        {
-          "id": "_T_2",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 101,
-            "col": 18
-          },
-          "op": "eq"
-        },
-        {
-          "id": "_T_3",
-          "kind": "op",
-          "label": "or",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 101,
-            "col": 27
-          },
-          "op": "or"
-        },
-        {
-          "id": "_T_5",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 98,
-            "col": 17
-          },
-          "op": "eq"
-        },
-        {
-          "id": "_timer_T_2",
-          "kind": "op",
-          "label": "add",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 107,
-            "col": 22
-          },
-          "op": "add"
-        },
-        {
-          "id": "_T_6",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 108,
-            "col": 18
-          },
-          "op": "eq"
-        },
-        {
-          "id": "_T_8",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 98,
-            "col": 17
-          },
-          "op": "eq"
         },
         {
           "id": "_io_enable_T",
@@ -802,6 +435,17 @@
             "col": 22
           },
           "op": "eq"
+        },
+        {
+          "id": "fsm$Controller$state",
+          "kind": "fsm",
+          "label": "FSM: state",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         }
       ]
     },
@@ -3666,5 +3310,367 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
+  },
+  "regions": {
+    "fsm$Controller$state": {
+      "name": "fsm$Controller$state",
+      "type": "fsm$Controller$state",
+      "doc": "",
+      "source": {
+        "file": "",
+        "line": 0,
+        "col": 0
+      },
+      "ports": [
+        {
+          "name": "state",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "timer",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_hint",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "state_q",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "timer_q",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_timer_T_2~in1",
+          "to": "const$_timer_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_timer_T~in1",
+          "to": "const$_timer_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "const$_T_1~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_5~in0",
+          "to": "const$_T_5~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_8~in0",
+          "to": "const$_T_8~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_6~in1",
+          "to": "const$_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_2~in1",
+          "to": "const$_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_3~in0",
+          "to": "_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$state",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$timer",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_timer_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_timer_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_1~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_5~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_8~in0",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_6~in1",
+          "kind": "const",
+          "label": "0h3",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_2~in1",
+          "kind": "const",
+          "label": "0hf",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 98,
+            "col": 17
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_timer_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 100,
+            "col": 22
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 101,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T_3",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 101,
+            "col": 27
+          },
+          "op": "or"
+        },
+        {
+          "id": "_T_5",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 98,
+            "col": 17
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_timer_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 107,
+            "col": 22
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T_6",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 108,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T_8",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 98,
+            "col": 17
+          },
+          "op": "eq"
+        }
+      ]
+    }
   }
 }

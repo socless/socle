@@ -45,7 +45,10 @@ object LayoutCore {
     * this module's own boundary INPUTS (which drive signals into the design).
     * Receiving pins (instance inputs/slaves, boundary outputs) sit on WEST. */
   def sideFor(kind: String, dir: String): String = (kind, dir) match {
+    // An FSM box is laid out exactly like an instance: an output pin drives
+    // rightward (EAST), everything else receives (WEST) (issue #210).
     case ("inst", "output") | ("inst", "master")        => "EAST"
+    case ("fsm", "output")  | ("fsm", "master")         => "EAST"
     // A boundary "slave" comes from `input io` (AXI-aware portRole), so by
     // this file's own convention it drives rightward like any boundary input.
     // Without this case AXI slave boundary stubs fell through to WEST: their
@@ -122,6 +125,11 @@ object LayoutCore {
       val regIds   = module.logic.iterator.filter(_.kind == "reg").map(_.id).toSet
       val constIds = module.logic.iterator.filter(_.kind == "const").map(_.id).toSet
       val opIds    = module.logic.iterator.filter(_.kind == "op").map(_.id).toSet
+      // An FSM box has named boundary pins arriving as `<fsmId>.<pin>`, exactly
+      // like an instance: the head segment is the box id. Resolve it before the
+      // boundary-port fallthrough so the pins are never mistaken for ports or
+      // dropped (issue #210).
+      val fsmIds   = module.logic.iterator.filter(_.kind == "fsm").map(_.id).toSet
       def regIface(id: String): Boolean =
         module.logic.find(n => n.id == id && n.kind == "reg").exists(n => isInterfaceBundle(n.bundle, design))
       val rawHead = stripIdx(parts.head)
@@ -136,6 +144,15 @@ object LayoutCore {
         return Some(Endpoint(rawHead.substring(0, inIdx), "op", path, "WEST", false))
       if (opIds.contains(rawHead))
         return Some(Endpoint(rawHead, "op", path, "EAST", false))
+      if (fsmIds.contains(rawHead) && parts.length >= 2) {
+        // Box pin direction lives in the stored region body's port list. An "out"
+        // pin drives rightward (EAST), an "in"/"inout" pin receives (WEST); the
+        // dataflow vote in `prepare` refines this, this is just the declared side.
+        val pinName = stripIdx(parts(1))
+        val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse("in")
+        val mapped  = if (dir == "out") "output" else "input"
+        return Some(Endpoint(rawHead, "fsm", path, sideFor("fsm", mapped), false))
+      }
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
         // grouped under the port head. A single shared node would force all of

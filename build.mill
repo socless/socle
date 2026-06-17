@@ -349,6 +349,11 @@ object example extends ChiselToolchain {
     PathRef(runFor("regheavy.Datapath", Task.dest, Task.log, runClasspath()))
   }
 
+  /** Minimal 3-state FSM demo (switch/is on a state register). */
+  def soclessRunFsm: T[PathRef] = Task {
+    PathRef(runFor("fsm.TrafficFsm", Task.dest, Task.log, runClasspath()))
+  }
+
   /** Elaborate the default design (AXI4) and open the UI in a browser.
     *
     * Extracts SoCLess.html from the runtime JAR, places design.json next to
@@ -427,6 +432,7 @@ object example extends ChiselToolchain {
       "deephier.DeepSoc"       -> "deepsoc.fir",
       "iobundles.Interconnect" -> "interconnect.fir",
       "regheavy.Datapath"      -> "regheavy.fir",
+      "fsm.TrafficFsm"         -> "fsm.fir",
     )
     val outDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "chirrtl"
     os.makeDir.all(outDir)
