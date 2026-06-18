@@ -40,6 +40,26 @@ for (const [id, task, label] of designs) {
   copyFileSync(src, `${out}/${id}/design.json`);
   manifest.push({ id, label });
 }
+// Multi-top fixture (#197): a page with a designs.json index + two design JSONs
+// so the top-bar design picker renders and can be exercised. Reuses gcd as the
+// primary (design.json / live) and datapath as the second top.
+{
+  const primary = 'out/example/soclessRunGcd.dest/design.json';
+  const second = 'out/example/soclessRunRegHeavy.dest/design.json';
+  if (existsSync(primary) && existsSync(second)) {
+    const mt = `${out}/multitop`;
+    mkdirSync(mt, { recursive: true });
+    copyFileSync(UI, `${mt}/SoCLess.html`);
+    copyFileSync(primary, `${mt}/design.json`);
+    copyFileSync(second, `${mt}/design-datapath.json`);
+    writeFileSync(`${mt}/designs.json`, JSON.stringify({ designs: [
+      { id: 'gcd', label: 'GCD', path: 'design.json' },
+      { id: 'datapath', label: 'Datapath', path: 'design-datapath.json' },
+    ] }, null, 2));
+    manifest.push({ id: 'multitop', label: 'Multi-top (picker)' });
+  }
+}
+
 writeFileSync(`${out}/manifest.json`, JSON.stringify({ designs: manifest }, null, 2));
 
 if (manifest.length === 0) { console.error('No elaborated designs found; run the mill example tasks first.'); process.exit(1); }

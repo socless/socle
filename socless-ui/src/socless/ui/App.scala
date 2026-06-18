@@ -45,6 +45,10 @@ object App {
   private val dragActiveVar    = Var(false)                     // drop-zone overlay visibility
   private val toastVar         = Var[Option[(String, String)]](None) // (message, kind: info|ok|err)
   private val tickVar          = Var(0)                         // 1 Hz clock for the "updated Ns ago" badge
+  // Multi-top design picker (#197): (id, label, path) entries from designs.json.
+  // Empty for a single-top build (no index) -> the picker is hidden.
+  private val designsVar       = Var[List[(String, String, String)]](Nil)
+  private val activeDesignVar  = Var[String]("design.json")    // path of the selected entry
   private var toastTimer       = Option.empty[SetTimeoutHandle]
   private var liveWatchStarted = false
   // Last-Modified of the live design currently shown. The poller compares the
@@ -62,6 +66,7 @@ object App {
     installDragDrop()
     setInterval(1000d) { tickVar.update(_ + 1) } // drives the "updated Ns ago" badge
     loadDesign()
+    loadDesignsIndex() // populate the multi-top picker if a designs.json is served (#197)
     "mounted"
   }
 
@@ -144,6 +149,37 @@ object App {
           case Success(d) => setDesign(d, ("live", "live (design.json)")); startLiveWatch()
           case Failure(e) => errorVar.set(Some(msgOf(e)))
         }
+    }
+  }
+
+  /** Best-effort fetch of the multi-top index (#197). Absent (404) or
+    * unparseable -> no picker, which is the single-top / embedded case. */
+  private def loadDesignsIndex(): Unit =
+    dom.fetch("designs.json").flatMap(r => if (r.ok) r.text() else Future.failed(new RuntimeException("no index")))
+      .map { txt =>
+        ujson.read(txt).obj("designs").arr.iterator
+          .map(e => (e.obj("id").str, e.obj("label").str, e.obj("path").str)).toList
+      }
+      .onComplete {
+        case Success(list) if list.nonEmpty => designsVar.set(list)
+        case _                              => () // no index -> single-top, picker stays hidden
+      }
+
+  /** Switch the active design in place (#197). The primary entry
+    * (`design.json`) restores the live source + poller; other tops load
+    * statically. Navigation resets to the new design's top via [[setDesign]]. */
+  private def selectDesign(path: String, label: String): Unit = {
+    if (path == activeDesignVar.now()) return
+    activeDesignVar.set(path)
+    val primary = path == "design.json"
+    dom.fetch(path).flatMap { r =>
+      if (r.ok) { if (primary) liveBaseline = headerStamp(r); r.text() }
+      else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
+    }.map(txt => upickle.default.read[Design](txt)).onComplete {
+      case Success(d) =>
+        if (primary) { setDesign(d, ("live", "live (design.json)")); startLiveWatch() }
+        else setDesign(d, ("multi", label))
+      case Failure(e) => errorVar.set(Some(msgOf(e)))
     }
   }
 
@@ -438,6 +474,24 @@ object App {
           case (None, _) => "loading design.json…"
         },
       ),
+      // Multi-top design picker (#197): switch between elaborated tops in place.
+      // Hidden for a single-top build (designs.json absent -> designsVar empty).
+      child.maybe <-- designsVar.signal.map { ds =>
+        if (ds.isEmpty) None
+        else Some(
+          select(
+            cls := "scl-design-picker", dataAttr("design-picker") := "1",
+            title := "Switch design (multi-top build)",
+            value <-- activeDesignVar.signal,
+            onChange.mapToValue --> { p =>
+              selectDesign(p, ds.find(_._3 == p).map(_._2).getOrElse(p))
+            },
+            ds.map { case (_, label, path) =>
+              option(value := path, dataAttr("design-option") := path, label)
+            },
+          ),
+        )
+      },
       // LIVE badge + "updated Ns ago" (#120): only while showing the live design.
       child.maybe <-- sourceVar.signal.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.

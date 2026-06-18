@@ -268,6 +268,26 @@ for (const design of designs) {
     }
   }
 
+  // #197: the multi-top page must expose a design picker that switches the
+  // active design in place. Only the `multitop` fixture ships a designs.json.
+  if (design === 'multitop') {
+    const picker = page.locator('[data-design-picker]');
+    if (await picker.count() === 0) {
+      note(design, 'design picker (#197)', 'no [data-design-picker] in the top bar on a multi-top page');
+    } else {
+      const opts = await page.locator('[data-design-option]').evaluateAll((els) => els.map((e) => e.getAttribute('value')));
+      const topBefore = await page.getAttribute('[data-top]', 'data-top').catch(() => null);
+      const other = opts.find((v) => v !== 'design.json') || opts[opts.length - 1];
+      await picker.selectOption(other).catch((e) => note(design, 'design picker', e.message));
+      await page.waitForTimeout(500);
+      drain('design switch');
+      const topAfter = await page.getAttribute('[data-top]', 'data-top').catch(() => null);
+      if (topBefore && topAfter && topBefore === topAfter)
+        note(design, 'design picker did not switch (#197)', `selecting another top left data-top "${topAfter}"`);
+    }
+    drain('design picker');
+  }
+
   await ctx.close();
 }
 
