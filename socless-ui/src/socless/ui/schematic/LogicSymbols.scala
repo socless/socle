@@ -71,12 +71,27 @@ object LogicSymbols {
 
   private def fillStroke(stroke: String) = s"fill:${Tokens.panel};stroke:$stroke;stroke-width:1.4;stroke-linejoin:round"
 
-  /** Mux trapezoid: tall left edge (inputs), tapering to the output on the right. */
+  /** Mux trapezoid: data inputs on the tall left edge, the select entering the
+    * TOP of the symbol (issue #225). in0 is the select (see LogicLabels.inRole),
+    * so it is split off and routed over the top instead of sitting as another
+    * left input; the data inputs (in1, in2) shape the body. */
   def mux(w: Double, h: Double, inYs: Seq[Double], outY: Double, stroke: String): ReactiveElement.Base = {
-    val b = bodyOf(w, 30.0, inYs, outY)
+    val (selY, dataYs) = inYs match {
+      case sel +: rest if rest.nonEmpty => (Some(sel), rest)
+      case _                            => (None, inYs)
+    }
+    val b = bodyOf(w, 30.0, dataYs, outY)
     val k = math.min((b.bot - b.top) / 2 - 2, 9.0)
     val d = s"M ${b.xL} ${b.top} L ${b.xR} ${b.cy - k} L ${b.xR} ${b.cy + k} L ${b.xL} ${b.bot} Z"
-    frame(w, h, svg.path(sa("d") := d, sa("style") := fillStroke(stroke)) +: stubs(w, inYs, outY, b, stroke))
+    val st = s"stroke:$stroke;stroke-width:1.2;fill:none"
+    // Select: from its west pin, over to the symbol's horizontal center, then
+    // straight down into the mid of the slanted top edge.
+    val selStub = selY.toSeq.map { y =>
+      val ex = (b.xL + b.xR) / 2
+      val ey = (b.top + (b.cy - k)) / 2
+      svg.path(sa("d") := s"M 0 $y L $ex $y L $ex $ey", sa("style") := st)
+    }
+    frame(w, h, (svg.path(sa("d") := d, sa("style") := fillStroke(stroke)) +: stubs(w, dataYs, outY, b, stroke)) ++ selStub)
   }
 
   /** Logic gate. `kind` in {and,or,xor,not}; `negated` adds an output bubble. */
