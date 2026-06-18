@@ -292,6 +292,7 @@ object Schematic {
     var curModName = ""                        // current module name, for export filenames
     var engineGen = 0
     var lastNonce = 0
+    var pendingFit = true   // armed on a real path change; performed once dims are known (issue #207)
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
     def togglePort(p: String): Unit = expandedPortsVar.update(s => if (s(p)) s - p else s + p)
@@ -357,15 +358,6 @@ object Schematic {
       zoomVar.set(z); panVar.set(((w - tw * z) / 2, (h - ch * z) / 2))
     }
 
-    def handleFit(pk: String, tw: Double, ch: Double): Unit = {
-      if (viewportNode == null || tw <= 0 || ch <= 0) return
-      if (prevPathKey != null && prevPathKey != pk) viewState(prevPathKey) = (zoomVar.now(), panVar.now())
-      prevPathKey = pk
-      viewState.get(pk) match {
-        case Some((z, p)) => zoomVar.set(z); panVar.set(p)
-        case None         => doFit()
-      }
-    }
 
     def zoomBy(factor: Double): Unit = {
       val z = zoomVar.now(); val newZ = clamp(z * factor)
@@ -1014,6 +1006,7 @@ object Schematic {
           viewportNode.asInstanceOf[js.Dynamic].addEventListener("wheel", onWheel, js.Dynamic.literal(passive = false))
         },
         div(styleAttr <-- transformSig, children <-- contentSig,
+          dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
           onMountCallback { ctx => contentNode = ctx.thisNode.ref }),
         // empty / missing notices
         child.maybe <-- Signal.combine(geomSig, designSig).map {
@@ -1036,9 +1029,28 @@ object Schematic {
       geomSig --> { (gO: Option[Geom]) => gO.foreach { g => totalWVar.set(g.layout.w.toDouble); canvasHVar.set(g.canvasH); curModName = g.mod.name } },
       // Clear the filter on navigation (JS clears it per path change).
       pathSig.map(_.mkString("/")).changes --> { _ => filterVar.set("") },
-      // auto-fit / restore per path
-      Signal.combine(pathSig.map(_.mkString("/")), totalWVar.signal, canvasHVar.signal) --> {
-        (t: (String, Double, Double)) => handleFit(t._1, t._2, t._3)
+      // Track the current module path; arm a fit/restore only on a real path
+      // change. Stash the view of the module being left so returning restores it.
+      // Bundle expansion grows the box (changes totalW/canvasH) but does NOT
+      // change the path, so it must not re-fit the view (issue #207).
+      pathSig.map(_.mkString("/")) --> { pk =>
+        if (prevPathKey != null && prevPathKey != pk)
+          viewState(prevPathKey) = (zoomVar.now(), panVar.now())
+        if (prevPathKey != pk) pendingFit = true
+        prevPathKey = pk
+      },
+      // Perform the armed fit/restore once the geometry dimensions are known,
+      // then disarm. Later dimension changes (expansion, Optimize) leave the
+      // user's pan/zoom untouched.
+      Signal.combine(totalWVar.signal, canvasHVar.signal) --> { (t: (Double, Double)) =>
+        val (tw, ch) = t
+        if (pendingFit && viewportNode != null && tw > 0 && ch > 0) {
+          viewState.get(prevPathKey) match {
+            case Some((z, p)) => zoomVar.set(z); panVar.set(p)
+            case None         => doFit()
+          }
+          pendingFit = false
+        }
       },
       // in-process engine re-layout on module / expansion / Optimize
       Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal) --> {

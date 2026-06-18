@@ -194,12 +194,24 @@ for (const design of designs) {
   // Expand every bundle port in the top view.
   const toggles = await page.locator('[data-bundle-toggle]').all();
   console.log(`[${design}] ${toggles.length} bundle toggles in top view`);
+  // #207: expanding a bundle must NOT reset the view (pan/zoom). Record the
+  // content layer's transform before any expand and compare after: the box
+  // grows (width/height change) but the transform (translate+scale) must hold.
+  const contentXform = () =>
+    page.locator('[data-content]').first().evaluate((el) => getComputedStyle(el).transform).catch(() => null);
+  const xformBefore = toggles.length ? await contentXform() : null;
   for (const t of toggles) {
     // dispatchEvent fires the exact toggle's handler regardless of overlapping
     // full-width label divs (which intercept a normal click).
     await t.dispatchEvent('click').catch((e) => note(design, 'bundle expand', e.message));
     await page.waitForTimeout(80);
     drain('bundle expand');
+  }
+  if (xformBefore) {
+    await page.waitForTimeout(400); // let the re-layout settle
+    const xformAfter = await contentXform();
+    if (xformAfter && xformAfter !== xformBefore)
+      note(design, 'bundle expand reset view (#207)', `content transform changed ${xformBefore} -> ${xformAfter}`);
   }
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__bundles-expanded.png` }).catch(() => {});
 
