@@ -1,7 +1,9 @@
-package socless
+package socless.ir
 
+import socless.schema._
+import socless.parse._
 import scala.collection.mutable
-import ChirrtlParser.{Conn, Guard}
+import socless.parse.ChirrtlParser.{Conn, Guard}
 
 /** Slice 1 of issue #210: reconstruct SIMPLE (depth-1) conditional assignments
   * as muxes. A sink (connect lhs) is eligible iff every guarded connect on it is
@@ -89,7 +91,7 @@ object WhenMux {
 
         acc match {
           case MuxArg(_, _, _) =>
-            val base = "mux$" + sink.replaceAll("[.\\[\\]]", "_")
+            val base = Synthetic.muxId(sink)
             var counter = 0
             def nextId(): String = {
               val cand0 = if (counter == 0) base else s"$base$$$counter"

@@ -104,7 +104,7 @@ trait SoclessModule extends ScalaModule {
       val out = Task.dest / fileFor(i, top)
       val rc = os.proc(
         "java", "-cp", cpStr,
-        "socless.Launcher",
+        "socless.cli.Launcher",
         "--top", top,
         "--output", out.toString,
         // Workspace root -> exporter resolves SourceRefs (`src/main/scala/...`)
@@ -192,7 +192,7 @@ trait SoclessModule extends ScalaModule {
   // Shared helpers
   // ---------------------------------------------------------------------------
 
-  /** Fork the standalone JVM UI server (`socless.Launcher serve`) on the run
+  /** Fork the standalone JVM UI server (`socless.cli.Launcher serve`) on the run
     * classpath and block until Ctrl-C. This is the exact same server the
     * standalone CLI uses, so there is one implementation and no `python3`
     * dependency (issue #155): it serves the UI HTML embedded in the JAR, the
@@ -204,7 +204,7 @@ trait SoclessModule extends ScalaModule {
     log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
     SoclessModule.openBrowser(url, msg => log.info(msg))
     os.proc(
-      "java", "-cp", cpStr, "socless.Launcher", "serve",
+      "java", "-cp", cpStr, "socless.cli.Launcher", "serve",
       "--port", port.toString, "--dir", uiDir.toString, "--no-open",
     ).call(stdout = os.Inherit, stderr = os.Inherit)
   }

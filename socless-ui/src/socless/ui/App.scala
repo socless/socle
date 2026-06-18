@@ -9,7 +9,7 @@ import scala.scalajs.js.timers._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
-import socless.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef}
 
 /** The Scala.js + Laminar frontend (epic #172).
   *

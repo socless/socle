@@ -1,4 +1,6 @@
-package socless
+package socless.layout
+
+import socless.schema._
 
 import org.eclipse.elk.core.RecursiveGraphLayoutEngine
 import org.eclipse.elk.core.data.LayoutMetaDataService

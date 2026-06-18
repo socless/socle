@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 import upickle.default._
 
 /** Standalone JVM entry point used by `./mill socless.regenerateGoldens`.

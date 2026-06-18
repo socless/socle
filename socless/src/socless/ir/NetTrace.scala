@@ -1,5 +1,7 @@
-package socless
+package socless.ir
 
+import socless.schema._
+import socless.parse._
 import scala.collection.mutable
 
 /** Pure net resolver (issue #182 Part A).

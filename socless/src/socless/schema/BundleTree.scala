@@ -1,4 +1,4 @@
-package socless
+package socless.schema
 
 /** Pure bundle-structure walking, shared by the JVM backend and the Scala.js
   * browser engine (issue #170). This is the Scala home of the logic the UI used

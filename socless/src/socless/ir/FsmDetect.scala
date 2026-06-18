@@ -1,6 +1,8 @@
-package socless
+package socless.ir
 
-import ChirrtlParser.{Mod, NodeDecl}
+import socless.schema._
+import socless.parse._
+import socless.parse.ChirrtlParser.{Mod, NodeDecl}
 
 /** Pure recognizer for `switch(state)`-style FSMs in a parsed module.
   *
@@ -155,7 +157,7 @@ object FsmDetect {
 
           Some(Fsm(
             stateReg        = reg,
-            id              = s"fsm$$${m.name}$$$reg",
+            id              = Synthetic.fsmId(m.name, reg),
             outerCond       = rootName,
             memberNodes     = memberNodes,
             memberSinks     = memberSinks,

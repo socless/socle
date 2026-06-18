@@ -1,5 +1,10 @@
-package socless
+package socless.cli
 
+import socless._
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
 import chisel3.RawModule
 import _root_.circt.stage.ChiselStage
 import os.Path
@@ -40,15 +45,15 @@ import os.Path
 object Launcher {
 
   val UsageLine: String =
-    "usage: socless.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
-    "       socless.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
+    "usage: socless.cli.Launcher (--top <fqcn> | --fir-input <path>) [--output <path>] [--source-root <path>] [--chirrtl-out <path>] [--strict]\n" +
+    "       socless.cli.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]   # standalone UI server (no Mill/Python)"
 
   /** Fuller help printed for `--help`/`-h`; errors print the terse [[UsageLine]].
     * Spells out the four modes one main supports and explains every flag, since
     * they are otherwise only discoverable by reading the source (issue #157).
     * The serve flags are shared with `serve --help` via [[Serve.FlagsHelp]]. */
   val HelpText: String =
-    s"""socless.Launcher - export a Chisel/CHIRRTL design to design.json, or serve the UI.
+    s"""socless.cli.Launcher - export a Chisel/CHIRRTL design to design.json, or serve the UI.
       |
       |Modes (pick one):
       |  elaborate   --top <fqcn> ...        Elaborate a Chisel design (needs Chisel on the classpath).

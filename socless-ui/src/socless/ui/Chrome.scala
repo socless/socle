@@ -2,7 +2,7 @@ package socless.ui
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
-import socless.Design
+import socless.schema.Design
 
 /** App-level chrome (epic #172 Phase 4): the command palette, the keyboard-help
   * overlay, and the export-warnings banner. Ports the JS `CommandPalette`,

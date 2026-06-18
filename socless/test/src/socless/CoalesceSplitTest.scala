@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 import utest._
 
 /** Issue #182 Part A: coalesceWires now resolves real driver->sink edges via

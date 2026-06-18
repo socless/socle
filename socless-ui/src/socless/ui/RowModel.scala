@@ -1,6 +1,6 @@
 package socless.ui
 
-import socless.{Design, ModuleDef, BundleTree}
+import socless.schema.{Design, ModuleDef, BundleTree}
 import socless.js.BrowserLayout.LaidOut
 
 /** Expansion row model for the schematic (issue #170 Phase B/C).

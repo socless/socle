@@ -4,7 +4,7 @@
 // cannot exercise the design-INPUT layer: drag-dropping a .fir (which the UI
 // POSTs to /convert) and the live poller (#120, which re-fetches design.json
 // when `serve --watch` re-converts a changed .fir). This driver runs the real
-// `socless.Launcher serve` from the assembled jar and checks all three input
+// `socless.cli.Launcher serve` from the assembled jar and checks all three input
 // features that the Scala.js cutover dropped:
 //
 //   1. live source + LIVE badge   - `serve --watch a.fir` shows the design with

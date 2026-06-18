@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 import utest._
 
 /** Tests for the schema additions: emitted layout constants (issue #38) and

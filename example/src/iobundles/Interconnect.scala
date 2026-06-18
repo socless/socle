@@ -106,7 +106,7 @@ class Aggregator(n: Int) extends Module {
   *   agg.out → out(0)                 (merged output on slot 0)
   *   out(1..N-1) driven to DontCare stubs
   *
-  * The socless.Launcher requires a no-arg constructor, so the parameterised
+  * The socless.cli.Launcher requires a no-arg constructor, so the parameterised
   * class is kept private; `Interconnect` is the no-arg top instantiated by
   * the Launcher.
   */
@@ -146,5 +146,5 @@ class InterconnectImpl(n: Int) extends Module {
   }
 }
 
-/** No-argument wrapper required by socless.Launcher (uses Class.newInstance). */
+/** No-argument wrapper required by socless.cli.Launcher (uses Class.newInstance). */
 class Interconnect extends InterconnectImpl(n = 3)

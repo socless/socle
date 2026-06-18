@@ -30,7 +30,7 @@ indicator + LIVE badge), `data-dropzone` / `data-toast` (drag-drop chrome),
 design-INPUT layer: drag-dropping a `.fir` (which the UI POSTs to `/convert`)
 or the live poller (#120, which re-fetches `design.json` when `serve --watch`
 re-converts a changed `.fir`). `serve-smoke.mjs` runs the real
-`socless.Launcher serve` from the assembled jar and checks all of it:
+`socless.cli.Launcher serve` from the assembled jar and checks all of it:
 
 ```bash
 ./mill socless.assembly

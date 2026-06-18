@@ -97,14 +97,14 @@ The `SoclessModule` trait adds these (overridable) members to your module:
 | `soclessOutputName: T[String]` | `"design.json"` | Filename inside `Task.dest`. |
 | `soclessUiPort: T[Int]` | `8765` | Default port for `soclessUI` / `soclessServe`. |
 | `soclessRuntimeDeps: T[Seq[Dep]]` | `socless::soclessVersion` | Runtime deps injected into `mvnDeps`. Override to swap to an in-tree `moduleDeps` build. |
-| `socless: T[PathRef]` | provided | Elaborate + emit `design.json`. Forks `java -cp <runClasspath> socless.Launcher --top … --output …`. |
+| `socless: T[PathRef]` | provided | Elaborate + emit `design.json`. Forks `java -cp <runClasspath> socless.cli.Launcher --top … --output …`. |
 | `soclessUI(args)` | provided | Elaborate, then serve the UI + `design.json` and open a browser. Accepts `--port <N>` or a bare port. Blocks until Ctrl-C. |
 | `soclessServe(args)` | provided | Serve the UI without elaborating first; drag-drop a `.fir` to convert. Same port args. |
 
 ## How it works
 
 1. The `socless` task forks `java` with your module's `runClasspath` and
-   invokes `socless.Launcher`.
+   invokes `socless.cli.Launcher`.
 2. `Launcher` reflection-resolves your top (class, generator object, or
    factory method) and hands it to `SoclessExporter.export`.
 3. `SoclessExporter` calls Chisel's public `circt.stage.ChiselStage.emitCHIRRTL`
@@ -174,7 +174,7 @@ ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
 (or `sbt "runMain ..."` a tiny main that does the same).
 
 **2. Convert + serve with the standalone CLI.** Build a single self-contained
-jar once (`socless.Launcher` is its main class), then run it anywhere, with no
+jar once (`socless.cli.Launcher` is its main class), then run it anywhere, with no
 Mill, no Python, and no design checkout:
 
 ```bash
@@ -193,7 +193,7 @@ the same main without building the jar (the artifact is `0.1.0-SNAPSHOT`, so
 this needs a `mill socless.publishLocal` first, or a published release):
 
 ```bash
-cs launch io.socless::socless:<version> -M socless.Launcher -- \
+cs launch io.socless::socless:<version> -M socless.cli.Launcher -- \
   serve --dir .
 ```
 
@@ -215,7 +215,7 @@ save-and-see workflow:
 sbt "~runMain mypkg.DumpMain"          # DumpMain calls emitCHIRRTLFile (step 1 above)
 
 # terminal 2 - serve + watch that file:
-cs launch io.socless::socless:<version> -M socless.Launcher -- \
+cs launch io.socless::socless:<version> -M socless.cli.Launcher -- \
   serve --watch MyTop.fir
 ```
 

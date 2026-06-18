@@ -150,7 +150,7 @@ jobs:
         run: |
           ./mill show example.runClasspath > /tmp/rc.json
           cp=$(python3 -c "import json; print(':'.join(p.split(':',3)[-1] if p.startswith('ref:') else p for p in json.load(open('/tmp/rc.json'))))")
-          java -cp "$cp" socless.Launcher serve --port 8923 --no-open >/tmp/serve115.log 2>&1 &
+          java -cp "$cp" socless.cli.Launcher serve --port 8923 --no-open >/tmp/serve115.log 2>&1 &
           pid=$!
           trap "kill $pid 2>/dev/null || true" EXIT
           ok=0

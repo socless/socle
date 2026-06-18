@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 /** The committed example fixtures, shared by GoldenDesignTest,
   * LayoutStructureGoldenTest and GoldenWriter so adding an example design only
   * needs one edit instead of three (issue #135). Each entry is

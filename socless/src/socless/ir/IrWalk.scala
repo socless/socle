@@ -1,7 +1,10 @@
-package socless
+package socless.ir
 
+import socless.schema._
+import socless.parse._
+import socless.layout._
 import scala.collection.mutable
-import ChirrtlParser.{
+import socless.parse.ChirrtlParser.{
   Circ, Mod, Port, Inst, Conn, Field, SrcInfo,
   Type => CType, GroundT, BundleT, VecT,
 }
@@ -67,14 +70,11 @@ object IrWalk {
     // warning noisy after B2 added op nodes (issue #188). Count only wires whose
     // endpoints are instances/module ports - a genuinely unresolvable type - so
     // the warning stays meaningful (issue #118).
-    def logicBase(head: String): String =
-      if (head.endsWith("~q")) head.dropRight(2)
-      else { val i = head.indexOf("~in"); if (i >= 0) head.substring(0, i) else head }
     val unresolved = modules.iterator.map { m =>
       val logicIds = m.logic.iterator.map(_.id).toSet
       def isLogicEnd(e: String): Boolean = {
         val head = e.split('.').headOption.getOrElse("")
-        head.startsWith("const$") || logicIds.contains(head) || logicIds.contains(logicBase(head))
+        head.startsWith(Synthetic.ConstPrefix) || logicIds.contains(head) || logicIds.contains(Synthetic.baseOf(head))
       }
       m.wires.count(w => w.bundle == "Wire" && !(isLogicEnd(w.from) || isLogicEnd(w.to)))
     }.sum
@@ -150,7 +150,7 @@ object IrWalk {
     // collapse onto one pin; plumbing nodes feed their bare value (contracted).
     val nodeEdges: Seq[(String, String)] = m.nodes.flatMap { n =>
       if (isLogicOp(n.op))
-        n.operands.zipWithIndex.map { case (arg, i) => (s"${n.name}~in$i", arg) }
+        n.operands.zipWithIndex.map { case (arg, i) => (Synthetic.opInPin(n.name, i), arg) }
       else
         n.operands.map(arg => (n.name, arg))
     }
@@ -212,11 +212,8 @@ object IrWalk {
     // Head of a wire endpoint, reduced to the underlying node base id. Mirrors
     // coalesceWires: strip a vec index, then the `~q` (reg Q) / `~in<i>` (op
     // input pin) IrWalk-synthetic suffix off the head segment.
-    def headBase(endpoint: String): String = {
-      val head = stripIdx(endpoint.split('.').headOption.getOrElse(""))
-      if (head.endsWith("~q")) head.dropRight(2)
-      else { val i = head.indexOf("~in"); if (i >= 0) head.substring(0, i) else head }
-    }
+    def headBase(endpoint: String): String =
+      Synthetic.baseOf(stripIdx(endpoint.split('.').headOption.getOrElse("")))
     // Sanitize the FULL external endpoint into a stable, distinct pin name.
     // Strip only a trailing vec index `[i]`, but KEEP the `~q` reg-Q suffix and
     // any `.field` structure so distinct external signals (and the reg Q-read
@@ -661,13 +658,10 @@ object IrWalk {
     // the terminal check matches the declared reg/logic-node (issue #188).
     // `~` is not valid in CHIRRTL identifiers ([\w$]+), so `~q`/`~in<i>` are
     // IrWalk-synthetic and cannot collide with a real signal name.
-    def baseOf(head: String): String =
-      if (head.endsWith("~q")) head.dropRight(2)
-      else { val i = head.indexOf("~in"); if (i >= 0) head.substring(0, i) else head }
     def isTerminal(path: String): Boolean = {
       if (litValue(path).isDefined) return true
       val head = stripIdx(path.split('.').headOption.getOrElse(""))
-      val base = baseOf(head)
+      val base = Synthetic.baseOf(head)
       instSet.contains(head) || portSet.contains(head) || regNames.contains(head) ||
         logicNodeNames.contains(base)
     }
@@ -698,11 +692,10 @@ object IrWalk {
     // rewritten to a dot-free synthetic id so `trim`/`classify` treat it as a
     // whole atom carrying the value on its label (issue #188).
     val constNodes = mutable.LinkedHashMap.empty[String, LogicNodeDef]
-    def constId(sink: String): String = "const$" + sink.replaceAll("[.\\[\\]]", "_")
     val resolvedWithConst: Seq[(String, String)] = resolved.map { case (src, sink) =>
       litValue(src) match {
         case Some(v) =>
-          val id = constId(sink)
+          val id = Synthetic.constId(sink)
           constNodes.getOrElseUpdate(id, LogicNodeDef(id, "const", prettyLit(v), "", SourceRef.unknown))
           (id, sink)
         case None => (src, sink)
@@ -796,7 +789,7 @@ object IrWalk {
     // trailing `~q` off the head to recover the reg name.
     def regKeyOf(path: String): Option[String] = {
       val head = stripIdx(path.split('.').head)
-      val base = if (head.endsWith("~q")) head.dropRight(2) else head
+      val base = Synthetic.stripQ(head)
       regType.get(base)
     }
 

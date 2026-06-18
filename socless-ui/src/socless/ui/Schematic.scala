@@ -7,7 +7,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -58,7 +58,7 @@ object Schematic {
     // Constant drivers are not drawn as a node + wire; they render as a small
     // value label + `|-` stub at the driven port instead (issue #203). The wire
     // to a `const$...` source is therefore dropped here.
-    mod.wires.filterNot(socless.LayoutCore.isClockReset).filterNot(_.to.startsWith("const$")).foreach { w =>
+    mod.wires.filterNot(socless.layout.LayoutCore.isClockReset).filterNot(_.to.startsWith("const$")).foreach { w =>
       val a = w.from.split('.').headOption.getOrElse("")
       val b = w.to.split('.').headOption.getOrElse("")
       if (a.isEmpty || b.isEmpty || a == b) out += new DWire(w.from, w.to, w.bundle, w.label, false, groundCount(w.label))

@@ -1,4 +1,4 @@
-package socless
+package socless.schema
 
 import upickle.default._
 

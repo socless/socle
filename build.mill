@@ -109,7 +109,7 @@ object socless extends ChiselToolchain with SoclessPublish {
   // (`java -jar … serve` / `--fir-input`) regardless of how many `main`s the
   // module gains; relying on Mill's single-main auto-detection would silently
   // break the assembly the day a second entry point is added (issue #156).
-  def mainClass = Some("socless.Launcher")
+  def mainClass = Some("socless.cli.Launcher")
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.lihaoyi::upickle:${V.upickle}",
     mvn"com.lihaoyi::os-lib:${V.osLib}",
@@ -190,9 +190,9 @@ object `socless-js` extends ScalaJSModule {
   // engines (issue #167). Only the genuinely ELK-free files are included; they
   // are declared via Task.Sources so Mill permits reading them during the build.
   def sharedSources = Task.Sources(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "Schema.scala",
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "LayoutCore.scala",
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "BundleTree.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "Schema.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "LayoutCore.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "BundleTree.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 }
@@ -297,7 +297,7 @@ object example extends ChiselToolchain {
   /** Default top - kept for back-compat with `mill example.soclessRun`. */
   def soclessTop: String = "axisystem.AXISystem"
 
-  /** Internal: fork java with this module's runClasspath, call socless.Launcher
+  /** Internal: fork java with this module's runClasspath, call socless.cli.Launcher
     * with `--top <fqcn>`, and return the path to the emitted design.json.
     * Called from each named soclessRun* task below.
     */
@@ -306,7 +306,7 @@ object example extends ChiselToolchain {
     val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
     val rc = os.proc(
       "java", "-cp", cpStr,
-      "socless.Launcher",
+      "socless.cli.Launcher",
       "--top", top,
       "--output", out.toString,
       // Workspace root → exporter resolves SourceRefs against it for the
@@ -403,7 +403,7 @@ object example extends ChiselToolchain {
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
-  /** Fork the standalone JVM UI server (`socless.Launcher serve`) on the run
+  /** Fork the standalone JVM UI server (`socless.cli.Launcher serve`) on the run
     * classpath and block until Ctrl-C. The same server the published plugin and
     * the standalone CLI use (issue #155): it serves the UI HTML embedded in the
     * JAR, the JSONs from `uiDir` via `--dir`, and converts dropped `.fir` files
@@ -414,7 +414,7 @@ object example extends ChiselToolchain {
     log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
     openSoclessBrowser(url, msg => log.info(msg))
     os.proc(
-      "java", "-cp", cpStr, "socless.Launcher", "serve",
+      "java", "-cp", cpStr, "socless.cli.Launcher", "serve",
       "--port", port.toString, "--dir", uiDir.toString, "--no-open",
     ).call(stdout = os.Inherit, stderr = os.Inherit)
   }
@@ -442,7 +442,7 @@ object example extends ChiselToolchain {
       val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
       val rc = os.proc(
         "java", "-cp", cpStr,
-        "socless.Launcher",
+        "socless.cli.Launcher",
         "--top", top,
         "--chirrtl-out", dest.toString,
       ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)

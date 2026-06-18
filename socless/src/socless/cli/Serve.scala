@@ -1,11 +1,16 @@
-package socless
+package socless.cli
 
+import socless._
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
 import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.Executors
 
-/** Standalone, dependency-free UI server (issue #115): `socless.Launcher serve`
+/** Standalone, dependency-free UI server (issue #115): `socless.cli.Launcher serve`
   * extracts the embedded SoCLess.html and serves it, converting dropped `.fir`
   * files in-process via `POST /convert`. No Mill and no Python required, so it
   * works from an sbt project (or any build): dump CHIRRTL from your own build,
@@ -18,7 +23,7 @@ import java.util.concurrent.Executors
   *
   * Usage:
   * {{{
-  *   socless.Launcher serve [--port N] [--host <addr>] [--dir <static-dir>] [--watch <file.fir>] [--no-open]
+  *   socless.cli.Launcher serve [--port N] [--host <addr>] [--dir <static-dir>] [--watch <file.fir>] [--no-open]
   * }}}
   * `--dir` additionally serves static files from a directory (drop a
   * `design.json` / `designs.json` there to have the UI auto-load it).
@@ -47,7 +52,7 @@ object Serve {
   @volatile private var sourceRoot: Option[os.Path] = None
 
   private val Usage =
-    "usage: socless.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
+    "usage: socless.cli.Launcher serve [--port N] [--host <addr>] [--dir <dir>] [--watch <file.fir>] [--source-root <dir>] [--no-open]"
 
   /** True when running inside WSL (any version). WSL2 runs services in a NAT'd
     * VM; a server bound only to `127.0.0.1` inside that VM is unreachable from

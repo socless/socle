@@ -1,6 +1,6 @@
 package socless.ui
 
-import socless.Design
+import socless.schema.Design
 
 /** Theme color tokens. Each is a `var(--x)` CSS custom property resolved from
   * `:root` in `socless-ui/html/SoCLess.src.html`, so a single stylesheet drives

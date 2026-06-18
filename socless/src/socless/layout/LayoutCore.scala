@@ -1,5 +1,6 @@
-package socless
+package socless.layout
 
+import socless.schema._
 import scala.collection.mutable
 
 /** Pure, engine-independent schematic layout logic (issue #167).

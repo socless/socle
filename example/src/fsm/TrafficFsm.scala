@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 
 /** Minimal 3-state FSM (Red -> Green -> Yellow -> Red) advanced by a tick.
-  * No-arg constructor so socless.Launcher can elaborate it directly. */
+  * No-arg constructor so socless.cli.Launcher can elaborate it directly. */
 class TrafficFsm extends Module {
   val io = IO(new Bundle {
     val tick  = Input(Bool())

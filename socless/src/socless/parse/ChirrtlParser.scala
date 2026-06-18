@@ -1,5 +1,6 @@
-package socless
+package socless.parse
 
+import socless.schema._
 import scala.collection.mutable
 
 /** A minimal CHIRRTL text parser.

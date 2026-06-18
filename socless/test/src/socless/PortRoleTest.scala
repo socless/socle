@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 import utest._
 
 /** Tests that IrWalk.portRole (via the full parse->design pipeline) correctly

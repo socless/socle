@@ -1,5 +1,9 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
 import chisel3.RawModule
 import _root_.circt.stage.ChiselStage
 import upickle.default._

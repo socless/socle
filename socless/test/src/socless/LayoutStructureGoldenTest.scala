@@ -1,5 +1,11 @@
 package socless
 
+import socless.schema._
+import socless.parse._
+import socless.ir._
+import socless.layout._
+import socless.cli._
+
 /** Cross-commit structural guard for the ELK layout output (issue #103).
   *
   * GoldenDesignTest deliberately excludes layouts because ELK coordinates can

@@ -1,6 +1,7 @@
 package socless.js
 
-import socless.{Design, ModuleDef, ModuleLayout, LayoutCore}
+import socless.schema.{Design, ModuleDef, ModuleLayout}
+import socless.layout.LayoutCore
 import scala.concurrent.Future
 import scala.scalajs.js
 import scala.scalajs.js.JSConverters._
