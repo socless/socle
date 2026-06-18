@@ -280,6 +280,7 @@ object Schematic {
     val engineVar   = Var[Option[LaidOut]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
+    val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
@@ -396,7 +397,12 @@ object Schematic {
     // ── content (boxes + wires), rebuilt on geom / selection / hover ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
-    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String): Seq[ReactiveElement.Base] = {
+    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String, showLayers: Boolean): Seq[ReactiveElement.Base] = {
+      // Verification-layer nodes (issue #212) and their wires are hidden unless
+      // "show layers" is on. layerIds empty for a design with no layer content.
+      val layerIds: Set[String] = g.mod.logic.iterator.filter(_.layer).map(_.id).toSet
+      val hideLayer = !showLayers && layerIds.nonEmpty
+      val visWires = if (hideLayer) g.wires.filterNot(w => layerIds.contains(w.fromInst) || layerIds.contains(w.toInst)) else g.wires
       val c = g.c
       val selInst  = sel.map(s => ownerBoxId(g.boxById, s)).getOrElse("")
       val selClock = g.mod.children.find(_.name == selInst).map(_.clock).getOrElse("")
@@ -432,7 +438,7 @@ object Schematic {
       // ── hit layer (transparent fat paths, captures clicks) ──
       val hit = svg.svg(
         sa("style") := s"position:absolute;top:0;left:0;width:${g.layout.w}px;height:${g.canvasH}px;overflow:visible",
-        g.wires.map { w =>
+        visWires.map { w =>
           svg.path(
             sa("d") := routePath(w.points),
             sa("data-wire") := w.fromPath,
@@ -450,7 +456,7 @@ object Schematic {
       // it drives (const logic id is `const$<sinkPath>`). For a register the
       // constant is the init value, so it sits as a label ABOVE the symbol;
       // otherwise it is a `|-` stub on the driven side of the port.
-      val constEls: Seq[ReactiveElement.Base] = g.mod.logic.iterator.filter(_.kind == "const").flatMap { cn =>
+      val constEls: Seq[ReactiveElement.Base] = g.mod.logic.iterator.filter(c => c.kind == "const" && !(hideLayer && layerIds.contains(c.id))).flatMap { cn =>
         val sinkPath = cn.id.stripPrefix("const$")
         val raw = if (cn.label.nonEmpty) cn.label else cn.id
         val value = raw.indexOf(": ") match { case i if i > 0 => raw.take(i); case _ => raw }
@@ -489,7 +495,7 @@ object Schematic {
       }.toSeq
 
       // ── boxes ──
-      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(_.kind == "const").map { n =>
+      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(n => n.kind == "const" || (hideLayer && layerIds.contains(n.id))).map { n =>
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
@@ -566,8 +572,8 @@ object Schematic {
       }
 
       // ── junctions (fan-out filled / fan-in hollow, issue #166) ──
-      val bySource = g.wires.groupBy(_.toPath).values.filter(_.length > 1).map(ws => (ws.head.x1, ws.head.y1, ws.length)).toSeq
-      val bySink   = g.wires.groupBy(_.fromPath).values.filter(_.length > 1).map(ws => (ws.head.x2, ws.head.y2, ws.length)).toSeq
+      val bySource = visWires.groupBy(_.toPath).values.filter(_.length > 1).map(ws => (ws.head.x1, ws.head.y1, ws.length)).toSeq
+      val bySink   = visWires.groupBy(_.fromPath).values.filter(_.length > 1).map(ws => (ws.head.x2, ws.head.y2, ws.length)).toSeq
 
       // Field-level (split) wires render thinner so a scattered bundle reads as
       // many fine wires vs one bold bundle wire (issue #182).
@@ -577,7 +583,7 @@ object Schematic {
       // ── visual layer (stroke + halo + junctions) ──
       val vis = svg.svg(
         sa("style") := s"position:absolute;top:0;left:0;width:${g.layout.w}px;height:${g.canvasH}px;pointer-events:none;overflow:visible",
-        g.wires.map { w =>
+        visWires.map { w =>
           val hl  = isHl(w)
           val hov2 = isHov(w) && !hl
           val dim = sel.isDefined && !hl
@@ -908,6 +914,17 @@ object Schematic {
           disabled <-- pendingVar.signal,
           onClick --> { (_: dom.MouseEvent) => optNonceVar.update(_ + 1) },
           child.text <-- pendingVar.signal.map(p => if (p) "…" else "optimize")),
+        // Show/hide Chisel verification-layer content, only offered when the
+        // current module actually has any (issue #212).
+        child.maybe <-- geomSig.map(_.exists(_.mod.logic.exists(_.layer))).map { has =>
+          if (!has) None
+          else Some(button(
+            dataAttr("toggle-layers") := "1",
+            styleAttr <-- showLayersVar.signal.map(s => zbtn + s";color:${if (s) Tokens.accent else Tokens.ink3}"),
+            title := "Show Chisel verification layers (assert / assume / cover)",
+            onClick --> { (_: dom.MouseEvent) => showLayersVar.update(!_) },
+            child.text <-- showLayersVar.signal.map(s => if (s) "layers ✓" else "layers")))
+        },
         span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
         button(styleAttr := zbtn, title := "Fit to view", onClick --> { (_: dom.MouseEvent) => doFit() }, "fit"),
         button(styleAttr := zbtn, title := "Zoom out", onClick --> { (_: dom.MouseEvent) => zoomBy(0.8) }, "−"),
@@ -930,9 +947,9 @@ object Schematic {
     }
 
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
-      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal).map {
-        case (Some(g), sel, hov, filter) => renderContent(g, sel, hov, filter)
-        case _                           => Nil
+      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal, showLayersVar.signal).map {
+        case (Some(g), sel, hov, filter, showLayers) => renderContent(g, sel, hov, filter, showLayers)
+        case _                                       => Nil
       }
 
     // Recenter the main view on a content-space point (used by the minimap).

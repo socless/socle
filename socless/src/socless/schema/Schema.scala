@@ -153,6 +153,10 @@ case class LogicNodeDef(
   // For kind "op": the CHIRRTL primop ("mux", "add", "lt", ...). Empty for
   // reg/const. Trailing default keeps older design.json loadable (issue #188 B2).
   op: String = "",
+  // True when this node is Chisel verification-layer logic (assert/assume/cover
+  // condition, issue #212): the UI hides it unless "show layers" is on. Default
+  // false is omitted by upickle, so only layer nodes carry it in design.json.
+  layer: Boolean = false,
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 

@@ -64,7 +64,10 @@ object ChirrtlParser {
     * `operands` are the top-level argument tokens - a reference, a literal, or
     * a nested expression rendered as text.
     */
-  case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty)
+  case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty,
+    // True when this node was declared inside a `layerblock` (Chisel verification
+    // layer content, issue #212), so it is verification logic, not design dataflow.
+    inLayer: Boolean = false)
 
   case class Mod(
     name: String,
@@ -83,6 +86,11 @@ object ChirrtlParser {
     // yet are clearly used (issue #74).
     refs: Set[String] = Set.empty,
     nodes: Seq[NodeDecl] = Seq.empty,
+    // Identifier heads referenced from inside `layerblock` content (issue #212):
+    // the signals a verification layer reads. A module-level condition node whose
+    // only consumer is a layer (so it appears here but drives no design sink) is
+    // itself verification logic and is collapsed into the layer.
+    layerConsumes: Set[String] = Set.empty,
   )
   case class Circ(name: String, modules: Seq[Mod], warnings: Seq[Warning] = Seq.empty)
 
@@ -122,11 +130,16 @@ object ChirrtlParser {
     val curMems                   = mutable.Buffer.empty[MemDecl]
     val curRefs                   = mutable.Set.empty[String]
     val curNodes                  = mutable.Buffer.empty[NodeDecl]
+    val curLayerConsumes          = mutable.Set.empty[String]
 
     // When-scope stack: (indent, cond, negated). A `when c :` pushes a frame at
     // its indent; `else :` flips the matching frame's polarity; a dedent pops it.
     // Each Conn is tagged with the active stack (outermost-first) as its guard.
     val whenStack = mutable.ArrayBuffer.empty[(Int, String, Boolean)]
+    // Layerblock-scope stack: (indent, name). Mirrors whenStack; `layerblock X :`
+    // pushes, a dedent pops. Non-empty => the line is verification-layer content
+    // (issue #212).
+    val layerStack = mutable.ArrayBuffer.empty[(Int, String)]
     def indentOf(s: String): Int = s.takeWhile(_ == ' ').length
 
     def flush(): Unit = curMod.foreach { name =>
@@ -134,11 +147,13 @@ object ChirrtlParser {
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
         curRegs.toSeq, curMems.toSeq, curRefs.toSet, curNodes.toSeq,
+        curLayerConsumes.toSet,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
       curRegs.clear(); curMems.clear(); curRefs.clear(); curNodes.clear()
-      whenStack.clear()
+      curLayerConsumes.clear()
+      whenStack.clear(); layerStack.clear()
     }
 
     // Collect referenced identifiers (used to detect which ports are actually
@@ -156,6 +171,15 @@ object ChirrtlParser {
       val stripped = StrLit.replaceAllIn(SrcMarker.replaceAllIn(line, " "), " ")
       RefHead.findAllIn(stripped).foreach { id =>
         if (!RefStopwords.contains(id)) curRefs += id
+      }
+    }
+    // Same harvesting, but into the layer-consumed set (issue #212): records the
+    // signals a `layerblock` line reads, so IrWalk can fold a module-level
+    // condition node that feeds only the layer into it.
+    def collectLayerRefs(line: String): Unit = {
+      val stripped = StrLit.replaceAllIn(SrcMarker.replaceAllIn(line, " "), " ")
+      RefHead.findAllIn(stripped).foreach { id =>
+        if (!RefStopwords.contains(id)) curLayerConsumes += id
       }
     }
 
@@ -177,6 +201,7 @@ object ChirrtlParser {
     // scope signal CHIRRTL gives us - drives the when-stack.
     val WhenLine = """^(\s*)when\s+(.+?)\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
     val ElseLine = """^(\s*)else\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
+    val LayerBlockLine = """^(\s*)layerblock\s+([\w$]+)\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
 
     // Constructs we recognize but do not represent (no topology for them):
     // counted and surfaced as structured warnings so users know what is
@@ -198,18 +223,28 @@ object ChirrtlParser {
         case WhenLine(_, cond) if curMod.isDefined =>
           val ind = indentOf(raw)
           while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
+          while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
           whenStack += ((ind, cond.trim, false))
           collectRefs(raw) // harvest the condition ref(s)
+          if (layerStack.nonEmpty) collectLayerRefs(raw)
         case ElseLine(_) if curMod.isDefined =>
           val ind = indentOf(raw)
           while (whenStack.nonEmpty && whenStack.last._1 > ind) whenStack.remove(whenStack.length - 1)
+          while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
           if (whenStack.nonEmpty && whenStack.last._1 == ind) {
             val (i, c, _) = whenStack.last
             whenStack(whenStack.length - 1) = ((i, c, true))
           }
+        case LayerBlockLine(_, _layerName) if curMod.isDefined =>
+          val ind = indentOf(raw)
+          while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
+          while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
+          layerStack += ((ind, _layerName))
         case other if curMod.isDefined =>
           val ind = indentOf(other)
           while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
+          while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
+          val inLayer = layerStack.nonEmpty
           val guard = whenStack.iterator.map { case (_, c, n) => Guard(c, n) }.toSeq
           // Wrap per-line parsing so a malformed statement never aborts the
           // whole parse; we skip unrecognised / unparseable lines gracefully.
@@ -225,13 +260,16 @@ object ChirrtlParser {
               case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
               case Some(m: MemDecl)  => curMems += m; collectRefs(other)
-              case Some(n: NodeDecl) => curNodes += n.copy(guard = guard); collectRefs(other)
+              case Some(n: NodeDecl) => curNodes += n.copy(guard = guard, inLayer = inLayer); collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
                 else if (t.startsWith("attach")) skippedAttach += 1
                 collectRefs(other) // whens, ops, etc.
             }
+            // Inside a layerblock, record the signals this line reads so IrWalk
+            // can fold module-level condition nodes that feed only it (#212).
+            if (inLayer) collectLayerRefs(other)
           } catch {
             case _: Exception => () // skip malformed line, keep going
           }

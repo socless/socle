@@ -20,5 +20,6 @@ object Fixtures {
     "interconnect.fir" -> "interconnect",
     "regheavy.fir"     -> "regheavy",
     "fsm.fir"          -> "fsm",
+    "layers.fir"       -> "layers",
   )
 }

@@ -172,12 +172,46 @@ object IrWalk {
       memories  = m.mems.size,
     )
     val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes
+    // Verification-layer flagging (issue #212): mark logic nodes that are Chisel
+    // layer content so the UI can hide them behind "show layers". Seeds: nodes
+    // declared inside a `layerblock`, or a module-level condition node the layer
+    // reads that drives nothing in the design (its only consumer was the dropped
+    // assertion intrinsic). Then fold any node whose every design consumer is
+    // already a layer member (a chain of condition nodes feeding the assertion).
+    val layerFlagged: Seq[LogicNodeDef] = {
+      val interior = m.nodes.filter(_.inLayer).map(_.name).toSet
+      // Wires are stored (from = sink, to = source). A node "drives something"
+      // when it is the source (to) of some wire; its consumers are the sinks
+      // (from) of the wires it sources.
+      val drivers  = wires.iterator.map(w => stripIdx(w.to.split('.').headOption.getOrElse(""))).toSet
+      def isLogic(n: LogicNodeDef) = n.kind == "op" || n.kind == "const"
+      val members  = mutable.Set.empty[String]
+      allLogic.foreach { n =>
+        if (isLogic(n) && (interior.contains(n.id) || (m.layerConsumes.contains(n.id) && !drivers.contains(n.id))))
+          members += n.id
+      }
+      def consumers(id: String): Seq[String] =
+        wires.iterator
+          .filter(w => stripIdx(w.to.split('.').headOption.getOrElse("")) == id)
+          .map(w => Synthetic.baseOf(stripIdx(w.from.split('.').headOption.getOrElse("")))).toSeq
+      var changed = true
+      while (changed) {
+        changed = false
+        allLogic.foreach { n =>
+          if (isLogic(n) && !members.contains(n.id)) {
+            val cons = consumers(n.id)
+            if (cons.nonEmpty && cons.forall(members.contains)) { members += n.id; changed = true }
+          }
+        }
+      }
+      allLogic.map(n => if (members.contains(n.id)) n.copy(layer = true) else n)
+    }
     // Slice 2 of #210: collapse recognized FSMs. The member logic nodes and the
     // wholly-internal wires move into a stored body keyed by the fsm node id;
     // the parent keeps a single `fsm` box plus the boundary wires (rewired to
     // pins on the box). No FSM detected => parent unchanged, empty regions.
     val (finalLogic, finalWires, regions) =
-      collapseFsms(m, allLogic, wires)
+      collapseFsms(m, layerFlagged, wires)
     val moduleDef = ModuleDef(
       name     = m.name,
       `type`   = m.name,

@@ -288,6 +288,23 @@ for (const design of designs) {
     drain('panel toggle');
   }
 
+  // #212: verification-layer content is hidden by default; the "layers" toggle
+  // reveals it. Only the `layers` fixture has layerblock content.
+  if (design === 'layers') {
+    const toggle = page.locator('[data-toggle-layers]');
+    if (await toggle.count() === 0) {
+      note(design, 'layers toggle (#212)', 'no [data-toggle-layers] control on a design with layer content');
+    } else {
+      const before = await page.locator('[data-box-inst]').count();
+      await toggle.click().catch((e) => note(design, 'layers toggle', e.message));
+      await page.waitForTimeout(250);
+      const after = await page.locator('[data-box-inst]').count();
+      if (after <= before) note(design, 'layers toggle (#212)', `showing layers did not add boxes (${before} -> ${after})`);
+      await toggle.click().catch(() => {}); // restore
+    }
+    drain('layers toggle');
+  }
+
   // #197: the multi-top page must expose a design picker that switches the
   // active design in place. Only the `multitop` fixture ships a designs.json.
   if (design === 'multitop') {

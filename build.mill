@@ -354,6 +354,11 @@ object example extends ChiselToolchain {
     PathRef(runFor("fsm.TrafficFsm", Task.dest, Task.log, runClasspath()))
   }
 
+  /** Counter with assert/assume/cover -> Chisel Verification layers (issue #212). */
+  def soclessRunLayers: T[PathRef] = Task {
+    PathRef(runFor("layers.LayeredCounter", Task.dest, Task.log, runClasspath()))
+  }
+
   /** Elaborate the default design (AXI4) and open the UI in a browser.
     *
     * Extracts SoCLess.html from the runtime JAR, places design.json next to
@@ -433,6 +438,7 @@ object example extends ChiselToolchain {
       "iobundles.Interconnect" -> "interconnect.fir",
       "regheavy.Datapath"      -> "regheavy.fir",
       "fsm.TrafficFsm"         -> "fsm.fir",
+      "layers.LayeredCounter"  -> "layers.fir",
     )
     val outDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "chirrtl"
     os.makeDir.all(outDir)

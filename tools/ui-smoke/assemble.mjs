@@ -23,6 +23,7 @@ const designs = [
   ['interconnect', 'soclessRunIoBundles', 'Interconnect (Vec-of-bundle)'],
   ['datapath',     'soclessRunRegHeavy',  'Datapath (register-heavy)'],
   ['fsm',          'soclessRunFsm',       'TrafficFsm (3-state FSM)'],
+  ['layers',       'soclessRunLayers',    'LayeredCounter (verification layers)'],
 ];
 
 if (!existsSync(UI)) {
