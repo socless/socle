@@ -1,4 +1,4 @@
-package socless.ui
+package socless.ui.schematic
 
 import org.scalajs.dom
 import scala.scalajs.js

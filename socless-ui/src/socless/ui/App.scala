@@ -10,6 +10,10 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
 import socless.schema.{Design, ModuleDef}
+import socless.ui.theme._
+import socless.ui.model._
+import socless.ui.schematic._
+import socless.ui.panels._
 
 /** The Scala.js + Laminar frontend (epic #172).
   *
@@ -309,17 +313,6 @@ object App {
     out.toList
   }
 
-  /** Tiny glyph for a module kind (mirrors the JS ModuleGlyph). */
-  private def glyph(d: Design, tpe: String): String =
-    d.modules.find(_.name == tpe) match {
-      case None => "·"
-      case Some(m) =>
-        if (m.children.length >= 3) "⬢"               // hub
-        else if (m.metrics.registers > 0) "◆"          // register-bearing
-        else if (m.kind == "external" || m.kind == "intrinsic") "■" // blackbox
-        else "·"
-    }
-
   private def toggle(id: String): Unit =
     expandedVar.update(s => if (s(id)) s - id else s + id)
 
@@ -497,7 +490,7 @@ object App {
       title := r.path.mkString(" > "),
       onClick --> { _ => pathVar.set(r.path) },
       span(cls := "scl-hier-toggle", toggleMods),
-      span(cls := "scl-hier-glyph", glyph(d, r.tpe)),
+      span(cls := "scl-hier-glyph", Glyphs.of(d, r.tpe)),
       span(cls := "scl-hier-label", r.label),
       span(cls := "scl-hier-type", r.tpe),
     )

@@ -1,5 +1,6 @@
-package socless.ui
+package socless.ui.schematic
 
+import socless.ui.theme._
 import com.raquo.laminar.api.L._
 import com.raquo.laminar.nodes.ReactiveElement
 import com.raquo.laminar.codecs.StringAsIsCodec

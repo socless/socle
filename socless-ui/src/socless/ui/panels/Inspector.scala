@@ -1,9 +1,11 @@
-package socless.ui
+package socless.ui.panels
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
 import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree}
+import socless.ui.theme._
+import socless.ui.model._
 
 /** The inspector (right) pane (epic #172 Phase 3): details for whatever is
   * selected (or hovered) on the schematic. Behavioral port of the JS

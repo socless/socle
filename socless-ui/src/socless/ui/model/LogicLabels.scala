@@ -1,4 +1,4 @@
-package socless.ui
+package socless.ui.model
 
 /** Shared labelling helpers for combinational op / register logic nodes
   * (issue #188 B2). Both the schematic ([[Schematic]]) and the inspector

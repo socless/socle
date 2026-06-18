@@ -1,4 +1,4 @@
-package socless.ui
+package socless.ui.theme
 
 import socless.schema.Design
 

@@ -1,4 +1,4 @@
-package socless.ui
+package socless.ui.model
 
 import socless.schema.{Design, ModuleDef, BundleTree}
 import socless.js.BrowserLayout.LaidOut

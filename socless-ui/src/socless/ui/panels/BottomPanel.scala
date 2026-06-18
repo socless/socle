@@ -1,8 +1,9 @@
-package socless.ui
+package socless.ui.panels
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import socless.schema.{Design, ModuleDef}
+import socless.ui.theme._
 
 /** The bottom panel under the schematic (epic #172 Phase 3 follow-up): a tabbed
   * Source / Waveform / Ports view. Behavioral port of the JS `BenchBottomPanel`

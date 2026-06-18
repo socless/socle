@@ -1,5 +1,7 @@
-package socless.ui
+package socless.ui.schematic
 
+import socless.ui.theme._
+import socless.ui.model._
 import com.raquo.laminar.api.L._
 import com.raquo.laminar.nodes.{ReactiveElement, ChildNode}
 import com.raquo.laminar.codecs.StringAsIsCodec
@@ -236,15 +238,10 @@ object Schematic {
     d.layouts.get(key).map(LaidOut.fromBaked)
   }
 
-  private def glyph(d: Design, tpe: String): String =
-    d.modules.find(_.name == tpe) match {
-      case None => "·"
-      case Some(m) =>
-        if (m.children.length >= 3) "⬢"
-        else if (m.metrics.registers > 0) "◆"
-        else if (m.kind == "external" || m.kind == "intrinsic") "■"
-        else "·"
-    }
+  /** Toggle an id in the single-select model: select it, or clear if it is
+    * already selected. Shared by every clickable box/wire. */
+  private def toggleSelect(sel: Var[Option[String]], id: String): Unit =
+    sel.update(s => if (s.contains(id)) None else Some(id))
 
   /** Conditional child: the element when `c`, else a no-op comment node. The
     * explicit [[ChildNode.Base]] result type keeps the if/else from widening to
@@ -449,7 +446,7 @@ object Schematic {
             sa("data-wire") := w.fromPath,
             sa("data-pan-block") := "1",
             sa("style") := "stroke:transparent;stroke-width:14;fill:none;cursor:pointer;pointer-events:stroke",
-            onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(w.fromPath)) None else Some(w.fromPath)) },
+            onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, w.fromPath) },
             onMouseEnter --> { (_: dom.MouseEvent) => hoveredVar.set(Some(w.fromPath)) },
             onMouseLeave --> { (_: dom.MouseEvent) => hoveredVar.set(None) },
           )
@@ -548,8 +545,8 @@ object Schematic {
             div(
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-              onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
-              span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", glyph(g.design, ch.`type`)),
+              onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
+              span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", Glyphs.of(g.design, ch.`type`)),
               span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
               div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
                 opt(isBlackbox)(span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px dashed ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px",
@@ -686,7 +683,7 @@ object Schematic {
         title := s"register (${n.id})",
         styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
           s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
-        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
         LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
         renderPortRows(g, n, westBlank, "WEST", sel, hov),
         renderPortRows(g, n, eastBlank, "EAST", sel, hov),
@@ -733,7 +730,7 @@ object Schematic {
         title := (if (op.nonEmpty) s"op $op (${n.id})" else s"op (${n.id})"),
         styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
           s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
-        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
         symbol,
         renderPortRows(g, n, westBlank, "WEST", sel, hov, westTitle),
         renderPortRows(g, n, eastBlank, "EAST", sel, hov),
@@ -751,7 +748,7 @@ object Schematic {
           s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
           s"background:${Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
           s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
-        onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
         if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
         n.ports.map { p =>
           val pw = if (p.interface) 8 else 3
@@ -803,7 +800,7 @@ object Schematic {
         div(
           styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.accentLine};" +
             s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-          onClick --> { (_: dom.MouseEvent) => selectedVar.update(s => if (s.contains(n.id)) None else Some(n.id)) },
+          onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
           span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
           span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
         ),
