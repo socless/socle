@@ -2,6 +2,7 @@ package socless.ui.panels
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
+import scala.scalajs.js
 import socless.schema.{Design, ModuleDef}
 import socless.ui.theme._
 
@@ -55,9 +56,27 @@ object BottomPanel {
     selectedVar: Var[Option[String]],
     hoveredVar: Var[Option[String]],
     drillInto: String => Unit,
+    heightVar: Var[Double],
   ): Element = {
     val tabVar = Var("source")
     def setSel(p: String): Unit = selectedVar.set(Some(p))
+
+    // Drag the top edge to resize the panel (#206). Document-level listeners so
+    // the drag keeps tracking even if the cursor leaves the thin handle.
+    def onResizeDown(e: dom.MouseEvent): Unit = {
+      e.preventDefault()
+      val startY = e.clientY
+      val startH = heightVar.now()
+      val move: js.Function1[dom.MouseEvent, Unit] = (ev: dom.MouseEvent) =>
+        heightVar.set(math.max(80.0, math.min(700.0, startH - (ev.clientY - startY))))
+      var up: js.Function1[dom.MouseEvent, Unit] = null
+      up = (_: dom.MouseEvent) => {
+        dom.document.removeEventListener("mousemove", move)
+        dom.document.removeEventListener("mouseup", up)
+      }
+      dom.document.addEventListener("mousemove", move)
+      dom.document.addEventListener("mouseup", up)
+    }
 
     def tabButton(id: String, icon: String, label: String): Element =
       button(
@@ -87,6 +106,9 @@ object BottomPanel {
 
     div(
       cls := "scl-bottom", dataAttr("bottom-panel") := "1",
+      styleAttr <-- heightVar.signal.map(h => s"height:${h}px"),
+      div(cls := "scl-bottom-resize", dataAttr("bottom-resize") := "1",
+        onMouseDown --> { (e: dom.MouseEvent) => onResizeDown(e) }),
       div(cls := "scl-bottom-tabs",
         tabButton("source", "⌥", "Source"),
         tabButton("wave", "∿", "Waveform"),

@@ -115,6 +115,11 @@
     border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
   .scl-bottom { height: 240px; flex-shrink: 0; border-top: 1px solid var(--border);
     background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+  /* Drag handle on the top edge of the bottom panel (#206). */
+  .scl-bottom-resize { height: 6px; flex-shrink: 0; cursor: ns-resize; background: transparent; }
+  .scl-bottom-resize:hover { background: var(--accent); opacity: 0.45; }
+  /* Panel-toggle buttons dim when their pane is hidden (#206). */
+  .scl-panel-btn.off { opacity: 0.4; }
   .scl-bottom-tabs { display: flex; height: 30px; align-items: stretch;
     border-bottom: 1px solid var(--borderSoft); }
   .scl-bottom-body { flex: 1; overflow: auto; position: relative; }

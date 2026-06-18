@@ -49,6 +49,12 @@ object App {
   // Empty for a single-top build (no index) -> the picker is hidden.
   private val designsVar       = Var[List[(String, String, String)]](Nil)
   private val activeDesignVar  = Var[String]("design.json")    // path of the selected entry
+  // Panel layout (#206): toggle the side / bottom panels to focus on the
+  // schematic; the bottom panel is also drag-resizable.
+  private val leftOpenVar      = Var(true)
+  private val rightOpenVar     = Var(true)
+  private val bottomOpenVar    = Var(true)
+  private val bottomHeightVar  = Var(240.0)
   private var toastTimer       = Option.empty[SetTimeoutHandle]
   private var liveWatchStarted = false
   // Last-Modified of the live design currently shown. The poller compares the
@@ -353,7 +359,25 @@ object App {
     expandedVar.update(s => if (s(id)) s - id else s + id)
 
   // ── View ───────────────────────────────────────────────────────────────────
-  private def shell(): Element =
+  private def shell(): Element = {
+    // Build the toggleable panes once so hiding/showing them (child.maybe below)
+    // preserves their internal state rather than rebuilding (#206).
+    val hierEl = hierarchyPane()
+    val bottomEl = BottomPanel.render(
+      designSig   = designVar.signal,
+      moduleSig   = currentModuleSig,
+      selectedVar = selectedSigVar,
+      hoveredVar  = hoveredSigVar,
+      drillInto   = drillInto,
+      heightVar   = bottomHeightVar,
+    )
+    val inspectorEl = Inspector.render(
+      designSig          = designVar.signal,
+      moduleSig          = currentModuleSig,
+      selectedVar        = selectedSigVar,
+      hoveredVar         = hoveredSigVar,
+      expandedBundlesVar = expandedBundlesVar,
+    )
     div(
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
@@ -361,7 +385,7 @@ object App {
       Chrome.warningsBanner(designVar.signal),
       div(
         cls := "scl-panes",
-        hierarchyPane(),
+        child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None),
         // Center column: schematic above, the Source/Waveform/Ports panel below.
         div(cls := "scl-center",
           Schematic.render(
@@ -374,21 +398,9 @@ object App {
             drillInto        = drillInto,
             designSnapshot   = () => designSnapshot(),
           ),
-          BottomPanel.render(
-            designSig   = designVar.signal,
-            moduleSig   = currentModuleSig,
-            selectedVar = selectedSigVar,
-            hoveredVar  = hoveredSigVar,
-            drillInto   = drillInto,
-          ),
+          child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
-        Inspector.render(
-          designSig          = designVar.signal,
-          moduleSig          = currentModuleSig,
-          selectedVar        = selectedSigVar,
-          hoveredVar         = hoveredSigVar,
-          expandedBundlesVar = expandedBundlesVar,
-        ),
+        child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None),
       ),
       // Expansion paths are instance-relative, not scoped to the current module:
       // clear them (and the selection) on navigation so expanding a port in one
@@ -403,6 +415,7 @@ object App {
       dropOverlay(),
       toastEl(),
     )
+  }
 
   private val kHint = if (Chrome.macHint) "⌘K" else "Ctrl K"
 
@@ -494,6 +507,20 @@ object App {
       },
       // LIVE badge + "updated Ns ago" (#120): only while showing the live design.
       child.maybe <-- sourceVar.signal.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
+      // Panel toggles (#206): hide the hierarchy / bottom / inspector panel to
+      // focus on the schematic. The `off` class dims a button when its pane is hidden.
+      button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
+        cls.toggle("off") <-- leftOpenVar.signal.map(!_),
+        title := "Toggle the hierarchy panel",
+        onClick --> { _ => leftOpenVar.update(!_) }, "⊢"),
+      button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "bottom",
+        cls.toggle("off") <-- bottomOpenVar.signal.map(!_),
+        title := "Toggle the bottom panel",
+        onClick --> { _ => bottomOpenVar.update(!_) }, "⊥"),
+      button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
+        cls.toggle("off") <-- rightOpenVar.signal.map(!_),
+        title := "Toggle the inspector panel",
+        onClick --> { _ => rightOpenVar.update(!_) }, "⊣"),
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.
       button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
         dataAttr("theme") <-- themeVar.signal,

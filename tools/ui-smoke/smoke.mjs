@@ -268,6 +268,26 @@ for (const design of designs) {
     }
   }
 
+  // #206: panel toggles hide/show the side+bottom panels (focus on schematic),
+  // and the bottom panel carries a resize handle.
+  {
+    const hierToggle = page.locator('[data-toggle-pane="hierarchy"]');
+    const hierPane = () => page.locator('[data-pane="hierarchy"]').count();
+    if (await hierToggle.count() && await hierPane()) {
+      await hierToggle.click().catch((e) => note(design, 'panel toggle', e.message));
+      await page.waitForTimeout(120);
+      if (await hierPane() !== 0) note(design, 'panel toggle (#206)', 'hierarchy pane still present after hiding');
+      await hierToggle.click().catch(() => {}); // restore for later steps
+      await page.waitForTimeout(120);
+      if (await hierPane() === 0) note(design, 'panel toggle (#206)', 'hierarchy pane did not return after toggling back');
+    } else {
+      note(design, 'panel toggle (#206)', 'missing [data-toggle-pane=hierarchy] or [data-pane=hierarchy]');
+    }
+    if (await page.locator('[data-bottom-resize]').count() === 0)
+      note(design, 'panel resize (#206)', 'no [data-bottom-resize] handle on the bottom panel');
+    drain('panel toggle');
+  }
+
   // #197: the multi-top page must expose a design picker that switches the
   // active design in place. Only the `multitop` fixture ships a designs.json.
   if (design === 'multitop') {
