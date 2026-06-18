@@ -40,12 +40,12 @@ object LogicSymbols {
     * `MinBodyH` so a single-row node does not collapse to a thin bar. */
   private final case class Body(xL: Double, xR: Double, top: Double, bot: Double, cy: Double)
   private def bodyOf(w: Double, bodyW: Double, inYs: Seq[Double], outY: Double): Body = {
-    val ys  = if (inYs.nonEmpty) inYs :+ outY else Seq(outY)
-    val lo  = ys.min; val hi = ys.max
-    val cy  = (lo + hi) / 2
-    val bh  = math.max(hi - lo, MinBodyH)
+    // Center the body on the OUTPUT so its stub leaves straight, and size it to
+    // reach the farthest input so the input stubs stay straight too (#230).
+    val maxDist = (inYs :+ outY).iterator.map(y => math.abs(y - outY)).max
+    val bh  = math.max(MinBodyH, 2 * maxDist)
     val xL  = math.max(2.0, (w - bodyW) / 2)
-    Body(xL, xL + bodyW, cy - bh / 2, cy + bh / 2, cy)
+    Body(xL, xL + bodyW, outY - bh / 2, outY + bh / 2, outY)
   }
 
   /** Short orthogonal stubs from the WEST pins (x=0) to the body left edge and
@@ -53,13 +53,9 @@ object LogicSymbols {
   private def stubs(w: Double, inYs: Seq[Double], outY: Double, b: Body, stroke: String): Seq[ReactiveElement.Base] = {
     val st  = s"stroke:$stroke;stroke-width:1.2;fill:none"
     val ins = inYs.map(y => svg.path(sa("d") := s"M 0 $y L ${b.xL} $y", sa("style") := st))
-    // The symbol's output tip is at the body vertical center; route from there to
-    // the EAST pin. When the output pin shares that Y (the common single in/out
-    // case) the stub is a straight horizontal line through the centered symbol;
-    // otherwise it jogs to the pin row.
-    val outD = if (math.abs(b.cy - outY) < 1.0) s"M ${b.xR} $outY L $w $outY"
-               else { val mx = (b.xR + w) / 2; s"M ${b.xR} ${b.cy} L $mx ${b.cy} L $mx $outY L $w $outY" }
-    val out = svg.path(sa("d") := outD, sa("style") := st)
+    // The body is centered on the output (bodyOf), so the output leaves the
+    // symbol straight to the EAST pin - only a horizontal line (#230).
+    val out = svg.path(sa("d") := s"M ${b.xR} $outY L $w $outY", sa("style") := st)
     ins :+ out
   }
 

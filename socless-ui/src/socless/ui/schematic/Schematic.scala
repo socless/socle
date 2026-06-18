@@ -476,7 +476,7 @@ object Schematic {
           } else {
             val isWest = p.side == "WEST"
             val px     = p.x.toDouble
-            val len    = 18.0
+            val len    = 10.0
             // Stub: a short wire out of the port ending in a perpendicular bar (|-).
             val d = if (isWest) s"M $px $py L ${px - len} $py M ${px - len} ${py - 5} L ${px - len} ${py + 5}"
                     else        s"M $px $py L ${px + len} $py M ${px + len} ${py - 5} L ${px + len} ${py + 5}"
@@ -488,7 +488,7 @@ object Schematic {
               title := s"constant $value",
               svg.svg(sa("style") := "position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none",
                 svg.path(sa("d") := d, sa("style") := s"stroke:${Tokens.ink3};stroke-width:1.2;fill:none")),
-              span(styleAttr := s"$labelStyle;$lblBase", value),
+              span(styleAttr := s"$labelStyle;$lblBase;background:${Tokens.panel};padding:0 3px;border-radius:2px", value),
             )
           }
         }
@@ -621,7 +621,9 @@ object Schematic {
         },
       )
 
-      (Seq[ReactiveElement.Base](hit) ++ boxEls ++ constEls) :+ (vis: ReactiveElement.Base)
+      // Constant annotations render after the wire layer so their labels sit on
+      // top of crossing wires instead of being covered (#229).
+      ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls
     }
 
     // Bidirectional cue: a mid-wire opposed double-chevron (JS bidirChevrons).

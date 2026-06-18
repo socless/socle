@@ -165,7 +165,17 @@ object BottomPanel {
 
   private def sourceView(mod: ModuleDef, d: Design, selected: Option[String], drillInto: String => Unit): Element = {
     val file       = mod.source.file
-    val targetLine = mod.source.line
+    // Jump to the SELECTED component's source line when it lives in this file
+    // (#228): look the selection up among instances / logic nodes / wires. Fall
+    // back to the module declaration line.
+    val selLine: Option[Int] = selected.flatMap { s =>
+      val head = s.split('.').head
+      mod.children.find(_.name == head).map(_.source)
+        .orElse(mod.logic.find(_.id == head).map(_.source))
+        .orElse(mod.wires.find(w => w.from == s || w.to == s).map(_.source))
+        .filter(r => r.line > 0 && r.file == file).map(_.line)
+    }
+    val targetLine = selLine.getOrElse(mod.source.line)
     val fileText   = if (file.nonEmpty) d.sources.get(file) else None
 
     fileText match {
@@ -188,7 +198,11 @@ object BottomPanel {
             // rebuild (e.g. a selection change) may replace this node before then.
             // Gate inside the frame on the LIVE, connected node so only it scrolls,
             // and only once per file:line (not on every selection-driven rebuild).
-            if (targetLine > 0) dom.window.requestAnimationFrame { _ =>
+            // Scroll on navigating to a new module (its decl line) or selecting a
+            // component; not on merely deselecting, which would yank back up.
+            val fileChanged  = scrolledFor == null || !scrolledFor.startsWith(s"$file:")
+            val shouldScroll = selLine.isDefined || fileChanged
+            if (targetLine > 0 && shouldScroll) dom.window.requestAnimationFrame { _ =>
               if (dom.document.contains(parent) && key != scrolledFor) {
                 scrolledFor = key
                 val el = parent.querySelector(s"""[data-line="$targetLine"]""").asInstanceOf[dom.html.Element]
