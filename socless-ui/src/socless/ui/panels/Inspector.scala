@@ -3,7 +3,7 @@ package socless.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree}
+import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind}
 import socless.ui.theme._
 import socless.ui.model._
 
@@ -146,8 +146,8 @@ object Inspector {
 
   // ── Logic node detail: register / constant / op (issue #188 B1, B2) ─────────
   private def logicView(ln: LogicNodeDef, mod: ModuleDef, d: Design): Element = {
-    val isReg = ln.kind == "reg"
-    val isOp  = ln.kind == "op"
+    val isReg = ln.kind == NodeKind.Reg
+    val isOp  = ln.kind == NodeKind.Op
     def sourceRow: Element =
       if (ln.source.file.nonEmpty)
         div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",

@@ -9,7 +9,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -456,7 +456,7 @@ object Schematic {
       // it drives (const logic id is `const$<sinkPath>`). For a register the
       // constant is the init value, so it sits as a label ABOVE the symbol;
       // otherwise it is a `|-` stub on the driven side of the port.
-      val constEls: Seq[ReactiveElement.Base] = g.mod.logic.iterator.filter(c => c.kind == "const" && !(hideLayer && layerIds.contains(c.id))).flatMap { cn =>
+      val constEls: Seq[ReactiveElement.Base] = g.mod.logic.iterator.filter(c => c.kind == NodeKind.Const && !(hideLayer && layerIds.contains(c.id))).flatMap { cn =>
         val sinkPath = cn.id.stripPrefix("const$")
         val raw = if (cn.label.nonEmpty) cn.label else cn.id
         val value = raw.indexOf(": ") match { case i if i > 0 => raw.take(i); case _ => raw }
@@ -464,7 +464,7 @@ object Schematic {
           val shift  = g.boxShift.shift.getOrElse(b.id, 0.0)
           val py     = p.y + shift
           val lblBase = s"font-family:${Tokens.mono};font-size:9px;font-weight:600;color:${Tokens.ink2};white-space:nowrap"
-          if (b.kind == "reg") {
+          if (b.kind == NodeKind.Reg) {
             // Register init value: label centered just above the flip-flop symbol.
             val cx     = b.x + b.w / 2.0
             val symTop = py - 18.0
@@ -474,7 +474,7 @@ object Schematic {
               span(styleAttr := s"position:absolute;left:${cx}px;top:${symTop - 13}px;transform:translateX(-50%);text-align:center;$lblBase", value),
             )
           } else {
-            val isWest = p.side == "WEST"
+            val isWest = p.side == PinSide.West
             val px     = p.x.toDouble
             val len    = 10.0
             // Stub: a short wire out of the port ending in a perpendicular bar (|-).
@@ -495,22 +495,22 @@ object Schematic {
       }.toSeq
 
       // ── boxes ──
-      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(n => n.kind == "const" || (hideLayer && layerIds.contains(n.id))).map { n =>
+      val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(n => n.kind == NodeKind.Const || (hideLayer && layerIds.contains(n.id))).map { n =>
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (n.kind == "reg") regBox(g, n, top, boxActive(n.id), sel, hov)
+        if (n.kind == NodeKind.Reg) regBox(g, n, top, boxActive(n.id), sel, hov)
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
-        else if (n.kind == "op") opBox(g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Op) opBox(g, n, top, boxActive(n.id), sel, hov)
         // A collapsed FSM (issue #210): an instance-style box with boundary pins,
         // but non-drillable and tinted to read as a state machine. Intercepted
         // before the childless-boundary arm since it has no `children` entry.
-        else if (n.kind == "fsm") fsmBox(g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Fsm) fsmBox(g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
-        else if (child.isEmpty || n.kind == "boundary") boundaryStub(g, n, top, boxActive(n.id))
+        else if (child.isEmpty || n.kind == NodeKind.Boundary) boundaryStub(g, n, top, boxActive(n.id))
         else {
           val ch         = child.get
           val childMod   = g.design.modules.find(_.name == ch.`type`)
@@ -554,8 +554,8 @@ object Schematic {
               ),
             ),
             // port rows
-            renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
-            renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
+            renderPortRows(g, n, boxInfo.westRows, PinSide.West, sel, hov),
+            renderPortRows(g, n, boxInfo.eastRows, PinSide.East, sel, hov),
             // clock-input notch (bottom-left) and reset ring (bottom-right)
             opt(hasClock)(div(
               dataAttr("clk-cue") := n.id, title := "clock input",
@@ -687,8 +687,8 @@ object Schematic {
           s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
         onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
         LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
-        renderPortRows(g, n, westBlank, "WEST", sel, hov),
-        renderPortRows(g, n, eastBlank, "EAST", sel, hov),
+        renderPortRows(g, n, westBlank, PinSide.West, sel, hov),
+        renderPortRows(g, n, eastBlank, PinSide.East, sel, hov),
       )
     }
 
@@ -739,8 +739,8 @@ object Schematic {
           s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
         onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
         symbol,
-        renderPortRows(g, n, westBlank, "WEST", sel, hov, westTitle),
-        renderPortRows(g, n, eastBlank, "EAST", sel, hov),
+        renderPortRows(g, n, westBlank, PinSide.West, sel, hov, westTitle),
+        renderPortRows(g, n, eastBlank, PinSide.East, sel, hov),
       )
     }
 
@@ -760,7 +760,7 @@ object Schematic {
         n.ports.map { p =>
           val pw = if (p.interface) 8 else 3
           val ph = if (p.interface) 12 else 6
-          val isWest = p.side == "WEST"
+          val isWest = p.side == PinSide.West
           val labelStyle = if (isWest) s"left:${pw + 3}px;text-align:left" else s"right:${pw + 3}px;text-align:right"
           div(
             div(title := stripQ(p.path),
@@ -811,8 +811,8 @@ object Schematic {
           span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
           span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
         ),
-        renderPortRows(g, n, boxInfo.westRows, "WEST", sel, hov),
-        renderPortRows(g, n, boxInfo.eastRows, "EAST", sel, hov),
+        renderPortRows(g, n, boxInfo.westRows, PinSide.West, sel, hov),
+        renderPortRows(g, n, boxInfo.eastRows, PinSide.East, sel, hov),
       )
     }
 
@@ -821,7 +821,7 @@ object Schematic {
                        sel: Option[String], hov: Option[String],
                        titleOf: RowModel.Row => String = r => stripQ(r.path)): Seq[ReactiveElement.Base] = {
       val c = g.c
-      val isWest = side == "WEST"
+      val isWest = side == PinSide.West
       // Draw each pin where the layout actually placed it (row.pinYBaked) so the
       // dots line up with the wires and symbol stubs - including an op's output
       // pin, laid at the center of its inputs. Only fall back to index positions

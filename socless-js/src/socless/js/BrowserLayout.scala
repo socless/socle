@@ -1,6 +1,6 @@
 package socless.js
 
-import socless.schema.{Design, ModuleDef, ModuleLayout}
+import socless.schema.{Design, ModuleDef, ModuleLayout, NodeKind, PinSide}
 import socless.layout.LayoutCore
 import scala.concurrent.Future
 import scala.scalajs.js
@@ -22,7 +22,7 @@ object BrowserLayout {
   case class LaidPortR(path: String, x: Int, y: Int, side: String, interface: Boolean,
                        label: String, bundle: String, expandable: Boolean)
 
-  /** A laid-out box (`kind` == "inst" | "boundary"). */
+  /** A laid-out box (`kind` == NodeKind.Inst | NodeKind.Boundary). */
   case class LaidNodeR(id: String, kind: String, x: Int, y: Int, w: Int, h: Int,
                        ports: Seq[LaidPortR])
 
@@ -73,12 +73,12 @@ object BrowserLayout {
         js.Dynamic.literal(
           id = p.path,
           x = p.x, y = py, width = 6, height = 6,
-          layoutOptions = js.Dynamic.literal("elk.port.side" -> (if (p.side == "EAST") "EAST" else "WEST")),
+          layoutOptions = js.Dynamic.literal("elk.port.side" -> (if (p.side == PinSide.East) "EAST" else "WEST")),
         )
       }.toJSArray
       // Boundary stubs let elkjs place ports on their side; instance nodes pin
       // each port at its precomputed (x, y) so the header never overlaps a pin.
-      val portConstraints = if (n.kind == "boundary") "FIXED_SIDE" else "FIXED_POS"
+      val portConstraints = if (n.kind == NodeKind.Boundary) "FIXED_SIDE" else "FIXED_POS"
       val nodeOpts = js.Dynamic.literal("elk.portConstraints" -> portConstraints)
       // Pin boundary stubs into their own first/last layer so external I/O forms
       // two aligned columns flanking the instances (issue #163). Same policy as
