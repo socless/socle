@@ -357,11 +357,27 @@ object LayoutCore {
                 else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
         val h = nodeHeight(west, east)
         // Independent row counters per side so WEST and EAST ports start at row 0.
+        def rowY(r: Double): Double = HeaderH + PortPad + r * PortStep + PortStep / 2
+        // An op renders as a symbol whose single output leaves from the vertical
+        // center of its DATA inputs; place its EAST pin there so the output is a
+        // straight horizontal line and the inputs sit equidistant about it
+        // (#230). A mux select (in0) renders on top, so it is excluded from the
+        // centering.
+        val opName  = if (kind == "op") module.logic.find(_.id == id).map(_.op).getOrElse("") else ""
+        val westSeq = pins.values.filter(_.side == "WEST").toSeq
+        val dataRows = westSeq.zipWithIndex.collect {
+          case (p, i) if !(opName == "mux" && p.path.endsWith("~in0")) => i.toDouble
+        }
+        val opOutY  = if (dataRows.nonEmpty) rowY(dataRows.sum / dataRows.size) else rowY(0)
         var westRow = 0; var eastRow = 0
         val laidPins = pins.values.toSeq.map { p =>
-          val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
-                       else                   { val r = eastRow; eastRow += 1; r }
-          val portY = HeaderH + PortPad + rowIdx * PortStep + PortStep / 2
+          val portY =
+            if (kind == "op" && p.side == "EAST") opOutY
+            else {
+              val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
+                           else                   { val r = eastRow; eastRow += 1; r }
+              rowY(rowIdx.toDouble)
+            }
           val portX = if (p.side == "EAST") w else 0.0
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
             BundleTree.isAggregateType(p.bundle, design))

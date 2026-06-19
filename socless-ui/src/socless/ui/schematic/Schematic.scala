@@ -668,9 +668,11 @@ object Schematic {
       val c            = g.c
       val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
       val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      def rowY(i: Int): Double = c.headerH + c.portPad + i * c.portStep + c.portStep / 2
-      val inYs   = boxInfo.westRows.indices.map(rowY)
-      val outY   = if (boxInfo.eastRows.nonEmpty) rowY(0) else boxInfo.boxH / 2
+      // Draw at the actual laid pin positions (same map the wires use).
+      val pinYMap = boxInfo.pinY(c.headerH, c.portPad, c.portStep)
+      val inYs   = boxInfo.westRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
+      val outY   = boxInfo.eastRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
+                     .headOption.getOrElse(boxInfo.boxH / 2)
       val stroke = if (selectedHere) Tokens.accent else Tokens.ink2
       // No D/Q labels: the flip-flop symbol + clock mark convey it (issue #203).
       val westBlank = boxInfo.westRows.map(_.copy(label = ""))
@@ -708,9 +710,14 @@ object Schematic {
         case _            => stripQ(r.path)
       }
       val famTag = LogicSymbols.tag(op)
-      def rowY(i: Int): Double = c.headerH + c.portPad + i * c.portStep + c.portStep / 2
-      val inYs    = boxInfo.westRows.indices.map(rowY)
-      val outY    = if (boxInfo.eastRows.nonEmpty) rowY(0) else boxInfo.boxH / 2
+      // Draw the symbol stubs at the ACTUAL laid pin positions - the same map the
+      // wires are routed to - so the symbol meets the wires exactly. The op's
+      // EAST output is laid at the center of its inputs by LayoutCore; there is
+      // no ad-hoc re-derivation here.
+      val pinYMap = boxInfo.pinY(c.headerH, c.portPad, c.portStep)
+      val inYs    = boxInfo.westRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
+      val outY    = boxInfo.eastRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
+                      .headOption.getOrElse(boxInfo.boxH / 2)
       // Op nodes carry no visible pin labels: the symbol conveys the operation,
       // and the input role / output type stay available on hover and in the
       // Inspector (issue #203). Blank the row labels but keep the pins + stubs.
@@ -815,8 +822,14 @@ object Schematic {
                        titleOf: RowModel.Row => String = r => stripQ(r.path)): Seq[ReactiveElement.Base] = {
       val c = g.c
       val isWest = side == "WEST"
+      // Draw each pin where the layout actually placed it (row.pinYBaked) so the
+      // dots line up with the wires and symbol stubs - including an op's output
+      // pin, laid at the center of its inputs. Only fall back to index positions
+      // once an expansion has re-flowed the rows.
+      val expanded = rows.exists(!_.isTopLevel)
       rows.zipWithIndex.map { case (row, rowIdx) =>
-        val rowY = c.headerH + c.portPad + rowIdx * c.portStep + c.portStep / 2
+        val rowY = if (!expanded && row.isTopLevel) row.pinYBaked
+                   else c.headerH + c.portPad + rowIdx * c.portStep + c.portStep / 2
         val indentPx = row.depth * 8
         if (row.isTopLevel) {
           val isInterface = row.isExpandable

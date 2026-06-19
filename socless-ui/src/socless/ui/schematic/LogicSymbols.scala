@@ -40,12 +40,14 @@ object LogicSymbols {
     * `MinBodyH` so a single-row node does not collapse to a thin bar. */
   private final case class Body(xL: Double, xR: Double, top: Double, bot: Double, cy: Double)
   private def bodyOf(w: Double, bodyW: Double, inYs: Seq[Double], outY: Double): Body = {
-    // Center the body on the OUTPUT so its stub leaves straight, and size it to
-    // reach the farthest input so the input stubs stay straight too (#230).
-    val maxDist = (inYs :+ outY).iterator.map(y => math.abs(y - outY)).max
-    val bh  = math.max(MinBodyH, 2 * maxDist)
+    // The output pin is laid at the vertical center of the inputs (LayoutCore),
+    // so centering on all pins keeps inputs equidistant and the output straight.
+    val ys  = if (inYs.nonEmpty) inYs :+ outY else Seq(outY)
+    val lo  = ys.min; val hi = ys.max
+    val cy  = (lo + hi) / 2
+    val bh  = math.max(hi - lo, MinBodyH)
     val xL  = math.max(2.0, (w - bodyW) / 2)
-    Body(xL, xL + bodyW, outY - bh / 2, outY + bh / 2, outY)
+    Body(xL, xL + bodyW, cy - bh / 2, cy + bh / 2, cy)
   }
 
   /** Short orthogonal stubs from the WEST pins (x=0) to the body left edge and
@@ -126,9 +128,12 @@ object LogicSymbols {
   /** Register flip-flop: a tall (higher-than-wide) rectangle with the clock mark
     * as an upward chevron ("/\") at the bottom-center edge (issue #203). */
   def ff(w: Double, h: Double, inYs: Seq[Double], outY: Double, stroke: String): ReactiveElement.Base = {
-    // Fixed tall body centered on the terminal Ys; height > width.
-    val bw = 22.0; val bh = 34.0
+    // Tall body centered on the terminal Ys; expands vertically to encapsulate
+    // every D/Q pin so a register bank (a bundle stored in a register) is drawn
+    // as one box around all its signals rather than a fixed-height symbol.
+    val bw = 22.0
     val ys = if (inYs.nonEmpty) inYs :+ outY else Seq(outY)
+    val bh = math.max(34.0, (ys.max - ys.min) + 16.0)
     val cy = (ys.min + ys.max) / 2
     val xL = math.max(2.0, (w - bw) / 2); val xR = xL + bw
     val top = cy - bh / 2; val bot = cy + bh / 2

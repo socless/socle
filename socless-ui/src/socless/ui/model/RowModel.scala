@@ -28,12 +28,22 @@ object RowModel {
       * terminals + feed the engine its grown pin rows. Mirrors the JS `pinY`
       * memo: each side's rows are indexed from 0. */
     def pinY(headerH: Double, portPad: Double, portStep: Double): Map[String, Double] = {
-      def proc(rows: Seq[Row]): Seq[(String, Double)] =
-        rows.zipWithIndex.collect {
-          case (r, idx) if r.isTopLevel => r.path -> (headerH + portPad + idx * portStep + portStep / 2)
-        }
-      (proc(westRows) ++ proc(eastRows)).toMap.toSeq
-    }.toMap
+      // With no expansion the baked pin positions are exact and authoritative -
+      // crucially they honor an op's EAST output pin laid at the center of its
+      // inputs (LayoutCore), which the index-based formula would miss. Only when
+      // a bundle is expanded (sub-rows shift the top-level pins) do we fall back
+      // to index-based positions.
+      val expanded = (westRows ++ eastRows).exists(!_.isTopLevel)
+      if (!expanded)
+        (westRows ++ eastRows).iterator.filter(_.isTopLevel).map(r => r.path -> r.pinYBaked).toMap
+      else {
+        def proc(rows: Seq[Row]): Seq[(String, Double)] =
+          rows.zipWithIndex.collect {
+            case (r, idx) if r.isTopLevel => r.path -> (headerH + portPad + idx * portStep + portStep / 2)
+          }
+        (proc(westRows) ++ proc(eastRows)).toMap.toSeq.toMap
+      }
+    }
   }
 
   /** Build the per-instance row model for `layout`. Boundary stubs are excluded
