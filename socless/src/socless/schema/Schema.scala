@@ -2,6 +2,33 @@ package socless.schema
 
 import upickle.default._
 
+/** Closed string enumerations carried in the JSON schema, centralized so code
+  * compares against named constants instead of scattered string literals that a
+  * typo would silently break (issue #218). The string VALUES are the wire
+  * contract with the UI and must not change - only the call sites route through
+  * these names. Shared across the backend pipeline, the layout engine, and (via
+  * the cross-compiled schema sources) the Scala.js UI. */
+object NodeKind {
+  /** A child-module instance box (`LaidNode.kind`). */
+  val Inst     = "inst"
+  /** A top-level IO boundary stub (`LaidNode.kind`). */
+  val Boundary = "boundary"
+  /** Register node (`LogicNodeDef.kind` / `LaidNode.kind`, issue #188). */
+  val Reg      = "reg"
+  /** Lifted literal-constant node. */
+  val Const    = "const"
+  /** Combinational logic-op node (mux / add / and / ...). */
+  val Op       = "op"
+  /** Collapsed FSM region box (issue #210). */
+  val Fsm      = "fsm"
+}
+
+/** Schematic pin side (`LaidPort.side` / the layout engine's pin placement). */
+object PinSide {
+  val West = "WEST"
+  val East = "EAST"
+}
+
 /** SoCLess design-export schema.
   *
   * These case classes are the canonical JSON contract between the exporter and
@@ -146,7 +173,7 @@ object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
   * expansion); "" for "const"/"op". */
 case class LogicNodeDef(
   id:     String,
-  kind:   String,      // "reg" | "const" | "op"
+  kind:   String,      // NodeKind: Reg | Const | Op | Fsm
   label:  String,
   bundle: String,
   source: SourceRef,
@@ -242,7 +269,7 @@ object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
   * pin is its own stub.
   */
 case class LaidNode(
-  id: String, kind: String,   // "inst" | "boundary" | "reg" | "const" | "op" | "fsm"
+  id: String, kind: String,   // NodeKind: Inst | Boundary | Reg | Const | Op | Fsm
   x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort],
 )
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }

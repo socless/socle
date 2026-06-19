@@ -136,7 +136,7 @@ object Layout {
     val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
     val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
     prep.nodes.foreach { n =>
-      if (n.kind == "boundary") {
+      if (n.kind == NodeKind.Boundary) {
         val node = addNode(root, n.width, n.height)
         // Pin boundary stubs into their own first/last layer so external I/O
         // forms two aligned columns flanking the instances (issue #163).
@@ -147,7 +147,7 @@ object Layout {
         }
         elkNode((n.id, n.kind)) = node
         n.pins.foreach { p =>
-          val side = if (p.side == "EAST") PortSide.EAST else PortSide.WEST
+          val side = if (p.side == PinSide.East) PortSide.EAST else PortSide.WEST
           elkPort(p.path) = addPort(node, side)
         }
       } else {
@@ -159,7 +159,7 @@ object Layout {
           val port = ElkGraphUtil.createPort(node)
           port.setWidth(6); port.setHeight(6)
           port.setX(p.x); port.setY(p.y)
-          port.setProperty(CoreOptions.PORT_SIDE, if (p.side == "EAST") PortSide.EAST else PortSide.WEST)
+          port.setProperty(CoreOptions.PORT_SIDE, if (p.side == PinSide.East) PortSide.EAST else PortSide.WEST)
           elkPort(p.path) = port
         }
       }

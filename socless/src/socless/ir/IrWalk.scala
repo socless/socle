@@ -138,7 +138,7 @@ object IrWalk {
     val regNames: Set[String] = m.regs.map(_.name).toSet
     val regLogic: Seq[LogicNodeDef] = m.regs.map { r =>
       val (key, _) = registerType(r.tpe, "input", r.name, bundles)
-      LogicNodeDef(id = r.name, kind = "reg", label = r.name, bundle = key,
+      LogicNodeDef(id = r.name, kind = NodeKind.Reg, label = r.name, bundle = key,
         source = r.src.map(toRef).getOrElse(SourceRef.unknown))
     }
     val regType: Map[String, String] = regLogic.map(n => n.id -> n.bundle).toMap
@@ -147,7 +147,7 @@ object IrWalk {
     // are contracted (NetTrace traces through their value).
     val logicNodes = m.nodes.filter(n => isLogicOp(n.op))
     val opLogic: Seq[LogicNodeDef] = logicNodes.map { n =>
-      LogicNodeDef(id = n.name, kind = "op", label = n.op, bundle = "",
+      LogicNodeDef(id = n.name, kind = NodeKind.Op, label = n.op, bundle = "",
         source = n.src.map(toRef).getOrElse(SourceRef.unknown), op = n.op)
     }
     val logicNodeNames: Set[String] = logicNodes.map(_.name).toSet
@@ -190,7 +190,7 @@ object IrWalk {
       // when it is the source (to) of some wire; its consumers are the sinks
       // (from) of the wires it sources.
       val drivers  = wires.iterator.map(w => stripIdx(w.to.split('.').headOption.getOrElse(""))).toSet
-      def isLogic(n: LogicNodeDef) = n.kind == "op" || n.kind == "const"
+      def isLogic(n: LogicNodeDef) = n.kind == NodeKind.Op || n.kind == NodeKind.Const
       val members  = mutable.Set.empty[String]
       allLogic.foreach { n =>
         if (isLogic(n) && (interior.contains(n.id) || (m.layerConsumes.contains(n.id) && !drivers.contains(n.id))))
@@ -303,7 +303,7 @@ object IrWalk {
     // and contribute nothing here.
     val opMemberIds: Set[String] =
       parentLogic.iterator
-        .filter(n => n.kind != "reg" && n.kind != "const" && f.memberNodes.contains(n.id))
+        .filter(n => n.kind != NodeKind.Reg && n.kind != NodeKind.Const && f.memberNodes.contains(n.id))
         .map(_.id).toSet
 
     // Full sink PATHS the FSM DRIVES inside the construct (connect-lhs paths under
@@ -324,7 +324,7 @@ object IrWalk {
     // input pin (reduced via fsmHeadBase to its op base id and matched against op
     // members) or a sink (matched by FULL PATH against the FSM's member sink paths,
     // so a const tied to a sibling field outside the FSM is not pulled in).
-    val constIds: Set[String] = parentLogic.iterator.filter(_.kind == "const").map(_.id).toSet
+    val constIds: Set[String] = parentLogic.iterator.filter(_.kind == NodeKind.Const).map(_.id).toSet
     val constMemberIds: Set[String] = constIds.filter { cid =>
       val consumers = parentWires.iterator.collect {
         case w if w.to == cid => w.from
@@ -441,7 +441,7 @@ object IrWalk {
     // Parent: drop member nodes, add the fsm box, swap in rewired wires.
     val nextLogic =
       parentLogic.filterNot(n => memberIds.contains(n.id)) :+
-        LogicNodeDef(f.id, "fsm", s"FSM: ${f.stateReg}", "", SourceRef.unknown)
+        LogicNodeDef(f.id, NodeKind.Fsm, s"FSM: ${f.stateReg}", "", SourceRef.unknown)
     (body, nextLogic, newParentDeduped)
   }
 
@@ -790,7 +790,7 @@ object IrWalk {
         litValue(src) match {
           case Some(v) =>
             val id = Synthetic.constId(sink)
-            constNodes.getOrElseUpdate(id, LogicNodeDef(id, "const", prettyLit(v), "", SourceRef.unknown))
+            constNodes.getOrElseUpdate(id, LogicNodeDef(id, NodeKind.Const, prettyLit(v), "", SourceRef.unknown))
             (id, sink)
           case None => (src, sink)
         }

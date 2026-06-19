@@ -47,16 +47,18 @@ object LayoutCore {
     * Receiving pins (instance inputs/slaves, boundary outputs) sit on WEST. */
   def sideFor(kind: String, dir: String): String = (kind, dir) match {
     // An FSM box is laid out exactly like an instance: an output pin drives
-    // rightward (EAST), everything else receives (WEST) (issue #210).
-    case ("inst", "output") | ("inst", "master")        => "EAST"
-    case ("fsm", "output")  | ("fsm", "master")         => "EAST"
+    // rightward (EAST), everything else receives (WEST) (issue #210). The `dir`
+    // vocabulary (input/output/master/slave) is left as literals pending its own
+    // normalization pass (#218).
+    case (NodeKind.Inst, "output") | (NodeKind.Inst, "master") => PinSide.East
+    case (NodeKind.Fsm, "output")  | (NodeKind.Fsm, "master")  => PinSide.East
     // A boundary "slave" comes from `input io` (AXI-aware portRole), so by
     // this file's own convention it drives rightward like any boundary input.
     // Without this case AXI slave boundary stubs fell through to WEST: their
     // anti-parallel traffic always ties the side vote and the tie-break uses
     // this declared side (issue #102).
-    case ("boundary", "input") | ("boundary", "slave")  => "EAST"
-    case _                                               => "WEST"
+    case (NodeKind.Boundary, "input") | (NodeKind.Boundary, "slave") => PinSide.East
+    case _                                                            => PinSide.West
   }
 
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
@@ -116,35 +118,35 @@ object LayoutCore {
       val portDef  = childMod.flatMap(_.ports.find(_.name == portName))
       val dir      = portDef.map(_.dir).getOrElse("input")
       val bundle   = portDef.map(_.bundle).getOrElse("Wire")
-      Some(Endpoint(head, "inst", path, sideFor("inst", dir), isInterfaceBundle(bundle, design)))
+      Some(Endpoint(head, NodeKind.Inst, path, sideFor(NodeKind.Inst, dir), isInterfaceBundle(bundle, design)))
     } else {
       // Intra-module logic nodes: registers (a D input pin `r`/`r.field` on WEST
       // and a Q output pin `r~q`/`r~q.field` on EAST) and constants (single EAST
       // driver pin keyed by the whole `const$...` atom). These resolve before the
       // boundary-port fallthrough so a logic node is never mistaken for a port and
       // is never dropped (issue #188 B1).
-      val regIds   = module.logic.iterator.filter(_.kind == "reg").map(_.id).toSet
-      val constIds = module.logic.iterator.filter(_.kind == "const").map(_.id).toSet
-      val opIds    = module.logic.iterator.filter(_.kind == "op").map(_.id).toSet
+      val regIds   = module.logic.iterator.filter(_.kind == NodeKind.Reg).map(_.id).toSet
+      val constIds = module.logic.iterator.filter(_.kind == NodeKind.Const).map(_.id).toSet
+      val opIds    = module.logic.iterator.filter(_.kind == NodeKind.Op).map(_.id).toSet
       // An FSM box has named boundary pins arriving as `<fsmId>.<pin>`, exactly
       // like an instance: the head segment is the box id. Resolve it before the
       // boundary-port fallthrough so the pins are never mistaken for ports or
       // dropped (issue #210).
-      val fsmIds   = module.logic.iterator.filter(_.kind == "fsm").map(_.id).toSet
+      val fsmIds   = module.logic.iterator.filter(_.kind == NodeKind.Fsm).map(_.id).toSet
       def regIface(id: String): Boolean =
-        module.logic.find(n => n.id == id && n.kind == "reg").exists(n => isInterfaceBundle(n.bundle, design))
+        module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).exists(n => isInterfaceBundle(n.bundle, design))
       val rawHead = stripIdx(parts.head)
       if (rawHead.endsWith("~q") && regIds.contains(rawHead.dropRight(2)))
-        return Some(Endpoint(rawHead.dropRight(2), "reg", path, "EAST", regIface(rawHead.dropRight(2))))
+        return Some(Endpoint(rawHead.dropRight(2), NodeKind.Reg, path, PinSide.East, regIface(rawHead.dropRight(2))))
       if (regIds.contains(rawHead))
-        return Some(Endpoint(rawHead, "reg", path, "WEST", regIface(rawHead)))
+        return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead)))
       if (constIds.contains(rawHead))
-        return Some(Endpoint(rawHead, "const", path, "EAST", false))
+        return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false))
       val inIdx = rawHead.indexOf("~in")
       if (inIdx > 0 && opIds.contains(rawHead.substring(0, inIdx)))
-        return Some(Endpoint(rawHead.substring(0, inIdx), "op", path, "WEST", false))
+        return Some(Endpoint(rawHead.substring(0, inIdx), NodeKind.Op, path, PinSide.West, false))
       if (opIds.contains(rawHead))
-        return Some(Endpoint(rawHead, "op", path, "EAST", false))
+        return Some(Endpoint(rawHead, NodeKind.Op, path, PinSide.East, false))
       if (fsmIds.contains(rawHead) && parts.length >= 2) {
         // Box pin direction lives in the stored region body's port list. An "out"
         // pin drives rightward (EAST), an "in"/"inout" pin receives (WEST); the
@@ -152,7 +154,7 @@ object LayoutCore {
         val pinName = stripIdx(parts(1))
         val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse("in")
         val mapped  = if (dir == "out") "output" else "input"
-        return Some(Endpoint(rawHead, "fsm", path, sideFor("fsm", mapped), false))
+        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, mapped), false))
       }
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
@@ -161,7 +163,7 @@ object LayoutCore {
         // and outputs on the right; wires then route backward or span the whole
         // canvas (issue #68). Per-pin stubs let ELK rank input-sources left and
         // output-sinks right with forward-flowing wires.
-        Endpoint(path, "boundary", path, sideFor("boundary", p.dir), isInterfaceBundle(p.bundle, design))
+        Endpoint(path, NodeKind.Boundary, path, sideFor(NodeKind.Boundary, p.dir), isInterfaceBundle(p.bundle, design))
       }
     }
   }
@@ -175,8 +177,8 @@ object LayoutCore {
   case class PreparedPin(path: String, side: String, interface: Boolean, bundle: String,
                          label: String, x: Double, y: Double, expandable: Boolean)
 
-  /** One box: an instance component (`kind == "inst"`, ports at fixed rows) or a
-    * boundary stub (`kind == "boundary"`, ports placed on their side).
+  /** One box: an instance component (`kind == NodeKind.Inst`, ports at fixed rows)
+    * or a boundary stub (`kind == NodeKind.Boundary`, ports placed on their side).
     *
     * `layerConstraint` pins boundary stubs into a dedicated first/last ELK layer
     * so all external inputs align into one leftmost column and all outputs into
@@ -243,7 +245,7 @@ object LayoutCore {
     }
     // Ensure instances with no resolved wires still appear as empty boxes.
     module.children.foreach { c =>
-      pinOrder.getOrElseUpdate((c.name, "inst"), mutable.LinkedHashSet.empty)
+      pinOrder.getOrElseUpdate((c.name, NodeKind.Inst), mutable.LinkedHashSet.empty)
     }
 
     // Build nodePins from the vote tallies.
@@ -253,10 +255,10 @@ object LayoutCore {
       paths.foreach { path =>
         val k = (nodeId, kind, path)
         val side =
-          if (eastVotes(k) > westVotes(k)) "EAST"
-          else if (westVotes(k) > eastVotes(k)) "WEST"
-          else if (kind == "boundary") declaredOf.getOrElse(k, "EAST")
-          else "EAST"
+          if (eastVotes(k) > westVotes(k)) PinSide.East
+          else if (westVotes(k) > eastVotes(k)) PinSide.West
+          else if (kind == NodeKind.Boundary) declaredOf.getOrElse(k, PinSide.East)
+          else PinSide.East
         val bundle = bundleOf.get(k)
         pins(path) = PinSpec(path, side, ifaceOf(k), bundle.getOrElse(""))
       }
@@ -308,14 +310,14 @@ object LayoutCore {
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
       // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
       // into the instance branch below (header + D/Q port rows).
-      val compact = kind == "boundary" || kind == "const"
+      val compact = kind == NodeKind.Boundary || kind == NodeKind.Const
       if (compact) {
         // Boundary/const: compact, but at least wide enough for the label (if any).
         // A const shows ONLY its literal value (the logic node's `label`, e.g.
         // `0x0`), never the synthetic `const$...` pin id or its bundle suffix,
         // so size it to that value rather than the pin label (issue #188 follow-up).
         val constLabel =
-          if (kind == "const") module.logic.find(_.id == id).map(_.label).filter(_.nonEmpty)
+          if (kind == NodeKind.Const) module.logic.find(_.id == id).map(_.label).filter(_.nonEmpty)
           else None
         val maxLabelPx = constLabel match {
           case Some(v) => labelPx(v)
@@ -329,30 +331,30 @@ object LayoutCore {
         // An EAST boundary pin drives into the design (a source): pin it to the
         // first column. A WEST one receives (a sink): pin it to the last column.
         // Skip the constraint for any pin that also carries a back-edge.
-        val side        = laidPins.headOption.map(_.side).getOrElse("EAST")
+        val side        = laidPins.headOption.map(_.side).getOrElse(PinSide.East)
         val paths       = laidPins.map(_.path)
         val anyIncoming = paths.exists(edgeSinks.contains)
         val anyOutgoing = paths.exists(edgeSources.contains)
         // Only true boundary stubs get column-pinned (issue #163); const nodes
         // share the compact box but rank by dataflow, so they stay unconstrained.
         val lc =
-          if (kind != "boundary")                  None
-          else if (side == "EAST" && !anyIncoming) Some("FIRST_SEPARATE")
-          else if (side == "WEST" && !anyOutgoing) Some("LAST_SEPARATE")
+          if (kind != NodeKind.Boundary)                  None
+          else if (side == PinSide.East && !anyIncoming) Some("FIRST_SEPARATE")
+          else if (side == PinSide.West && !anyOutgoing) Some("LAST_SEPARATE")
           else                                     None
         PreparedNode(id, kind, bw, BoundaryH, laidPins, lc)
       } else {
         // Instance component: reserve HeaderH at top, ports in rows below.
-        val west = pins.values.count(_.side == "WEST")
-        val east = pins.values.count(_.side == "EAST")
-        val westMaxPx = pins.values.filter(_.side == "WEST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
-        val eastMaxPx = pins.values.filter(_.side == "EAST").map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        val west = pins.values.count(_.side == PinSide.West)
+        val east = pins.values.count(_.side == PinSide.East)
+        val westMaxPx = pins.values.filter(_.side == PinSide.West).map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
+        val eastMaxPx = pins.values.filter(_.side == PinSide.East).map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
         val headerTextPx = id.length * 6.5 + 24.0
         // Op/reg logic nodes render as a compact symbol (no header, short or no
         // pin labels), so they use a small fixed width; real instances size to
         // their header + label columns (issue #203).
-        val isLogic = kind == "op" || kind == "reg"
+        val isLogic = kind == NodeKind.Op || kind == NodeKind.Reg
         val w = if (isLogic) LogicNodeW
                 else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
         val h = nodeHeight(west, east)
@@ -363,8 +365,8 @@ object LayoutCore {
         // straight horizontal line and the inputs sit equidistant about it
         // (#230). A mux select (in0) renders on top, so it is excluded from the
         // centering.
-        val opName  = if (kind == "op") module.logic.find(_.id == id).map(_.op).getOrElse("") else ""
-        val westSeq = pins.values.filter(_.side == "WEST").toSeq
+        val opName  = if (kind == NodeKind.Op) module.logic.find(_.id == id).map(_.op).getOrElse("") else ""
+        val westSeq = pins.values.filter(_.side == PinSide.West).toSeq
         val dataRows = westSeq.zipWithIndex.collect {
           case (p, i) if !(opName == "mux" && p.path.endsWith("~in0")) => i.toDouble
         }
@@ -372,13 +374,13 @@ object LayoutCore {
         var westRow = 0; var eastRow = 0
         val laidPins = pins.values.toSeq.map { p =>
           val portY =
-            if (kind == "op" && p.side == "EAST") opOutY
+            if (kind == NodeKind.Op && p.side == PinSide.East) opOutY
             else {
-              val rowIdx = if (p.side == "WEST") { val r = westRow; westRow += 1; r }
+              val rowIdx = if (p.side == PinSide.West) { val r = westRow; westRow += 1; r }
                            else                   { val r = eastRow; eastRow += 1; r }
               rowY(rowIdx.toDouble)
             }
-          val portX = if (p.side == "EAST") w else 0.0
+          val portX = if (p.side == PinSide.East) w else 0.0
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
             BundleTree.isAggregateType(p.bundle, design))
         }
