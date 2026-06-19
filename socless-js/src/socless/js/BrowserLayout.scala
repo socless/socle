@@ -8,6 +8,55 @@ import scala.scalajs.js.JSConverters._
 import scala.scalajs.js.Thenable.Implicits._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 
+// ── elkjs result facade (#219) ──────────────────────────────────────────────
+// A thin `@js.native` view of the shape `elk.layout(...)` resolves to, so the
+// extraction below reads as plain field access instead of a wall of
+// `asInstanceOf[js.Dynamic]` / `js.UndefOr` casts. Optional fields (a port's
+// size, an edge's sections / junctionPoints, a section's bendPoints) stay
+// `js.UndefOr` because elkjs omits them in the cases the extractor handles.
+
+@js.native private trait ElkPoint extends js.Object {
+  def x: Double = js.native
+  def y: Double = js.native
+}
+
+@js.native private trait ElkPort extends js.Object {
+  def id: String = js.native
+  def x: Double = js.native
+  def y: Double = js.native
+  def width: js.UndefOr[Double] = js.native
+  def height: js.UndefOr[Double] = js.native
+}
+
+@js.native private trait ElkNode extends js.Object {
+  def id: String = js.native
+  def x: Double = js.native
+  def y: Double = js.native
+  def width: Double = js.native
+  def height: Double = js.native
+  def ports: js.Array[ElkPort] = js.native
+}
+
+@js.native private trait ElkSection extends js.Object {
+  def startPoint: ElkPoint = js.native
+  def endPoint: ElkPoint = js.native
+  def bendPoints: js.UndefOr[js.Array[ElkPoint]] = js.native
+}
+
+@js.native private trait ElkEdge extends js.Object {
+  def sources: js.Array[String] = js.native
+  def targets: js.Array[String] = js.native
+  def sections: js.UndefOr[js.Array[ElkSection]] = js.native
+  def junctionPoints: js.UndefOr[js.Array[ElkPoint]] = js.native
+}
+
+@js.native private trait ElkGraph extends js.Object {
+  def children: js.Array[ElkNode] = js.native
+  def edges: js.Array[ElkEdge] = js.native
+  def width: Double = js.native
+  def height: Double = js.native
+}
+
 /** Browser schematic layout: the elkjs counterpart of the JVM [[socless.Layout]]
   * ELK shell (issue #167). Shares [[LayoutCore.prepare]] with the backend, then
   * builds an elkjs JSON graph, runs it on `window.ELK`, and extracts geometry.
@@ -129,9 +178,9 @@ object BrowserLayout {
 
   /** Pull the laid-out geometry back into the typed [[LaidOut]] shape. */
   private def extractTyped(prep: LayoutCore.Prepared, res: js.Dynamic): LaidOut = {
-    val resChildren = res.children.asInstanceOf[js.Array[js.Dynamic]]
-    val childById = js.Dictionary.empty[js.Dynamic]
-    resChildren.foreach(c => childById(c.id.asInstanceOf[String]) = c)
+    val g = res.asInstanceOf[ElkGraph]
+    val childById = js.Dictionary.empty[ElkNode]
+    g.children.foreach(c => childById(c.id) = c)
 
     // Absolute (root-relative) CENTER of each laid port, keyed by pin path. This
     // is the elkjs counterpart of the JVM `Layout.portAnchor` (node origin +
@@ -142,18 +191,18 @@ object BrowserLayout {
 
     val nodes = prep.nodes.map { n =>
       val c  = childById(synthId(n))
-      val nx = c.x.asInstanceOf[Double]
-      val ny = c.y.asInstanceOf[Double]
+      val nx = c.x
+      val ny = c.y
       // Index the laid ports by id (= pin path) to read each one's box-relative
       // position; absolute = node origin + port offset (handles FIXED_SIDE too).
-      val portById = js.Dictionary.empty[js.Dynamic]
-      c.ports.asInstanceOf[js.Array[js.Dynamic]].foreach(p => portById(p.id.asInstanceOf[String]) = p)
+      val portById = js.Dictionary.empty[ElkPort]
+      c.ports.foreach(p => portById(p.id) = p)
       val ports = n.pins.map { p =>
         val lp = portById(p.path)
-        val px = lp.x.asInstanceOf[Double]
-        val py = lp.y.asInstanceOf[Double]
-        val pw = lp.width.asInstanceOf[js.UndefOr[Double]].getOrElse(0.0)
-        val ph = lp.height.asInstanceOf[js.UndefOr[Double]].getOrElse(0.0)
+        val px = lp.x
+        val py = lp.y
+        val pw = lp.width.getOrElse(0.0)
+        val ph = lp.height.getOrElse(0.0)
         portAnchor(p.path) = ((nx + px + pw / 2.0).toInt, (ny + py + ph / 2.0).toInt)
         LaidPortR(
           p.path,
@@ -162,31 +211,20 @@ object BrowserLayout {
           p.side, p.interface, p.label, p.bundle, p.expandable,
         )
       }
-      LaidNodeR(n.id, n.kind, nx.toInt, ny.toInt,
-        c.width.asInstanceOf[Double].toInt, c.height.asInstanceOf[Double].toInt, ports)
+      LaidNodeR(n.id, n.kind, nx.toInt, ny.toInt, c.width.toInt, c.height.toInt, ports)
     }
 
-    val resEdges = res.edges.asInstanceOf[js.Array[js.Dynamic]]
-    val edges = resEdges.toSeq.flatMap { e =>
-      val sources = e.sources.asInstanceOf[js.Array[String]]
-      val targets = e.targets.asInstanceOf[js.Array[String]]
-      val sections = e.sections.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]]
+    val edges = g.edges.toSeq.flatMap { e =>
       val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
-      sections.toOption.flatMap(_.headOption).foreach { sec =>
-        val sp = sec.startPoint.asInstanceOf[js.Dynamic]
-        pts += ((sp.x.asInstanceOf[Double].toInt, sp.y.asInstanceOf[Double].toInt))
-        sec.bendPoints.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]].toOption.foreach(_.foreach { bp =>
-          pts += ((bp.x.asInstanceOf[Double].toInt, bp.y.asInstanceOf[Double].toInt))
-        })
-        val ep = sec.endPoint.asInstanceOf[js.Dynamic]
-        pts += ((ep.x.asInstanceOf[Double].toInt, ep.y.asInstanceOf[Double].toInt))
+      e.sections.toOption.flatMap(_.headOption).foreach { sec =>
+        pts += ((sec.startPoint.x.toInt, sec.startPoint.y.toInt))
+        sec.bendPoints.toOption.foreach(_.foreach(bp => pts += ((bp.x.toInt, bp.y.toInt))))
+        pts += ((sec.endPoint.x.toInt, sec.endPoint.y.toInt))
       }
       // junctionPoints mark where this edge shares a segment with others (the
       // fan-out branch dots, issue #166); pass them through when present.
       val jps = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
-      e.junctionPoints.asInstanceOf[js.UndefOr[js.Array[js.Dynamic]]].toOption.foreach(_.foreach { jp =>
-        jps += ((jp.x.asInstanceOf[Double].toInt, jp.y.asInstanceOf[Double].toInt))
-      })
+      e.junctionPoints.toOption.foreach(_.foreach(jp => jps += ((jp.x.toInt, jp.y.toInt))))
       // elkjs occasionally lays out an edge's endpoints but emits no usable
       // route section (<2 points). Rather than drop the wire (it then vanishes
       // from the render), synthesize a straight 2-point route between the two
@@ -195,16 +233,15 @@ object BrowserLayout {
       // SOURCE pin (toPath) and targets(0) is the SINK pin (fromPath).
       if (pts.length < 2) {
         for {
-          src  <- portAnchor.get(sources(0))
-          sink <- portAnchor.get(targets(0))
+          src  <- portAnchor.get(e.sources(0))
+          sink <- portAnchor.get(e.targets(0))
         } pts ++= Seq(src, sink)
       }
       if (pts.length < 2) Nil
-      else Seq(LaidEdgeR(targets(0), sources(0), pts.toSeq, jps.toSeq))
+      else Seq(LaidEdgeR(e.targets(0), e.sources(0), pts.toSeq, jps.toSeq))
     }
 
-    LaidOut(nodes, edges, res.width.asInstanceOf[Double].toInt.max(1),
-      res.height.asInstanceOf[Double].toInt.max(1))
+    LaidOut(nodes, edges, g.width.toInt.max(1), g.height.toInt.max(1))
   }
 
   /** Lay out one module with elkjs, returning a [[LaidOut]] (the in-process

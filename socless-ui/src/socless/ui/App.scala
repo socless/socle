@@ -4,12 +4,9 @@ import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
-import scala.scalajs.js.Thenable.Implicits._
 import scala.scalajs.js.timers._
-import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
-import scala.concurrent.Future
-import scala.util.{Success, Failure}
 import socless.schema.{Design, ModuleDef, ModuleKind}
+import socless.ui.data.DesignLoader
 import socless.ui.theme._
 import socless.ui.model._
 import socless.ui.schematic._
@@ -24,11 +21,9 @@ import socless.ui.panels._
 @JSExportTopLevel("SoclessUI")
 object App {
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  private val designVar   = Var[Option[Design]](None)
+  // ── Navigation / view state (design + source state lives in [[DesignLoader]]) ─
   private val pathVar     = Var[List[String]](Nil)     // drilled module path (instance names)
   private val expandedVar = Var[Set[String]](Set.empty) // expanded hierarchy row ids (path-joined)
-  private val errorVar    = Var[Option[String]](None)
   // Schematic + inspector shared state (Phase 2 / Phase 3).
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
@@ -37,30 +32,26 @@ object App {
   private val paletteOpenVar = Var(false)                       // command palette (Ctrl/Cmd+K)
   private val helpOpenVar    = Var(false)                       // keyboard-help overlay (?)
   private val themeVar       = Var[String]("light")             // "light" | "dark" (issue #2)
-  // Where the active design came from (#194): "live" (fetched design.json),
-  // "snapshot" (embedded), "file" (dropped .json), "fir" (dropped .fir). The
-  // tuple is (kind, human label). None until the first design loads.
-  private val sourceVar       = Var[Option[(String, String)]](None)
-  private val liveUpdatedAtVar = Var[Double](0d)                // ms of the last live auto-reload; 0 = never
-  private val dragActiveVar    = Var(false)                     // drop-zone overlay visibility
-  private val toastVar         = Var[Option[(String, String)]](None) // (message, kind: info|ok|err)
-  private val tickVar          = Var(0)                         // 1 Hz clock for the "updated Ns ago" badge
-  // Multi-top design picker (#197): (id, label, path) entries from designs.json.
-  // Empty for a single-top build (no index) -> the picker is hidden.
-  private val designsVar       = Var[List[(String, String, String)]](Nil)
-  private val activeDesignVar  = Var[String]("design.json")    // path of the selected entry
+  private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
   private val leftOpenVar      = Var(true)
   private val rightOpenVar     = Var(true)
   private val bottomOpenVar    = Var(true)
   private val bottomHeightVar  = Var(240.0)
-  private var toastTimer       = Option.empty[SetTimeoutHandle]
-  private var liveWatchStarted = false
-  // Last-Modified of the live design currently shown. The poller compares the
-  // server's stamp against this, so a change that lands between the initial
-  // load and the first poll is still caught (no baseline race). None = unknown.
-  private var liveBaseline     = Option.empty[String]
+
+  // Design loading + live poll + drag-drop + toasts (#219), owning the design /
+  // source state. App injects how to reset navigation when a design lands.
+  private def navResetToTop(d: Design): Unit = {
+    val top = topOf(d)
+    pathVar.set(if (top.nonEmpty) List(top) else Nil)
+    expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
+  }
+  // Live reload keeps the drill path/expansion when it still resolves (#120).
+  private def navReconcile(d: Design): Unit =
+    if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d)
+
+  private val loader = new DesignLoader(topOf = topOf, onFresh = navResetToTop, onLive = navReconcile)
 
   @JSExport
   def main(rootId: String): String = {
@@ -69,10 +60,9 @@ object App {
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
     render(container, shell())
     installKeyboard()
-    installDragDrop()
+    loader.installDragDrop()
     setInterval(1000d) { tickVar.update(_ + 1) } // drives the "updated Ns ago" badge
-    loadDesign()
-    loadDesignsIndex() // populate the multi-top picker if a designs.json is served (#197)
+    loader.start() // load design.json + the multi-top picker index (#197)
     "mounted"
   }
 
@@ -109,197 +99,6 @@ object App {
 
   private def toggleTheme(): Unit = applyTheme(if (currentTheme() == "dark") "light" else "dark")
 
-  // ── Design loading ───────────────────────────────────────────────────────
-  private def msgOf(e: Throwable): String = Option(e.getMessage).getOrElse(e.toString)
-
-  /** Install a freshly loaded design, resetting navigation to its top. `source`
-    * is (kind, label) recording where it came from (#194). */
-  private def setDesign(d: Design, source: (String, String)): Unit = {
-    val top = topOf(d)
-    designVar.set(Some(d))
-    pathVar.set(if (top.nonEmpty) List(top) else Nil)
-    expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
-    sourceVar.set(Some(source))
-    errorVar.set(None)
-  }
-
-  /** Live reload (#120): swap in a re-converted design but keep the user's
-    * drill path/expansion when it still resolves, so re-elaboration does not
-    * throw away navigation. Stamps the "updated Ns ago" clock. */
-  private def reloadLiveDesign(d: Design): Unit = {
-    designVar.set(Some(d))
-    if (currentModule(d, pathVar.now()).isEmpty) {
-      val top = topOf(d)
-      pathVar.set(if (top.nonEmpty) List(top) else Nil)
-      expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty)
-    }
-    sourceVar.set(Some(("live", "live (design.json)")))
-    liveUpdatedAtVar.set(js.Date.now())
-    errorVar.set(None)
-  }
-
-  private def loadDesign(): Unit = {
-    // A self-contained snapshot (the share button) inlines the design as an
-    // embedded block; prefer it so the page opens from file:// with no fetch.
-    val embedded = Option(dom.document.getElementById("socless-embedded-design"))
-      .map(_.textContent).filter(_.trim.nonEmpty)
-    embedded match {
-      case Some(txt) =>
-        try { val d = upickle.default.read[Design](txt); setDesign(d, ("snapshot", s"${topOf(d)} (snapshot)")) }
-        catch { case e: Throwable => errorVar.set(Some(msgOf(e))) }
-      case None =>
-        dom.fetch("design.json").flatMap { r =>
-          if (r.ok) { liveBaseline = headerStamp(r); r.text() }
-          else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
-        }.map(txt => upickle.default.read[Design](txt)).onComplete {
-          case Success(d) => setDesign(d, ("live", "live (design.json)")); startLiveWatch()
-          case Failure(e) => errorVar.set(Some(msgOf(e)))
-        }
-    }
-  }
-
-  /** Best-effort fetch of the multi-top index (#197). Absent (404) or
-    * unparseable -> no picker, which is the single-top / embedded case. */
-  private def loadDesignsIndex(): Unit =
-    dom.fetch("designs.json").flatMap(r => if (r.ok) r.text() else Future.failed(new RuntimeException("no index")))
-      .map { txt =>
-        ujson.read(txt).obj("designs").arr.iterator
-          .map(e => (e.obj("id").str, e.obj("label").str, e.obj("path").str)).toList
-      }
-      .onComplete {
-        case Success(list) if list.nonEmpty => designsVar.set(list)
-        case _                              => () // no index -> single-top, picker stays hidden
-      }
-
-  /** Switch the active design in place (#197). The primary entry
-    * (`design.json`) restores the live source + poller; other tops load
-    * statically. Navigation resets to the new design's top via [[setDesign]]. */
-  private def selectDesign(path: String, label: String): Unit = {
-    if (path == activeDesignVar.now()) return
-    activeDesignVar.set(path)
-    val primary = path == "design.json"
-    dom.fetch(path).flatMap { r =>
-      if (r.ok) { if (primary) liveBaseline = headerStamp(r); r.text() }
-      else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
-    }.map(txt => upickle.default.read[Design](txt)).onComplete {
-      case Success(d) =>
-        if (primary) { setDesign(d, ("live", "live (design.json)")); startLiveWatch() }
-        else setDesign(d, ("multi", label))
-      case Failure(e) => errorVar.set(Some(msgOf(e)))
-    }
-  }
-
-  /** The freshness stamp of a response: Last-Modified, else ETag, else None. */
-  private def headerStamp(r: dom.Response): Option[String] =
-    Option(r.headers.get("Last-Modified")).filter(_.nonEmpty)
-      .orElse(Option(r.headers.get("ETag")).filter(_.nonEmpty))
-
-  // ── Design input: drag-drop a .json / .fir (#194) ──────────────────────────
-  private def hasFiles(e: dom.DragEvent): Boolean = {
-    val dt = e.dataTransfer
-    dt != null && dt.types != null && dt.types.exists(_ == "Files")
-  }
-
-  /** Window-level drag-drop: a dropped `.json` loads directly; a dropped `.fir`
-    * is POSTed to the standalone server's `/convert`. Ref-counts enter/leave so
-    * the overlay does not flicker across nested children (mirrors the JS UI). */
-  private def installDragDrop(): Unit = {
-    var dragDepth = 0
-    dom.window.addEventListener("dragenter", (e: dom.DragEvent) =>
-      if (hasFiles(e)) { e.preventDefault(); dragDepth += 1; dragActiveVar.set(true) })
-    dom.window.addEventListener("dragover", (e: dom.DragEvent) =>
-      if (hasFiles(e)) { e.preventDefault(); if (e.dataTransfer != null) e.dataTransfer.dropEffect = dom.DataTransferDropEffectKind.copy })
-    dom.window.addEventListener("dragleave", (e: dom.DragEvent) =>
-      if (hasFiles(e)) { dragDepth = math.max(0, dragDepth - 1); if (dragDepth == 0) dragActiveVar.set(false) })
-    dom.window.addEventListener("drop", (e: dom.DragEvent) => {
-      val dt = e.dataTransfer
-      if (dt != null && dt.files.length > 0) {
-        e.preventDefault(); dragDepth = 0; dragActiveVar.set(false)
-        val f    = dt.files(0)
-        val name = if (f.name.nonEmpty) f.name else "file"
-        if (name.toLowerCase.endsWith(".fir")) loadFirFromFile(f, name)
-        else if (name.toLowerCase.endsWith(".json")) loadJsonFromFile(f, name)
-        else toast(s"expected a .json or .fir file, got $name", "err")
-      }
-    })
-  }
-
-  private def loadJsonFromFile(f: dom.File, name: String): Unit =
-    f.text().onComplete {
-      case Success(text) =>
-        try setDesign(upickle.default.read[Design](text), ("file", name))
-        catch { case e: Throwable => toast(s"couldn't read $name: ${msgOf(e)}", "err") }
-      case Failure(e) => toast(s"couldn't read $name: ${msgOf(e)}", "err")
-    }
-
-  /** Convert a dropped CHIRRTL `.fir` via `POST /convert` (served by the
-    * standalone server). A network failure means no server is running. */
-  private def loadFirFromFile(f: dom.File, name: String): Unit = {
-    toast(s"converting $name…", "info")
-    f.text().onComplete {
-      case Failure(e) => toast(s"couldn't read $name: ${msgOf(e)}", "err")
-      case Success(text) =>
-        val init = js.Dynamic.literal(
-          method  = "POST",
-          headers = js.Dynamic.literal("Content-Type" -> "text/plain; charset=utf-8"),
-          body    = text,
-        ).asInstanceOf[dom.RequestInit]
-        dom.fetch("/convert", init).onComplete {
-          case Failure(_) =>
-            toast("POST /convert failed: no SoCLess server running. Start one with: mill example.soclessServe", "err")
-          case Success(resp) if resp.status == 200 =>
-            resp.text().onComplete {
-              case Success(json) =>
-                try setDesign(upickle.default.read[Design](json), ("fir", name))
-                catch { case e: Throwable => toast(s"couldn't load $name: ${msgOf(e)}", "err") }
-              case Failure(e) => toast(s"couldn't load $name: ${msgOf(e)}", "err")
-            }
-          case Success(resp) =>
-            resp.text().recover { case _ => resp.statusText }.foreach { m =>
-              toast(s"conversion failed (${resp.status}): ${m.take(120)}", "err")
-            }
-        }
-    }
-  }
-
-  private def toast(msg: String, kind: String): Unit = {
-    toastVar.set(Some((msg, kind)))
-    toastTimer.foreach(clearTimeout)
-    toastTimer = Some(setTimeout(if (kind == "err") 6000d else 3000d) { toastVar.set(None) })
-  }
-
-  /** Live watch (#120): while showing the live design and the tab is visible,
-    * poll design.json's Last-Modified and reload in place when it changes, so
-    * re-running elaboration (`serve --watch`, `soclessUI -w`) refreshes the
-    * schematic with no manual reload. Started once, after the first live load. */
-  private def startLiveWatch(): Unit = {
-    if (liveWatchStarted) return
-    liveWatchStarted = true
-    def poll(): Unit = {
-      if (!sourceVar.now().exists(_._1 == "live")) return
-      if (dom.document.visibilityState.asInstanceOf[String] != "visible") return
-      val init = js.Dynamic.literal(method = "HEAD", cache = "no-store").asInstanceOf[dom.RequestInit]
-      dom.fetch("design.json", init).foreach { r =>
-        if (r.ok) headerStamp(r).foreach { stamp =>
-          liveBaseline match {
-            case None              => liveBaseline = Some(stamp)     // no stamp from load; baseline now
-            case Some(s) if s != stamp =>
-              liveBaseline = Some(stamp)                             // changed: reload in place
-              dom.fetch("design.json").flatMap(rr => rr.text())
-                .map(t => upickle.default.read[Design](t))
-                .foreach(d => reloadLiveDesign(d))
-            case _ => ()                                            // unchanged
-          }
-        }
-      }
-    }
-    setInterval(1500d) { poll() }
-  }
-
-  /** Raw JSON + top of the active design, for the snapshot/share button. */
-  private def designSnapshot(): Option[(String, String)] =
-    designVar.now().map(d => (upickle.default.write(d), topOf(d)))
-
   private def topOf(d: Design): String =
     if (d.top.nonEmpty) d.top else d.modules.headOption.map(_.name).getOrElse("")
 
@@ -317,7 +116,7 @@ object App {
     }
 
   private val currentModuleSig: Signal[Option[ModuleDef]] =
-    Signal.combine(designVar.signal, pathVar.signal).map {
+    Signal.combine(loader.designSig, pathVar.signal).map {
       case (Some(d), p) => currentModule(d, p)
       case _            => None
     }
@@ -326,7 +125,7 @@ object App {
     * drillInto). Leaves and blackboxes have no internals and are not drilled. */
   private def drillInto(inst: String): Unit =
     for {
-      d        <- designVar.now()
+      d        <- loader.currentDesign
       mod      <- currentModule(d, pathVar.now())
       child    <- mod.children.find(_.name == inst)
       childMod <- d.modules.find(_.name == child.`type`)
@@ -364,7 +163,7 @@ object App {
     // preserves their internal state rather than rebuilding (#206).
     val hierEl = hierarchyPane()
     val bottomEl = BottomPanel.render(
-      designSig   = designVar.signal,
+      designSig   = loader.designSig,
       moduleSig   = currentModuleSig,
       selectedVar = selectedSigVar,
       hoveredVar  = hoveredSigVar,
@@ -372,7 +171,7 @@ object App {
       heightVar   = bottomHeightVar,
     )
     val inspectorEl = Inspector.render(
-      designSig          = designVar.signal,
+      designSig          = loader.designSig,
       moduleSig          = currentModuleSig,
       selectedVar        = selectedSigVar,
       hoveredVar         = hoveredSigVar,
@@ -382,21 +181,21 @@ object App {
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
       topBar(),
-      Chrome.warningsBanner(designVar.signal),
+      Chrome.warningsBanner(loader.designSig),
       div(
         cls := "scl-panes",
         child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None),
         // Center column: schematic above, the Source/Waveform/Ports panel below.
         div(cls := "scl-center",
           Schematic.render(
-            designSig        = designVar.signal,
+            designSig        = loader.designSig,
             moduleSig        = currentModuleSig,
             pathSig          = pathVar.signal,
             selectedVar      = selectedSigVar,
             hoveredVar       = hoveredSigVar,
             expandedPortsVar = expandedPortsVar,
             drillInto        = drillInto,
-            designSnapshot   = () => designSnapshot(),
+            designSnapshot   = () => loader.snapshot(),
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
@@ -409,7 +208,7 @@ object App {
         expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
       },
       // Command palette + keyboard-help overlays (fixed-position modals).
-      Chrome.commandPalette(designVar.signal, paletteOpenVar, onNavigate = p => pathVar.set(p)),
+      Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p)),
       Chrome.helpOverlay(helpOpenVar),
       // Design-input chrome (#194): drag-drop overlay + transient toasts.
       dropOverlay(),
@@ -423,7 +222,7 @@ object App {
     * 1 Hz `tickVar` re-renders the elapsed time. */
   private def liveBadge(): Element = {
     val agoSig: Signal[String] =
-      Signal.combine(liveUpdatedAtVar.signal, tickVar.signal).map { case (at, _) =>
+      Signal.combine(loader.liveUpdatedAtSig, tickVar.signal).map { case (at, _) =>
         if (at <= 0d) ""
         else {
           val secs = math.max(0L, ((js.Date.now() - at) / 1000d).round)
@@ -440,8 +239,8 @@ object App {
   /** Full-window drop-zone overlay, shown while a file is dragged over the page. */
   private def dropOverlay(): Element =
     div(cls := "scl-dropzone", dataAttr("dropzone") := "1",
-      cls.toggle("on") <-- dragActiveVar.signal,
-      dataAttr("on")   <-- dragActiveVar.signal.map(if (_) "1" else "0"),
+      cls.toggle("on") <-- loader.dragActiveSig,
+      dataAttr("on")   <-- loader.dragActiveSig.map(if (_) "1" else "0"),
       div(cls := "scl-dropzone-card",
         strong("Drop a design.json or .fir file"),
         div(cls := "scl-dropzone-sub", "SoCLess loads it into the current view (.fir needs a running server)")))
@@ -449,7 +248,7 @@ object App {
   /** Transient toast for drag-drop / conversion feedback. */
   private def toastEl(): Element =
     div(cls := "scl-toasts",
-      child.maybe <-- toastVar.signal.map(_.map { case (msg, kind) =>
+      child.maybe <-- loader.toastSig.map(_.map { case (msg, kind) =>
         div(cls := s"scl-toast scl-toast-$kind", dataAttr("toast") := kind, msg)
       }))
 
@@ -475,12 +274,12 @@ object App {
         span(cls := "scl-kbd", kHint)),
       span(
         cls := "scl-engine",
-        dataAttr("design-loaded") <-- designVar.signal.map(_.isDefined.toString),
+        dataAttr("design-loaded") <-- loader.designSig.map(_.isDefined.toString),
         // SOURCE indicator (#194): kind drives the live poller + badge; top is a
         // stable hook the smoke watches to confirm a live reload swapped designs.
-        dataAttr("source") <-- sourceVar.signal.map(_.map(_._1).getOrElse("none")),
-        dataAttr("top")    <-- designVar.signal.map(_.map(topOf).getOrElse("")),
-        child.text <-- Signal.combine(designVar.signal, sourceVar.signal).map {
+        dataAttr("source") <-- loader.sourceSig.map(_.map(_._1).getOrElse("none")),
+        dataAttr("top")    <-- loader.designSig.map(_.map(topOf).getOrElse("")),
+        child.text <-- Signal.combine(loader.designSig, loader.sourceSig).map {
           case (Some(d), src) =>
             val label = src.map(_._2).getOrElse("")
             s"${topOf(d)}  -  ${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
@@ -488,16 +287,16 @@ object App {
         },
       ),
       // Multi-top design picker (#197): switch between elaborated tops in place.
-      // Hidden for a single-top build (designs.json absent -> designsVar empty).
-      child.maybe <-- designsVar.signal.map { ds =>
+      // Hidden for a single-top build (designs.json absent -> designsSig empty).
+      child.maybe <-- loader.designsSig.map { ds =>
         if (ds.isEmpty) None
         else Some(
           select(
             cls := "scl-design-picker", dataAttr("design-picker") := "1",
             title := "Switch design (multi-top build)",
-            value <-- activeDesignVar.signal,
+            value <-- loader.activeDesignSig,
             onChange.mapToValue --> { p =>
-              selectDesign(p, ds.find(_._3 == p).map(_._2).getOrElse(p))
+              loader.selectDesign(p, ds.find(_._3 == p).map(_._2).getOrElse(p))
             },
             ds.map { case (_, label, path) =>
               option(value := path, dataAttr("design-option") := path, label)
@@ -506,7 +305,7 @@ object App {
         )
       },
       // LIVE badge + "updated Ns ago" (#120): only while showing the live design.
-      child.maybe <-- sourceVar.signal.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
+      child.maybe <-- loader.sourceSig.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
       // Panel toggles (#206): hide the hierarchy / bottom / inspector panel to
       // focus on the schematic. The `off` class dims a button when its pane is hidden.
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
@@ -533,7 +332,7 @@ object App {
     )
 
   private def hierarchyPane(): Element = {
-    val rowsSignal = Signal.combine(designVar.signal, expandedVar.signal).map {
+    val rowsSignal = Signal.combine(loader.designSig, expandedVar.signal).map {
       case (Some(d), exp) => hierarchyRows(d, exp).map(r => (d, r))
       case (None, _)      => Nil
     }
@@ -544,7 +343,7 @@ object App {
         span(cls := "scl-count", child.text <-- rowsSignal.map(_.length.toString))),
       div(cls := "scl-hier",
         // Error / empty note when nothing loaded.
-        child.maybe <-- Signal.combine(designVar.signal, errorVar.signal).map {
+        child.maybe <-- Signal.combine(loader.designSig, loader.errorSig).map {
           case (None, Some(err)) => Some(div(cls := "scl-pane-body", s"no design: $err"))
           case (None, None)      => Some(div(cls := "scl-pane-body", "loading…"))
           case _                 => None
