@@ -55,6 +55,14 @@ object IrWalk {
   private def isAxi4(fields: Set[String]): Boolean =
     fields == Set("ar", "aw", "w", "r", "b")
 
+  /** Decoupled handshake shape: ready + valid + bits payload. */
+  private def isDecoupled(fields: Set[String]): Boolean =
+    fields == Set("ready", "valid", "bits")
+
+  /** Bare ready/valid handshake (no bits payload). */
+  private def isReadyValid(fields: Set[String]): Boolean =
+    fields == Set("ready", "valid")
+
   def design(c: Circ): Design = {
     val bundles = new BundleReg
     // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
@@ -78,11 +86,11 @@ object IrWalk {
     // the warning stays meaningful (issue #118).
     val unresolved = modules.iterator.map { m =>
       val logicIds = m.logic.iterator.map(_.id).toSet
-      def isLogicEnd(e: String): Boolean = {
+      def isLogicEndpoint(e: String): Boolean = {
         val head = e.split('.').headOption.getOrElse("")
         head.startsWith(Synthetic.ConstPrefix) || logicIds.contains(head) || logicIds.contains(Synthetic.baseOf(head))
       }
-      m.wires.count(w => w.bundle == "Wire" && !(isLogicEnd(w.from) || isLogicEnd(w.to)))
+      m.wires.count(w => w.bundle == "Wire" && !(isLogicEndpoint(w.from) || isLogicEndpoint(w.to)))
     }.sum
     val walkWarnings =
       if (unresolved > 0)
@@ -190,10 +198,10 @@ object IrWalk {
       // when it is the source (to) of some wire; its consumers are the sinks
       // (from) of the wires it sources.
       val drivers  = wires.iterator.map(w => stripIdx(w.to.split('.').headOption.getOrElse(""))).toSet
-      def isLogic(n: LogicNodeDef) = n.kind == NodeKind.Op || n.kind == NodeKind.Const
+      def isOpOrConst(n: LogicNodeDef) = n.kind == NodeKind.Op || n.kind == NodeKind.Const
       val members  = mutable.Set.empty[String]
       allLogic.foreach { n =>
-        if (isLogic(n) && (interior.contains(n.id) || (m.layerConsumes.contains(n.id) && !drivers.contains(n.id))))
+        if (isOpOrConst(n) && (interior.contains(n.id) || (m.layerConsumes.contains(n.id) && !drivers.contains(n.id))))
           members += n.id
       }
       def consumers(id: String): Seq[String] =
@@ -204,7 +212,7 @@ object IrWalk {
       while (changed) {
         changed = false
         allLogic.foreach { n =>
-          if (isLogic(n) && !members.contains(n.id)) {
+          if (isOpOrConst(n) && !members.contains(n.id)) {
             val cons = consumers(n.id)
             if (cons.nonEmpty && cons.forall(members.contains)) { members += n.id; changed = true }
           }
@@ -556,8 +564,8 @@ object IrWalk {
       val names = b.fields.map(_.name).toSet
       val base =
         if (isAxi4(names)) "AXI4"
-        else if (names == Set("ready", "valid", "bits")) s"Decoupled_$hint"
-        else if (names == Set("ready", "valid"))         s"ReadyValid_$hint"
+        else if (isDecoupled(names))  s"Decoupled_$hint"
+        else if (isReadyValid(names)) s"ReadyValid_$hint"
         else capitalize(hint)
       if (!bundles.defs.contains(base)) base
       else {
@@ -575,11 +583,7 @@ object IrWalk {
     key:     String,
     bundles: BundleReg,
   ): BundleDef = {
-    val isDecoupled = {
-      val ns = b.fields.map(_.name).toSet
-      ns == Set("ready", "valid", "bits")
-    }
-    if (isDecoupled) {
+    if (isDecoupled(b.fields.map(_.name).toSet)) {
       // Flatten the `bits` sub-bundle into FieldDefs; valid+ready are implicit.
       val bits = b.fields.find(_.name == "bits").map(_.tpe).getOrElse(GroundT("UInt", None))
       val fields = flattenGround(bits, "")

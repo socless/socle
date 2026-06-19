@@ -51,12 +51,10 @@ object ModuleKind {
 }
 
 /** Bundle kind (`BundleDef.kind`): a Decoupled handshake (valid/ready + bits),
-  * or a generic Bundle of named channels. (`Aggregate` is reserved as a future
-  * catch-all and not currently emitted.) */
+  * or a generic Bundle of named channels. */
 object BundleKind {
   val Bundle    = "Bundle"
   val Decoupled = "Decoupled"
-  val Aggregate = "Aggregate"
 }
 
 /** SoCLess design-export schema.
@@ -246,14 +244,13 @@ object Metrics { implicit val rw: ReadWriter[Metrics] = macroRW }
   *
   *   - `"Bundle"`     - aggregate of named channels (e.g. AXI4)
   *   - `"Decoupled"`  - handshake (valid/ready + bits sub-bundle)
-  *   - `"Aggregate"`  - any other Bundle (catch-all)
   *
   * Decoupled is detected by structural match (has `valid`/`ready`/`bits`) so
   * the UI can render the handshake annotation specially.
   */
 case class BundleDef(
   name:     String,
-  kind:     String,                       // BundleKind: Bundle | Decoupled | Aggregate
+  kind:     String,                       // BundleKind: Bundle | Decoupled
   fields:   Seq[FieldDef]    = Nil,       // ground-typed fields (Decoupled/leaf)
   channels: Seq[ChannelDef]  = Nil,       // sub-bundles (Bundle kind)
   source:   SourceRef        = SourceRef.unknown,
