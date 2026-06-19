@@ -23,6 +23,35 @@ object Tokens {
   val warn       = "var(--warn)"
   val mono       = "var(--mono)"
 
+  /** Pane accent palette (#220): colors that used to be inline OKLCH literals in
+    * the Inspector / BottomPanel / Chrome panes. Resolved from `:root` like the
+    * core tokens above, so they recolor under dark theme. */
+  // AXI-ish channel accents (Inspector channel-color map).
+  val chanColors: Map[String, String] = Map(
+    "ar" -> "var(--chan-ar)", "aw" -> "var(--chan-aw)",
+    "w"  -> "var(--chan-w)",  "r"  -> "var(--chan-r)",
+    "b"  -> "var(--chan-b)",
+  )
+  // Entity-kind accents (command palette).
+  val kindInstance = "var(--kind-instance)"
+  val kindPort     = "var(--kind-port)"
+  // Scala source syntax palette (BottomPanel).
+  val syntaxKw  = "var(--syntax-kw)"
+  val syntaxTy  = "var(--syntax-ty)"
+  val syntaxLit = "var(--syntax-lit)"
+  // Source-link + selected-instance highlights (BottomPanel tokenizer).
+  val linkChildBg = "var(--link-child-bg)"
+  val linkChildFg = "var(--link-child-fg)"
+  val linkSelBg   = "var(--link-sel-bg)"
+  // Port-direction badges (BottomPanel ports table).
+  val dirMasterBg = "var(--dir-master-bg)"
+  val dirMasterFg = "var(--dir-master-fg)"
+  val dirSlaveBg  = "var(--dir-slave-bg)"
+  val dirSlaveFg  = "var(--dir-slave-fg)"
+  // Unconnected-port badge (BottomPanel ports table).
+  val badgeUnconnBg = "var(--badge-unconn-bg)"
+  val badgeUnconnFg = "var(--badge-unconn-fg)"
+
   /** Header/port-row layout constants for `design`, from `design.layoutConsts`
     * (issue #38): the backend emits them so the schematic geometry stays in
     * sync with `LayoutCore`. */

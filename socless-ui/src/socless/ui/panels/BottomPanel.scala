@@ -42,10 +42,11 @@ object BottomPanel {
     try dom.window.localStorage.setItem("socless-editor", next) catch { case _: Throwable => () }
   }
 
-  // Scala token colors (port the JS tokenizeScala palette).
-  private val KwCol   = "oklch(0.5 0.15 290)"
-  private val TyCol   = "oklch(0.5 0.13 200)"
-  private val LitCol  = "oklch(0.55 0.15 30)"
+  // Scala token colors (port the JS tokenizeScala palette); resolved from `:root`
+  // via `Tokens` so they recolor under dark theme (#220).
+  private val KwCol   = Tokens.syntaxKw
+  private val TyCol   = Tokens.syntaxTy
+  private val LitCol  = Tokens.syntaxLit
   private val Keywords = Set("class","extends","val","def","new","for","until","object","trait","case","match","if","else","when","otherwise")
   private val Types    = Set("Module","IO","Bundle","Vec","Flipped","Decoupled","Queue","RRArbiter","UInt","SInt","Bool","Clock","Reset","Reg","RegInit","Mem","DontCare")
   private val TokRe    = """[^\s(){}.,;]+|\s+|[(){}.,;]""".r
@@ -241,10 +242,10 @@ object BottomPanel {
       else if (p.startsWith("//")) span(styleAttr := s"color:${Tokens.ink4};font-style:italic", p)
       else if (childNames.contains(p))
         span(title := s"Open $p",
-          styleAttr := "background:oklch(0.95 0.08 200);color:oklch(0.4 0.15 250);border-radius:2px;padding:0 2px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px",
+          styleAttr := s"background:${Tokens.linkChildBg};color:${Tokens.linkChildFg};border-radius:2px;padding:0 2px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px",
           onClick --> { _ => drillInto(p) }, p)
       else if (selInst.contains(p))
-        span(styleAttr := s"background:oklch(0.95 0.1 90);border-radius:2px;padding:0 1px;cursor:pointer;color:${Tokens.ink}",
+        span(styleAttr := s"background:${Tokens.linkSelBg};border-radius:2px;padding:0 1px;cursor:pointer;color:${Tokens.ink}",
           onClick --> { _ => setSel(p) }, p)
       else span(p)
     }
@@ -269,8 +270,8 @@ object BottomPanel {
       thead(tr(styleAttr := s"background:${Tokens.panelAlt}",
         Seq("Instance","Type","Port","Dir","Bundle","Width","Notes").map(h => th(styleAttr := thStyle, h)))),
       tbody(rows.toSeq.map { r =>
-        val dirBg  = if (r.dir == PortDir.Master) "oklch(0.96 0.04 250)" else "oklch(0.96 0.04 50)"
-        val dirCol = if (r.dir == PortDir.Master) "oklch(0.4 0.15 250)" else "oklch(0.4 0.15 50)"
+        val dirBg  = if (r.dir == PortDir.Master) Tokens.dirMasterBg else Tokens.dirSlaveBg
+        val dirCol = if (r.dir == PortDir.Master) Tokens.dirMasterFg else Tokens.dirSlaveFg
         tr(cls := "scl-ports-row", styleAttr := s"cursor:pointer;border-bottom:1px solid ${Tokens.borderSoft}",
           dataAttr("port-row") := s"${r.inst}.${r.port}",
           onClick --> { _ => setSel(s"${r.inst}.${r.port}") },
@@ -282,7 +283,7 @@ object BottomPanel {
           td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", s"${Inspector.totalWidth(r.bundle, d)}b"),
           td(styleAttr := s"padding:6px 12px;color:${Tokens.ink4};font-size:11px",
             if (!r.connected) span(title := "This port is not referenced anywhere in the source (genuinely unconnected).",
-              styleAttr := s"padding:1px 6px;border-radius:2px;background:oklch(0.95 0.06 30);color:oklch(0.45 0.16 30);font-family:${Tokens.mono};font-size:9.5px;margin-right:6px", "unconnected") else emptyNode,
+              styleAttr := s"padding:1px 6px;border-radius:2px;background:${Tokens.badgeUnconnBg};color:${Tokens.badgeUnconnFg};font-family:${Tokens.mono};font-size:9.5px;margin-right:6px", "unconnected") else emptyNode,
             r.doc),
         )
       }))

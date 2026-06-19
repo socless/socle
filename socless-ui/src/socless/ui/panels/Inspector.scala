@@ -19,12 +19,9 @@ import socless.ui.model._
   * bottom Source / Waveform panel is deferred to a follow-up. */
 object Inspector {
 
-  // AXI-ish channel accent colors (ports the JS CHANNEL_COLOR map).
-  private val chanColor: Map[String, String] = Map(
-    "ar" -> "oklch(0.60 0.16 250)", "aw" -> "oklch(0.55 0.17 290)",
-    "w"  -> "oklch(0.62 0.17 170)", "r"  -> "oklch(0.65 0.16 50)",
-    "b"  -> "oklch(0.58 0.18 25)",
-  )
+  // AXI-ish channel accent colors (ports the JS CHANNEL_COLOR map); the hues now
+  // resolve from `:root` via `Tokens` so they recolor under dark theme (#220).
+  private val chanColor: Map[String, String] = Tokens.chanColors
 
   private val VecRe    = """^Vec\[(.+),\s*(\d+)\]$""".r
   private val GroundRe = """^(?:UInt|SInt)<(\d+)>$""".r

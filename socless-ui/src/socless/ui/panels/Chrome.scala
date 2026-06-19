@@ -83,7 +83,7 @@ object Chrome {
     else items.flatMap(it => score(it, needle).map(s => (it, s))).sortBy(_._2).map(_._1).take(100)
   }
 
-  private val kindColor = Map("module" -> Tokens.accent, "instance" -> "oklch(0.55 0.16 290)", "port" -> "oklch(0.55 0.16 50)")
+  private val kindColor = Map("module" -> Tokens.accent, "instance" -> Tokens.kindInstance, "port" -> Tokens.kindPort)
 
   def commandPalette(designSig: Signal[Option[Design]], openVar: Var[Boolean], onNavigate: List[String] => Unit): Element = {
     val qVar       = Var("")
