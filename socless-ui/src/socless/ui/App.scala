@@ -9,7 +9,7 @@ import scala.scalajs.js.timers._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef, ModuleKind}
 import socless.ui.theme._
 import socless.ui.model._
 import socless.ui.schematic._
@@ -330,7 +330,7 @@ object App {
       mod      <- currentModule(d, pathVar.now())
       child    <- mod.children.find(_.name == inst)
       childMod <- d.modules.find(_.name == child.`type`)
-      if childMod.kind != "external" && childMod.kind != "intrinsic"
+      if childMod.kind != ModuleKind.External && childMod.kind != ModuleKind.Intrinsic
     } pathVar.update(_ :+ inst) // selectedSig / expandedPorts cleared by the path-change binder
 
   /** Navigate up to the breadcrumb segment at `idx`. */

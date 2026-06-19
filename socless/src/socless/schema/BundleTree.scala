@@ -55,7 +55,7 @@ object BundleTree {
         }
       case Some(b) =>
         val children =
-          if (b.kind == "Bundle")
+          if (b.kind == BundleKind.Bundle)
             b.channels.map { ch =>
               // Only flip against a KNOWN base direction; with baseDir None the
               // child stays None so no wrong arrow is rendered (issue #85).
@@ -64,7 +64,7 @@ object BundleTree {
               val sub       = portTree(ch.`type`, childDir, childPath, design)
               PortNode(ch.name, childPath, ch.`type`, isAggregateType(ch.`type`, design), childDir, sub.width, sub.children)
             }
-          else if (b.kind == "Decoupled") {
+          else if (b.kind == BundleKind.Decoupled) {
             // valid (out from producer), ready (in to producer), then each bits field.
             val valid = PortNode("valid", parentPath + ".valid", "Bool", isExpandable = false, Some(PortDir.Out), 1, Nil)
             val ready = PortNode("ready", parentPath + ".ready", "Bool", isExpandable = false, Some(PortDir.In), 1, Nil)
@@ -107,7 +107,7 @@ object BundleTree {
             case Some(sm) =>
               val seg = sm.group(1)
               design.bundles.get(key) match {
-                case Some(b) if b.kind == "Bundle" =>
+                case Some(b) if b.kind == BundleKind.Bundle =>
                   b.channels.find(_.name == seg) match {
                     case None     => return Some(dir)
                     case Some(ch) => if (ch.flip) dir = flip(dir); key = ch.`type`

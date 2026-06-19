@@ -9,7 +9,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef, NodeKind, PinSide, PortDir}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide, PortDir, ModuleKind}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -514,8 +514,8 @@ object Schematic {
         else {
           val ch         = child.get
           val childMod   = g.design.modules.find(_.name == ch.`type`)
-          val isBlackbox = childMod.exists(m => m.kind == "external" || m.kind == "intrinsic")
-          val extLabel: String = childMod.map(m => if (m.kind == "intrinsic") "intrinsic" else "ext").getOrElse("ext")
+          val isBlackbox = childMod.exists(m => m.kind == ModuleKind.External || m.kind == ModuleKind.Intrinsic)
+          val extLabel: String = childMod.map(m => if (m.kind == ModuleKind.Intrinsic) "intrinsic" else "ext").getOrElse("ext")
           val drillable  = childMod.exists(m => !isBlackbox && m.children.nonEmpty)
           // Clock/reset are filtered from the wire graph (no laid pin, see
           // displayWires), so a clocked instance carries a compact corner cue

@@ -63,7 +63,7 @@ object LayoutCore {
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
 
   def isInterfaceBundle(bundle: String, design: Design): Boolean =
-    design.bundles.get(bundle).exists(b => b.kind == "Bundle" || b.kind == "Decoupled") ||
+    design.bundles.get(bundle).exists(b => b.kind == BundleKind.Bundle || b.kind == BundleKind.Decoupled) ||
       // Vec-of-bundle keys ("Vec[AXI4, 2]") are not entries in design.bundles
       // but their pins are interfaces all the same (issue #89).
       (bundle match {

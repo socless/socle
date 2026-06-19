@@ -2,7 +2,7 @@ package socless.ui.panels
 
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
-import socless.schema.Design
+import socless.schema.{Design, BundleKind}
 import socless.ui.theme._
 
 /** App-level chrome (epic #172 Phase 4): the command palette, the keyboard-help
@@ -34,7 +34,7 @@ object Chrome {
         out += Item("port", s"${m.name}:${p.name}", s"${p.dir} ${p.bundle}", List(m.name))
         def addSub(name: String, key: String): Unit = out += Item("port", s"${m.name}:$name", key, List(m.name))
         d.bundles.get(p.bundle) match {
-          case Some(b) if b.kind == "Bundle" =>
+          case Some(b) if b.kind == BundleKind.Bundle =>
             b.channels.foreach { ch =>
               ch.`type` match {
                 case VecRe(inner, n) => (0 until math.min(n.toInt, 16)).foreach(i => addSub(s"${p.name}.${ch.name}[$i]", inner.trim))

@@ -42,6 +42,23 @@ object PortDir {
   val Slave  = "slave"
 }
 
+/** Module kind (`ModuleDef.kind`): a normal module with internals, an
+  * extmodule/blackbox with none, or an intmodule/intrinsic (issue #20). */
+object ModuleKind {
+  val Internal  = "internal"
+  val External  = "external"
+  val Intrinsic = "intrinsic"
+}
+
+/** Bundle kind (`BundleDef.kind`): a Decoupled handshake (valid/ready + bits),
+  * or a generic Bundle of named channels. (`Aggregate` is reserved as a future
+  * catch-all and not currently emitted.) */
+object BundleKind {
+  val Bundle    = "Bundle"
+  val Decoupled = "Decoupled"
+  val Aggregate = "Aggregate"
+}
+
 /** SoCLess design-export schema.
   *
   * These case classes are the canonical JSON contract between the exporter and
@@ -134,7 +151,7 @@ case class ModuleDef(
   // (extmodule / blackbox, no internals), or "intrinsic" (intmodule).
   // The UI renders external/intrinsic distinctly and skips drilldown (issue
   // #20). Trailing default keeps older design.json loadable.
-  kind:     String = "internal",
+  kind:     String = ModuleKind.Internal,
   // Elaboration parameters that define this module's behavior (issue #19).
   // CHIRRTL does NOT carry Chisel constructor parameters (they're erased by
   // emission), so this is empty from the CHIRRTL path today; the field is the
@@ -236,7 +253,7 @@ object Metrics { implicit val rw: ReadWriter[Metrics] = macroRW }
   */
 case class BundleDef(
   name:     String,
-  kind:     String,                       // "Bundle" | "Decoupled" | "Aggregate"
+  kind:     String,                       // BundleKind: Bundle | Decoupled | Aggregate
   fields:   Seq[FieldDef]    = Nil,       // ground-typed fields (Decoupled/leaf)
   channels: Seq[ChannelDef]  = Nil,       // sub-bundles (Bundle kind)
   source:   SourceRef        = SourceRef.unknown,

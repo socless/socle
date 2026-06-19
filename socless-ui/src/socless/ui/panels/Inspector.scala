@@ -3,7 +3,7 @@ package socless.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir}
+import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind}
 import socless.ui.theme._
 import socless.ui.model._
 
@@ -33,8 +33,8 @@ object Inspector {
     * Shared with the Ports table in [[BottomPanel]]. */
   def totalWidth(key: String, d: Design): Int =
     d.bundles.get(key) match {
-      case Some(b) if b.kind == "Bundle"    => b.channels.map(ch => totalWidth(ch.`type`, d)).sum
-      case Some(b) if b.kind == "Decoupled" => b.fields.map(_.width).sum + 2 // + valid/ready
+      case Some(b) if b.kind == BundleKind.Bundle    => b.channels.map(ch => totalWidth(ch.`type`, d)).sum
+      case Some(b) if b.kind == BundleKind.Decoupled => b.fields.map(_.width).sum + 2 // + valid/ready
       case Some(_)                          => 0
       case None => key match {
         case VecRe(inner, n) => totalWidth(inner.trim, d) * n.toInt

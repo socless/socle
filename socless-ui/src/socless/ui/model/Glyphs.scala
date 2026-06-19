@@ -1,6 +1,6 @@
 package socless.ui.model
 
-import socless.schema.Design
+import socless.schema.{Design, ModuleKind}
 
 /** One-character summary of a module's kind, shared by the hierarchy tree
   * ([[socless.ui.App]]) and the schematic box headers (`Schematic`) so both
@@ -16,7 +16,7 @@ object Glyphs {
       case Some(m) =>
         if (m.children.length >= 3) "⬢"               // hub
         else if (m.metrics.registers > 0) "◆"          // register-bearing
-        else if (m.kind == "external" || m.kind == "intrinsic") "■" // blackbox
+        else if (m.kind == ModuleKind.External || m.kind == ModuleKind.Intrinsic) "■" // blackbox
         else "·"
     }
 }

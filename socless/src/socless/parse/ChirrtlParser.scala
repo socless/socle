@@ -69,9 +69,16 @@ object ChirrtlParser {
     // layer content, issue #212), so it is verification logic, not design dataflow.
     inLayer: Boolean = false)
 
+  /** CHIRRTL module-declaration keyword (`Mod.kind`). */
+  object ModuleDecl {
+    val Module    = "module"
+    val ExtModule = "extmodule"
+    val IntModule = "intmodule"
+  }
+
   case class Mod(
     name: String,
-    kind: String,    // "module" | "extmodule" | "intmodule"
+    kind: String,    // ModuleDecl: Module | ExtModule | IntModule
     ports: Seq[Port],
     insts: Seq[Inst],
     conns: Seq[Conn],
@@ -121,7 +128,7 @@ object ChirrtlParser {
 
     // State for the current module being accumulated.
     var curMod: Option[String]    = None
-    var curKind: String           = "module"
+    var curKind: String           = ModuleDecl.Module
     var curSrc: Option[SrcInfo]   = None
     val curPorts                  = mutable.Buffer.empty[Port]
     val curInsts                  = mutable.Buffer.empty[Inst]

@@ -5,7 +5,7 @@ import socless.parse._
 import socless.layout._
 import scala.collection.mutable
 import socless.parse.ChirrtlParser.{
-  Circ, Mod, Port, Inst, Conn, Field, SrcInfo,
+  Circ, Mod, Port, Inst, Conn, Field, SrcInfo, ModuleDecl,
   Type => CType, GroundT, BundleT, VecT,
 }
 
@@ -107,7 +107,7 @@ object IrWalk {
     // Blackboxes (extmodule/intmodule) have no statements at all, so the
     // heuristic cannot apply: default their ports to connected rather than
     // flagging every blackbox pin as dangling (issue #100).
-    val isRealModule = m.kind == "module"
+    val isRealModule = m.kind == ModuleDecl.Module
     val ports = m.ports.map(p => buildPort(p, bundles, !isRealModule || m.refs.contains(p.name)))
     // Clock/reset domain inference (issue #19): the connect that feeds an
     // instance's clock (or reset) port names the domain signal; siblings sharing
@@ -137,7 +137,7 @@ object IrWalk {
     // a net terminal, so wires route THROUGH it (input pin `r`, output pin `r~q`).
     val regNames: Set[String] = m.regs.map(_.name).toSet
     val regLogic: Seq[LogicNodeDef] = m.regs.map { r =>
-      val (key, _) = registerType(r.tpe, "input", r.name, bundles)
+      val key = registerType(r.tpe, r.name, bundles)
       LogicNodeDef(id = r.name, kind = NodeKind.Reg, label = r.name, bundle = key,
         source = r.src.map(toRef).getOrElse(SourceRef.unknown))
     }
@@ -434,7 +434,7 @@ object IrWalk {
       children = Nil,
       wires    = internalDeduped,
       metrics  = Metrics(0, 0, 0),
-      kind     = "internal",
+      kind     = ModuleKind.Internal,
       logic    = bodyLogic,
     )
 
@@ -449,9 +449,9 @@ object IrWalk {
     * extmodule (blackbox) -> "external", intmodule -> "intrinsic", else
     * "internal" (issue #20). */
   private def moduleKind(rawKind: String): String = rawKind match {
-    case "extmodule" => "external"
-    case "intmodule" => "intrinsic"
-    case _           => "internal"
+    case ModuleDecl.ExtModule => ModuleKind.External
+    case ModuleDecl.IntModule => ModuleKind.Intrinsic
+    case _           => ModuleKind.Internal
   }
 
   // ── Ports ────────────────────────────────────────────────────────────────
@@ -460,10 +460,10 @@ object IrWalk {
     bundles:   BundleReg,
     connected: Boolean,
   ): PortDef = {
-    val (key, role) = registerType(p.tpe, p.dir, p.name, bundles)
+    val key = registerType(p.tpe, p.name, bundles)
     PortDef(
       name      = p.name,
-      dir       = role,
+      dir       = portRole(p.dir, p.tpe),
       bundle    = key,
       doc       = "",
       source    = p.src.map(toRef).getOrElse(SourceRef.unknown),
@@ -494,13 +494,13 @@ object IrWalk {
   }
 
   // ── Bundles: register + return key ────────────────────────────────────────
-  /** Register `tpe` into `bundles` if needed and return (key, port-role). */
+  /** Register `tpe` into `bundles` if needed and return its bundle key. The
+    * port role/direction is computed separately by [[portRole]] (issue #218). */
   private def registerType(
     tpe:     CType,
-    dir:     String,
     hint:    String,
     bundles: BundleReg,
-  ): (String, String) = tpe match {
+  ): String = tpe match {
     case b: BundleT =>
       val key = bundleKey(b, hint, bundles)
       if (!bundles.defs.contains(key)) {
@@ -509,19 +509,18 @@ object IrWalk {
         // registers during bundleDef) and makes `defs.contains(key)` true,
         // guarding against re-entry for the same key. Overwritten in place
         // (LinkedHashMap keeps the original position on update) with the real def.
-        bundles.defs(key) = BundleDef(key, "Bundle")
+        bundles.defs(key) = BundleDef(key, BundleKind.Bundle)
         bundles.defs(key) = bundleDef(b, key, bundles)
       }
-      (key, portRole(dir, b))
+      key
 
     case VecT(elem, n) =>
-      val (inner, _) = registerType(elem, dir, hint + "_elem", bundles)
-      (s"Vec[$inner, $n]", portRole(dir, tpe))
+      s"Vec[${registerType(elem, hint + "_elem", bundles)}, $n]"
 
-    case GroundT("UInt", Some(w)) => (s"UInt<$w>", portRole(dir, tpe))
-    case GroundT("SInt", Some(w)) => (s"SInt<$w>", portRole(dir, tpe))
-    case GroundT("UInt", None)    => ("UInt", portRole(dir, tpe))
-    case GroundT(other, _)        => (other, portRole(dir, tpe))
+    case GroundT("UInt", Some(w)) => s"UInt<$w>"
+    case GroundT("SInt", Some(w)) => s"SInt<$w>"
+    case GroundT("UInt", None)    => "UInt"
+    case GroundT(other, _)        => other
   }
 
   /** Canonical structural rendering of a CHIRRTL type: field names, flips,
@@ -584,14 +583,14 @@ object IrWalk {
       // Flatten the `bits` sub-bundle into FieldDefs; valid+ready are implicit.
       val bits = b.fields.find(_.name == "bits").map(_.tpe).getOrElse(GroundT("UInt", None))
       val fields = flattenGround(bits, "")
-      BundleDef(name = key, kind = "Decoupled", fields = fields)
+      BundleDef(name = key, kind = BundleKind.Decoupled, fields = fields)
     } else {
       // Heterogeneous bundle → register channels recursively.
       val channels = b.fields.map { f =>
-        val (innerKey, _) = registerType(f.tpe, "input", f.name, bundles)
+        val innerKey = registerType(f.tpe, f.name, bundles)
         ChannelDef(name = f.name, `type` = innerKey, flip = f.flip)
       }
-      BundleDef(name = key, kind = "Bundle", channels = channels)
+      BundleDef(name = key, kind = BundleKind.Bundle, channels = channels)
     }
   }
 
@@ -940,8 +939,7 @@ object IrWalk {
           if (parts.length >= 3)
             descendField(portTpe, parts(2)).map(t => (unwrapIdx(t, raw(2)), s"${port.name}_${parts(2)}")).getOrElse((portTpe, port.name))
           else (portTpe, port.name)
-        val (k, _) = registerType(effTpe, port.dir, hint, bundles)
-        k
+        registerType(effTpe, hint, bundles)
       }
     }
 
@@ -955,8 +953,7 @@ object IrWalk {
           if (parts.length >= 2)
             descendField(portTpe, parts(1)).map(t => (unwrapIdx(t, raw(1)), s"${p.name}_${parts(1)}")).getOrElse((portTpe, p.name))
           else (portTpe, p.name)
-        val (k, _) = registerType(effTpe, p.dir, hint, bundles)
-        k
+        registerType(effTpe, hint, bundles)
       }
     }
 
