@@ -3,7 +3,7 @@ package socless.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef, PortDir}
 import socless.ui.theme._
 
 /** The bottom panel under the schematic (epic #172 Phase 3 follow-up): a tabbed
@@ -269,8 +269,8 @@ object BottomPanel {
       thead(tr(styleAttr := s"background:${Tokens.panelAlt}",
         Seq("Instance","Type","Port","Dir","Bundle","Width","Notes").map(h => th(styleAttr := thStyle, h)))),
       tbody(rows.toSeq.map { r =>
-        val dirBg  = if (r.dir == "master") "oklch(0.96 0.04 250)" else "oklch(0.96 0.04 50)"
-        val dirCol = if (r.dir == "master") "oklch(0.4 0.15 250)" else "oklch(0.4 0.15 50)"
+        val dirBg  = if (r.dir == PortDir.Master) "oklch(0.96 0.04 250)" else "oklch(0.96 0.04 50)"
+        val dirCol = if (r.dir == PortDir.Master) "oklch(0.4 0.15 250)" else "oklch(0.4 0.15 50)"
         tr(cls := "scl-ports-row", styleAttr := s"cursor:pointer;border-bottom:1px solid ${Tokens.borderSoft}",
           dataAttr("port-row") := s"${r.inst}.${r.port}",
           onClick --> { _ => setSel(s"${r.inst}.${r.port}") },

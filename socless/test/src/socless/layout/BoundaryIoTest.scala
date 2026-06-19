@@ -70,7 +70,7 @@ object BoundaryIoTest extends TestSuite {
   // default EAST, or the external output is misread as an input and lands on
   // the left with a backward wire (the DeepSoc io.out regression in #68).
   private val tieMod = ModuleDef("Tie", "Tie", "", SourceRef.unknown,
-    ports = Seq(PortDef("io", "output", "Decoupled_out", "", SourceRef.unknown)),
+    ports = Seq(PortDef("io", "out", "Decoupled_out", "", SourceRef.unknown)),
     children = Seq(InstanceDef("u", "Core", "", SourceRef.unknown)),
     wires = Seq(
       // forward data: u drives io.out (from = sink io.out, to = source u.io)

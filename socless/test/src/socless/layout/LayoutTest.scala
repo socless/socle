@@ -20,7 +20,7 @@ object LayoutTest extends TestSuite {
   private val memMod = ModuleDef("Mem", "Mem", "", SourceRef.unknown,
     Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val topMod = ModuleDef("Top", "Top", "", SourceRef.unknown,
-    ports = Seq(PortDef("done", "output", "UInt<1>", "", SourceRef.unknown)),
+    ports = Seq(PortDef("done", "out", "UInt<1>", "", SourceRef.unknown)),
     children = Seq(InstanceDef("cpu", "Cpu", "", SourceRef.unknown),
                    InstanceDef("mem", "Mem", "", SourceRef.unknown)),
     wires = Seq(
@@ -35,9 +35,9 @@ object LayoutTest extends TestSuite {
 
   // ── Role-based side fixture: prod drives cons via a single wire ─────────────
   private val prodMod = ModuleDef("Prod", "Prod", "", SourceRef.unknown,
-    Seq(PortDef("p", "output", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+    Seq(PortDef("p", "out", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val consMod = ModuleDef("Cons", "Cons", "", SourceRef.unknown,
-    Seq(PortDef("p", "input", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+    Seq(PortDef("p", "in", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   // roleTop: prod.p is SOURCE (to), cons.p is SINK (from).
   private val roleTop = ModuleDef("RoleTop", "RoleTop", "", SourceRef.unknown,
     ports = Nil,
@@ -54,11 +54,11 @@ object LayoutTest extends TestSuite {
   // mid is both SOURCE for left (left.p <- mid.p) and SINK for right (mid.p <- right.p).
   // east votes == west votes for mid.p -> tie resolves to EAST.
   private val leftMod  = ModuleDef("Left",  "Left",  "", SourceRef.unknown,
-    Seq(PortDef("p", "input",  "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+    Seq(PortDef("p", "in",  "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val midMod   = ModuleDef("Mid",   "Mid",   "", SourceRef.unknown,
-    Seq(PortDef("p", "output", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+    Seq(PortDef("p", "out", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val rightMod = ModuleDef("Right", "Right", "", SourceRef.unknown,
-    Seq(PortDef("p", "output", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+    Seq(PortDef("p", "out", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val tieTop = ModuleDef("TieTop", "TieTop", "", SourceRef.unknown,
     ports = Nil,
     children = Seq(InstanceDef("left",  "Left",  "", SourceRef.unknown),
@@ -184,13 +184,13 @@ object LayoutTest extends TestSuite {
       // This proves the label-aware sizing path fires: if Layout ignored labels the
       // assertion widthOf(B) > widthOf(A) would fail (both would stay at NodeW=160).
       val shortOutMod = ModuleDef("ShortOut", "ShortOut", "", SourceRef.unknown,
-        Seq(PortDef("io", "output", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+        Seq(PortDef("io", "out", "Wire", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
       val longOutMod  = ModuleDef("LongOut", "LongOut", "", SourceRef.unknown,
-        Seq(PortDef("io", "output", "AXI4BundleVeryLongType", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
+        Seq(PortDef("io", "out", "AXI4BundleVeryLongType", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
 
       // ShortTop: instance "s" of ShortOut; boundary port "out" receives s.io.
       val shortTop = ModuleDef("ShortTop", "ShortTop", "", SourceRef.unknown,
-        ports    = Seq(PortDef("out", "output", "Wire", "", SourceRef.unknown)),
+        ports    = Seq(PortDef("out", "out", "Wire", "", SourceRef.unknown)),
         children = Seq(InstanceDef("s", "ShortOut", "", SourceRef.unknown)),
         wires    = Seq(WireDef("out", "s.io", "Wire", "", SourceRef.unknown)),
         metrics  = Metrics(0, 0, 0))
@@ -198,7 +198,7 @@ object LayoutTest extends TestSuite {
 
       // LongTop: instance "l" of LongOut; boundary port "out" receives l.io.
       val longTop = ModuleDef("LongTop", "LongTop", "", SourceRef.unknown,
-        ports    = Seq(PortDef("out", "output", "AXI4BundleVeryLongType", "", SourceRef.unknown)),
+        ports    = Seq(PortDef("out", "out", "AXI4BundleVeryLongType", "", SourceRef.unknown)),
         children = Seq(InstanceDef("l", "LongOut", "", SourceRef.unknown)),
         wires    = Seq(WireDef("out", "l.io", "AXI4BundleVeryLongType", "", SourceRef.unknown)),
         metrics  = Metrics(0, 0, 0))

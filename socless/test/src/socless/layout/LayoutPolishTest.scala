@@ -23,14 +23,14 @@ object LayoutPolishTest extends TestSuite {
   private val cpuMod = ModuleDef("Cpu", "Cpu", "", SourceRef.unknown,
     ports = Seq(
       PortDef("io",    "master", "AXI4",     "", SourceRef.unknown),
-      PortDef("clock", "input",  "Clock",    "", SourceRef.unknown),
+      PortDef("clock", "in",  "Clock",    "", SourceRef.unknown),
     ),
     children = Nil, wires = Nil, metrics = Metrics(0, 0, 0))
 
   private val memMod = ModuleDef("Mem", "Mem", "", SourceRef.unknown,
     ports = Seq(
       PortDef("io",    "slave",  "AXI4",     "", SourceRef.unknown),
-      PortDef("clock", "input",  "Clock",    "", SourceRef.unknown),
+      PortDef("clock", "in",  "Clock",    "", SourceRef.unknown),
     ),
     children = Nil, wires = Nil, metrics = Metrics(0, 0, 0))
 
@@ -42,8 +42,8 @@ object LayoutPolishTest extends TestSuite {
   //   - clock wire: cpu.clock <- clk           -- dropped
   private val topMod = ModuleDef("Top", "Top", "", SourceRef.unknown,
     ports = Seq(
-      PortDef("clk",  "input",  "Clock",    "", SourceRef.unknown),
-      PortDef("done", "output", "UInt<1>",  "", SourceRef.unknown),
+      PortDef("clk",  "in",  "Clock",    "", SourceRef.unknown),
+      PortDef("done", "out", "UInt<1>",  "", SourceRef.unknown),
     ),
     children = Seq(
       InstanceDef("cpu", "Cpu", "", SourceRef.unknown),

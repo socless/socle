@@ -3,7 +3,7 @@ package socless.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind}
+import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir}
 import socless.ui.theme._
 import socless.ui.model._
 
@@ -242,7 +242,7 @@ object Inspector {
           color.map(c => span(styleAttr := s"width:7px;height:7px;border-radius:4px;background:$c;flex-shrink:0")).getOrElse(emptyNode),
           span(styleAttr := s"font-weight:600;color:${if (isSel) Tokens.accent else Tokens.ink2}", node.name),
           span(styleAttr := s"color:${Tokens.ink4};font-size:9.5px", node.bundleKey),
-          node.dir.map(dd => span(styleAttr := s"color:${Tokens.ink4};font-size:9px", if (dd == "out") "→" else "←")).getOrElse(emptyNode),
+          node.dir.map(dd => span(styleAttr := s"color:${Tokens.ink4};font-size:9px", if (dd == PortDir.Out) "→" else "←")).getOrElse(emptyNode),
           span(styleAttr := s"margin-left:auto;color:${Tokens.ink4};font-size:10px", s"${node.children.length} fields"),
           span(styleAttr := s"color:${Tokens.ink4};font-size:9px;display:inline-block;transition:transform .12s;transform:${if (isOpen) "rotate(90deg)" else "none"}", "▶")),
         if (isOpen) div(node.children.map(c => treeNode(c, depth + 1, sig, expanded, setSel, toggleBundle))) else emptyNode,
@@ -252,7 +252,7 @@ object Inspector {
       div(cls := "scl-insp-leaf",
         styleAttr := s"display:flex;align-items:center;gap:8px;padding:3px 8px 3px ${8 + 14 + indent}px;font-family:${Tokens.mono};font-size:10.5px;cursor:pointer;position:relative;${bg}color:${if (isSel) Tokens.accent else Tokens.ink2}",
         onClick --> { _ => setSel(node.path) },
-        span(styleAttr := s"width:12px;color:${Tokens.ink4};font-size:9px;flex-shrink:0", node.dir match { case Some("out") => "→"; case Some(_) => "←"; case None => "" }),
+        span(styleAttr := s"width:12px;color:${Tokens.ink4};font-size:9px;flex-shrink:0", node.dir match { case Some(PortDir.Out) => "→"; case Some(_) => "←"; case None => "" }),
         span(node.name),
         span(styleAttr := s"margin-left:auto;color:${Tokens.ink4}", s"${node.width}b"),
         span(cls := "copy-btn", copyBtn(node.path)),

@@ -140,7 +140,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -151,7 +151,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Reset",
           "doc": "",
           "source": {
@@ -162,7 +162,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io",
           "doc": "",
           "source": {
@@ -461,7 +461,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -472,7 +472,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Reset",
           "doc": "",
           "source": {
@@ -483,7 +483,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io_34fc3d",
           "doc": "",
           "source": {
@@ -1117,7 +1117,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -1128,7 +1128,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Reset",
           "doc": "",
           "source": {
@@ -1139,7 +1139,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io_34fc3d",
           "doc": "",
           "source": {
@@ -1773,7 +1773,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -1784,7 +1784,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Reset",
           "doc": "",
           "source": {
@@ -1795,7 +1795,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io_610969",
           "doc": "",
           "source": {
@@ -2980,7 +2980,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -2991,7 +2991,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "UInt<1>",
           "doc": "",
           "source": {
@@ -3002,7 +3002,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io_f892a2",
           "doc": "",
           "source": {

@@ -41,7 +41,7 @@
       "ports": [
         {
           "name": "clock",
-          "dir": "input",
+          "dir": "in",
           "bundle": "Clock",
           "doc": "",
           "source": {
@@ -52,7 +52,7 @@
         },
         {
           "name": "reset",
-          "dir": "input",
+          "dir": "in",
           "bundle": "UInt<1>",
           "doc": "",
           "source": {
@@ -63,7 +63,7 @@
         },
         {
           "name": "io",
-          "dir": "output",
+          "dir": "out",
           "bundle": "Io",
           "doc": "",
           "source": {

@@ -66,11 +66,11 @@ object BundleTree {
             }
           else if (b.kind == "Decoupled") {
             // valid (out from producer), ready (in to producer), then each bits field.
-            val valid = PortNode("valid", parentPath + ".valid", "Bool", isExpandable = false, Some("out"), 1, Nil)
-            val ready = PortNode("ready", parentPath + ".ready", "Bool", isExpandable = false, Some("in"), 1, Nil)
+            val valid = PortNode("valid", parentPath + ".valid", "Bool", isExpandable = false, Some(PortDir.Out), 1, Nil)
+            val ready = PortNode("ready", parentPath + ".ready", "Bool", isExpandable = false, Some(PortDir.In), 1, Nil)
             val bits  = b.fields.map { f =>
               // Flip field directions only for a consumer-side port (baseDir "in").
-              val d = if (baseDir.contains("in")) flip(f.dir) else f.dir
+              val d = if (baseDir.contains(PortDir.In)) flip(f.dir) else f.dir
               PortNode("bits." + f.name, parentPath + ".bits." + f.name, "UInt<" + f.width + ">",
                 isExpandable = false, Some(d), f.width, Nil)
             }
@@ -89,7 +89,7 @@ object BundleTree {
     val rel  = pinPath.replaceFirst("""^[^.\[]+\.""", "")
     val port = modOpt.get.ports.find(p => rel == p.name || rel.startsWith(p.name + ".") || rel.startsWith(p.name + "["))
     if (port.isEmpty) return None
-    var dir  = if (port.get.dir == "output" || port.get.dir == "master") "out" else "in"
+    var dir  = if (port.get.dir == PortDir.Out || port.get.dir == PortDir.Master) PortDir.Out else PortDir.In
     var key  = port.get.bundle
     var rest = rel.substring(port.get.name.length)
     val idxRe = """^\[(\d+)\]""".r
@@ -121,5 +121,5 @@ object BundleTree {
     Some(dir)
   }
 
-  private def flip(d: String): String = if (d == "out") "in" else "out"
+  private def flip(d: String): String = if (d == PortDir.Out) PortDir.In else PortDir.Out
 }

@@ -21,7 +21,7 @@ object EndpointTest extends TestSuite {
   )
   private val topMod = ModuleDef(
     name = "Top", `type` = "Top", doc = "", source = SourceRef.unknown,
-    ports = Seq(PortDef("clk", "input", "Clock", "", SourceRef.unknown)),
+    ports = Seq(PortDef("clk", "in", "Clock", "", SourceRef.unknown)),
     children = Seq(InstanceDef("cpu", "Cpu", "", SourceRef.unknown)),
     wires = Nil, metrics = Metrics(0, 0, 0),
   )

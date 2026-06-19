@@ -29,6 +29,19 @@ object PinSide {
   val East = "EAST"
 }
 
+/** Canonical port/pin direction in the schema (`PortDef.dir`, `FieldDef.dir`,
+  * `BundleTree.PortNode.dir`). The CHIRRTL `input`/`output` keyword is converted
+  * to `In`/`Out` at exactly one boundary (`IrWalk.portRole`); everything
+  * downstream sees only these values. `Master`/`Slave` are the AXI directional
+  * roles surfaced for whole-bundle ports; `Inout` is a reused bidirectional pin. */
+object PortDir {
+  val In     = "in"
+  val Out    = "out"
+  val Inout  = "inout"
+  val Master = "master"
+  val Slave  = "slave"
+}
+
 /** SoCLess design-export schema.
   *
   * These case classes are the canonical JSON contract between the exporter and
@@ -136,7 +149,7 @@ object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
 
 case class PortDef(
   name:   String,
-  dir:    String,      // "master" | "slave" | "in" | "out" | "inout"
+  dir:    String,      // PortDir: In | Out | Inout | Master | Slave
   bundle: String,      // key into Design.bundles, or a primitive like "UInt<8>"
   doc:    String,
   source: SourceRef,
@@ -233,7 +246,7 @@ object BundleDef { implicit val rw: ReadWriter[BundleDef] = macroRW }
 case class FieldDef(
   name:  String,
   width: Int,
-  dir:   String,         // "out" (from producer) | "in"
+  dir:   String,         // PortDir: Out (from producer) | In
 )
 object FieldDef {
   // Tuple-style writer to keep JSON terse: ["addr", 32, "out"]

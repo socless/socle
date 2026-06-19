@@ -96,9 +96,9 @@ circuit Top :
       assert(dirs(("AXISlave_1", "io")) == "slave")
     }
 
-    test("non-AXI ports retain plain input/output direction") {
+    test("non-AXI ports retain plain in/out direction") {
       val dirs = portDirs("gcd.fir")
-      // GCD has a plain Decoupled IO - all ports should be "input" or "output",
+      // GCD has a plain Decoupled IO - all ports should be "in" or "out",
       // never "master" or "slave".
       val axiRoles = dirs.values.filter(v => v == "master" || v == "slave")
       assert(axiRoles.isEmpty)

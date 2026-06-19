@@ -47,18 +47,17 @@ object LayoutCore {
     * Receiving pins (instance inputs/slaves, boundary outputs) sit on WEST. */
   def sideFor(kind: String, dir: String): String = (kind, dir) match {
     // An FSM box is laid out exactly like an instance: an output pin drives
-    // rightward (EAST), everything else receives (WEST) (issue #210). The `dir`
-    // vocabulary (input/output/master/slave) is left as literals pending its own
-    // normalization pass (#218).
-    case (NodeKind.Inst, "output") | (NodeKind.Inst, "master") => PinSide.East
-    case (NodeKind.Fsm, "output")  | (NodeKind.Fsm, "master")  => PinSide.East
-    // A boundary "slave" comes from `input io` (AXI-aware portRole), so by
-    // this file's own convention it drives rightward like any boundary input.
-    // Without this case AXI slave boundary stubs fell through to WEST: their
-    // anti-parallel traffic always ties the side vote and the tie-break uses
-    // this declared side (issue #102).
-    case (NodeKind.Boundary, "input") | (NodeKind.Boundary, "slave") => PinSide.East
-    case _                                                            => PinSide.West
+    // rightward (EAST), everything else receives (WEST) (issue #210). `dir` is the
+    // canonical schema PortDir vocabulary (in/out/master/slave/inout).
+    case (NodeKind.Inst, PortDir.Out) | (NodeKind.Inst, PortDir.Master) => PinSide.East
+    case (NodeKind.Fsm, PortDir.Out)  | (NodeKind.Fsm, PortDir.Master)  => PinSide.East
+    // A boundary slave comes from `input io` (AXI-aware portRole), which maps to
+    // PortDir.In, so by this file's own convention it drives rightward like any
+    // boundary input. Without this case AXI slave boundary stubs fell through to
+    // WEST: their anti-parallel traffic always ties the side vote and the
+    // tie-break uses this declared side (issue #102).
+    case (NodeKind.Boundary, PortDir.In) | (NodeKind.Boundary, PortDir.Slave) => PinSide.East
+    case _                                                                     => PinSide.West
   }
 
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
@@ -116,7 +115,7 @@ object LayoutCore {
       val childMod = modulesByName.get(instOf.get.`type`)
       val portName = stripIdx(parts(1))
       val portDef  = childMod.flatMap(_.ports.find(_.name == portName))
-      val dir      = portDef.map(_.dir).getOrElse("input")
+      val dir      = portDef.map(_.dir).getOrElse(PortDir.In)
       val bundle   = portDef.map(_.bundle).getOrElse("Wire")
       Some(Endpoint(head, NodeKind.Inst, path, sideFor(NodeKind.Inst, dir), isInterfaceBundle(bundle, design)))
     } else {
@@ -148,13 +147,12 @@ object LayoutCore {
       if (opIds.contains(rawHead))
         return Some(Endpoint(rawHead, NodeKind.Op, path, PinSide.East, false))
       if (fsmIds.contains(rawHead) && parts.length >= 2) {
-        // Box pin direction lives in the stored region body's port list. An "out"
-        // pin drives rightward (EAST), an "in"/"inout" pin receives (WEST); the
+        // Box pin direction lives in the stored region body's port list. An out
+        // pin drives rightward (EAST), an in/inout pin receives (WEST); the
         // dataflow vote in `prepare` refines this, this is just the declared side.
         val pinName = stripIdx(parts(1))
-        val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse("in")
-        val mapped  = if (dir == "out") "output" else "input"
-        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, mapped), false))
+        val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse(PortDir.In)
+        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, dir), false))
       }
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not

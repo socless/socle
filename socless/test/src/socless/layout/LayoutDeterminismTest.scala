@@ -33,7 +33,7 @@ object LayoutDeterminismTest extends TestSuite {
   private val memMod = ModuleDef("Mem", "Mem", "", SourceRef.unknown,
     Seq(PortDef("io", "slave", "AXI4", "", SourceRef.unknown)), Nil, Nil, Metrics(0,0,0))
   private val topMod = ModuleDef("Top", "Top", "", SourceRef.unknown,
-    ports    = Seq(PortDef("done", "output", "UInt<1>", "", SourceRef.unknown)),
+    ports    = Seq(PortDef("done", "out", "UInt<1>", "", SourceRef.unknown)),
     children = Seq(InstanceDef("cpu", "Cpu", "", SourceRef.unknown),
                    InstanceDef("mem", "Mem", "", SourceRef.unknown)),
     wires    = Seq(

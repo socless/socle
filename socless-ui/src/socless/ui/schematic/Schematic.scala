@@ -9,7 +9,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef, NodeKind, PinSide}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide, PortDir}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -872,7 +872,7 @@ object Schematic {
               child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
             span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
             row.dir match {
-              case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == "out") "→" else "←")
+              case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == PortDir.Out) "→" else "←")
               case None    => emptyNode
             },
             if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", s"${row.width}b") else emptyNode,

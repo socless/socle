@@ -364,7 +364,7 @@ object IrWalk {
       case Some(existing) if existing.dir != dir =>
         // A reused pin driven in both directions is a true bidirectional
         // boundary: promote to "inout" rather than silently keeping the first.
-        pins(pin) = existing.copy(dir = "inout")
+        pins(pin) = existing.copy(dir = PortDir.Inout)
       case Some(_) => // same direction, keep
     }
 
@@ -387,8 +387,8 @@ object IrWalk {
       } else if (passthrough) {
         val inPin  = fsmPinName(w.to)   // external source feeds the FSM
         val outPin = fsmPinName(w.from) // FSM drives the external sink
-        addPin(inPin, "in")
-        addPin(outPin, "out")
+        addPin(inPin, PortDir.In)
+        addPin(outPin, PortDir.Out)
         internalWires += WireDef(from = outPin, to = inPin, bundle = "",
           label = "", source = SourceRef.unknown)
         newParentWires += WireDef(from = s"${f.id}.$inPin", to = w.to,
@@ -402,7 +402,7 @@ object IrWalk {
         // from outside => body INPUT.
         val external = if (fromMem) w.to else w.from
         val pin = fsmPinName(external)
-        val dir = if (toMem) "out" else "in"
+        val dir = if (toMem) PortDir.Out else PortDir.In
         addPin(pin, dir)
         val pinPath = s"${f.id}.$pin"
         newParentWires += (if (fromMem) w.copy(from = pinPath) else w.copy(to = pinPath))
@@ -487,8 +487,10 @@ object IrWalk {
     */
   private def portRole(dir: String, tpe: CType): String = tpe match {
     case BundleT(fs) if isAxi4(fs.map(_.name).toSet) =>
-      if (dir == "output") "master" else "slave"
-    case _ => dir // "input" or "output"
+      if (dir == "output") PortDir.Master else PortDir.Slave
+    // The single boundary converting the CHIRRTL input/output keyword into the
+    // schema's in/out vocabulary (issue #218); every non-AXI port routes here.
+    case _ => if (dir == "output") PortDir.Out else PortDir.In
   }
 
   // ── Bundles: register + return key ────────────────────────────────────────
@@ -514,12 +516,12 @@ object IrWalk {
 
     case VecT(elem, n) =>
       val (inner, _) = registerType(elem, dir, hint + "_elem", bundles)
-      (s"Vec[$inner, $n]", dir)
+      (s"Vec[$inner, $n]", portRole(dir, tpe))
 
-    case GroundT("UInt", Some(w)) => (s"UInt<$w>", dir)
-    case GroundT("SInt", Some(w)) => (s"SInt<$w>", dir)
-    case GroundT("UInt", None)    => ("UInt", dir)
-    case GroundT(other, _)        => (other, dir)
+    case GroundT("UInt", Some(w)) => (s"UInt<$w>", portRole(dir, tpe))
+    case GroundT("SInt", Some(w)) => (s"SInt<$w>", portRole(dir, tpe))
+    case GroundT("UInt", None)    => ("UInt", portRole(dir, tpe))
+    case GroundT(other, _)        => (other, portRole(dir, tpe))
   }
 
   /** Canonical structural rendering of a CHIRRTL type: field names, flips,
@@ -596,11 +598,11 @@ object IrWalk {
   private def flattenGround(t: CType, prefix: String): Seq[FieldDef] = t match {
     case BundleT(fs) =>
       fs.flatMap(f => flattenGround(f.tpe, if (prefix.isEmpty) f.name else s"$prefix.${f.name}"))
-    case GroundT("UInt", Some(w)) => Seq(FieldDef(prefix, w, "out"))
-    case GroundT("SInt", Some(w)) => Seq(FieldDef(prefix, w, "out"))
-    case GroundT("Clock", _)      => Seq(FieldDef(prefix, 1, "out"))
-    case GroundT("Reset", _)      => Seq(FieldDef(prefix, 1, "out"))
-    case GroundT(_, _)            => Seq(FieldDef(prefix, 0, "out"))
+    case GroundT("UInt", Some(w)) => Seq(FieldDef(prefix, w, PortDir.Out))
+    case GroundT("SInt", Some(w)) => Seq(FieldDef(prefix, w, PortDir.Out))
+    case GroundT("Clock", _)      => Seq(FieldDef(prefix, 1, PortDir.Out))
+    case GroundT("Reset", _)      => Seq(FieldDef(prefix, 1, PortDir.Out))
+    case GroundT(_, _)            => Seq(FieldDef(prefix, 0, PortDir.Out))
     case VecT(elem, n)            => (0 until n).flatMap(i => flattenGround(elem, s"$prefix[$i]"))
   }
 
