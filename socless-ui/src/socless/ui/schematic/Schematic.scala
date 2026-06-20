@@ -9,7 +9,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef, NodeKind, PinSide, PortDir, ModuleKind}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -25,10 +25,6 @@ object Schematic {
   // lives in the sibling [[SchematicGeom]] (#216); pull its members in unqualified
   // so the render half below reads as before.
   import SchematicGeom._
-
-  // Shared op/register label helpers (`stripQ`, `OpInRe`, `inRole`) live in
-  // [[LogicLabels]] so the Inspector agrees with the schematic (issue #188 B2).
-  import LogicLabels.{OpInRe, stripQ, inRole}
 
   /** Toggle an id in the single-select model: select it, or clear if it is
     * already selected. Shared by every clickable box/wire. */
@@ -75,7 +71,8 @@ object Schematic {
     var pendingFit = true   // armed on a real path change; performed once dims are known (issue #207)
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
-    def togglePort(p: String): Unit = expandedPortsVar.update(s => if (s(p)) s - p else s + p)
+    // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216).
+    val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar)
 
     // ── geometry signal ──
     def computeGeom(d: Design, mod: ModuleDef, engine: Option[LaidOut], expanded: Set[String]): Geom = {
@@ -278,18 +275,18 @@ object Schematic {
         val child = g.mod.children.find(_.name == n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (n.kind == NodeKind.Reg) regBox(g, n, top, boxActive(n.id), sel, hov)
+        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
-        else if (n.kind == NodeKind.Op) opBox(g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Op) SchematicBoxes.opBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
         // A collapsed FSM (issue #210): an instance-style box with boundary pins,
         // but non-drillable and tinted to read as a state machine. Intercepted
         // before the childless-boundary arm since it has no `children` entry.
-        else if (n.kind == NodeKind.Fsm) fsmBox(g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Fsm) SchematicBoxes.fsmBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
-        else if (child.isEmpty || n.kind == NodeKind.Boundary) boundaryStub(g, n, top, boxActive(n.id))
+        else if (child.isEmpty || n.kind == NodeKind.Boundary) SchematicBoxes.boundaryStub(boxCtx, g, n, top, boxActive(n.id))
         else {
           val ch         = child.get
           val childMod   = g.design.modules.find(_.name == ch.`type`)
@@ -333,8 +330,8 @@ object Schematic {
               ),
             ),
             // port rows
-            renderPortRows(g, n, boxInfo.westRows, PinSide.West, sel, hov),
-            renderPortRows(g, n, boxInfo.eastRows, PinSide.East, sel, hov),
+            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
+            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),
             // clock-input notch (bottom-left) and reset ring (bottom-right)
             opt(hasClock)(div(
               dataAttr("clk-cue") := n.id, title := "clock input",
@@ -385,7 +382,7 @@ object Schematic {
               svg.circle(sa("cx") := w.x2.toString, sa("cy") := w.y2.toString, sa("r") := "3.5",
                 sa("style") := s"fill:${Tokens.bg};stroke:$stroke;stroke-width:1.5",
                 svg.titleTag(s"unrouted wire: ${w.fromPath} ↔ ${w.toPath}"))
-            else if (w.bidir) bidirGlyph(w.points, stroke) else emptyNode,
+            else if (w.bidir) SchematicBoxes.bidirGlyph(w.points, stroke) else emptyNode,
           )
         },
         bySource.zipWithIndex.map { case ((x, y, count), _) =>
@@ -405,287 +402,6 @@ object Schematic {
       ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls
     }
 
-    // Bidirectional cue: a mid-wire opposed double-chevron (JS bidirChevrons).
-    def bidirGlyph(pts: Seq[(Double, Double)], stroke: String): ReactiveElement.Base = {
-      polylineMidpoint(pts) match {
-        case None => emptyNode.asInstanceOf[ReactiveElement.Base]
-        case Some((x, y, dx, dy)) =>
-          val px = -dy; val py = dx; val gap = 2.5; val s = 3.0; val w = 3.0
-          val tax = x + gap * dx; val tay = y + gap * dy
-          val tbx = x - gap * dx; val tby = y - gap * dy
-          val a = s"M ${tax - s * dx + w * px} ${tay - s * dy + w * py} L $tax $tay L ${tax - s * dx - w * px} ${tay - s * dy - w * py}"
-          val b = s"M ${tbx + s * dx + w * px} ${tby + s * dy + w * py} L $tbx $tby L ${tbx + s * dx - w * px} ${tby + s * dy - w * py}"
-          svg.path(sa("d") := a + " " + b, sa("style") := s"stroke:$stroke;stroke-width:1.3;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.9")
-      }
-    }
-
-    def polylineMidpoint(pts: Seq[(Double, Double)]): Option[(Double, Double, Double, Double)] = {
-      if (pts.length < 2) return None
-      val segLen = (1 until pts.length).map(i => math.hypot(pts(i)._1 - pts(i - 1)._1, pts(i)._2 - pts(i - 1)._2))
-      val total  = segLen.sum
-      if (total < 1e-6) return None
-      var half = total / 2
-      for (i <- segLen.indices) {
-        if (half <= segLen(i) || i == segLen.length - 1) {
-          val len = if (segLen(i) == 0) 1.0 else segLen(i)
-          val t = half / len
-          val (x0, y0) = pts(i); val (x1, y1) = pts(i + 1)
-          return Some((x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, (x1 - x0) / len, (y1 - y0) / len))
-        }
-        half -= segLen(i)
-      }
-      None
-    }
-
-    // ── register node (issue #188 B1) ──
-    // A naked flip-flop symbol (`LogicSymbols.ff`) with WEST `D` / EAST `Q` pins.
-    // The clock notch is intrinsic to the symbol, replacing the old box + corner
-    // clock triangle. Pins are still rendered via renderPortRows (Approach A) so
-    // wire anchoring is unchanged.
-    def regBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
-               sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
-      val c            = g.c
-      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
-      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      // Draw at the actual laid pin positions (same map the wires use).
-      val pinYMap = boxInfo.pinY(c.headerH, c.portPad, c.portStep)
-      val inYs   = boxInfo.westRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
-      val outY   = boxInfo.eastRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
-                     .headOption.getOrElse(boxInfo.boxH / 2)
-      val stroke = if (selectedHere) Tokens.accent else Tokens.ink2
-      // No D/Q labels: the flip-flop symbol + clock mark convey it (issue #203).
-      val westBlank = boxInfo.westRows.map(_.copy(label = ""))
-      val eastBlank = boxInfo.eastRows.map(_.copy(label = ""))
-      div(
-        dataAttr("logic-node") := n.id,
-        dataAttr("box-inst") := n.id,
-        dataAttr("symbol") := "ff",
-        dataAttr("pan-block") := "1",
-        title := s"register (${n.id})",
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-          s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-        LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
-        renderPortRows(g, n, westBlank, PinSide.West, sel, hov),
-        renderPortRows(g, n, eastBlank, PinSide.East, sel, hov),
-      )
-    }
-
-    // ── combinational op node (issue #188 B2) ──
-    // An instance-style box like a register, but the header badge shows the op
-    // glyph (`+`, `<`, `mux`, ...) and the WEST input pins are role-labelled
-    // (`sel`/`a`/`b`/`amt`) instead of the raw `~in<i>` encoding.
-    def opBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
-              sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
-      val c            = g.c
-      val op           = g.mod.logic.find(_.id == n.id).map(_.op).getOrElse("")
-      val glyph        = opGlyph(op)
-      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
-      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      // Tooltip must match the visible role label (issue #188 B2): the row's
-      // `path` is still the raw `<id>~in<i>`, so stripQ alone would show `in<i>`.
-      def westTitle(r: RowModel.Row): String = r.path match {
-        case OpInRe(_, i) => inRole(op, i.toInt)
-        case _            => stripQ(r.path)
-      }
-      val famTag = LogicSymbols.tag(op)
-      // Draw the symbol stubs at the ACTUAL laid pin positions - the same map the
-      // wires are routed to - so the symbol meets the wires exactly. The op's
-      // EAST output is laid at the center of its inputs by LayoutCore; there is
-      // no ad-hoc re-derivation here.
-      val pinYMap = boxInfo.pinY(c.headerH, c.portPad, c.portStep)
-      val inYs    = boxInfo.westRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
-      val outY    = boxInfo.eastRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
-                      .headOption.getOrElse(boxInfo.boxH / 2)
-      // Op nodes carry no visible pin labels: the symbol conveys the operation,
-      // and the input role / output type stay available on hover and in the
-      // Inspector (issue #203). Blank the row labels but keep the pins + stubs.
-      val westBlank = boxInfo.westRows.map(_.copy(label = ""))
-      val eastBlank = boxInfo.eastRows.map(_.copy(label = ""))
-      val stroke  = if (selectedHere) Tokens.accent else Tokens.ink2
-      val symbol  = LogicSymbols.familyOf(op) match {
-        case LogicSymbols.Mux   => LogicSymbols.mux(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
-        case LogicSymbols.Gate  => LogicSymbols.gate(op, negated = false, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
-        case LogicSymbols.Block => LogicSymbols.opBlock(glyph, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
-      }
-      div(
-        dataAttr("logic-node") := n.id,
-        dataAttr("box-inst") := n.id,
-        dataAttr("symbol") := famTag,
-        dataAttr("pan-block") := "1",
-        title := (if (op.nonEmpty) s"op $op (${n.id})" else s"op (${n.id})"),
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-          s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-        symbol,
-        renderPortRows(g, n, westBlank, PinSide.West, sel, hov, westTitle),
-        renderPortRows(g, n, eastBlank, PinSide.East, sel, hov),
-      )
-    }
-
-    // ── boundary stub box ──
-    def boundaryStub(g: Geom, n: LaidNodeR, top: Double, active: Boolean): ReactiveElement.Base = {
-      val hasLabel = n.ports.exists(_.label.nonEmpty)
-      div(
-        dataAttr("boundary-stub") := n.id,
-        dataAttr("pan-block") := "1",
-        title := n.id,
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
-          s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
-          s"background:${Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
-          s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-        if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
-        n.ports.map { p =>
-          val pw = if (p.interface) 8 else 3
-          val ph = if (p.interface) 12 else 6
-          val isWest = p.side == PinSide.West
-          val labelStyle = if (isWest) s"left:${pw + 3}px;text-align:left" else s"right:${pw + 3}px;text-align:right"
-          div(
-            div(title := stripQ(p.path),
-              styleAttr := s"position:absolute;left:${(p.x - n.x) - pw / 2.0}px;top:${(p.y - n.y) - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
-                s"background:${if (p.interface) Tokens.accent else Tokens.ink4};border-radius:${if (p.interface) 3 else 1}px;" +
-                (if (p.interface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px" else "")),
-            if (p.label.nonEmpty) span(
-              styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;font-family:${Tokens.mono};font-size:8.5px;" +
-                s"color:${if (p.interface) Tokens.ink2 else Tokens.ink3};white-space:nowrap;pointer-events:none;" +
-                s"max-width:${math.max(12.0, n.w - pw - 8)}px;overflow:hidden;text-overflow:ellipsis;line-height:10px",
-              stripQ(p.label)) else emptyNode,
-          )
-        },
-      )
-    }
-
-    // ── collapsed FSM box (issue #210) ──
-    // Shares the instance box shape (header + WEST/EAST pin rows) but is
-    // non-drillable: it represents a state machine collapsed into a single node,
-    // so there is nothing to drill into. Styled distinctly (accent tint + a
-    // double border) to read as an FSM, and tagged with `data-fsm` for ui-smoke.
-    def fsmBox(g: Geom, n: LaidNodeR, top: Double, active: Boolean,
-               sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
-      val c            = g.c
-      val label        = g.mod.logic.find(_.id == n.id).map(_.label).filter(_.nonEmpty).getOrElse(n.id)
-      val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
-      val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-      val borderCol    = if (selectedHere) Tokens.accent else Tokens.accentLine
-      // Double border (inset ring) + faint accent tint mark this as an FSM, while
-      // selection still promotes the outer border + shadow like other boxes.
-      val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}, inset 0 0 0 2px ${Tokens.accentLine}"
-                         else s"inset 0 0 0 2px ${Tokens.accentLine}"
-      div(
-        dataAttr("fsm") := n.id,
-        dataAttr("box-inst") := n.id,
-        dataAttr("pan-block") := "1",
-        title := s"FSM ($label)",
-        styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-          s"opacity:${if (active) "1" else "0.18"};" +
-          s"background:${Tokens.accentBg};border:1px solid $borderCol;border-radius:6px;" +
-          s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
-          "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
-        // header (no drill handler: an FSM box is non-drillable)
-        div(
-          styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.accentLine};" +
-            s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-          onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-          span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
-          span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
-        ),
-        renderPortRows(g, n, boxInfo.westRows, PinSide.West, sel, hov),
-        renderPortRows(g, n, boxInfo.eastRows, PinSide.East, sel, hov),
-      )
-    }
-
-    // ── port rows inside an instance box ──
-    def renderPortRows(g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String,
-                       sel: Option[String], hov: Option[String],
-                       titleOf: RowModel.Row => String = r => stripQ(r.path)): Seq[ReactiveElement.Base] = {
-      val c = g.c
-      val isWest = side == PinSide.West
-      // Draw each pin where the layout actually placed it (row.pinYBaked) so the
-      // dots line up with the wires and symbol stubs - including an op's output
-      // pin, laid at the center of its inputs. Only fall back to index positions
-      // once an expansion has re-flowed the rows.
-      val expanded = rows.exists(!_.isTopLevel)
-      rows.zipWithIndex.map { case (row, rowIdx) =>
-        val rowY = if (!expanded && row.isTopLevel) row.pinYBaked
-                   else c.headerH + c.portPad + rowIdx * c.portStep + c.portStep / 2
-        val indentPx = row.depth * 8
-        if (row.isTopLevel) {
-          val isInterface = row.isExpandable
-          val pw = if (isInterface) 8 else 3
-          val ph = if (isInterface) 12 else 6
-          val pinAbsX = if (isWest) 0.0 else n.w.toDouble
-          val pinSel = sel.exists(s => row.path.startsWith(s) || s.startsWith(row.path))
-          val pinHov = !pinSel && hov.exists(s => row.path.startsWith(s) || s.startsWith(row.path))
-          val pinBg  = if (pinSel) Tokens.accent else if (pinHov) Tokens.ink else if (isInterface) Tokens.accent else Tokens.ink3
-          val labelSide = if (isWest) s"left:${pw + 4 + indentPx}px" else s"right:${pw + 4 + indentPx}px"
-          div(
-            div(title := titleOf(row),
-              styleAttr := s"position:absolute;left:${pinAbsX - pw / 2.0}px;top:${rowY - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
-                s"background:$pinBg;border-radius:${if (isInterface) 3 else 1}px;" +
-                (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px;" else "") + "transition:background .12s"),
-            div(
-              dataAttr("pan-block") := "1",
-              if (row.isExpandable) dataAttr("bundle-toggle") := row.path else emptyMod,
-              styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (pw + 4 + indentPx) - 4)}px;" +
-                s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
-                s"font-family:${Tokens.mono};font-size:8.5px;color:${Tokens.ink2};white-space:nowrap;overflow:hidden;" +
-                s"pointer-events:${if (row.isExpandable) "auto" else "none"};cursor:${if (row.isExpandable) "pointer" else "default"}",
-              if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-              if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
-                child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-              span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
-            ),
-          )
-        } else {
-          val labelSide = if (isWest) s"left:${12 + indentPx}px" else s"right:${12 + indentPx}px"
-          div(
-            dataAttr("pan-block") := "1",
-            if (row.isExpandable) dataAttr("bundle-toggle") := row.path else emptyMod,
-            styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
-              s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
-              s"font-family:${Tokens.mono};font-size:8px;color:${Tokens.ink3};white-space:nowrap;overflow:hidden;" +
-              s"pointer-events:${if (row.isExpandable) "auto" else "none"};cursor:${if (row.isExpandable) "pointer" else "default"}",
-            if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
-              child.text <-- expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-            span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
-            row.dir match {
-              case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == PortDir.Out) "→" else "←")
-              case None    => emptyNode
-            },
-            if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", s"${row.width}b") else emptyNode,
-          )
-        }
-      }
-    }
-
-    // ── chrome (top-left chips) ──
-    def chrome(): Element =
-      div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
-        div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
-          child <-- moduleSig.map {
-            case Some(mod) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
-              span(styleAttr := s"color:${Tokens.ink4}", "module"), span(styleAttr := s"color:${Tokens.ink}", mod.`type`))
-            case None => emptyNode
-          },
-          child <-- moduleSig.map {
-            case Some(mod) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono}",
-              s"${mod.children.length} inst · ${mod.wires.length} connects")
-            case None => emptyNode
-          },
-          // Filter box (issue #121): dims non-matching boxes + wires.
-          div(styleAttr <-- filterVar.signal.map(f =>
-              s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-family:${Tokens.mono};font-size:11px"),
-            input(dataAttr("filter-input") := "1", placeholder := "filter…",
-              styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:inherit;font-size:11px;color:${Tokens.ink}",
-              controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
-              onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
-            child.maybe <-- filterVar.signal.map(f => if (f.nonEmpty)
-              Some(button(title := "Clear filter (Esc)", styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0",
-                onClick --> { _ => filterVar.set("") }, "×")) else None)),
-        ),
-      )
 
     // Run `capture` with selection/hover highlight cleared, then restore it, so a
     // selected net doesn't export a washed-out one-net view (issue #131). Laminar
@@ -698,42 +414,6 @@ object Schematic {
     def expW: Int = math.max(1, math.ceil(totalWVar.now()).toInt)
     def expH: Int = math.max(1, math.ceil(canvasHVar.now()).toInt)
 
-    // ── zoom / optimize controls (bottom-right) ──
-    val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
-    def controls(): Element =
-      div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:3;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-family:${Tokens.mono};font-size:11px",
-        button(dataAttr("optimize") := "1", title := "Re-layout to minimize wire length (in-browser elkjs, issue #167)",
-          styleAttr <-- Signal.combine(pendingVar.signal, engineVar.signal).map { case (p, e) =>
-            zbtn + s";color:${if (p) Tokens.ink4 else if (e.isDefined) Tokens.accent else Tokens.ink3};cursor:${if (p) "default" else "pointer"}" },
-          disabled <-- pendingVar.signal,
-          onClick --> { (_: dom.MouseEvent) => optNonceVar.update(_ + 1) },
-          child.text <-- pendingVar.signal.map(p => if (p) "…" else "optimize")),
-        // Show/hide Chisel verification-layer content, only offered when the
-        // current module actually has any (issue #212).
-        child.maybe <-- geomSig.map(_.exists(_.mod.logic.exists(_.layer))).map { has =>
-          if (!has) None
-          else Some(button(
-            dataAttr("toggle-layers") := "1",
-            styleAttr <-- showLayersVar.signal.map(s => zbtn + s";color:${if (s) Tokens.accent else Tokens.ink3}"),
-            title := "Show Chisel verification layers (assert / assume / cover)",
-            onClick --> { (_: dom.MouseEvent) => showLayersVar.update(!_) },
-            child.text <-- showLayersVar.signal.map(s => if (s) "layers ✓" else "layers")))
-        },
-        span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
-        button(styleAttr := zbtn, title := "Fit to view", onClick --> { (_: dom.MouseEvent) => doFit() }, "fit"),
-        button(styleAttr := zbtn, title := "Zoom out", onClick --> { (_: dom.MouseEvent) => zoomBy(0.8) }, "−"),
-        span(styleAttr := s"padding:3px 6px;color:${Tokens.ink2};min-width:38px;text-align:center",
-          child.text <-- zoomVar.signal.map(z => s"${math.round(z * 100)}%")),
-        button(styleAttr := zbtn, title := "Zoom in", onClick --> { (_: dom.MouseEvent) => zoomBy(1.25) }, "+"),
-        button(styleAttr := zbtn, title := "Reset to 100%", onClick --> { (_: dom.MouseEvent) => zoomVar.set(1.0); panVar.set((40.0, 40.0)) }, "1:1"),
-        span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
-        button(styleAttr := zbtn, dataAttr("export-svg") := "1", title := "Export schematic as SVG",
-          onClick --> { _ => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)) }, "svg"),
-        button(styleAttr := zbtn, dataAttr("export-png") := "1", title := "Export schematic as PNG (2x)",
-          onClick --> { _ => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)) }, "png"),
-        button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
-          onClick --> { _ => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) } }, "share"),
-      )
 
     val transformSig = Signal.combine(panVar.signal, zoomVar.signal, totalWVar.signal, canvasHVar.signal).map {
       case ((px, py), z, w, h) =>
@@ -752,38 +432,23 @@ object Schematic {
       panVar.set((vw / 2 - cx * z, vh / 2 - cy * z))
     }
 
-    // Minimap (issue #5): overview + draggable viewport rect, shown only when the
-    // content overflows the viewport at the current zoom.
-    def minimap(g: Geom, px: Double, py: Double, z: Double, vw: Double, vh: Double): Element = {
-      val maxW = 190.0; val maxH = 140.0
-      val s = math.min(maxW / g.layout.w, maxH / g.canvasH)
-      val w = math.max(1.0, g.layout.w * s); val h = math.max(1.0, g.canvasH * s)
-      val rx = (-px / z) * s; val ry = (-py / z) * s
-      val rw = (vw / z) * s;  val rh = (vh / z) * s
-      def centerAt(clientX: Double, clientY: Double, rect: dom.DOMRect): Unit = {
-        val mx = math.max(0.0, math.min(w, clientX - rect.left))
-        val my = math.max(0.0, math.min(h, clientY - rect.top))
-        centerOnContent(mx / s, my / s)
-      }
-      div(dataAttr("minimap") := "1", dataAttr("pan-block") := "1", title := "Click or drag to pan",
-        styleAttr := s"position:absolute;bottom:12px;left:12px;z-index:3;width:${w}px;height:${h}px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:4px;cursor:pointer;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.14)",
-        onMouseDown --> { (e: dom.MouseEvent) =>
-          if (e.button == 0) {
-            e.preventDefault(); e.stopPropagation()
-            val rect = e.currentTarget.asInstanceOf[dom.html.Element].getBoundingClientRect()
-            centerAt(e.clientX, e.clientY, rect)
-            lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => centerAt(ev.clientX, ev.clientY, rect)
-            lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
-              dom.window.removeEventListener("mousemove", moveL); dom.window.removeEventListener("mouseup", upL)
-            }
-            dom.window.addEventListener("mousemove", moveL); dom.window.addEventListener("mouseup", upL)
-          }
-        },
-        g.layout.nodes.map(n => div(styleAttr := s"position:absolute;left:${n.x * s}px;top:${n.y * s}px;width:${math.max(1.0, n.w * s)}px;height:${math.max(1.0, n.h * s)}px;background:${Tokens.ink4};opacity:0.45;border-radius:1px")),
-        div(dataAttr("minimap-viewport") := "1",
-          styleAttr := s"position:absolute;left:${rx}px;top:${ry}px;width:${rw}px;height:${rh}px;border:1.5px solid ${Tokens.accent};background:${Tokens.accentLine};box-sizing:border-box;pointer-events:none"),
-      )
-    }
+    // Wiring for the bottom-right controls (#216): read-only signals + action
+    // callbacks. The export/share actions keep their content-node + Export
+    // wiring here in render scope; [[SchematicChrome.controls]] only invokes them.
+    val ctrlCtx = SchematicChrome.ControlsCtx(
+      pendingSig    = pendingVar.signal,
+      engineSig     = engineVar.signal,
+      layerHasSig   = geomSig.map(_.exists(_.mod.logic.exists(_.layer))),
+      showLayersVar = showLayersVar,
+      zoomSig       = zoomVar.signal,
+      onOptimize    = () => optNonceVar.update(_ + 1),
+      onFit         = () => doFit(),
+      zoomBy        = (f: Double) => zoomBy(f),
+      onResetView   = () => { zoomVar.set(1.0); panVar.set((40.0, 40.0)) },
+      onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
+      onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
+      onShare       = () => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) },
+    )
 
     // ── pane root ──
     div(
@@ -791,7 +456,7 @@ object Schematic {
       dataAttr("layout-ready") <-- pendingVar.signal.map(p => if (p) "0" else "1"),
       cls := "scl-pane scl-pane-schematic",
       styleAttr := "flex:1;position:relative;overflow:hidden",
-      chrome(),
+      SchematicChrome.chrome(moduleSig, filterVar),
       div(
         styleAttr := "position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none",
         onMouseDown --> handlePanStart,
@@ -828,12 +493,12 @@ object Schematic {
           case _ => None
         },
       ),
-      controls(),
+      SchematicChrome.controls(ctrlCtx),
       // Minimap, shown only when content overflows the viewport at this zoom.
       child.maybe <-- Signal.combine(geomSig, panVar.signal, zoomVar.signal, viewSizeVar.signal).map {
         case (Some(g), (px, py), z, (vw, vh))
           if g.layout.nodes.nonEmpty && vw > 0 && (g.layout.w * z > vw + 1 || g.canvasH * z > vh + 1) =>
-          Some(minimap(g, px, py, z, vw, vh))
+          Some(SchematicChrome.minimap(g, px, py, z, vw, vh, centerOnContent))
         case _ => None
       },
       // keep totalW/canvasH mirrors + current module name in sync with geometry
