@@ -87,9 +87,19 @@ object Schematic {
       Geom(layout, mod, d, rows, wires, shift, canvasH, c, boxById)
     }
 
+    // Paths that are expanded unconditionally: scattered-bundle groups and any
+    // locked sub-group headers. Derived from the baked rows so it matches RowModel.
+    // The header/spacing constants are irrelevant to which paths are locked, so 0 is fine.
+    def lockedExpansions(d: Design, mod: ModuleDef): Set[String] = {
+      val baked = bakedOf(d, mod).getOrElse(LaidOut(Nil, Nil, 1, 1))
+      RowModel.build(baked, mod, d, Set.empty, 0, 0, 0)
+        .values.flatMap(br => (br.westRows ++ br.eastRows).filter(_.locked).map(_.path)).toSet
+    }
+
     val geomSig: Signal[Option[Geom]] =
       Signal.combine(designSig, moduleSig, engineVar.signal, expandedPortsVar.signal).map {
-        case (Some(d), Some(mod), engine, expanded) => Some(computeGeom(d, mod, engine, expanded))
+        case (Some(d), Some(mod), engine, expanded) =>
+          Some(computeGeom(d, mod, engine, expanded ++ lockedExpansions(d, mod)))
         case _                                      => None
       }
 
@@ -533,7 +543,8 @@ object Schematic {
         (t: (Option[Design], Option[ModuleDef], Set[String], Int)) =>
           val optimize = t._4 != lastNonce
           lastNonce = t._4
-          runEngine(t._1, t._2, t._3, optimize)
+          val eff = t._3 ++ (for { d <- t._1; m <- t._2 } yield lockedExpansions(d, m)).getOrElse(Set.empty)
+          runEngine(t._1, t._2, eff, optimize)
       },
     )
   }

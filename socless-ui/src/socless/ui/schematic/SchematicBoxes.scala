@@ -205,7 +205,17 @@ private[schematic] object SchematicBoxes {
       val rowY = if (!expanded && row.isTopLevel) row.pinYBaked
                  else c.headerH + c.portPad + rowIdx * c.portStep + c.portStep / 2
       val indentPx = row.depth * 8
-      if (row.isTopLevel) {
+      if (row.isGroupHeader) {
+        val labelSide = if (isWest) s"left:${12 + indentPx}px" else s"right:${12 + indentPx}px"
+        div(
+          dataAttr("bundle-group") := row.path,
+          dataAttr("bundle-group-dir") := (if (isWest) "in" else "out"),
+          dataAttr("pan-block") := "1",
+          styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;display:flex;align-items:center;height:16px;" +
+            s"font-family:${Tokens.mono};font-size:8.5px;font-weight:600;color:${Tokens.ink3};white-space:nowrap;pointer-events:none",
+          span(stripQ(row.label)),
+        )
+      } else if (row.isTopLevel) {
         val isInterface = row.isExpandable
         val pw = if (isInterface) 8 else 3
         val ph = if (isInterface) 12 else 6
@@ -221,28 +231,33 @@ private[schematic] object SchematicBoxes {
               (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px;" else "") + "transition:background .12s"),
           div(
             dataAttr("pan-block") := "1",
-            if (row.isExpandable) dataAttr("bundle-toggle") := row.path else emptyMod,
+            if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
             styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (pw + 4 + indentPx) - 4)}px;" +
               s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
               s"font-family:${Tokens.mono};font-size:8.5px;color:${Tokens.ink2};white-space:nowrap;overflow:hidden;" +
-              s"pointer-events:${if (row.isExpandable) "auto" else "none"};cursor:${if (row.isExpandable) "pointer" else "default"}",
-            if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
+              s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
+            if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
+            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
               child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
             span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
           ),
         )
       } else {
         val labelSide = if (isWest) s"left:${12 + indentPx}px" else s"right:${12 + indentPx}px"
+        val pinAbsX = if (isWest) 0.0 else n.w.toDouble
         div(
+          if (row.drawPin) div(
+            styleAttr := s"position:absolute;left:${pinAbsX - 1.5}px;top:${rowY - 3}px;width:3px;height:6px;" +
+              s"background:${Tokens.ink3};border-radius:1px"
+          ) else emptyNode,
           dataAttr("pan-block") := "1",
-          if (row.isExpandable) dataAttr("bundle-toggle") := row.path else emptyMod,
+          if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
           styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
             s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
             s"font-family:${Tokens.mono};font-size:8px;color:${Tokens.ink3};white-space:nowrap;overflow:hidden;" +
-            s"pointer-events:${if (row.isExpandable) "auto" else "none"};cursor:${if (row.isExpandable) "pointer" else "default"}",
-          if (row.isExpandable) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-          if (row.isExpandable) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
+            s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
+          if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
+          if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
             child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
           span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
           row.dir match {

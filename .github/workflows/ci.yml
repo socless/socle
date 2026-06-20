@@ -143,6 +143,9 @@ jobs:
       - name: Elaborate RegHeavy example
         run: ./mill example.soclessRunRegHeavy
 
+      - name: Elaborate Scatter example (#237 bundle direction split)
+        run: ./mill example.soclessRunScatter
+
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
       # (no Mill daemon) so it can be backgrounded and killed safely.

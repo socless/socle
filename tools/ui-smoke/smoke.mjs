@@ -194,6 +194,19 @@ for (const design of designs) {
   // Expand every bundle port in the top view.
   const toggles = await page.locator('[data-bundle-toggle]').all();
   console.log(`[${design}] ${toggles.length} bundle toggles in top view`);
+  // #237: a scattered bundle (fields wired to different peers) must render as
+  // locked in/out groups on the owning box, NOT as a replicated expandable
+  // bundle on every peer. The `scatter` design's producer `p.io` is the case:
+  // it should show an `in` group + an `out` group and zero bundle-toggles.
+  if (design === 'scatter') {
+    const groups = await page.$$eval('[data-bundle-group]', (els) =>
+      els.map((e) => e.getAttribute('data-bundle-group') + ':' + e.getAttribute('data-bundle-group-dir')));
+    const hasIn = groups.includes('p.io:in');
+    const hasOut = groups.includes('p.io:out');
+    if (!hasIn || !hasOut) note(design, 'scattered-groups (#237)', `expected p.io in+out bundle groups, got ${JSON.stringify(groups)}`);
+    else console.log(`[${design}] bundle groups: ${groups.join(', ')}`);
+    if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
+  }
   // #207: expanding a bundle must NOT reset the view (pan/zoom). Record the
   // content layer's transform before any expand and compare after: the box
   // grows (width/height change) but the transform (translate+scale) must hold.

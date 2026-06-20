@@ -359,6 +359,12 @@ object example extends ChiselToolchain {
     PathRef(runFor("layers.LayeredCounter", Task.dest, Task.log, runClasspath()))
   }
 
+  /** Scattered bundle (one port bundle whose fields fan to different peers) ->
+    * the in/out direction split (issue #237). */
+  def soclessRunScatter: T[PathRef] = Task {
+    PathRef(runFor("scatter.ScatterDemo", Task.dest, Task.log, runClasspath()))
+  }
+
   /** Elaborate the default design (AXI4) and open the UI in a browser.
     *
     * Extracts SoCLess.html from the runtime JAR, places design.json next to

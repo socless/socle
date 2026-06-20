@@ -24,6 +24,7 @@ const designs = [
   ['datapath',     'soclessRunRegHeavy',  'Datapath (register-heavy)'],
   ['fsm',          'soclessRunFsm',       'TrafficFsm (3-state FSM)'],
   ['layers',       'soclessRunLayers',    'LayeredCounter (verification layers)'],
+  ['scatter',      'soclessRunScatter',   'Scatter (bundle direction split)'],
 ];
 
 if (!existsSync(UI)) {

@@ -98,8 +98,12 @@ object LayoutCore {
     * name, or the FULL endpoint path for a boundary stub: since issue #68 each
     * external pin is its own per-path boundary node), `kind` is "inst" or
     * "boundary", `path` is the full endpoint path used as the pin id, `side`
-    * is "WEST"/"EAST", and `interface` flags aggregate bundles. */
-  case class Endpoint(nodeId: String, kind: String, path: String, side: String, interface: Boolean)
+    * is "WEST"/"EAST", and `interface` flags aggregate bundles. `bundle` is the
+    * pin's own-port bundle key (the instance/boundary port's declared type, or a
+    * register's registered type), or empty for bundleless logic nodes
+    * (const/op/fsm). */
+  case class Endpoint(nodeId: String, kind: String, path: String, side: String,
+                      interface: Boolean, bundle: String)
 
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
     * heads (those endpoints are dropped, as in IrWalk). */
@@ -117,7 +121,7 @@ object LayoutCore {
       val portDef  = childMod.flatMap(_.ports.find(_.name == portName))
       val dir      = portDef.map(_.dir).getOrElse(PortDir.In)
       val bundle   = portDef.map(_.bundle).getOrElse("Wire")
-      Some(Endpoint(head, NodeKind.Inst, path, sideFor(NodeKind.Inst, dir), isInterfaceBundle(bundle, design)))
+      Some(Endpoint(head, NodeKind.Inst, path, sideFor(NodeKind.Inst, dir), isInterfaceBundle(bundle, design), bundle))
     } else {
       // Intra-module logic nodes: registers (a D input pin `r`/`r.field` on WEST
       // and a Q output pin `r~q`/`r~q.field` on EAST) and constants (single EAST
@@ -134,25 +138,30 @@ object LayoutCore {
       val fsmIds   = module.logic.iterator.filter(_.kind == NodeKind.Fsm).map(_.id).toSet
       def regIface(id: String): Boolean =
         module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).exists(n => isInterfaceBundle(n.bundle, design))
+      def regBundle(id: String): String =
+        module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).map(_.bundle).getOrElse("")
       val rawHead = stripIdx(parts.head)
       if (rawHead.endsWith("~q") && regIds.contains(rawHead.dropRight(2)))
-        return Some(Endpoint(rawHead.dropRight(2), NodeKind.Reg, path, PinSide.East, regIface(rawHead.dropRight(2))))
+        return Some(Endpoint(rawHead.dropRight(2), NodeKind.Reg, path, PinSide.East, regIface(rawHead.dropRight(2)), regBundle(rawHead.dropRight(2))))
       if (regIds.contains(rawHead))
-        return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead)))
+        return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead), regBundle(rawHead)))
       if (constIds.contains(rawHead))
-        return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false))
+        return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false, ""))
       val inIdx = rawHead.indexOf("~in")
       if (inIdx > 0 && opIds.contains(rawHead.substring(0, inIdx)))
-        return Some(Endpoint(rawHead.substring(0, inIdx), NodeKind.Op, path, PinSide.West, false))
+        return Some(Endpoint(rawHead.substring(0, inIdx), NodeKind.Op, path, PinSide.West, false, ""))
       if (opIds.contains(rawHead))
-        return Some(Endpoint(rawHead, NodeKind.Op, path, PinSide.East, false))
+        return Some(Endpoint(rawHead, NodeKind.Op, path, PinSide.East, false, ""))
       if (fsmIds.contains(rawHead) && parts.length >= 2) {
         // Box pin direction lives in the stored region body's port list. An out
         // pin drives rightward (EAST), an in/inout pin receives (WEST); the
         // dataflow vote in `prepare` refines this, this is just the declared side.
         val pinName = stripIdx(parts(1))
         val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse(PortDir.In)
-        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, dir), false))
+        // FSM box pins carry no bundle: the synthesized region ports store no
+        // bundle key, so a pin reflects its own (bundleless) port rather than
+        // the wire's aggregate type (#237).
+        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, dir), false, ""))
       }
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
@@ -161,7 +170,7 @@ object LayoutCore {
         // and outputs on the right; wires then route backward or span the whole
         // canvas (issue #68). Per-pin stubs let ELK rank input-sources left and
         // output-sinks right with forward-flowing wires.
-        Endpoint(path, NodeKind.Boundary, path, sideFor(NodeKind.Boundary, p.dir), isInterfaceBundle(p.bundle, design))
+        Endpoint(path, NodeKind.Boundary, path, sideFor(NodeKind.Boundary, p.dir), isInterfaceBundle(p.bundle, design), p.bundle)
       }
     }
   }
@@ -227,19 +236,19 @@ object LayoutCore {
     val declaredOf = mutable.Map.empty[(String, String, String), String]
     val pinOrder   = mutable.LinkedHashMap.empty[(String, String), mutable.LinkedHashSet[String]]
 
-    def vote(ep: Endpoint, isSource: Boolean, wireBundleName: String): Unit = {
+    def vote(ep: Endpoint, isSource: Boolean): Unit = {
       val k = (ep.nodeId, ep.kind, ep.path)
       if (isSource) eastVotes(k) += 1 else westVotes(k) += 1
       ifaceOf(k) = ifaceOf(k) || ep.interface
       declaredOf(k) = ep.side
-      if (!bundleOf.contains(k) && wireBundleName.nonEmpty && wireBundleName != "Wire")
-        bundleOf(k) = wireBundleName
+      if (!bundleOf.contains(k) && ep.bundle.nonEmpty && ep.bundle != "Wire")
+        bundleOf(k) = ep.bundle
       pinOrder.getOrElseUpdate((ep.nodeId, ep.kind), mutable.LinkedHashSet.empty) += ep.path
     }
     // e.to is SOURCE; e.from is SINK.
     resolved.foreach { e =>
-      vote(e.to,   isSource = true,  e.w.bundle)
-      vote(e.from, isSource = false, e.w.bundle)
+      vote(e.to,   isSource = true)
+      vote(e.from, isSource = false)
     }
     // Ensure instances with no resolved wires still appear as empty boxes.
     module.children.foreach { c =>
