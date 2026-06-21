@@ -63,6 +63,13 @@ object IrWalk {
   private def isReadyValid(fields: Set[String]): Boolean =
     fields == Set("ready", "valid")
 
+  /** Render up to `max` names inline for a warning message, summarizing the rest
+    * as "(+N more)" so a design with many offenders stays readable. */
+  private def examples(names: Seq[String], max: Int = 5): String = {
+    val shown = names.take(max).mkString(", ")
+    if (names.size > max) s"$shown (+${names.size - max} more)" else shown
+  }
+
   def design(c: Circ): Design = {
     val bundles = new BundleReg
     // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
@@ -92,11 +99,38 @@ object IrWalk {
       }
       m.wires.count(w => w.bundle == "Wire" && !(isLogicEndpoint(w.from) || isLogicEndpoint(w.to)))
     }.sum
+    // Unconnected ports: a data port whose name never appears anywhere in its
+    // module body (the same `connected` heuristic the UI badge uses, issue #74).
+    // Blackbox ports default to connected=true in buildModule, so only real
+    // dangling pins are counted; this also folds in "driverless outputs" since an
+    // output that is never referenced is never driven. Clock and reset are excluded
+    // on purpose: they are driven by the parent at the instantiation site and being
+    // unused inside a combinational leaf is normal, not a defect, so flagging them
+    // would bury the genuine data-port findings in noise.
+    def isClockOrReset(p: PortDef): Boolean =
+      p.name == "clock" || p.name == "reset" ||
+      p.bundle == "Clock" || p.bundle == "Reset" || p.bundle == "AsyncReset"
+    val unconnectedPorts =
+      modules.flatMap(m =>
+        m.ports.iterator.filter(p => !p.connected && !isClockOrReset(p)).map(p => s"${m.name}.${p.name}"))
+    // Empty modules: a real `module` (not a blackbox extmodule/intmodule) that
+    // neither connects nor instantiates anything, so it contributes no dataflow.
+    val emptyModules =
+      c.modules.filter(m => m.kind == ModuleDecl.Module && m.conns.isEmpty && m.insts.isEmpty).map(_.name)
+
     val walkWarnings =
-      if (unresolved > 0)
+      (if (unresolved > 0)
         Seq(Warning("unresolved-endpoint", unresolved,
           s"$unresolved wire(s) had an unresolvable endpoint type and were labeled 'Wire'"))
-      else Seq.empty
+      else Seq.empty) ++
+      (if (unconnectedPorts.nonEmpty)
+        Seq(Warning("unconnected-port", unconnectedPorts.size,
+          s"${unconnectedPorts.size} unconnected port(s): ${examples(unconnectedPorts)}"))
+      else Seq.empty) ++
+      (if (emptyModules.nonEmpty)
+        Seq(Warning("empty-module", emptyModules.size,
+          s"${emptyModules.size} module(s) with no connects or instances: ${examples(emptyModules)}"))
+      else Seq.empty)
     Design(top = c.name, bundles = bundles.defs.toMap, modules = modules,
       warnings = c.warnings ++ walkWarnings, regions = regions)
   }

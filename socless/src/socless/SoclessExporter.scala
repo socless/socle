@@ -53,8 +53,18 @@ object SoclessExporter {
       s"[socless] wrote $outputPath - " +
       s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt$warnTxt"
     )
+    logWarnings(design)
     design
   }
+
+  /** Echo each structured warning to stderr at conversion time. This is the
+    * single place warnings are printed: the parser/IR-walk only accumulate them
+    * into `Design.warnings` (which also flows to design.json and the UI banner),
+    * so every channel agrees and nothing is printed twice. */
+  private def logWarnings(design: Design): Unit =
+    design.warnings.foreach(w =>
+      Console.err.println(s"[socless] [${w.kind}] ${w.message}${if (w.module.nonEmpty) s" (${w.module})" else ""}")
+    )
 
   /** Convert a CHIRRTL text string to a SoCLess `design.json` file.
     *
@@ -103,10 +113,12 @@ object SoclessExporter {
     val json   = upickle.default.write(design, indent = indent)
     writeAtomic(outputPath, json)
     val sourceTxt = if (design.sources.isEmpty) "" else s", ${design.sources.size} sources"
+    val warnTxt   = if (design.warnings.isEmpty) "" else s", ${design.warnings.map(_.count).sum} warnings"
     Console.err.println(
       s"[socless] wrote $outputPath - " +
-      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt"
+      s"${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts$sourceTxt$warnTxt"
     )
+    logWarnings(design)
     design
   }
 

@@ -37,6 +37,30 @@ object WarningsTest extends TestSuite {
        |    connect b, a
        |""".stripMargin
 
+  // `dangling` is never referenced in the body, so it stays unconnected; `a`/`b`
+  // are wired so the module is not flagged empty.
+  private val withDangling =
+    """|circuit T :
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    input dangling : UInt<8>
+       |    connect b, a
+       |""".stripMargin
+
+  // `Stub` is a real module with no connects and no instances -> empty-module.
+  // `T` wires its ports so it is the clean, non-empty baseline.
+  private val withEmptyModule =
+    """|circuit T :
+       |  module Stub :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    connect b, a
+       |""".stripMargin
+
   val tests = Tests {
 
     test("skipped partial connects and attach become structured warnings") {
@@ -52,6 +76,22 @@ object WarningsTest extends TestSuite {
     test("a clean design has no warnings") {
       val d = IrWalk.design(ChirrtlParser.parse(clean))
       assert(d.warnings.isEmpty)
+    }
+
+    test("a dangling port becomes an unconnected-port warning") {
+      val d = IrWalk.design(ChirrtlParser.parse(withDangling))
+      val byKind = d.warnings.map(w => w.kind -> w).toMap
+      assert(byKind.contains("unconnected-port"))
+      assert(byKind("unconnected-port").count == 1)
+      assert(byKind("unconnected-port").message.contains("T.dangling"))
+    }
+
+    test("a module with no connects or instances becomes an empty-module warning") {
+      val d = IrWalk.design(ChirrtlParser.parse(withEmptyModule))
+      val byKind = d.warnings.map(w => w.kind -> w).toMap
+      assert(byKind.contains("empty-module"))
+      assert(byKind("empty-module").count == 1)
+      assert(byKind("empty-module").message.contains("Stub"))
     }
 
     test("Design.warnings defaults to empty and round-trips through JSON") {

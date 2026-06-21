@@ -294,8 +294,9 @@ object ChirrtlParser {
           s"$skippedAttach attach statement(s) were skipped; those Analog nets are not represented"))
       else None,
     ).flatten
-    if (warnings.nonEmpty)
-      Console.err.println(s"[socless] ${warnings.map(_.message).mkString("; ")}")
+    // Warnings are not printed here: they ride in Circ.warnings -> Design.warnings
+    // and SoclessExporter.logWarnings echoes every kind to stderr once, so the
+    // console, design.json, and UI banner all agree (and nothing double-prints).
     Circ(circuitName, modules.toSeq, warnings)
   }
 

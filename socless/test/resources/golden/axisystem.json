@@ -7040,5 +7040,12 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
-  }
+  },
+  "warnings": [
+    {
+      "kind": "unconnected-port",
+      "count": 1,
+      "message": "1 unconnected port(s): AXISystem.io"
+    }
+  ]
 }
