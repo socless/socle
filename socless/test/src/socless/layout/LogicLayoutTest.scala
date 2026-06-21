@@ -70,6 +70,34 @@ object LogicLayoutTest extends TestSuite {
       assert(op.ports.exists(p => p.path == "sum" && p.side == "EAST"))
     }
 
+    test("op and reg nodes lay out compact (no wasted instance header band)") {
+      val src =
+        """circuit M :
+          |  module M :
+          |    input clock : Clock
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    output o : UInt<8>
+          |    reg r : UInt<8>, clock
+          |    node sum = add(a, b)
+          |    connect r, sum
+          |    connect o, r
+          |""".stripMargin
+      val d  = IrWalk.design(ChirrtlParser.parse(src))
+      val L  = Layout.layout(d.modules.find(_.name == "M").get, d)
+      val op = L.nodes.find(_.kind == "op").get   // 2 inputs + 1 output
+      val rg = L.nodes.find(_.kind == "reg").get  // D + Q
+      // A 2-input op was 112px tall and a reg 88px (HeaderH 28 + 2*PortPad +
+      // rows*PortStep); compact logic geometry drops the unused header band.
+      assert(op.h < 80)
+      assert(rg.h < 60)
+      // Every pin still sits inside the shorter box.
+      (op.ports ++ rg.ports).foreach { p =>
+        val node = L.nodes.find(_.ports.contains(p)).get
+        assert(p.y - node.y >= 0 && p.y - node.y <= node.h)
+      }
+    }
+
     test("const node is sized to its literal value, not the synthetic id") {
       val src =
         """circuit M :

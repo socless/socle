@@ -1,6 +1,7 @@
 package socless.ui.model
 
-import socless.schema.{Design, ModuleDef, BundleTree}
+import socless.schema.{Design, ModuleDef, BundleTree, NodeKind}
+import socless.layout.LayoutCore
 import socless.js.BrowserLayout.LaidOut
 
 /** Expansion row model for the schematic (issue #170 Phase B/C).
@@ -196,7 +197,13 @@ object RowModel {
       val westRows = buildRows("WEST")
       val eastRows = buildRows("EAST")
       val numRows  = math.max(1, math.max(westRows.length, eastRows.length))
-      val boxH     = headerH + 2 * portPad + numRows * portStep
+      // Op/reg logic nodes use LayoutCore's compact geometry (no header band), so
+      // their rendered height must match the shorter laid box, not the instance
+      // header+rows formula (issue #252). They never expand, so this stays stable.
+      val isLogic  = box.kind == NodeKind.Op || box.kind == NodeKind.Reg
+      val boxH =
+        if (isLogic) LayoutCore.LogicHeaderH + 2 * LayoutCore.LogicPortPad + numRows * LayoutCore.LogicPortStep
+        else headerH + 2 * portPad + numRows * portStep
       inst -> BoxRows(westRows, eastRows, boxH)
     }.toMap
   }

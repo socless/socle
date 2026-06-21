@@ -25,6 +25,14 @@ object LayoutCore {
   // not a header+label box, so they get a small fixed width and the symbol's
   // stubs reach the WEST/EAST pins closely instead of crossing a wide footprint.
   val LogicNodeW: Double = 80.0
+  // Logic nodes (op/reg) render as a centered symbol with NO header label band,
+  // so they use a tighter top margin and pin step than instance boxes - this
+  // keeps logic-heavy schematics compact instead of stacking module-sized boxes
+  // (issue #252). Height and pin Y in `prepare` use these in lockstep, and the
+  // UI's RowModel reads them for the op/reg box height so the two agree.
+  val LogicHeaderH: Double = 10.0
+  val LogicPortPad:  Double = 8.0
+  val LogicPortStep: Double = 18.0
   val PortStep: Double = 24.0
   val PortPad: Double  = 18.0
   /** Height of the component header band (name + type). */
@@ -362,12 +370,17 @@ object LayoutCore {
         // pin labels), so they use a small fixed width; real instances size to
         // their header + label columns (issue #203).
         val isLogic = kind == NodeKind.Op || kind == NodeKind.Reg
+        // Logic symbols carry no header band, so they use the tighter logic
+        // geometry; height and rowY below must use the SAME consts so every pin
+        // stays inside the shorter box (issue #252). Instances are unchanged.
+        val (hdr, pad, step) = if (isLogic) (LogicHeaderH, LogicPortPad, LogicPortStep) else (HeaderH, PortPad, PortStep)
         val w = if (isLogic) LogicNodeW
                 else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
-        val h = nodeHeight(west, east)
+        val h = if (isLogic) hdr + 2 * pad + math.max(1, math.max(west, east)) * step
+                else nodeHeight(west, east)
         // West and east pins are laid from their own row 0 via separate index sequences
         // (westPins.zipWithIndex / eastPins.zipWithIndex), so each side starts at row 0.
-        def rowY(r: Double): Double = HeaderH + PortPad + r * PortStep + PortStep / 2
+        def rowY(r: Double): Double = hdr + pad + r * step + step / 2
         // An op renders as a symbol whose single output leaves from the vertical
         // center of its DATA inputs; place its EAST pin there so the output is a
         // straight horizontal line and the inputs sit equidistant about it
