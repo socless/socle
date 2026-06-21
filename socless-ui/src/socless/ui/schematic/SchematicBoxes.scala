@@ -291,7 +291,8 @@ private[schematic] object SchematicBoxes {
   private def dirTriangle(boxW: Double, cy: Double, isWest: Boolean, pointsRight: Boolean, color: String): ReactiveElement.Base = {
     val s   = 5.0
     val len = 6.0
-    val baseX = if (isWest) 2.0 else boxW - 2.0
+    val offset = 6.0
+    val baseX = if (isWest) offset else boxW - len - offset
     val tipX  = if (pointsRight) baseX + len else baseX - len
     val d = s"M $baseX ${cy - s} L $tipX $cy L $baseX ${cy + s} Z"
     svg.svg(
