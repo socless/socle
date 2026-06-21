@@ -365,7 +365,8 @@ object LayoutCore {
         val w = if (isLogic) LogicNodeW
                 else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
         val h = nodeHeight(west, east)
-        // Independent row counters per side so WEST and EAST ports start at row 0.
+        // West and east pins are laid from their own row 0 via separate index sequences
+        // (westPins.zipWithIndex / eastPins.zipWithIndex), so each side starts at row 0.
         def rowY(r: Double): Double = HeaderH + PortPad + r * PortStep + PortStep / 2
         // An op renders as a symbol whose single output leaves from the vertical
         // center of its DATA inputs; place its EAST pin there so the output is a
@@ -373,24 +374,35 @@ object LayoutCore {
         // (#230). A mux select (in0) renders on top, so it is excluded from the
         // centering.
         val opName  = if (kind == NodeKind.Op) module.logic.find(_.id == id).map(_.op).getOrElse("") else ""
-        val westSeq = pins.values.filter(_.side == PinSide.West).toSeq
-        val dataRows = westSeq.zipWithIndex.collect {
+        // For op nodes, lay west pins in a deterministic order driven by the
+        // `~in<i>` index so the symbol's selector/operand assumptions hold
+        // regardless of `pins.values` iteration order (issue #246). Instances
+        // keep their existing order (only kind == Op is reordered).
+        val OpIn = """.*~in(\d+)$""".r
+        val isOp = kind == NodeKind.Op
+        val westPins = {
+          val ws = pins.values.filter(_.side == PinSide.West).toSeq
+          if (isOp) ws.sortBy(p => p.path match { case OpIn(i) => (i.toInt, p.path); case _ => (Int.MaxValue, p.path) })
+          else ws
+        }
+        val eastPins = pins.values.filter(_.side == PinSide.East).toSeq
+        // Output centers on the DATA inputs (every west pin except a mux select
+        // `~in0`, which renders on top), now over the deterministic order.
+        val dataRows = westPins.zipWithIndex.collect {
           case (p, i) if !(opName == "mux" && p.path.endsWith("~in0")) => i.toDouble
         }
         val opOutY  = if (dataRows.nonEmpty) rowY(dataRows.sum / dataRows.size) else rowY(0)
-        var westRow = 0; var eastRow = 0
-        val laidPins = pins.values.toSeq.map { p =>
+        def lay(p: PinSpec, rowIdx: Int): PreparedPin = {
           val portY =
-            if (kind == NodeKind.Op && p.side == PinSide.East) opOutY
-            else {
-              val rowIdx = if (p.side == PinSide.West) { val r = westRow; westRow += 1; r }
-                           else                   { val r = eastRow; eastRow += 1; r }
-              rowY(rowIdx.toDouble)
-            }
+            if (isOp && p.side == PinSide.East) opOutY
+            else rowY(rowIdx.toDouble)
           val portX = if (p.side == PinSide.East) w else 0.0
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
             BundleTree.isAggregateType(p.bundle, design))
         }
+        val laidPins =
+          westPins.zipWithIndex.map { case (p, i) => lay(p, i) } ++
+          eastPins.zipWithIndex.map { case (p, i) => lay(p, i) }
         PreparedNode(id, kind, w, h, laidPins)
       }
     }.toSeq

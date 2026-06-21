@@ -70,13 +70,13 @@ object LogicSymbols {
   private def fillStroke(stroke: String) = s"fill:${Tokens.panel};stroke:$stroke;stroke-width:1.4;stroke-linejoin:round"
 
   /** Mux trapezoid: data inputs on the tall left edge, the select entering the
-    * TOP of the symbol (issue #225). in0 is the select (see LogicLabels.inRole),
-    * so it is split off and routed over the top instead of sitting as another
-    * left input; the data inputs (in1, in2) shape the body. */
-  def mux(w: Double, h: Double, inYs: Seq[Double], outY: Double, stroke: String): ReactiveElement.Base = {
-    val (selY, dataYs) = inYs match {
-      case sel +: rest if rest.nonEmpty => (Some(sel), rest)
-      case _                            => (None, inYs)
+    * TOP of the symbol (issue #225/#246). `selY` is the select pin's Y (the pin
+    * whose path ends `~in0`), resolved by identity by the caller; the data
+    * inputs are the remaining west pins and shape/center the body. */
+  def mux(w: Double, h: Double, inYs: Seq[Double], selY: Option[Double], outY: Double, stroke: String): ReactiveElement.Base = {
+    val dataYs = selY match {
+      case Some(s) => inYs.filterNot(_ == s)
+      case None    => inYs
     }
     val b = bodyOf(w, 30.0, dataYs, outY)
     val k = math.min((b.bot - b.top) / 2 - 2, 9.0)

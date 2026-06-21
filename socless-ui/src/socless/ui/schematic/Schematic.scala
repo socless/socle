@@ -357,9 +357,21 @@ object Schematic {
         }
       }
 
-      // ── junctions (fan-out filled / fan-in hollow, issue #166) ──
-      val bySource = visWires.groupBy(_.toPath).values.filter(_.length > 1).map(ws => (ws.head.x1, ws.head.y1, ws.length)).toSeq
-      val bySink   = visWires.groupBy(_.fromPath).values.filter(_.length > 1).map(ws => (ws.head.x2, ws.head.y2, ws.length)).toSeq
+      // ── junctions (fan-out filled / fan-in hollow, issue #166; #247) ──
+      // Fan-out: many wires share ONE driver (fromPath) -> dot where routes
+      // diverge. Fan-in: many wires share ONE sink (toPath) -> dot where routes
+      // converge. Fall back to the shared endpoint when routes diverge
+      // immediately (no shared interior point).
+      val fanOut = visWires.groupBy(_.fromPath).values.filter(_.length > 1).map { ws =>
+        val pt = SchematicBoxes.branchPoint(ws.map(_.points).toSeq, fromStart = true)
+          .getOrElse((ws.head.x1, ws.head.y1))
+        (pt._1, pt._2, ws.length)
+      }.toSeq
+      val fanIn = visWires.groupBy(_.toPath).values.filter(_.length > 1).map { ws =>
+        val pt = SchematicBoxes.branchPoint(ws.map(_.points).toSeq, fromStart = false)
+          .getOrElse((ws.head.x2, ws.head.y2))
+        (pt._1, pt._2, ws.length)
+      }.toSeq
 
       // Field-level (split) wires render thinner so a scattered bundle reads as
       // many fine wires vs one bold bundle wire (issue #182).
@@ -395,12 +407,12 @@ object Schematic {
             else if (w.bidir) SchematicBoxes.bidirGlyph(w.points, stroke) else emptyNode,
           )
         },
-        bySource.zipWithIndex.map { case ((x, y, count), _) =>
+        fanOut.map { case (x, y, count) =>
           svg.circle(sa("data-junction") := "1", sa("cx") := x.toString, sa("cy") := y.toString, sa("r") := "3.5",
             sa("style") := s"fill:${Tokens.ink2};stroke:${Tokens.bg};stroke-width:1.5",
             svg.titleTag(s"$count-way fan-out"))
         },
-        bySink.zipWithIndex.map { case ((x, y, count), _) =>
+        fanIn.map { case (x, y, count) =>
           svg.circle(sa("data-fanin") := "1", sa("cx") := x.toString, sa("cy") := y.toString, sa("r") := "3.5",
             sa("style") := s"fill:${Tokens.bg};stroke:${Tokens.ink2};stroke-width:1.75",
             svg.titleTag(s"$count-way fan-in"))

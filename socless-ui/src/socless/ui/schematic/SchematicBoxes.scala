@@ -89,6 +89,11 @@ private[schematic] object SchematicBoxes {
     // no ad-hoc re-derivation here.
     val pinYMap = boxInfo.pinY(c.headerH, c.portPad, c.portStep)
     val inYs    = boxInfo.westRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
+    // The mux selector is identified by its path (`~in0`), never by position,
+    // so the top stub always binds the real selector (issue #246).
+    val selY = boxInfo.westRows.iterator
+      .filter(r => r.isTopLevel && r.path.endsWith("~in0"))
+      .flatMap(r => pinYMap.get(r.path)).toSeq.headOption
     val outY    = boxInfo.eastRows.iterator.filter(_.isTopLevel).flatMap(r => pinYMap.get(r.path)).toSeq
                     .headOption.getOrElse(boxInfo.boxH / 2)
     // Op nodes carry no visible pin labels: the symbol conveys the operation,
@@ -98,7 +103,7 @@ private[schematic] object SchematicBoxes {
     val eastBlank = boxInfo.eastRows.map(_.copy(label = ""))
     val stroke  = if (selectedHere) Tokens.accent else Tokens.ink2
     val symbol  = LogicSymbols.familyOf(op) match {
-      case LogicSymbols.Mux   => LogicSymbols.mux(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
+      case LogicSymbols.Mux   => LogicSymbols.mux(n.w.toDouble, boxInfo.boxH, inYs, selY, outY, stroke)
       case LogicSymbols.Gate  => LogicSymbols.gate(op, negated = false, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
       case LogicSymbols.Block => LogicSymbols.opBlock(glyph, n.w.toDouble, boxInfo.boxH, inYs, outY, stroke)
     }
@@ -218,7 +223,6 @@ private[schematic] object SchematicBoxes {
       } else if (row.isTopLevel) {
         val isInterface = row.isExpandable
         val pw = if (isInterface) 8 else 3
-        val ph = if (isInterface) 12 else 6
         val pinAbsX = if (isWest) 0.0 else n.w.toDouble
         val pinSel = sel.exists(s => row.path.startsWith(s) || s.startsWith(row.path))
         val pinHov = !pinSel && hov.exists(s => row.path.startsWith(s) || s.startsWith(row.path))
@@ -226,9 +230,11 @@ private[schematic] object SchematicBoxes {
         val labelSide = if (isWest) s"left:${pw + 4 + indentPx}px" else s"right:${pw + 4 + indentPx}px"
         div(
           div(title := titleOf(row),
-            styleAttr := s"position:absolute;left:${pinAbsX - pw / 2.0}px;top:${rowY - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
-              s"background:$pinBg;border-radius:${if (isInterface) 3 else 1}px;" +
-              (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px;" else "") + "transition:background .12s"),
+            styleAttr := s"position:absolute;left:${pinAbsX - (if (isInterface) 5.0 else 4.0)}px;top:${rowY - (if (isInterface) 5.0 else 4.0)}px;" +
+              s"width:${if (isInterface) 10 else 8}px;height:${if (isInterface) 10 else 8}px;" +
+              s"background:$pinBg;border-radius:50%;" +
+              (if (isInterface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:0;" else "") +
+              "transition:background .12s"),
           div(
             dataAttr("pan-block") := "1",
             if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
@@ -239,38 +245,70 @@ private[schematic] object SchematicBoxes {
             if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
             if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
               child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-            span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
+            span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
           ),
         )
       } else {
         val labelSide = if (isWest) s"left:${12 + indentPx}px" else s"right:${12 + indentPx}px"
         val pinAbsX = if (isWest) 0.0 else n.w.toDouble
+        // Static wrapper: the connection dot and direction triangle position
+        // against the NODE box, so they must be siblings of the label row, not
+        // children of it. The label row is position:absolute;overflow:hidden and
+        // only 16px tall, so anything nested inside it is clipped (issue #247).
         div(
           if (row.drawPin) div(
-            styleAttr := s"position:absolute;left:${pinAbsX - 1.5}px;top:${rowY - 3}px;width:3px;height:6px;" +
-              s"background:${Tokens.ink3};border-radius:1px"
+            styleAttr := s"position:absolute;left:${pinAbsX - 3.5}px;top:${rowY - 3.5}px;width:7px;height:7px;" +
+              s"background:${Tokens.ink3};border-radius:50%"
           ) else emptyNode,
-          dataAttr("pan-block") := "1",
-          if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
-          styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
-            s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
-            s"font-family:${Tokens.mono};font-size:8px;color:${Tokens.ink3};white-space:nowrap;overflow:hidden;" +
-            s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
-          if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-          if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
-            child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-          span(title := titleOf(row), styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1", stripQ(row.label)),
           row.dir match {
-            case Some(d) => span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", if (d == PortDir.Out) "→" else "←")
+            case Some(_) => dirTriangle(n.w.toDouble, rowY, isWest, flowPointsRight(row, isWest), Tokens.ink3)
             case None    => emptyNode
           },
-          if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", s"${row.width}b") else emptyNode,
+          div(
+            dataAttr("pan-block") := "1",
+            if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
+            styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
+              s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
+              s"font-family:${Tokens.mono};font-size:8px;color:${Tokens.ink3};white-space:nowrap;overflow:hidden;" +
+              s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
+            if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
+            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
+              child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
+            span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
+            if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", s"${row.width}b") else emptyNode,
+          ),
         )
       }
     }
   }
 
   // ── wire glyphs ──
+
+  // Small filled direction triangle drawn just inside the border at box-relative
+  // `cy`, pointing in signal-flow direction (issue #247). On the WEST border a
+  // signal flowing INTO the box points right; on the EAST border a signal
+  // flowing OUT points right. `pointsRight` encodes that decision.
+  private def dirTriangle(boxW: Double, cy: Double, isWest: Boolean, pointsRight: Boolean, color: String): ReactiveElement.Base = {
+    val s   = 5.0
+    val len = 6.0
+    val baseX = if (isWest) 2.0 else boxW - 2.0
+    val tipX  = if (pointsRight) baseX + len else baseX - len
+    val d = s"M $baseX ${cy - s} L $tipX $cy L $baseX ${cy + s} Z"
+    svg.svg(
+      sa("style") := s"position:absolute;left:0;top:0;width:${boxW}px;height:${cy + s + 2}px;overflow:visible;pointer-events:none",
+      svg.path(sa("d") := d, sa("style") := s"fill:$color;stroke:none"),
+    )
+  }
+
+  // Signal-flow direction for a row: true = points right (east). Out flows out
+  // of the box, In (and any non-Out dir) flows in; `dir` None falls back to the
+  // side default: WEST input points right, EAST output points right (both right).
+  private def flowPointsRight(row: RowModel.Row, isWest: Boolean): Boolean =
+    row.dir match {
+      case Some(PortDir.Out) => !isWest      // out: EAST points right (out), WEST points left
+      case Some(_)           => isWest       // in: WEST points right (in), EAST points left
+      case None              => true         // side default: WEST input and EAST output both flow right
+    }
 
   // Bidirectional cue: a mid-wire opposed double-chevron (JS bidirChevrons).
   def bidirGlyph(pts: Seq[(Double, Double)], stroke: String): ReactiveElement.Base = {
@@ -284,6 +322,32 @@ private[schematic] object SchematicBoxes {
         val b = s"M ${tbx + s * dx + w * px} ${tby + s * dy + w * py} L $tbx $tby L ${tbx + s * dx - w * px} ${tby + s * dy - w * py}"
         svg.path(sa("d") := a + " " + b, sa("style") := s"stroke:$stroke;stroke-width:1.3;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:.9")
     }
+  }
+
+  /** The branch point of a bundle of polylines that share one endpoint: the last
+    * coordinate common to all before the routes diverge (issue #247). `fromStart`
+    * scans from the shared-source end (fan-out); otherwise from the shared-sink
+    * end (fan-in). Returns None when there is no shared interior point (immediate
+    * divergence), letting the caller fall back to the shared endpoint. Tolerant
+    * to ~0.5px jitter. */
+  def branchPoint(polylines: Seq[Seq[(Double, Double)]], fromStart: Boolean): Option[(Double, Double)] = {
+    val lines = polylines.filter(_.nonEmpty)
+    if (lines.length < 2) return None
+    def at(p: Seq[(Double, Double)], i: Int): (Double, Double) = if (fromStart) p(i) else p(p.length - 1 - i)
+    val maxI = lines.map(_.length).min - 1
+    def same(a: (Double, Double), b: (Double, Double)): Boolean =
+      math.abs(a._1 - b._1) <= 0.5 && math.abs(a._2 - b._2) <= 0.5
+    var i = 0
+    var last: Option[(Double, Double)] = None
+    var diverged = false
+    while (i <= maxI && !diverged) {
+      val ref = at(lines.head, i)
+      if (lines.forall(l => same(at(l, i), ref))) { last = Some(ref); i += 1 }
+      else diverged = true
+    }
+    // `last` at i==1 is just the shared endpoint; only meaningful as a BRANCH
+    // when at least one shared interior point exists beyond it (i >= 2).
+    if (i >= 2) last else None
   }
 
   def polylineMidpoint(pts: Seq[(Double, Double)]): Option[(Double, Double, Double, Double)] = {

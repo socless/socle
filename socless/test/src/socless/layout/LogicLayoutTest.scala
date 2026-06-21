@@ -93,5 +93,27 @@ object LogicLayoutTest extends TestSuite {
       assert(box.kind == "fsm")
       assert(box.ports.nonEmpty)
     }
+
+    test("mux select in0 is laid as the topmost west pin") {
+      val src =
+        """circuit M :
+          |  module M :
+          |    input s : UInt<1>
+          |    input a : UInt<8>
+          |    input b : UInt<8>
+          |    output o : UInt<8>
+          |    node m = mux(s, a, b)
+          |    connect o, m
+          |""".stripMargin
+      val d = IrWalk.design(ChirrtlParser.parse(src))
+      val L = Layout.layout(d.modules.find(_.name == "M").get, d)
+      val op = L.nodes.find(_.kind == "op").get
+      val west = op.ports.filter(_.side == "WEST")
+      val in0 = west.find(_.path == "m~in0").get
+      // in0 (the select) must be the topmost west pin: no other west pin sits above it.
+      assert(west.forall(p => p.path == "m~in0" || p.y >= in0.y))
+      assert(west.exists(_.path == "m~in1"))
+      assert(west.exists(_.path == "m~in2"))
+    }
   }
 }
