@@ -42,6 +42,21 @@ object LayoutDebugTest extends TestSuite {
       assert(s.contains("""points="90,40 200,40""""))                      // edge polyline
       assert(s.contains("""cx="90""""))                                    // a.out pin dot
     }
+    test("svgFor arrowhead coords are locale-independent (no comma-decimal corruption)") {
+      // Float formatting via `%.1f` is locale-sensitive: under a comma-decimal
+      // locale (fr_FR) it emits `194,0` for 194.0, which silently corrupts the
+      // SVG `points` attribute (the comma reads as a coordinate separator) and
+      // turns a 6px arrowhead into a giant polygon. Force such a locale and
+      // assert every polygon point token is a clean `int,int` pair.
+      val saved = java.util.Locale.getDefault
+      try {
+        java.util.Locale.setDefault(java.util.Locale.FRANCE)
+        val s = LayoutDebug.svgFor("M", layout)
+        val polys = "<polygon points=\"([^\"]+)\"".r.findAllMatchIn(s).map(_.group(1)).toList
+        assert(polys.nonEmpty)
+        polys.foreach(p => p.split(" ").foreach(tok => assert(tok.split(",").length == 2)))
+      } finally java.util.Locale.setDefault(saved)
+    }
     test("CLI debug-layout reads a design.json and writes a dump dir") {
       def mod(n: String) =
         ModuleDef(n, n, "", SourceRef.unknown, Nil, Nil, Nil, Metrics(0, 0, 0))

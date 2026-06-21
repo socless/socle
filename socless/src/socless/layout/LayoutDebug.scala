@@ -167,8 +167,11 @@ object LayoutDebug {
     val nx = -uy; val ny = ux                       // unit normal
     val size = 6.0
     val bx = tx - ux * size; val by = ty - uy * size
-    val x1 = bx + nx * size / 2; val y1 = by + ny * size / 2
-    val x2 = bx - nx * size / 2; val y2 = by - ny * size / 2
-    f"""<polygon points="$tx,$ty $x1%.1f,$y1%.1f $x2%.1f,$y2%.1f" fill="$EdgeColor" stroke="none"/>""" + "\n"
+    // Round to integer pixels: sub-pixel precision is meaningless for a 6px
+    // glyph, and it keeps formatting locale-independent (a `%.1f` here emits a
+    // comma decimal under fr_FR, which corrupts the SVG points attribute).
+    val x1 = math.round(bx + nx * size / 2); val y1 = math.round(by + ny * size / 2)
+    val x2 = math.round(bx - nx * size / 2); val y2 = math.round(by - ny * size / 2)
+    s"""<polygon points="$tx,$ty $x1,$y1 $x2,$y2" fill="$EdgeColor" stroke="none"/>""" + "\n"
   }
 }
