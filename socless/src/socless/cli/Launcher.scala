@@ -242,26 +242,28 @@ object Launcher {
   private[socless] def runDebugLayout(args: Array[String]): Int = {
     if (args.headOption.exists(a => a == "--help" || a == "-h")) {
       println("usage: socless.cli.Launcher debug-layout <design.json> " +
-              "[--out DIR] [--module NAME] [--format svg|text|both]")
+              "[--out DIR] [--module NAME] [--format svg|text|both] [--max-px N]")
       return 0
     }
-    var json   = Option.empty[String]
-    var out    = Option.empty[String]
-    var module = Option.empty[String]
-    var format = "both"
+    var json    = Option.empty[String]
+    var out     = Option.empty[String]
+    var module  = Option.empty[String]
+    var format  = "both"
+    var maxPxStr = Option.empty[String]
     var i = 0
     var err = 0
     while (i < args.length && err == 0) {
       args(i) match {
-        case f @ ("--out" | "--module" | "--format") =>
+        case f @ ("--out" | "--module" | "--format" | "--max-px") =>
           if (i + 1 >= args.length || args(i + 1).startsWith("-")) {
             Console.err.println(s"[socless] debug-layout: $f requires a value"); err = 2
           } else {
             val v = args(i + 1)
             f match {
-              case "--out"    => out    = Some(v)
-              case "--module" => module = Some(v)
-              case "--format" => format = v
+              case "--out"    => out      = Some(v)
+              case "--module" => module   = Some(v)
+              case "--format" => format   = v
+              case "--max-px" => maxPxStr = Some(v)
             }
             i += 2
           }
@@ -275,6 +277,12 @@ object Launcher {
     }
     if (!Set("svg", "text", "both").contains(format)) {
       Console.err.println(s"[socless] debug-layout: --format must be svg|text|both (got '$format')"); return 2
+    }
+    val maxPx = maxPxStr match {
+      case None    => 0
+      case Some(s) => s.toIntOption.filter(_ >= 0).getOrElse {
+        Console.err.println(s"[socless] debug-layout: --max-px must be a non-negative integer (got '$s')"); return 2
+      }
     }
     val jsonPath = Path(jsonStr, os.pwd)
     if (!os.exists(jsonPath)) { Console.err.println(s"[socless] debug-layout: file not found: $jsonPath"); return 1 }
@@ -295,7 +303,7 @@ object Launcher {
       case _ =>
     }
     val outDir  = out.map(Path(_, os.pwd)).getOrElse(jsonPath / os.up / "layout-debug")
-    val written = LayoutDebug.dump(design, outDir, module, format)
+    val written = LayoutDebug.dump(design, outDir, module, format, maxPx)
     if (module.isDefined && written.isEmpty) {
       Console.err.println(s"[socless] debug-layout: module '${module.get}' has no baked layout; nothing written")
       return 1

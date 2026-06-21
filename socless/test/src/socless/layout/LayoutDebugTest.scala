@@ -57,6 +57,29 @@ object LayoutDebugTest extends TestSuite {
         polys.foreach(p => p.split(" ").foreach(tok => assert(tok.split(",").length == 2)))
       } finally java.util.Locale.setDefault(saved)
     }
+    test("svgFor box titles omit coordinate annotations (coords live in the txt)") {
+      val s = LayoutDebug.svgFor("M", layout)
+      assert(!s.contains("(10,20"))        // node 'a' coord annotation gone from the SVG
+      assert(s.contains(">a</text>"))      // the node id is still drawn as the title
+    }
+    test("svgFor draws boundary stubs with the pin label only, not a redundant id title") {
+      val bl = ModuleLayout(
+        nodes = Seq(LaidNode("io.foo", "boundary", 0, 0, 118, 28,
+          Seq(LaidPort("io.foo", 0, 14, "EAST", interface = false, label = "foo")))),
+        edges = Nil, w = 130, h = 40)
+      val s = LayoutDebug.svgFor("B", bl)
+      assert(s.contains(">foo</text>"))    // the pin label is drawn
+      assert(!s.contains(">io.foo</text>"))// no separate full-path id title on the box
+    }
+    test("svgFor caps rendered width/height with maxPx but keeps a full-resolution viewBox") {
+      val capped = LayoutDebug.svgFor("M", layout, maxPx = 100)
+      assert(capped.contains("""viewBox="0 0 320 110""""))  // full coords preserved
+      assert(capped.contains("""width="100""""))            // 320 scaled to maxPx
+      assert(capped.contains("""height="34""""))            // 110 * 100/320 = 34.4 -> 34
+      val uncapped = LayoutDebug.svgFor("M", layout)        // default: no cap
+      assert(uncapped.contains("""width="320""""))
+      assert(uncapped.contains("""height="110""""))
+    }
     test("CLI debug-layout reads a design.json and writes a dump dir") {
       def mod(n: String) =
         ModuleDef(n, n, "", SourceRef.unknown, Nil, Nil, Nil, Metrics(0, 0, 0))
@@ -79,6 +102,9 @@ object LayoutDebugTest extends TestSuite {
       // Usage errors (bad module / bad format) -> exit 2, no crash.
       assert(socless.cli.Launcher.runDebugLayout(Array(json.toString, "--module", "BOGUS")) == 2)
       assert(socless.cli.Launcher.runDebugLayout(Array(json.toString, "--format", "pdf")) == 2)
+      // --max-px: non-integer is a usage error; a valid value still succeeds.
+      assert(socless.cli.Launcher.runDebugLayout(Array(json.toString, "--max-px", "abc")) == 2)
+      assert(socless.cli.Launcher.runDebugLayout(Array(json.toString, "--out", out.toString, "--max-px", "200")) == 0)
 
       // A real module with no baked layout -> nonzero, no silent empty success.
       val noLay = dir / "nolay.json"

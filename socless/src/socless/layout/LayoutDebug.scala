@@ -57,15 +57,35 @@ object LayoutDebug {
   private def esc(s: String): String =
     s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
 
+  /** Approx number of monospace glyphs that fit in `px` pixels at font-size 10. */
+  private def charsFor(px: Int): Int = px / 6
+
+  /** Trim a label to `maxChars` glyphs, marking elision with an ellipsis, so a
+    * long id/label cannot overflow its box or collide with the opposite pin. */
+  private def truncate(s: String, maxChars: Int): String =
+    if (maxChars < 1) "" else if (s.length <= maxChars) s else s.take(math.max(maxChars - 1, 0)) + "…"
+
   /** A self-contained debug SVG of one module's baked layout. A `HeaderH`-tall
     * strip at the top carries the title + legend; all baked-coordinate content
-    * is drawn in a group translated down by `HeaderH` so it never overlaps. */
-  def svgFor(name: String, layout: ModuleLayout): String = {
-    val w  = math.max(layout.w, 1)
-    val h  = math.max(layout.h, 1)
+    * is drawn in a group translated down by `HeaderH` so it never overlaps.
+    *
+    * `maxPx` (0 = unbounded) caps the rendered pixel size: when the larger
+    * dimension exceeds it, the SVG `width`/`height` shrink proportionally while
+    * the `viewBox` keeps full-resolution coordinates, so huge canvases stay
+    * viewable without altering geometry. */
+  def svgFor(name: String, layout: ModuleLayout, maxPx: Int = 0): String = {
+    val w     = math.max(layout.w, 1)
+    val h     = math.max(layout.h, 1)
+    val fullW = w
+    val fullH = h + HeaderH
+    val (dispW, dispH) =
+      if (maxPx > 0 && math.max(fullW, fullH) > maxPx) {
+        val sc = maxPx.toDouble / math.max(fullW, fullH)
+        (math.max(math.round(fullW * sc).toInt, 1), math.max(math.round(fullH * sc).toInt, 1))
+      } else (fullW, fullH)
     val sb = new StringBuilder
-    sb.append(s"""<svg xmlns="http://www.w3.org/2000/svg" width="$w" height="${h + HeaderH}" """)
-      .append(s"""viewBox="0 0 $w ${h + HeaderH}" font-family="monospace" font-size="10">""").append('\n')
+    sb.append(s"""<svg xmlns="http://www.w3.org/2000/svg" width="$dispW" height="$dispH" """)
+      .append(s"""viewBox="0 0 $fullW $fullH" font-family="monospace" font-size="10">""").append('\n')
 
     // Header strip: title + legend.
     sb.append(s"""<rect x="0" y="0" width="$w" height="$HeaderH" fill="#fafafa" stroke="#ddd"/>""").append('\n')
@@ -100,20 +120,33 @@ object LayoutDebug {
     }
     sb.append("</g>").append('\n')
 
-    // Boxes + pins on top.
+    // Boxes + pins on top. Coordinates are intentionally NOT drawn here (they
+    // overflow narrow boxes and collide with pins); the .txt dump carries them.
     for (n <- layout.nodes) {
-      val fill = Palette.getOrElse(n.kind, "#eeeeee")
+      val fill       = Palette.getOrElse(n.kind, "#eeeeee")
+      val isBoundary = n.kind == "boundary"
       sb.append(s"""<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" fill="$fill" stroke="$NodeStroke"/>""").append('\n')
-      sb.append(s"""<text x="${n.x + 3}" y="${n.y + 11}" fill="$TextColor">""")
-        .append(esc(s"${n.id} (${n.x},${n.y} ${n.w}x${n.h})")).append("</text>").append('\n')
+      // A boundary stub is a single port: its pin label already shows the path,
+      // so an id title would just collide with it inside the tiny box.
+      if (!isBoundary) {
+        val title = truncate(n.id, charsFor(n.w - 6))
+        if (title.nonEmpty)
+          sb.append(s"""<text x="${n.x + 3}" y="${n.y + 11}" fill="$TextColor">""")
+            .append(esc(title)).append("</text>").append('\n')
+      }
       for (p <- n.ports) {
         val col = if (p.side == "WEST") WestColor else EastColor
         val r   = if (p.interface) "4" else "2.5"
         sb.append(s"""<circle cx="${p.x}" cy="${p.y}" r="$r" fill="$col"/>""").append('\n')
         val (tx, anchor) = if (p.side == "WEST") (p.x + 5, "start") else (p.x - 5, "end")
-        val lbl = if (p.label.nonEmpty) p.label else p.path.split('.').lastOption.getOrElse(p.path)
-        sb.append(s"""<text x="$tx" y="${p.y + 3}" text-anchor="$anchor" fill="$col">""")
-          .append(esc(lbl)).append("</text>").append('\n')
+        val raw = if (p.label.nonEmpty) p.label else p.path.split('.').lastOption.getOrElse(p.path)
+        // A single-pin boundary box owns its full width; elsewhere two pins
+        // share a row, so budget each label to half the box.
+        val budget = if (isBoundary) charsFor(n.w - 8) else charsFor(n.w / 2 - 8)
+        val lbl    = truncate(raw, budget)
+        if (lbl.nonEmpty)
+          sb.append(s"""<text x="$tx" y="${p.y + 3}" text-anchor="$anchor" fill="$col">""")
+            .append(esc(lbl)).append("</text>").append('\n')
       }
     }
 
@@ -130,7 +163,7 @@ object LayoutDebug {
     * with no baked layout are skipped (and counted to stderr). Returns the
     * paths written, in module order. */
   def dump(design: Design, outDir: os.Path,
-           moduleFilter: Option[String], format: String): Seq[os.Path] = {
+           moduleFilter: Option[String], format: String, maxPx: Int = 0): Seq[os.Path] = {
     os.makeDir.all(outDir)
     val wantSvg  = format == "svg"  || format == "both"
     val wantText = format == "text" || format == "both"
@@ -141,7 +174,7 @@ object LayoutDebug {
       val key = design.layoutOf.getOrElse(m.name, m.name)
       design.layouts.get(key) match {
         case Some(layout) =>
-          if (wantSvg)  { val p = outDir / s"${safe(m.name)}.svg"; os.write.over(p, svgFor(m.name, layout));  written += p }
+          if (wantSvg)  { val p = outDir / s"${safe(m.name)}.svg"; os.write.over(p, svgFor(m.name, layout, maxPx));  written += p }
           if (wantText) { val p = outDir / s"${safe(m.name)}.txt"; os.write.over(p, textFor(m.name, layout)); written += p }
         case None => skipped += 1
       }
