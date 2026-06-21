@@ -60,6 +60,7 @@ object Launcher {
       |  convert     --fir-input <path> ...  Convert a CHIRRTL .fir file (no Chisel needed).
       |  dump        --top <fqcn> --chirrtl-out <path>   Emit raw CHIRRTL and stop.
       |  serve       serve [server options]  Standalone loopback UI server (no Mill, no Python).
+      |  debug-layout <design.json> ...     Render baked layout geometry to SVG + text (no UI).
       |
       |Export flags (elaborate / convert / dump):
       |  --top <fqcn>         design to elaborate: a no-arg class, an object's apply()/build(),
@@ -234,10 +235,80 @@ object Launcher {
       sys.exit(3)
     }
 
+  /** `debug-layout <design.json> [--out DIR] [--module NAME] [--format svg|text|both]`
+    * Render the baked layout geometry of an already-emitted design.json to
+    * per-module debug SVG + text, with no UI. Returns a process exit code.
+    * Free of sys.exit so tests can call it directly. */
+  private[socless] def runDebugLayout(args: Array[String]): Int = {
+    if (args.headOption.exists(a => a == "--help" || a == "-h")) {
+      println("usage: socless.cli.Launcher debug-layout <design.json> " +
+              "[--out DIR] [--module NAME] [--format svg|text|both]")
+      return 0
+    }
+    var json   = Option.empty[String]
+    var out    = Option.empty[String]
+    var module = Option.empty[String]
+    var format = "both"
+    var i = 0
+    var err = 0
+    while (i < args.length && err == 0) {
+      args(i) match {
+        case f @ ("--out" | "--module" | "--format") =>
+          if (i + 1 >= args.length || args(i + 1).startsWith("-")) {
+            Console.err.println(s"[socless] debug-layout: $f requires a value"); err = 2
+          } else {
+            val v = args(i + 1)
+            f match {
+              case "--out"    => out    = Some(v)
+              case "--module" => module = Some(v)
+              case "--format" => format = v
+            }
+            i += 2
+          }
+        case a if !a.startsWith("-") && json.isEmpty => json = Some(a); i += 1
+        case a => Console.err.println(s"[socless] debug-layout: unrecognized argument '$a'"); err = 2
+      }
+    }
+    if (err != 0) return err
+    val jsonStr = json.getOrElse {
+      Console.err.println("[socless] debug-layout: a <design.json> path is required"); return 2
+    }
+    if (!Set("svg", "text", "both").contains(format)) {
+      Console.err.println(s"[socless] debug-layout: --format must be svg|text|both (got '$format')"); return 2
+    }
+    val jsonPath = Path(jsonStr, os.pwd)
+    if (!os.exists(jsonPath)) { Console.err.println(s"[socless] debug-layout: file not found: $jsonPath"); return 1 }
+    val design =
+      try upickle.default.read[Design](os.read(jsonPath))
+      catch { case e: Exception =>
+        Console.err.println(s"[socless] debug-layout: could not parse $jsonPath: ${e.getMessage}"); return 1
+      }
+    if (design.layouts.isEmpty) {
+      Console.err.println(s"[socless] debug-layout: $jsonPath has no baked layouts " +
+                          "(re-export with a current socless)"); return 1
+    }
+    module match {
+      case Some(mn) if !design.modules.exists(_.name == mn) =>
+        Console.err.println(s"[socless] debug-layout: no module '$mn'. Available: " +
+                            design.modules.map(_.name).mkString(", "))
+        return 2
+      case _ =>
+    }
+    val outDir  = out.map(Path(_, os.pwd)).getOrElse(jsonPath / os.up / "layout-debug")
+    val written = LayoutDebug.dump(design, outDir, module, format)
+    if (module.isDefined && written.isEmpty) {
+      Console.err.println(s"[socless] debug-layout: module '${module.get}' has no baked layout; nothing written")
+      return 1
+    }
+    Console.err.println(s"[socless] debug-layout: wrote ${written.size} file(s) to $outDir")
+    0
+  }
+
   def main(args: Array[String]): Unit = {
     // `serve` subcommand: a standalone, Mill/Python-free UI server (issue
     // #115). Anything else is the flag-based elaborate / convert path.
     if (args.headOption.contains("serve")) { Serve.run(args.tail); return }
+    if (args.headOption.contains("debug-layout")) sys.exit(runDebugLayout(args.tail))
     parseArgs(args) match {
       case Left("help") =>
         println(HelpText)

@@ -29,6 +29,11 @@ mill example.soclessRunIoBundles # Vec-of-bundle ports (Interconnect)
 mill example.soclessRunRegHeavy  # Register-heavy design (Datapath)
 mill show example.soclessRun     # Print path to emitted design.json
 
+# Inspect baked layout geometry headlessly (no UI)
+mill example.soclessDebugLayout          # dump default design's per-module SVG + text
+mill myDesign.soclessDebugLayout         # in a user project
+./mill socless.runMain socless.cli.Launcher debug-layout design.json --out dump   # any design.json
+
 # In user projects after publishing
 mill myDesign.socless             # Elaborate + emit design.json
 mill myDesign.soclessUI           # Serve UI locally (default port 8765)

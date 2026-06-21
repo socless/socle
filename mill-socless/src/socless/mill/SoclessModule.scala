@@ -188,6 +188,26 @@ trait SoclessModule extends ScalaModule {
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
+  /** Render the elaborated design's baked layout geometry to per-module debug
+    * SVG + text (no UI/browser). Forks `Launcher debug-layout` on the emitted
+    * design.json. Returns the output directory.
+    *
+    *   mill myDesign.soclessDebugLayout            # writes design.json's layout to SVG + text
+    *   mill show myDesign.soclessDebugLayout       # print the output directory path
+    */
+  def soclessDebugLayout: T[PathRef] = Task {
+    val json   = socless().path
+    val outDir = Task.dest / "layout-debug"
+    val cpStr  = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val rc = os.proc(
+      "java", "-cp", cpStr, "socless.cli.Launcher", "debug-layout",
+      json.toString, "--out", outDir.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) throw new RuntimeException(s"socless debug-layout exited ${rc.exitCode}")
+    Task.log.info(s"[socless] layout-debug -> $outDir")
+    PathRef(outDir)
+  }
+
   // ---------------------------------------------------------------------------
   // Shared helpers
   // ---------------------------------------------------------------------------

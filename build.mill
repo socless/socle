@@ -365,6 +365,20 @@ object example extends ChiselToolchain {
     PathRef(runFor("scatter.ScatterDemo", Task.dest, Task.log, runClasspath()))
   }
 
+  /** Dump the default design's baked layout to debug SVG + text (no UI). */
+  def soclessDebugLayout: T[PathRef] = Task {
+    val json   = soclessRun().path
+    val outDir = Task.dest / "layout-debug"
+    val cpStr  = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val rc = os.proc(
+      "java", "-cp", cpStr, "socless.cli.Launcher", "debug-layout",
+      json.toString, "--out", outDir.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) throw new RuntimeException(s"socless debug-layout exited ${rc.exitCode}")
+    Task.log.info(s"[socless] layout-debug -> $outDir")
+    PathRef(outDir)
+  }
+
   /** Elaborate the default design (AXI4) and open the UI in a browser.
     *
     * Extracts SoCLess.html from the runtime JAR, places design.json next to
