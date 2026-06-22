@@ -87,7 +87,7 @@ object Schematic {
       val pinYMap = rows.map { case (i, br) => i -> br.pinY(c.headerH, c.portPad, c.portStep) }
       val boxById = layout.nodes.map(n => n.id -> n).toMap
       val shift   = computeBoxShift(layout, rows)
-      val wires   = buildWires(displayWires(mod), layout, boxById, pinYMap, shift)
+      val wires   = buildWires(displayWires(mod, expanded), layout, boxById, pinYMap, shift)
       val canvasH = (layout.h + 40) + shift.total
       Geom(layout, mod, d, rows, wires, shift, canvasH, c, boxById)
     }
@@ -132,7 +132,7 @@ object Schematic {
               engineGen += 1
               val myGen = engineGen
               pendingVar.set(true)
-              BrowserLayout.runTyped(mod, d, if (optimize) "optimize" else "reroute", overrides).onComplete {
+              BrowserLayout.runTyped(mod, d, if (optimize) "optimize" else "reroute", overrides, expanded).onComplete {
                 case Success(res) => if (myGen == engineGen) { engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
                 case Failure(e)   => if (myGen == engineGen) {
                   engineVar.set(None); pendingVar.set(false)

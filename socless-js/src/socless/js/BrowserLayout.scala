@@ -247,8 +247,8 @@ object BrowserLayout {
   /** Lay out one module with elkjs, returning a [[LaidOut]] (the in-process
     * seam for the Scala.js + Laminar UI, epic #172). */
   def runTyped(module: ModuleDef, design: Design, mode: String,
-               overrides: Map[String, BoxOverride]): Future[LaidOut] = {
-    val prep  = LayoutCore.prepare(module, design)
+               overrides: Map[String, BoxOverride], expanded: Set[String]): Future[LaidOut] = {
+    val prep  = LayoutCore.prepare(module, design, expanded)
     val graph = buildGraph(prep, mode, overrides)
     val elk   = js.Dynamic.newInstance(js.Dynamic.global.ELK)()
     val laid: Future[js.Dynamic] = elk.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]

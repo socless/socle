@@ -126,7 +126,7 @@ object Layout {
   def layout(module: ModuleDef, design: Design): ModuleLayout = elkLock.synchronized {
     // All engine-independent prep (resolve, vote, geometry, anti-parallel
     // collapse) is shared with the browser engine (issue #167).
-    val prep = LayoutCore.prepare(module, design)
+    val prep = LayoutCore.prepare(module, design, Set.empty)
     val root = newGraph()
 
     // Build ELK nodes + ports from the prepared geometry. Track handles by path.

@@ -38,7 +38,7 @@ private[schematic] object SchematicGeom {
     * SAME anti-parallel pin-pair rule the layout routes by, and the two cannot
     * drift. The old node-head fold lumped every per-path boundary pin under one
     * `io` node and dropped real connections (issue #258). */
-  def displayWires(mod: ModuleDef): Seq[LayoutCore.DisplayWire] = LayoutCore.displayWires(mod)
+  def displayWires(mod: ModuleDef, expanded: Set[String]): Seq[LayoutCore.DisplayWire] = LayoutCore.displayWires(mod, expanded)
 
   /** Restore strict orthogonality: any diagonal segment becomes an H-V-H jog
     * through its horizontal midpoint (JS orthogonalizePts). */

@@ -25,15 +25,7 @@ layout Aggregator
   node const$_selIdx_T~in1 kind=const pins=const$_selIdx_T~in1:EAST
   node const$_selIdx_T~in2 kind=const pins=const$_selIdx_T~in2:EAST
   node const$selIdx~in1 kind=const pins=const$selIdx~in1:EAST
-  node io.in[0].bits kind=boundary pins=io.in[0].bits:EAST:iface
-  node io.in[0].ready kind=boundary pins=io.in[0].ready:WEST:iface
-  node io.in[0].valid kind=boundary pins=io.in[0].valid:EAST:iface
-  node io.in[1].bits kind=boundary pins=io.in[1].bits:EAST:iface
-  node io.in[1].ready kind=boundary pins=io.in[1].ready:WEST:iface
-  node io.in[1].valid kind=boundary pins=io.in[1].valid:EAST:iface
-  node io.in[2].bits kind=boundary pins=io.in[2].bits:EAST:iface
-  node io.in[2].ready kind=boundary pins=io.in[2].ready:WEST:iface
-  node io.in[2].valid kind=boundary pins=io.in[2].valid:EAST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
   node io.out.bits kind=boundary pins=io.out.bits:WEST:iface
   node io.out.ready kind=boundary pins=io.out.ready:EAST:iface
   node io.out.valid kind=boundary pins=io.out.valid:WEST:iface
@@ -61,28 +53,26 @@ layout Aggregator
   edge _io_out_bits_T_2~in0 -> selIdx
   edge _io_out_bits_T_2~in1 -> const$_io_out_bits_T_2~in1
   edge _io_out_bits_T_3~in0 -> _io_out_bits_T_2
-  edge _io_out_bits_T_3~in1 -> io.in[2].bits
-  edge _io_out_bits_T_3~in2 -> io.in[0].bits
+  edge _io_out_bits_T_3~in1 -> io.in
+  edge _io_out_bits_T_3~in2 -> io.in
   edge _io_out_bits_T_4~in0 -> _io_out_bits_T_1
-  edge _io_out_bits_T_4~in1 -> io.in[1].bits
+  edge _io_out_bits_T_4~in1 -> io.in
   edge _io_out_bits_T_4~in2 -> _io_out_bits_T_3
   edge _io_out_bits_T_5~in0 -> _io_out_bits_T
-  edge _io_out_bits_T_5~in1 -> io.in[0].bits
+  edge _io_out_bits_T_5~in1 -> io.in
   edge _io_out_bits_T_5~in2 -> _io_out_bits_T_4
   edge _io_out_bits_T~in0 -> selIdx
   edge _io_out_bits_T~in1 -> const$_io_out_bits_T~in1
-  edge _selIdx_T~in0 -> io.in[1].valid
+  edge _selIdx_T~in0 -> io.in
   edge _selIdx_T~in1 -> const$_selIdx_T~in1
   edge _selIdx_T~in2 -> const$_selIdx_T~in2
-  edge anyValid~in0 -> io.in[0].valid
-  edge anyValid~in0 -> io.in[1].valid
-  edge anyValid~in0 -> io.in[2].valid
-  edge io.in[0].ready -> _io_in_0_ready_T_2
-  edge io.in[1].ready -> _io_in_1_ready_T_2
-  edge io.in[2].ready -> _io_in_2_ready_T_2
+  edge anyValid~in0 -> io.in
+  edge io.in -> _io_in_0_ready_T_2
+  edge io.in -> _io_in_1_ready_T_2
+  edge io.in -> _io_in_2_ready_T_2
   edge io.out.bits -> _io_out_bits_T_5
   edge io.out.valid -> anyValid
-  edge selIdx~in0 -> io.in[0].valid
+  edge selIdx~in0 -> io.in
   edge selIdx~in1 -> const$selIdx~in1
   edge selIdx~in2 -> _selIdx_T
 layout Endpoint
@@ -120,7 +110,7 @@ layout Endpoint
   edge reg -> mux$reg
   edge valid -> mux$valid
 layout Interconnect
-  node agg kind=inst pins=agg.io.in[0]:WEST:iface,agg.io.in[1]:WEST:iface,agg.io.in[2]:WEST:iface,agg.io.out:EAST:iface
+  node agg kind=inst pins=agg.io.in:WEST:iface,agg.io.out:EAST:iface
   node const$agg_io_in_0__valid kind=const pins=const$agg_io_in_0__valid:EAST
   node const$agg_io_in_1__valid kind=const pins=const$agg_io_in_1__valid:EAST
   node const$agg_io_in_2__valid kind=const pins=const$agg_io_in_2__valid:EAST
@@ -129,39 +119,31 @@ layout Interconnect
   node endpoints_0 kind=inst pins=endpoints_0.io.ack:EAST:iface,endpoints_0.io.busy:EAST:iface,endpoints_0.io.req:WEST:iface
   node endpoints_1 kind=inst pins=endpoints_1.io.ack:EAST:iface,endpoints_1.io.busy:EAST:iface,endpoints_1.io.req:WEST:iface
   node endpoints_2 kind=inst pins=endpoints_2.io.ack:EAST:iface,endpoints_2.io.busy:EAST:iface,endpoints_2.io.req:WEST:iface
-  node io.ack[0] kind=boundary pins=io.ack[0]:WEST:iface
-  node io.ack[1] kind=boundary pins=io.ack[1]:WEST:iface
-  node io.ack[2] kind=boundary pins=io.ack[2]:WEST:iface
-  node io.busy[0] kind=boundary pins=io.busy[0]:WEST:iface
-  node io.busy[1] kind=boundary pins=io.busy[1]:WEST:iface
-  node io.busy[2] kind=boundary pins=io.busy[2]:WEST:iface
-  node io.in[0] kind=boundary pins=io.in[0]:EAST:iface
-  node io.in[1] kind=boundary pins=io.in[1]:EAST:iface
-  node io.in[2] kind=boundary pins=io.in[2]:EAST:iface
-  node io.out[0] kind=boundary pins=io.out[0]:WEST:iface
-  node io.out[1] kind=boundary pins=io.out[1]:WEST:iface
-  node io.out[2] kind=boundary pins=io.out[2]:WEST:iface
+  node io.ack kind=boundary pins=io.ack:WEST:iface
+  node io.busy kind=boundary pins=io.busy:WEST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
   node q kind=inst pins=q.io.deq:EAST:iface,q.io.enq:WEST:iface
   node q_1 kind=inst pins=q_1.io.deq:EAST:iface,q_1.io.enq:WEST:iface
   node q_2 kind=inst pins=q_2.io.deq:EAST:iface,q_2.io.enq:WEST:iface
-  edge agg.io.in[0] -> const$agg_io_in_0__valid
-  edge agg.io.in[1] -> const$agg_io_in_1__valid
-  edge agg.io.in[2] -> const$agg_io_in_2__valid
+  edge agg.io.in -> const$agg_io_in_0__valid
+  edge agg.io.in -> const$agg_io_in_1__valid
+  edge agg.io.in -> const$agg_io_in_2__valid
   edge endpoints_0.io.req -> q.io.deq
   edge endpoints_1.io.req -> q_1.io.deq
   edge endpoints_2.io.req -> q_2.io.deq
-  edge io.ack[0] -> endpoints_0.io.ack
-  edge io.ack[1] -> endpoints_1.io.ack
-  edge io.ack[2] -> endpoints_2.io.ack
-  edge io.busy[0] -> endpoints_0.io.busy
-  edge io.busy[1] -> endpoints_1.io.busy
-  edge io.busy[2] -> endpoints_2.io.busy
-  edge io.out[0] -> agg.io.out
-  edge io.out[1] -> const$io_out_1__valid
-  edge io.out[2] -> const$io_out_2__valid
-  edge q.io.enq -> io.in[0]
-  edge q_1.io.enq -> io.in[1]
-  edge q_2.io.enq -> io.in[2]
+  edge io.ack -> endpoints_0.io.ack
+  edge io.ack -> endpoints_1.io.ack
+  edge io.ack -> endpoints_2.io.ack
+  edge io.busy -> endpoints_0.io.busy
+  edge io.busy -> endpoints_1.io.busy
+  edge io.busy -> endpoints_2.io.busy
+  edge io.out -> agg.io.out
+  edge io.out -> const$io_out_1__valid
+  edge io.out -> const$io_out_2__valid
+  edge q.io.enq -> io.in
+  edge q_1.io.enq -> io.in
+  edge q_2.io.enq -> io.in
 layout Queue2_SocPayload
   node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST

@@ -1,10 +1,7 @@
 layout AXICrossbar
-  node io.in[0] kind=boundary pins=io.in[0]:EAST:iface
-  node io.in[1] kind=boundary pins=io.in[1]:EAST:iface
-  node io.out[0] kind=boundary pins=io.out[0]:WEST:iface
-  node io.out[1] kind=boundary pins=io.out[1]:WEST:iface
-  edge io.out[0] -> io.in[0]
-  edge io.out[1] -> io.in[1]
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  edge io.out -> io.in
 layout AXIMaster
   node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _idCnt_T kind=op pins=_idCnt_T:EAST,_idCnt_T~in0:WEST,_idCnt_T~in1:WEST
@@ -89,11 +86,11 @@ layout AXISystem
   node dma kind=inst pins=dma.io:EAST:iface
   node mem kind=inst pins=mem.io:WEST:iface
   node periph kind=inst pins=periph.io:WEST:iface
-  node xbar kind=inst pins=xbar.io.in[0]:WEST:iface,xbar.io.in[1]:WEST:iface,xbar.io.out[0]:EAST:iface,xbar.io.out[1]:EAST:iface
-  edge mem.io -> xbar.io.out[0]
-  edge periph.io -> xbar.io.out[1]
-  edge xbar.io.in[0] -> cpu.io
-  edge xbar.io.in[1] -> dma.io
+  node xbar kind=inst pins=xbar.io.in:WEST:iface,xbar.io.out:EAST:iface
+  edge mem.io -> xbar.io.out
+  edge periph.io -> xbar.io.out
+  edge xbar.io.in -> cpu.io
+  edge xbar.io.in -> dma.io
 layout Queue4_R
   node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _do_deq_T kind=op pins=_do_deq_T:EAST,_do_deq_T~in0:WEST,_do_deq_T~in1:WEST

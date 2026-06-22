@@ -49,6 +49,36 @@ object LayoutCore {
     if (i < 0) s else s.substring(0, i)
   }
 
+  /** The grouping path of a wire endpoint under a given expansion set: truncate
+    * `path` at the shallowest Vec index `[n]` whose enclosing prefix is NOT in
+    * `expanded`. A fully-expanded chain returns the leaf path unchanged; a path
+    * with no Vec index is returned unchanged (issue #260). */
+  def groupPath(path: String, expanded: Set[String]): String = {
+    val idx = """\[\d+\]""".r
+    var search = 0
+    while (true) {
+      idx.findFirstMatchIn(path.substring(search)) match {
+        case None => return path
+        case Some(m) =>
+          val brk    = search + m.start          // position of '[' for this index
+          val prefix = path.substring(0, brk)    // path up to but not including '['
+          if (!expanded.contains(prefix)) return prefix
+          search = search + m.end                // descend past this (expanded) index
+      }
+    }
+    path // unreachable; satisfies the type checker
+  }
+
+  /** Label for a collapsed Vec group: `name[a:b]` for a contiguous index set
+    * (half-open, Chisel slice style), `name[N×]` for a non-contiguous set, and
+    * `name[i]` for a singleton. */
+  def vecRangeLabel(name: String, indices: Seq[Int]): String = {
+    val xs = indices.distinct.sorted
+    if (xs.size == 1) s"$name[${xs.head}]"
+    else if (xs.last - xs.head == xs.size - 1) s"$name[${xs.head}:${xs.last + 1}]"
+    else s"$name[${xs.size}×]"
+  }
+
   /** A pin sits on the EAST (right/driving) side when its port drives signals
     * rightward in the left-to-right schematic: instance outputs/masters, and
     * this module's own boundary INPUTS (which drive signals into the design).
@@ -219,7 +249,7 @@ object LayoutCore {
     * pipeline that used to live inline in [[Layout.layout]] before the ELK
     * graph was built; both the JVM (ELK) and browser (elkjs) engines consume
     * it identically. */
-  def prepare(module: ModuleDef, design: Design): Prepared = {
+  def prepare(module: ModuleDef, design: Design, expanded: Set[String] = Set.empty): Prepared = {
     val modulesByName = design.modules.iterator.map(m => m.name -> m).toMap
 
     // 1. Resolve every wire endpoint; keep only wires whose BOTH ends resolve.
@@ -230,6 +260,22 @@ object LayoutCore {
       for { f <- classifyWith(w.from, module, design, modulesByName); t <- classifyWith(w.to, module, design, modulesByName) }
         yield E(w, f, t)
     }
+
+    // Vec grouping (issue #260): collapse each endpoint to its group path under
+    // the current expansion set, so sibling Vec-index wires to the same node
+    // dedup into one pin + one edge. The original leaf path stays in `e.w` for
+    // range labelling below.
+    // A boundary node's identity is its full leaf path (issue #68: each external
+    // pin is its own per-path boundary node), so collapsing only `.path` would
+    // leave each Vec-sibling leaf as a distinct node. Regroup BOUNDARY `nodeId`
+    // to the group path too, so all siblings dedup into one node. Instance
+    // endpoints already share a node id (the instance name), so leave theirs.
+    def regroup(ep: Endpoint): Endpoint = {
+      val gp = groupPath(ep.path, expanded)
+      if (ep.kind == NodeKind.Boundary) ep.copy(path = gp, nodeId = gp)
+      else ep.copy(path = gp)
+    }
+    val grouped: Seq[E] = resolved.map(e => e.copy(from = regroup(e.from), to = regroup(e.to)))
 
     // 2. Group pins per node (distinct path), preserving first-seen order. Pin
     //    side is determined by dataflow role: SOURCE (e.to) votes EAST, SINK
@@ -254,7 +300,7 @@ object LayoutCore {
       pinOrder.getOrElseUpdate((ep.nodeId, ep.kind), mutable.LinkedHashSet.empty) += ep.path
     }
     // e.to is SOURCE; e.from is SINK.
-    resolved.foreach { e =>
+    grouped.foreach { e =>
       vote(e.to,   isSource = true)
       vote(e.from, isSource = false)
     }
@@ -290,7 +336,14 @@ object LayoutCore {
       val b = e.from.path // sink
       if (a <= b) (a, b) else (b, a)
     }
-    val edges: Seq[PreparedEdge] = resolved
+    // The leaf index elided to reach the group path `gp` from an original leaf
+    // `leaf` (e.g. leaf "s.v[2]" vs gp "s.v" -> Some(2)); None when not a Vec
+    // group member.
+    def elidedIndex(leaf: String, gp: String): Option[Int] =
+      if (leaf == gp || !leaf.startsWith(gp)) None
+      else """^\[(\d+)\]""".r.findPrefixMatchOf(leaf.substring(gp.length)).map(_.group(1).toInt)
+
+    val edges: Seq[PreparedEdge] = grouped
       .groupBy(antiParallelKey)
       .values
       .map { grp =>
@@ -305,7 +358,14 @@ object LayoutCore {
               .orElse(grp.sortBy(_.to.path).headOption)
               .getOrElse(grp.head)
           }
-        val label = grp.map(_.w.label).filter(_.nonEmpty).distinct.mkString(" / ")
+        val base = grp.map(_.w.label).filter(_.nonEmpty).distinct.mkString(" / ")
+        val idxs = grp.flatMap(m => elidedIndex(m.w.to, kept.to.path)).distinct
+        val vecName = { val gp = kept.to.path; gp.substring(gp.lastIndexOf('.') + 1) }
+        val label =
+          if (idxs.size >= 2) {
+            val r = vecRangeLabel(vecName, idxs)
+            if (base.nonEmpty) s"$r  $base" else r
+          } else base
         PreparedEdge(kept.from.path, kept.to.path, label)
       }
       .toSeq
@@ -455,7 +515,7 @@ object LayoutCore {
     * Clock/reset wires and const-driver wires are excluded: they have no laid
     * pin to attach to (clock/reset distribution is implicit; a const renders as
     * a small value stub at its sink, issue #203). */
-  def displayWires(module: ModuleDef): Seq[DisplayWire] = {
+  def displayWires(module: ModuleDef, expanded: Set[String] = Set.empty): Seq[DisplayWire] = {
     val seen = mutable.LinkedHashMap.empty[(String, String), Int] // pin-pair -> index in out
     val out  = mutable.ArrayBuffer.empty[DisplayWire]
     def pairKey(a: String, b: String): (String, String) = if (a <= b) (a, b) else (b, a)
@@ -463,16 +523,22 @@ object LayoutCore {
       .filterNot(isClockReset)
       .filterNot(_.to.startsWith("const$"))
       .foreach { w =>
-        val a = w.from.split('.').headOption.getOrElse("")
-        val b = w.to.split('.').headOption.getOrElse("")
+        // Vec grouping (issue #260): collapse each endpoint to its group path
+        // under the current expansion set so sibling Vec-index wires fold onto
+        // the same pin pair, exactly as `prepare` collapses the layout edges.
+        // Clock/reset and const filtering above still key on the ORIGINAL `w`.
+        val gf = groupPath(w.from, expanded)
+        val gt = groupPath(w.to, expanded)
+        val a = gf.split('.').headOption.getOrElse("")
+        val b = gt.split('.').headOption.getOrElse("")
         if (a.isEmpty || b.isEmpty || a == b)
-          out += DisplayWire(w.from, w.to, w.bundle, w.label, bidir = false, groundCount(w.label))
+          out += DisplayWire(gf, gt, w.bundle, w.label, bidir = false, groundCount(w.label))
         else {
-          val k = pairKey(w.from, w.to)
+          val k = pairKey(gf, gt)
           seen.get(k) match {
             case Some(i) =>
               val d       = out(i)
-              val reverse = d.from == w.to && d.to == w.from
+              val reverse = d.from == gt && d.to == gf
               val bidir   = d.bidir || reverse
               val count   = d.count + groundCount(w.label)
               val bundle  = if (d.bundle == "Wire" && w.bundle.nonEmpty && w.bundle != "Wire") w.bundle else d.bundle
@@ -480,7 +546,7 @@ object LayoutCore {
               out(i) = d.copy(bundle = bundle, label = label, bidir = bidir, count = count)
             case None =>
               seen(k) = out.length
-              out += DisplayWire(w.from, w.to, w.bundle, w.label, bidir = false, groundCount(w.label))
+              out += DisplayWire(gf, gt, w.bundle, w.label, bidir = false, groundCount(w.label))
           }
         }
       }
