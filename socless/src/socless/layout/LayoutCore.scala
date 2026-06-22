@@ -422,4 +422,68 @@ object LayoutCore {
 
     Prepared(nodes, edges)
   }
+
+  // ── Display wires: the schematic's drawable connection list ─────────────────
+
+  /** One drawable schematic connection. `from`/`to` are the SINK/SOURCE pin
+    * paths of the kept representative; `bidir` is set when the same pin pair was
+    * connected in both directions (a folded anti-parallel pair); `count` and
+    * `label` carry the merged ground-connect tally for the inspector. */
+  case class DisplayWire(from: String, to: String, bundle: String, label: String,
+                         bidir: Boolean, count: Int)
+
+  private val GroundCountRe = """(\d+)\s*×""".r
+
+  /** Leading "<n>×" count baked into a coalesced ground-connect label (IrWalk),
+    * or 1 when absent. */
+  def groundCount(label: String): Int =
+    GroundCountRe.findFirstMatchIn(if (label == null) "" else label).map(_.group(1).toInt).getOrElse(1)
+
+  /** Fold a module's wires into the schematic's drawable connections.
+    *
+    * Anti-parallel pairs (A->B and B->A on the SAME two pins) collapse into one
+    * bidirectional wire, exactly the way [[prepare]] collapses layout edges
+    * (`antiParallelKey`), so the rendered wire set matches the routed edge set
+    * pin-for-pin and no real connection silently disappears.
+    *
+    * The fold key is the unordered pair of FULL pin paths, NOT the node heads.
+    * Heads are wrong because each external pin is its own per-path boundary node
+    * (issue #68): a head key lumps every `io.*` pin under one `io` node, so all
+    * but the first connection per direction gets absorbed into a bidirectional
+    * wire on another pin and never renders (issue #258).
+    *
+    * Clock/reset wires and const-driver wires are excluded: they have no laid
+    * pin to attach to (clock/reset distribution is implicit; a const renders as
+    * a small value stub at its sink, issue #203). */
+  def displayWires(module: ModuleDef): Seq[DisplayWire] = {
+    val seen = mutable.LinkedHashMap.empty[(String, String), Int] // pin-pair -> index in out
+    val out  = mutable.ArrayBuffer.empty[DisplayWire]
+    def pairKey(a: String, b: String): (String, String) = if (a <= b) (a, b) else (b, a)
+    module.wires.iterator
+      .filterNot(isClockReset)
+      .filterNot(_.to.startsWith("const$"))
+      .foreach { w =>
+        val a = w.from.split('.').headOption.getOrElse("")
+        val b = w.to.split('.').headOption.getOrElse("")
+        if (a.isEmpty || b.isEmpty || a == b)
+          out += DisplayWire(w.from, w.to, w.bundle, w.label, bidir = false, groundCount(w.label))
+        else {
+          val k = pairKey(w.from, w.to)
+          seen.get(k) match {
+            case Some(i) =>
+              val d       = out(i)
+              val reverse = d.from == w.to && d.to == w.from
+              val bidir   = d.bidir || reverse
+              val count   = d.count + groundCount(w.label)
+              val bundle  = if (d.bundle == "Wire" && w.bundle.nonEmpty && w.bundle != "Wire") w.bundle else d.bundle
+              val label   = if (bidir) (if (count > 1) s"$count× ground (bidir)" else "bidirectional") else d.label
+              out(i) = d.copy(bundle = bundle, label = label, bidir = bidir, count = count)
+            case None =>
+              seen(k) = out.length
+              out += DisplayWire(w.from, w.to, w.bundle, w.label, bidir = false, groundCount(w.label))
+          }
+        }
+      }
+    out.toSeq
+  }
 }

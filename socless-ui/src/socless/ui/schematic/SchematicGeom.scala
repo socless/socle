@@ -5,6 +5,7 @@ import socless.schema.{Design, ModuleDef}
 import socless.ui.theme.Tokens
 import socless.ui.model.RowModel
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR}
+import socless.layout.LayoutCore
 
 /** The pure geometry/model layer of the schematic (#216): the wire/box value
   * types and the side-effect-free helpers that turn a [[LaidOut]] + [[ModuleDef]]
@@ -32,47 +33,12 @@ private[schematic] object SchematicGeom {
     canvasH: Double, c: Tokens.Consts, boxById: Map[String, LaidNodeR],
   )
 
-  /** A mutable display wire (bidir folding, ported from JS `displayWires`). */
-  final class DWire(var from: String, var to: String, var bundle: String,
-                    var label: String, var bidir: Boolean, var count: Int)
-
-  private val CountRe = """(\d+)\s*×""".r
-  def groundCount(label: String): Int =
-    CountRe.findFirstMatchIn(if (label == null) "" else label).map(_.group(1).toInt).getOrElse(1)
-
-  /** Fold matched A->B / B->A pairs into one bidirectional wire so the schematic
-    * reads as Chisel-level connects, not ground-signal flow (JS displayWires). */
-  def displayWires(mod: ModuleDef): Seq[DWire] = {
-    def pairKey(a: String, b: String) = if (a < b) a + "|" + b else b + "|" + a
-    val seen = scala.collection.mutable.Map.empty[String, scala.collection.mutable.ListBuffer[DWire]]
-    val out  = scala.collection.mutable.ListBuffer.empty[DWire]
-    // Clock/reset connects are intentionally excluded from the layout graph
-    // (LayoutCore.prepare filters them), so they have no laid pin to attach to.
-    // Drop them here too, so the schematic neither silently loses them nor draws
-    // them as misleading dangling stubs; clock/reset distribution is implicit.
-    // Constant drivers are not drawn as a node + wire; they render as a small
-    // value label + `|-` stub at the driven port instead (issue #203). The wire
-    // to a `const$...` source is therefore dropped here.
-    mod.wires.filterNot(socless.layout.LayoutCore.isClockReset).filterNot(_.to.startsWith("const$")).foreach { w =>
-      val a = w.from.split('.').headOption.getOrElse("")
-      val b = w.to.split('.').headOption.getOrElse("")
-      if (a.isEmpty || b.isEmpty || a == b) out += new DWire(w.from, w.to, w.bundle, w.label, false, groundCount(w.label))
-      else {
-        val peers = seen.getOrElseUpdate(pairKey(a, b), scala.collection.mutable.ListBuffer.empty)
-        peers.find(p => p.from.split('.').headOption.contains(b) && p.to.split('.').headOption.contains(a)) match {
-          case Some(rev) =>
-            rev.bidir = true
-            rev.count += groundCount(w.label)
-            if (rev.bundle == "Wire" && w.bundle.nonEmpty && w.bundle != "Wire") rev.bundle = w.bundle
-            rev.label = if (rev.count > 1) s"${rev.count}× ground (bidir)" else "bidirectional"
-          case None =>
-            val fresh = new DWire(w.from, w.to, w.bundle, w.label, false, groundCount(w.label))
-            peers += fresh; out += fresh
-        }
-      }
-    }
-    out.toSeq
-  }
+  /** Drawable connections for the current module. Delegates to the shared
+    * [[LayoutCore.displayWires]] so the schematic's wire set is folded by the
+    * SAME anti-parallel pin-pair rule the layout routes by, and the two cannot
+    * drift. The old node-head fold lumped every per-path boundary pin under one
+    * `io` node and dropped real connections (issue #258). */
+  def displayWires(mod: ModuleDef): Seq[LayoutCore.DisplayWire] = LayoutCore.displayWires(mod)
 
   /** Restore strict orthogonality: any diagonal segment becomes an H-V-H jog
     * through its horizontal midpoint (JS orthogonalizePts). */
@@ -141,9 +107,18 @@ private[schematic] object SchematicGeom {
       box.ports.find(p => path.startsWith(p.path)).map(_.x.toDouble).getOrElse(box.x + box.w / 2.0)
     }
 
-  def buildWires(dwires: Seq[DWire], layout: LaidOut, boxById: Map[String, LaidNodeR],
+  def buildWires(dwires: Seq[LayoutCore.DisplayWire], layout: LaidOut, boxById: Map[String, LaidNodeR],
                  pinYMap: Map[String, Map[String, Double]], boxShift: BoxShift): Seq[Wire] = {
     val edgeByKey = layout.edges.map(e => (e.from + " " + e.to) -> e).toMap
+    // Routed points for a display wire's pin pair, oriented source->sink to match
+    // this wire's (from = sink, to = source). The display fold and the layout
+    // fold pick the same anti-parallel representative in lockstep, but a vote tie
+    // could orient an anti-parallel pair the other way; tolerate that by also
+    // matching the reversed edge and flipping its points so terminal anchoring
+    // stays correct (issue #258).
+    def routeFor(from: String, to: String): Option[Seq[(Int, Int)]] =
+      edgeByKey.get(from + " " + to).map(_.points)
+        .orElse(edgeByKey.get(to + " " + from).map(_.points.reverse))
 
     // Box-relative pin Y for `path` on `inst`. When the exact path is not a laid
     // pin (e.g. the wire targets `io.in.bits.a` while the `io` bundle is
@@ -175,7 +150,7 @@ private[schematic] object SchematicGeom {
     dwires.zipWithIndex.flatMap { case (w, i) =>
       val fromInst = w.from.split('.').headOption.getOrElse("")
       val toInst   = w.to.split('.').headOption.getOrElse("")
-      edgeByKey.get(w.from + " " + w.to).map(_.points).filter(_.length >= 2) match {
+      routeFor(w.from, w.to).filter(_.length >= 2) match {
         case Some(ptsInt) =>
           // Routed path present: keep the ELK polyline, retargeting only the
           // terminal Y values onto the box pins (unchanged behavior).
