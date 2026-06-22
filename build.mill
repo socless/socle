@@ -36,7 +36,7 @@ object V {
   val elk         = "0.9.1"
   val scalaJs     = "1.19.0"          // Scala.js for the in-browser layout (issue #167)
   val laminar     = "17.2.0"          // Scala.js UI framework for the frontend (epic #172)
-  val publishVer  = "0.5.0"
+  val publishVer  = "0.5.1-SNAPSHOT"
 }
 
 // ─── Common publish boilerplate ─────────────────────────────────────────────
