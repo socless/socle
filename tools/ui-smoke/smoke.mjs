@@ -64,8 +64,16 @@ for (const design of designs) {
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => {
-    if (m.type() !== 'error') return;
     const t = m.text();
+    // A "wire dropped, no anchor" warning means the schematic silently lost a
+    // connection (stale/empty layout, or a fold that drifted from the routed
+    // edge set). Treat it as a failure so the wire-dropping bugs of #258 and
+    // its follow-up can never regress unnoticed, even though it is a warning.
+    if (m.type() === 'warning' && /wire dropped, no anchor/.test(t)) {
+      errors.push('wire dropped: ' + t);
+      return;
+    }
+    if (m.type() !== 'error') return;
     // The generic "Failed to load resource" console line has no URL; real
     // resource 404s are reported precisely by the response handler below.
     if (/Failed to load resource/.test(t)) return;

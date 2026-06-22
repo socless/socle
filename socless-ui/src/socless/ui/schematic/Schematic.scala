@@ -52,7 +52,12 @@ object Schematic {
     // Schematic-internal state (persists for the life of the pane).
     val zoomVar     = Var(1.0)
     val panVar      = Var((40.0, 40.0))
-    val engineVar   = Var[Option[LaidOut]](None)
+    // The in-process engine (elkjs) layout, TAGGED with the module name it was
+    // computed for. The tag is essential: `geomSig` and the re-layout trigger
+    // both fire on a module change, and an engine result for the PREVIOUS module
+    // must never be used to place the new module's wires (it would leave every
+    // wire unanchored until the async relayout lands, issue #258 follow-up).
+    val engineVar   = Var[Option[(String, LaidOut)]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
     val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
@@ -99,7 +104,11 @@ object Schematic {
     val geomSig: Signal[Option[Geom]] =
       Signal.combine(designSig, moduleSig, engineVar.signal, expandedPortsVar.signal).map {
         case (Some(d), Some(mod), engine, expanded) =>
-          Some(computeGeom(d, mod, engine, expanded ++ lockedExpansions(d, mod)))
+          // Use the engine layout only when it was computed for THIS module;
+          // otherwise fall back to the baked layout for the current module so a
+          // stale engine result never mis-anchors the wires.
+          val forThis = engine.collect { case (m, l) if m == mod.name => l }
+          Some(computeGeom(d, mod, forThis, expanded ++ lockedExpansions(d, mod)))
         case _                                      => None
       }
 
@@ -124,7 +133,7 @@ object Schematic {
               val myGen = engineGen
               pendingVar.set(true)
               BrowserLayout.runTyped(mod, d, if (optimize) "optimize" else "reroute", overrides).onComplete {
-                case Success(res) => if (myGen == engineGen) { engineVar.set(Some(res)); pendingVar.set(false) }
+                case Success(res) => if (myGen == engineGen) { engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
                 case Failure(e)   => if (myGen == engineGen) {
                   engineVar.set(None); pendingVar.set(false)
                   dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
@@ -459,7 +468,7 @@ object Schematic {
     // wiring here in render scope; [[SchematicChrome.controls]] only invokes them.
     val ctrlCtx = SchematicChrome.ControlsCtx(
       pendingSig    = pendingVar.signal,
-      engineSig     = engineVar.signal,
+      engineSig     = engineVar.signal.map(_.map(_._2)),
       layerHasSig   = geomSig.map(_.exists(_.mod.logic.exists(_.layer))),
       showLayersVar = showLayersVar,
       zoomSig       = zoomVar.signal,
