@@ -1,6 +1,7 @@
 package socless.layout
 
 import socless.schema._
+import socless.ir.Synthetic
 import scala.collection.mutable
 
 /** Pure, engine-independent schematic layout logic (issue #167).
@@ -48,6 +49,28 @@ object LayoutCore {
     val i = s.indexOf('[')
     if (i < 0) s else s.substring(0, i)
   }
+
+  /** The owning node id of a wire-endpoint head (a `path.split('.').head`).
+    *
+    * A logic node appears in wires under synthetic pin heads - an op input pin
+    * `<node>~in<i>` or a register Q pin `<node>~q` - which must reduce to the
+    * bare node id (the id its box is keyed by). A constant node id is itself a
+    * `const$<sink>` atom whose sanitized sink can legitimately contain `~in`, so
+    * it is never reduced (it matches only by its exact id); everything else is
+    * returned unchanged. */
+  def nodeBaseId(head: String): String =
+    if (head.startsWith(Synthetic.ConstPrefix)) head else Synthetic.baseOf(head)
+
+  /** Does a wire-endpoint head belong to a verification-layer node (issue #212)?
+    *
+    * The UI hides a layer node's box by its node id, then must hide the wires
+    * touching it. A wire keeps a synthetic pin head (`<node>~in<i>`, `<node>~q`)
+    * that never matches the bare id, so testing the raw head against `layerIds`
+    * leaves a layer node's incoming wires visible as dangling stubs into the now
+    * hidden box. Resolving the head to its node id via [[nodeBaseId]] first keeps
+    * box and wire visibility in lockstep. */
+  def isLayerHead(head: String, layerIds: Set[String]): Boolean =
+    layerIds.contains(head) || layerIds.contains(nodeBaseId(head))
 
   /** The grouping path of a wire endpoint under a given expansion set: truncate
     * `path` at the shallowest Vec index `[n]` whose enclosing prefix is NOT in

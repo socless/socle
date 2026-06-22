@@ -10,6 +10,7 @@ import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
 import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind}
+import socless.layout.LayoutCore
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
 
@@ -195,9 +196,12 @@ object Schematic {
     def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String, showLayers: Boolean): Seq[ReactiveElement.Base] = {
       // Verification-layer nodes (issue #212) and their wires are hidden unless
       // "show layers" is on. layerIds empty for a design with no layer content.
+      // A wire's fromInst/toInst is a raw pin head (`L~in<i>`, `L~q`); resolve it
+      // to the owning node id (LayoutCore.isLayerHead) so a layer node's incoming
+      // wires hide WITH its box instead of stranding as dangling stubs.
       val layerIds: Set[String] = g.mod.logic.iterator.filter(_.layer).map(_.id).toSet
       val hideLayer = !showLayers && layerIds.nonEmpty
-      val visWires = if (hideLayer) g.wires.filterNot(w => layerIds.contains(w.fromInst) || layerIds.contains(w.toInst)) else g.wires
+      val visWires = if (hideLayer) g.wires.filterNot(w => LayoutCore.isLayerHead(w.fromInst, layerIds) || LayoutCore.isLayerHead(w.toInst, layerIds)) else g.wires
       val c = g.c
       val selInst  = sel.map(s => ownerBoxId(g.boxById, s)).getOrElse("")
       val selClock = g.mod.children.find(_.name == selInst).map(_.clock).getOrElse("")
