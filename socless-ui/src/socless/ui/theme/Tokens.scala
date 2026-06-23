@@ -35,6 +35,17 @@ object Tokens {
   // Entity-kind accents (command palette).
   val kindInstance = "var(--kind-instance)"
   val kindPort     = "var(--kind-port)"
+  // Schematic component-coloring fills (#266), keyed by NodeKind string. Pale
+  // tints (dark-tinted under the dark theme) used as box backgrounds when the
+  // "colorize components" toggle is on; hues mirror the debug-layout palette.
+  val nodeFill: Map[String, String] = Map(
+    "inst"     -> "var(--node-inst)",
+    "boundary" -> "var(--node-boundary)",
+    "reg"      -> "var(--node-reg)",
+    "const"    -> "var(--node-const)",
+    "op"       -> "var(--node-op)",
+    "fsm"      -> "var(--node-fsm)",
+  )
   // Scala source syntax palette (BottomPanel).
   val syntaxKw  = "var(--syntax-kw)"
   val syntaxTy  = "var(--syntax-ty)"

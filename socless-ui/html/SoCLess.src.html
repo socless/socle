@@ -24,6 +24,13 @@
     --chan-w: oklch(0.62 0.17 170); --chan-r: oklch(0.65 0.16 50);
     --chan-b: oklch(0.58 0.18 25);
     --kind-instance: oklch(0.55 0.16 290); --kind-port: oklch(0.55 0.16 50);
+    /* Schematic component-coloring fills (#266), pale tints keyed by node kind,
+       hues matching the debug-layout palette. --wire-l/--wire-c drive the hashed
+       wire-stroke colors so they read on this (light) surface. */
+    --node-inst: oklch(0.93 0.04 250); --node-boundary: oklch(0.94 0.06 90);
+    --node-reg: oklch(0.93 0.06 150); --node-const: oklch(0.93 0.05 305);
+    --node-op: oklch(0.92 0.06 25); --node-fsm: oklch(0.93 0.05 215);
+    --wire-l: 0.58; --wire-c: 0.16;
     --syntax-kw: oklch(0.5 0.15 290); --syntax-ty: oklch(0.5 0.13 200);
     --syntax-lit: oklch(0.55 0.15 30);
     --link-child-bg: oklch(0.95 0.08 200); --link-child-fg: oklch(0.4 0.15 250);
@@ -44,6 +51,13 @@
     --chan-w: oklch(0.72 0.15 170); --chan-r: oklch(0.75 0.15 50);
     --chan-b: oklch(0.68 0.17 25);
     --kind-instance: oklch(0.70 0.15 290); --kind-port: oklch(0.72 0.15 50);
+    /* Dark variants of the #266 schematic colors: dark-tinted node fills so the
+       box reads as colored while light ink stays legible, wire hue lifted in
+       lightness to read on the dark canvas. */
+    --node-inst: oklch(0.32 0.04 250); --node-boundary: oklch(0.34 0.05 90);
+    --node-reg: oklch(0.34 0.05 150); --node-const: oklch(0.33 0.05 305);
+    --node-op: oklch(0.33 0.06 25); --node-fsm: oklch(0.33 0.05 215);
+    --wire-l: 0.72; --wire-c: 0.15;
     --syntax-kw: oklch(0.72 0.14 290); --syntax-ty: oklch(0.72 0.12 200);
     --syntax-lit: oklch(0.75 0.14 40);
     --link-child-bg: oklch(0.30 0.06 200); --link-child-fg: oklch(0.80 0.12 250);

@@ -62,6 +62,8 @@ object Schematic {
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
     val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
+    val colorBoxesVar = Var(false) // colorize components by node kind (issue #266)
+    val colorWiresVar = Var(false) // colorize wires by bundle / net (issue #266)
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
@@ -77,8 +79,6 @@ object Schematic {
     var pendingFit = true   // armed on a real path change; performed once dims are known (issue #207)
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
-    // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216).
-    val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar)
 
     // ── geometry signal ──
     def computeGeom(d: Design, mod: ModuleDef, engine: Option[LaidOut], expanded: Set[String]): Geom = {
@@ -193,7 +193,11 @@ object Schematic {
     // ── content (boxes + wires), rebuilt on geom / selection / hover ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
-    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String, showLayers: Boolean): Seq[ReactiveElement.Base] = {
+    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String,
+                      showLayers: Boolean, colorBoxes: Boolean, colorWires: Boolean): Seq[ReactiveElement.Base] = {
+      // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216);
+      // colorBoxes (#266) flows in per-render so the toggle re-tints live.
+      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar, colorBoxes)
       // Verification-layer nodes (issue #212) and their wires are hidden unless
       // "show layers" is on. layerIds empty for a design with no layer content.
       // A wire's fromInst/toInst is a raw pin head (`L~in<i>`, `L~q`); resolve it
@@ -334,7 +338,7 @@ object Schematic {
             dataAttr("pan-block") := "1",
             styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
               s"opacity:${if (boxActive(n.id)) "1" else "0.18"};" +
-              s"background:${Tokens.panel};border:1px ${if (isBlackbox) "dashed" else "solid"} $borderCol;border-radius:6px;" +
+              s"background:${if (colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panel};border:1px ${if (isBlackbox) "dashed" else "solid"} $borderCol;border-radius:6px;" +
               s"box-shadow:$boxShadow;cursor:${if (drillable) "pointer" else "default"};overflow:visible;" +
               "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
             onDblClick --> { (_: dom.MouseEvent) => if (drillable) drillInto(n.id) },
@@ -398,10 +402,16 @@ object Schematic {
           val hl  = isHl(w)
           val hov2 = isHov(w) && !hl
           val dim = sel.isDefined && !hl
-          val stroke = if (dim) Tokens.ink4 else if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
+          // Colorize wires (#266) only in the plain resting state: selection
+          // (accent), hover (ink) and dim (ink4) keep their emphasis colors, and
+          // when the toggle is off the stroke is exactly the prior ink2.
+          val resting = !dim && !hl && !hov2
+          val stroke =
+            if (colorWires && resting) SchematicColors.wireStroke(w.bundle, w.toPath)
+            else if (dim) Tokens.ink4 else if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
           val isField = fieldLevelWires.contains((w.fromPath, w.toPath))
           val sw     = if (isField) 1.0 else if (hl) 4 else if (hov2) 3.5 else 3
-          val halo   = if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
+          val halo   = if (hl) Tokens.accent else if (hov2) Tokens.ink else if (colorWires && resting) stroke else Tokens.ink2
           val haloOp = if (hl) 0.18 else if (hov2) 0.10 else 0.07
           val groupOp = if (!wireActive(w)) 0.12 else if (dim) 0.32 else 1.0
           val d = routePath(w.points)
@@ -456,9 +466,11 @@ object Schematic {
     }
 
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
-      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal, showLayersVar.signal).map {
-        case (Some(g), sel, hov, filter, showLayers) => renderContent(g, sel, hov, filter, showLayers)
-        case _                                       => Nil
+      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal, showLayersVar.signal,
+                     colorBoxesVar.signal, colorWiresVar.signal).map {
+        case (Some(g), sel, hov, filter, showLayers, colorBoxes, colorWires) =>
+          renderContent(g, sel, hov, filter, showLayers, colorBoxes, colorWires)
+        case _ => Nil
       }
 
     // Recenter the main view on a content-space point (used by the minimap).
@@ -475,6 +487,8 @@ object Schematic {
       engineSig     = engineVar.signal.map(_.map(_._2)),
       layerHasSig   = geomSig.map(_.exists(_.mod.logic.exists(_.layer))),
       showLayersVar = showLayersVar,
+      colorBoxesVar = colorBoxesVar,
+      colorWiresVar = colorWiresVar,
       zoomSig       = zoomVar.signal,
       onOptimize    = () => optNonceVar.update(_ + 1),
       onFit         = () => doFit(),

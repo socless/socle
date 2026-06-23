@@ -21,8 +21,11 @@ import LogicLabels.{OpInRe, stripQ, inRole}
 private[schematic] object SchematicBoxes {
 
   /** The interactive state the box renderers touch: the single-select model and
-    * the in-box bundle-expansion set. */
-  final case class Ctx(selectedVar: Var[Option[String]], expandedPortsVar: Var[Set[String]])
+    * the in-box bundle-expansion set. `colorBoxes` (issue #266) tints each box
+    * by node kind when the "colorize components" toggle is on; off leaves the
+    * neutral fills unchanged. */
+  final case class Ctx(selectedVar: Var[Option[String]], expandedPortsVar: Var[Set[String]],
+                       colorBoxes: Boolean = false)
 
   private def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
@@ -30,6 +33,14 @@ private[schematic] object SchematicBoxes {
     * already selected. Shared by every clickable box. */
   private def toggleSelect(sel: Var[Option[String]], id: String): Unit =
     sel.update(s => if (s.contains(id)) None else Some(id))
+
+  /** Background suffix (issue #266) for a symbol node (reg/op) that is otherwise
+    * transparent: when "colorize components" is on, give it a kind-tinted fill
+    * and a soft border so it reads as a colored box. Empty string when off, so
+    * the default rendering is unchanged. */
+  private def kindFill(ctx: Ctx, n: LaidNodeR): String =
+    if (ctx.colorBoxes) s";background:${SchematicColors.boxFill(n.kind)};border:1px solid ${Tokens.borderSoft};border-radius:5px"
+    else ""
 
   // ── register node (issue #188 B1) ──
   // A naked flip-flop symbol (`LogicSymbols.ff`) with WEST `D` / EAST `Q` pins.
@@ -57,7 +68,8 @@ private[schematic] object SchematicBoxes {
       dataAttr("pan-block") := "1",
       title := s"register (${n.id})",
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-        s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
+        s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s" +
+        kindFill(ctx, n),
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
       renderPortRows(ctx, g, n, westBlank, PinSide.West, sel, hov),
@@ -114,7 +126,8 @@ private[schematic] object SchematicBoxes {
       dataAttr("pan-block") := "1",
       title := (if (op.nonEmpty) s"op $op (${n.id})" else s"op (${n.id})"),
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-        s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s",
+        s"opacity:${if (active) "1" else "0.18"};overflow:visible;cursor:default;transition:opacity .15s" +
+        kindFill(ctx, n),
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       symbol,
       renderPortRows(ctx, g, n, westBlank, PinSide.West, sel, hov, westTitle),
@@ -131,7 +144,7 @@ private[schematic] object SchematicBoxes {
       title := n.id,
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
         s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
-        s"background:${Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
+        s"background:${if (ctx.colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
         s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
@@ -178,7 +191,7 @@ private[schematic] object SchematicBoxes {
       title := s"FSM ($label)",
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
         s"opacity:${if (active) "1" else "0.18"};" +
-        s"background:${Tokens.accentBg};border:1px solid $borderCol;border-radius:6px;" +
+        s"background:${if (ctx.colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.accentBg};border:1px solid $borderCol;border-radius:6px;" +
         s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
       // header (no drill handler: an FSM box is non-drillable)
