@@ -103,12 +103,24 @@ layout RegFile
   node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
   node const$_T~in1 kind=const pins=const$_T~in1:EAST
+  node io.rd.raddr1 kind=boundary pins=io.rd.raddr1:EAST:iface
+  node io.rd.raddr2 kind=boundary pins=io.rd.raddr2:EAST:iface
+  node io.rd.rdata1 kind=boundary pins=io.rd.rdata1:WEST:iface
+  node io.rd.rdata2 kind=boundary pins=io.rd.rdata2:WEST:iface
   node io.wr.waddr kind=boundary pins=io.wr.waddr:EAST:iface
+  node io.wr.wdata kind=boundary pins=io.wr.wdata:EAST:iface
   node io.wr.wen kind=boundary pins=io.wr.wen:EAST:iface
+  node regs kind=mem pins=regs~MPORT~a:WEST,regs~MPORT~w:WEST,regs~io_rd_rdata1_MPORT~a:WEST,regs~io_rd_rdata1_MPORT~r:EAST,regs~io_rd_rdata2_MPORT~a:WEST,regs~io_rd_rdata2_MPORT~r:EAST
   edge _T_1~in0 -> io.wr.wen
   edge _T_1~in1 -> _T
   edge _T~in0 -> io.wr.waddr
   edge _T~in1 -> const$_T~in1
+  edge io.rd.rdata1 -> regs~io_rd_rdata1_MPORT~r
+  edge io.rd.rdata2 -> regs~io_rd_rdata2_MPORT~r
+  edge regs~MPORT~a -> io.wr.waddr
+  edge regs~MPORT~w -> io.wr.wdata
+  edge regs~io_rd_rdata1_MPORT~a -> io.rd.raddr1
+  edge regs~io_rd_rdata2_MPORT~a -> io.rd.raddr2
 layout WB
   node _io_rf_wen_T kind=op pins=_io_rf_wen_T:EAST,_io_rf_wen_T~in0:WEST,_io_rf_wen_T~in1:WEST
   node const$io_dmem_req_valid kind=const pins=const$io_dmem_req_valid:EAST

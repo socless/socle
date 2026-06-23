@@ -202,16 +202,19 @@ object IrWalk {
       else
         n.operands.map(arg => (n.name, arg))
     }
+    // Memory nodes (issue #205): mem LogicNodeDefs + address edges, and the
+    // connect stream rewritten so mport refs route through encoded mem pins.
+    val mem = MemNodes.build(m)
     // Slice 1 of #210: fold simple depth-1 conditional connects into mux nodes.
     // The folded connects are removed from the stream; the mux nodes are
     // terminals (like other op nodes) and their pin edges join nodeEdges.
-    val muxResult  = WhenMux.synthesize(m.conns, name => regNames.contains(stripIdx(name)))
-    val keptConns  = m.conns.iterator.zipWithIndex
+    val muxResult  = WhenMux.synthesize(mem.conns, name => regNames.contains(stripIdx(name)))
+    val keptConns  = mem.conns.iterator.zipWithIndex
       .collect { case (c, i) if !muxResult.consumed(i) => c }.toSeq
     val muxIds     = muxResult.nodes.map(_.id).toSet
     val (wires, constLogic) =
       coalesceWires(m, keptConns, byName, bundles, regNames, regType,
-        logicNodeNames ++ muxIds, nodeEdges ++ muxResult.edges)
+        logicNodeNames ++ muxIds ++ mem.ids, nodeEdges ++ muxResult.edges ++ mem.addrEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -219,7 +222,7 @@ object IrWalk {
       gates     = None,
       memories  = m.mems.size,
     )
-    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes
+    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic
     // Verification-layer flagging (issue #212): mark logic nodes that are Chisel
     // layer content so the UI can hide them behind "show layers". Seeds: nodes
     // declared inside a `layerblock`, or a module-level condition node the layer

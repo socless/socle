@@ -1253,6 +1253,30 @@
           }
         },
         {
+          "from": "regs~io_rd_rdata1_MPORT~a",
+          "to": "io.rd.raddr1",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "regs~io_rd_rdata2_MPORT~a",
+          "to": "io.rd.raddr2",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "_T~in0",
           "to": "io.wr.waddr",
           "bundle": "Rf_d1479c",
@@ -1265,6 +1289,30 @@
           "fieldLevel": true
         },
         {
+          "from": "regs~MPORT~a",
+          "to": "io.wr.waddr",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "regs~MPORT~w",
+          "to": "io.wr.wdata",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 134,
+            "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "_T_1~in0",
           "to": "io.wr.wen",
           "bundle": "Rf_d1479c",
@@ -1273,6 +1321,30 @@
             "file": "",
             "line": 0,
             "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rd.rdata1",
+          "to": "regs~io_rd_rdata1_MPORT~r",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 131,
+            "col": 16
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rd.rdata2",
+          "to": "regs~io_rd_rdata2_MPORT~r",
+          "bundle": "Rf",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 132,
+            "col": 16
           },
           "fieldLevel": true
         }
@@ -1318,6 +1390,54 @@
             "col": 18
           },
           "op": "and"
+        },
+        {
+          "id": "regs",
+          "kind": "mem",
+          "label": "regs",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 130,
+            "col": 17
+          },
+          "memInfo": {
+            "depth": 32,
+            "elem": "UInt<32>",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_rd_rdata1_MPORT",
+                "source": {
+                  "file": "example/src/rvpipeline/RVPipeline.scala",
+                  "line": 131,
+                  "col": 23
+                }
+              },
+              {
+                "tag": "R1",
+                "dir": "read",
+                "name": "io_rd_rdata2_MPORT",
+                "source": {
+                  "file": "example/src/rvpipeline/RVPipeline.scala",
+                  "line": 132,
+                  "col": 23
+                }
+              },
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "example/src/rvpipeline/RVPipeline.scala",
+                  "line": 134,
+                  "col": 9
+                }
+              }
+            ]
+          }
         }
       ]
     },

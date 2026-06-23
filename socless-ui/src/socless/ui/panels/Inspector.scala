@@ -145,6 +145,7 @@ object Inspector {
   private def logicView(ln: LogicNodeDef, mod: ModuleDef, d: Design): Element = {
     val isReg = ln.kind == NodeKind.Reg
     val isOp  = ln.kind == NodeKind.Op
+    val isMem = ln.kind == NodeKind.Mem
     def sourceRow: Element =
       if (ln.source.file.nonEmpty)
         div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
@@ -164,7 +165,7 @@ object Inspector {
           case _                                        => None
         }
       }.sortBy(_._1)
-    val kindLabel = if (isReg) "register" else if (isOp) "operation" else "constant"
+    val kindLabel = if (isReg) "register" else if (isOp) "operation" else if (isMem) "memory" else "constant"
     div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
@@ -189,6 +190,29 @@ object Inspector {
               })
           else div(styleAttr := s"margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "—"),
         )
+      } else if (isMem) {
+        // memory detail (issue #205): kind + depth × elem, then the port list.
+        ln.memInfo.map { mi =>
+          div(
+            div(sectionTitle("Memory"),
+              div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
+                span(styleAttr := s"color:${Tokens.ink3}", if (mi.sync) "SyncReadMem" else "Mem"),
+                span(styleAttr := s"color:${Tokens.ink2}", s"${mi.depth} × ${mi.elem}"))),
+            sectionTitle(s"Ports (${mi.ports.length})"),
+            if (mi.ports.nonEmpty)
+              div(styleAttr := "margin-bottom:12px;display:flex;flex-direction:column;gap:3px",
+                mi.ports.map { p =>
+                  val loc = if (p.source.file.nonEmpty)
+                    s"${p.source.file.split('/').lastOption.getOrElse(p.source.file)}:${p.source.line}" else ""
+                  div(styleAttr := s"display:flex;align-items:center;gap:8px;font-family:${Tokens.mono};font-size:10.5px",
+                    span(styleAttr := s"color:${Tokens.ink4};flex-shrink:0", p.tag),
+                    span(styleAttr := s"color:${Tokens.ink4};flex-shrink:0;font-size:9px", p.dir),
+                    span(title := p.name, styleAttr := s"color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap", p.name),
+                    if (loc.nonEmpty) span(title := p.source.file, styleAttr := s"margin-left:auto;flex-shrink:0;color:${Tokens.ink4};font-size:9px", loc) else emptyNode)
+                })
+            else div(styleAttr := s"margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "-"),
+          )
+        }.getOrElse(emptyNode)
       } else {
         div(sectionTitle("Value"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))

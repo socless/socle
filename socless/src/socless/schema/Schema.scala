@@ -21,6 +21,8 @@ object NodeKind {
   val Op       = "op"
   /** Collapsed FSM region box (issue #210). */
   val Fsm      = "fsm"
+  /** Memory node: a cmem/smem with read/write access ports (issue #205). */
+  val Mem      = "mem"
 }
 
 /** Schematic pin side (`LaidPort.side` / the layout engine's pin placement). */
@@ -192,6 +194,18 @@ case class InstanceDef(
 )
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 
+/** One access port of a memory node (issue #205). `tag` is the UI role label
+  * ("R0", "W0", "RW0"); `dir` is "read" | "write" | "rdwr"; `name` is the real
+  * CHIRRTL mport name; `source` is the access (mport) line. */
+case class MemPortDef(tag: String, dir: String, name: String, source: SourceRef)
+object MemPortDef { implicit val rw: ReadWriter[MemPortDef] = macroRW }
+
+/** Geometry + ports of a memory node, for the inspector and pin labels
+  * (issue #205). `depth` is the element count, `elem` the rendered element
+  * type ("UInt<32>"), `sync` true for SyncReadMem (smem). */
+case class MemInfo(depth: Int, elem: String, sync: Boolean, ports: Seq[MemPortDef])
+object MemInfo { implicit val rw: ReadWriter[MemInfo] = macroRW }
+
 /** A non-module schematic node: intra-module glue made visible (issue #188).
   * `kind` is "reg" (a register), "const" (an explicit literal driver), "op"
   * (a combinational operation), or "fsm" (a recognized state machine collapsed
@@ -201,7 +215,7 @@ object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
   * expansion); "" for "const"/"op". */
 case class LogicNodeDef(
   id:     String,
-  kind:   String,      // NodeKind: Reg | Const | Op | Fsm
+  kind:   String,      // NodeKind: Reg | Const | Op | Fsm | Mem
   label:  String,
   bundle: String,
   source: SourceRef,
@@ -212,6 +226,10 @@ case class LogicNodeDef(
   // condition, issue #212): the UI hides it unless "show layers" is on. Default
   // false is omitted by upickle, so only layer nodes carry it in design.json.
   layer: Boolean = false,
+  // For kind "mem" (issue #205): the memory's geometry and access ports, used
+  // for pin labels + the inspector. None for every other kind. Trailing default
+  // keeps older design.json loadable.
+  memInfo: Option[MemInfo] = None,
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 
@@ -296,7 +314,7 @@ object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
   * pin is its own stub.
   */
 case class LaidNode(
-  id: String, kind: String,   // NodeKind: Inst | Boundary | Reg | Const | Op | Fsm
+  id: String, kind: String,   // NodeKind: Inst | Boundary | Reg | Const | Op | Fsm | Mem
   x: Int, y: Int, w: Int, h: Int, ports: Seq[LaidPort],
 )
 object LaidNode { implicit val rw: ReadWriter[LaidNode] = macroRW }

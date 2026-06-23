@@ -315,8 +315,10 @@ layout Queue4_Token
   node enq_ptr_value kind=reg pins=enq_ptr_value:WEST,enq_ptr_value~q:EAST
   node full kind=op pins=full:EAST,full~in0:WEST,full~in1:WEST
   node io.count kind=boundary pins=io.count:WEST:iface
+  node io.deq.bits kind=boundary pins=io.deq.bits:WEST:iface
   node io.deq.ready kind=boundary pins=io.deq.ready:EAST:iface
   node io.deq.valid kind=boundary pins=io.deq.valid:WEST:iface
+  node io.enq.bits kind=boundary pins=io.enq.bits:EAST:iface
   node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
   node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
@@ -327,6 +329,7 @@ layout Queue4_Token
   node mux$maybe_full kind=op pins=mux$maybe_full:EAST,mux$maybe_full~in0:WEST,mux$maybe_full~in1:WEST,mux$maybe_full~in2:WEST
   node mux$maybe_full$1 kind=op pins=mux$maybe_full$1:EAST,mux$maybe_full$1~in0:WEST,mux$maybe_full$1~in1:WEST,mux$maybe_full$1~in2:WEST
   node ptr_match kind=op pins=ptr_match:EAST,ptr_match~in0:WEST,ptr_match~in1:WEST
+  node ram kind=mem pins=ram~MPORT~a:WEST,ram~MPORT~w:WEST,ram~io_deq_bits_MPORT~a:WEST,ram~io_deq_bits_MPORT~r:EAST
   node wrap kind=op pins=wrap~in0:WEST,wrap~in1:WEST
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
   edge _T~in0 -> _do_enq_T
@@ -361,6 +364,7 @@ layout Queue4_Token
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
+  edge io.deq.bits -> ram~io_deq_bits_MPORT~r
   edge io.deq.valid -> _io_deq_valid_T
   edge io.enq.ready -> _io_enq_ready_T
   edge maybe_full -> mux$maybe_full
@@ -384,11 +388,23 @@ layout Queue4_Token
   edge mux$maybe_full~in2 -> mux$maybe_full$1
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
+  edge ram~MPORT~a -> enq_ptr_value~q
+  edge ram~MPORT~w -> io.enq.bits
+  edge ram~io_deq_bits_MPORT~a -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q
   edge wrap_1~in1 -> const$wrap_1~in1
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
 layout RegFile
+  node io.raddr kind=boundary pins=io.raddr:EAST:iface
+  node io.rdata kind=boundary pins=io.rdata:WEST:iface
+  node io.waddr kind=boundary pins=io.waddr:EAST:iface
+  node io.wdata kind=boundary pins=io.wdata:EAST:iface
+  node mem kind=mem pins=mem~MPORT~a:WEST,mem~MPORT~w:WEST,mem~io_rdata_MPORT~a:WEST,mem~io_rdata_MPORT~r:EAST
+  edge io.rdata -> mem~io_rdata_MPORT~r
+  edge mem~MPORT~a -> io.waddr
+  edge mem~MPORT~w -> io.wdata
+  edge mem~io_rdata_MPORT~a -> io.raddr
 layoutOf ALU_1 -> ALU
 layoutOf ALU_2 -> ALU
 layoutOf ALU_3 -> ALU

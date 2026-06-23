@@ -1015,13 +1015,102 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "mem~io_rdata_MPORT~a",
+          "to": "io.raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~a",
+          "to": "io.waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~w",
+          "to": "io.wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 65,
+            "col": 32
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rdata",
+          "to": "mem~io_rdata_MPORT~r",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 2,
         "lines": 12,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "mem",
+          "kind": "mem",
+          "label": "mem",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 63,
+            "col": 16
+          },
+          "memInfo": {
+            "depth": 16,
+            "elem": "UInt<32>",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_rdata_MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 64,
+                  "col": 18
+                }
+              },
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 65,
+                  "col": 21
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Core",
@@ -2605,13 +2694,102 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "mem~io_rdata_MPORT~a",
+          "to": "io.raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~a",
+          "to": "io.waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~w",
+          "to": "io.wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 65,
+            "col": 32
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rdata",
+          "to": "mem~io_rdata_MPORT~r",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 2,
         "lines": 12,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "mem",
+          "kind": "mem",
+          "label": "mem",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 63,
+            "col": 16
+          },
+          "memInfo": {
+            "depth": 16,
+            "elem": "UInt<32>",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_rdata_MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 64,
+                  "col": 18
+                }
+              },
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 65,
+                  "col": 21
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Core_1",
@@ -5838,13 +6016,102 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "mem~io_rdata_MPORT~a",
+          "to": "io.raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~a",
+          "to": "io.waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~w",
+          "to": "io.wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 65,
+            "col": 32
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rdata",
+          "to": "mem~io_rdata_MPORT~r",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 2,
         "lines": 12,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "mem",
+          "kind": "mem",
+          "label": "mem",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 63,
+            "col": 16
+          },
+          "memInfo": {
+            "depth": 16,
+            "elem": "UInt<32>",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_rdata_MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 64,
+                  "col": 18
+                }
+              },
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 65,
+                  "col": 21
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Core_2",
@@ -7428,13 +7695,102 @@
         }
       ],
       "children": [],
-      "wires": [],
+      "wires": [
+        {
+          "from": "mem~io_rdata_MPORT~a",
+          "to": "io.raddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~a",
+          "to": "io.waddr",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "mem~MPORT~w",
+          "to": "io.wdata",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 65,
+            "col": 32
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.rdata",
+          "to": "mem~io_rdata_MPORT~r",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        }
+      ],
       "metrics": {
         "registers": 0,
         "wires": 2,
         "lines": 12,
         "memories": 1
-      }
+      },
+      "logic": [
+        {
+          "id": "mem",
+          "kind": "mem",
+          "label": "mem",
+          "bundle": "",
+          "source": {
+            "file": "example/src/deephier/DeepSoc.scala",
+            "line": 63,
+            "col": 16
+          },
+          "memInfo": {
+            "depth": 16,
+            "elem": "UInt<32>",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_rdata_MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 64,
+                  "col": 18
+                }
+              },
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "example/src/deephier/DeepSoc.scala",
+                  "line": 65,
+                  "col": 21
+                }
+              }
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "Core_3",
@@ -10284,6 +10640,18 @@
           "fieldLevel": true
         },
         {
+          "from": "ram~io_deq_bits_MPORT~a",
+          "to": "deq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "wrap_1~in0",
           "to": "deq_ptr_value~q",
           "bundle": "UInt<2>",
@@ -10344,6 +10712,18 @@
           "fieldLevel": true
         },
         {
+          "from": "ram~MPORT~a",
+          "to": "enq_ptr_value~q",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "wrap~in0",
           "to": "enq_ptr_value~q",
           "bundle": "UInt<2>",
@@ -10376,6 +10756,18 @@
             "file": "",
             "line": 0,
             "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "ram~MPORT~w",
+          "to": "io.enq.bits",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 87,
+            "col": 24
           },
           "fieldLevel": true
         },
@@ -10484,6 +10876,18 @@
             "file": "",
             "line": 0,
             "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.deq.bits",
+          "to": "ram~io_deq_bits_MPORT~r",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 110,
+            "col": 17
           },
           "fieldLevel": true
         }
@@ -10968,6 +11372,44 @@
             "col": 0
           },
           "op": "mux"
+        },
+        {
+          "id": "ram",
+          "kind": "mem",
+          "label": "ram",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/Queue.scala",
+            "line": 73,
+            "col": 91
+          },
+          "memInfo": {
+            "depth": 4,
+            "elem": "{...}",
+            "sync": false,
+            "ports": [
+              {
+                "tag": "W0",
+                "dir": "write",
+                "name": "MPORT",
+                "source": {
+                  "file": "src/main/scala/chisel3/util/Queue.scala",
+                  "line": 87,
+                  "col": 8
+                }
+              },
+              {
+                "tag": "R0",
+                "dir": "read",
+                "name": "io_deq_bits_MPORT",
+                "source": {
+                  "file": "src/main/scala/chisel3/util/Queue.scala",
+                  "line": 110,
+                  "col": 23
+                }
+              }
+            ]
+          }
         }
       ]
     },

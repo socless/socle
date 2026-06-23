@@ -155,6 +155,20 @@ object LayoutCore {
     }
   }
 
+  /** Display label for a memory pin: "<tag> addr" / "<tag> data" from the node's
+    * memInfo (issue #205). Falls back to the raw path if unresolvable. */
+  def memPinLabel(module: ModuleDef, memId: String, path: String): String = {
+    val head = stripIdx(path.split('.').headOption.getOrElse(""))
+    Synthetic.memPinParts(head) match {
+      case Some((_, port, role)) =>
+        val tag = module.logic.find(_.id == memId).flatMap(_.memInfo)
+          .flatMap(_.ports.find(_.name == port)).map(_.tag).getOrElse(port)
+        val r = role match { case "a" => "addr"; case "w" | "r" => "data"; case x => x }
+        s"$tag $r"
+      case None => path
+    }
+  }
+
   /** A resolved wire endpoint. `nodeId` is the box that owns the pin (instance
     * name, or the FULL endpoint path for a boundary stub: since issue #68 each
     * external pin is its own per-path boundary node), `kind` is "inst" or
@@ -192,6 +206,7 @@ object LayoutCore {
       val regIds   = module.logic.iterator.filter(_.kind == NodeKind.Reg).map(_.id).toSet
       val constIds = module.logic.iterator.filter(_.kind == NodeKind.Const).map(_.id).toSet
       val opIds    = module.logic.iterator.filter(_.kind == NodeKind.Op).map(_.id).toSet
+      val memIds   = module.logic.iterator.filter(_.kind == NodeKind.Mem).map(_.id).toSet
       // An FSM box has named boundary pins arriving as `<fsmId>.<pin>`, exactly
       // like an instance: the head segment is the box id. Resolve it before the
       // boundary-port fallthrough so the pins are never mistaken for ports or
@@ -208,6 +223,14 @@ object LayoutCore {
         return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead), regBundle(rawHead)))
       if (constIds.contains(rawHead))
         return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false, ""))
+      Synthetic.memPinParts(rawHead) match {
+        case Some((memId, _, role)) if memIds.contains(memId) =>
+          // Memory pins: read-data drives rightward (EAST); address + write-data
+          // receive (WEST). Bundleless, like other logic-node pins.
+          val side = if (role == "r") PinSide.East else PinSide.West
+          return Some(Endpoint(memId, NodeKind.Mem, path, side, false, ""))
+        case _ => ()
+      }
       val inIdx = rawHead.indexOf("~in")
       if (inIdx > 0 && opIds.contains(rawHead.substring(0, inIdx)))
         return Some(Endpoint(rawHead.substring(0, inIdx), NodeKind.Op, path, PinSide.West, false, ""))
@@ -403,7 +426,9 @@ object LayoutCore {
 
     // 4. Compute node geometry + per-pin coordinates (pure; no engine objects).
     val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
-      def lblOf(p: PinSpec): String = pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+      def lblOf(p: PinSpec): String =
+        if (kind == NodeKind.Mem) memPinLabel(module, id, p.path)
+        else pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
       // Const nodes share the boundary stub's compact geometry (a single small
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
       // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
@@ -476,12 +501,28 @@ object LayoutCore {
         // keep their existing order (only kind == Op is reordered).
         val OpIn = """.*~in(\d+)$""".r
         val isOp = kind == NodeKind.Op
+        val isMem = kind == NodeKind.Mem
+        def memSortKey(p: PinSpec): (Int, Int) = {
+          val head = stripIdx(p.path.split('.').head)
+          Synthetic.memPinParts(head) match {
+            case Some((_, port, role)) =>
+              val ports = module.logic.find(_.id == id).flatMap(_.memInfo).map(_.ports).getOrElse(Nil)
+              val pi = ports.indexWhere(_.name == port)
+              val ri = role match { case "a" => 0; case "w" => 1; case _ => 0 }
+              ((if (pi < 0) Int.MaxValue else pi), ri)
+            case None => (Int.MaxValue, 0)
+          }
+        }
         val westPins = {
           val ws = pins.values.filter(_.side == PinSide.West).toSeq
           if (isOp) ws.sortBy(p => p.path match { case OpIn(i) => (i.toInt, p.path); case _ => (Int.MaxValue, p.path) })
+          else if (isMem) ws.sortBy(memSortKey)
           else ws
         }
-        val eastPins = pins.values.filter(_.side == PinSide.East).toSeq
+        val eastPins = {
+          val es = pins.values.filter(_.side == PinSide.East).toSeq
+          if (isMem) es.sortBy(memSortKey) else es
+        }
         // Output centers on the DATA inputs (every west pin except a mux select
         // `~in0`, which renders on top), now over the deterministic order.
         val dataRows = westPins.zipWithIndex.collect {

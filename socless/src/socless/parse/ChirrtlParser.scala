@@ -55,7 +55,13 @@ object ChirrtlParser {
     *   smem <name> : <type>[<depth>]    (sequential memory port)
     *   mem <name> :                     (structured-memory block; multi-line in old FIRRTL)
     */
-  case class MemDecl(name: String, src: Option[SrcInfo])
+  case class MemDecl(name: String, elem: String, depth: Int, sync: Boolean, src: Option[SrcInfo])
+
+  /** A memory access port (`mport`) inside a module body (issue #205):
+    *   <infer|read|write|rdwr> mport <name> = <mem>[<addr>], <clock>
+    * The clock operand is dropped (not a rendered pin). `mode` "infer" means the
+    * direction is resolved later from how `name` is used in connects. */
+  case class MPortDecl(name: String, mem: String, addr: String, mode: String, src: Option[SrcInfo])
 
   /** A node declaration inside a module body: `node <name> = <expr>`.
     *
@@ -93,6 +99,7 @@ object ChirrtlParser {
     // yet are clearly used (issue #74).
     refs: Set[String] = Set.empty,
     nodes: Seq[NodeDecl] = Seq.empty,
+    mports: Seq[MPortDecl] = Seq.empty,
     // Identifier heads referenced from inside `layerblock` content (issue #212):
     // the signals a verification layer reads. A module-level condition node whose
     // only consumer is a layer (so it appears here but drives no design sink) is
@@ -137,6 +144,7 @@ object ChirrtlParser {
     val curMems                   = mutable.Buffer.empty[MemDecl]
     val curRefs                   = mutable.Set.empty[String]
     val curNodes                  = mutable.Buffer.empty[NodeDecl]
+    val curMports                 = mutable.Buffer.empty[MPortDecl]
     val curLayerConsumes          = mutable.Set.empty[String]
 
     // When-scope stack: (indent, cond, negated). A `when c :` pushes a frame at
@@ -154,12 +162,12 @@ object ChirrtlParser {
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
         curRegs.toSeq, curMems.toSeq, curRefs.toSet, curNodes.toSeq,
-        curLayerConsumes.toSet,
+        curMports.toSeq, curLayerConsumes.toSet,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
       curRegs.clear(); curMems.clear(); curRefs.clear(); curNodes.clear()
-      curLayerConsumes.clear()
+      curMports.clear(); curLayerConsumes.clear()
       whenStack.clear(); layerStack.clear()
     }
 
@@ -266,8 +274,9 @@ object ChirrtlParser {
               // Connects reference exactly their two endpoint expressions.
               case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
-              case Some(m: MemDecl)  => curMems += m; collectRefs(other)
-              case Some(n: NodeDecl) => curNodes += n.copy(guard = guard, inLayer = inLayer); collectRefs(other)
+              case Some(m: MemDecl)   => curMems += m; collectRefs(other)
+              case Some(mp: MPortDecl) => curMports += mp; collectRefs(other)
+              case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, inLayer = inLayer); collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
@@ -330,11 +339,16 @@ object ChirrtlParser {
   private val RegRe =
     """^\s+(?:regreset|reg)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
 
-  // Memory declarations: cmem, smem, mem (one-liner forms).
-  // cmem/smem: cmem <name> : <type>[<depth>]  @[...]
-  // mem (old FIRRTL structured block): mem <name> :   (no type on same line)
+  // Memory access port: <mode> mport <name> = <mem>[<addr>], <clock>.
+  // The address may itself be indexed (`vec[i]`), so `[(.+)\]` matches to the
+  // LAST ']'; the clock operand is captured but discarded.
+  private val MPortRe =
+    """^\s+(infer|read|write|rdwr)\s+mport\s+([\w$]+)\s*=\s*([\w$]+)\[(.+)\]\s*,\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+
+  // Memory declarations: cmem/smem carry an inline `<type>[<depth>]`; the bare
+  // old-FIRRTL structured `mem <name> :` block has no inline type (depth 0).
   private val MemRe =
-    """^\s+(?:cmem|smem|mem)\s+([\w$]+)\s*[:\s](.*?)((?:@\[[^\]]*\]\s*)*)$""".r
+    """^\s+(cmem|smem|mem)\s+([\w$]+)\s*[:\s](.*?)((?:@\[[^\]]*\]\s*)*)$""".r
 
   // Node declarations: node <name> = <expr>  @[...]
   private val NodeRe =
@@ -366,6 +380,25 @@ object ChirrtlParser {
     case bare             => ("", Seq(bare))
   }
 
+  /** Render a parsed type to a short human string for memory element labels. */
+  private def renderType(t: Type): String = t match {
+    case GroundT(n, Some(w)) => s"$n<$w>"
+    case GroundT(n, None)    => n
+    case VecT(e, n)          => s"${renderType(e)}[$n]"
+    case BundleT(_)          => "{...}"
+  }
+
+  /** Parse a cmem/smem inline type `UInt<32>[16]` into (elem, depth). The bare
+    * structured `mem <name> :` form passes an empty string and yields ("", 0). */
+  private def parseMemType(s: String): (String, Int) = {
+    val t = s.trim
+    if (t.isEmpty) ("", 0)
+    else parseType(t)._1 match {
+      case VecT(elem, n) => (renderType(elem), n)
+      case other         => (renderType(other), 0)
+    }
+  }
+
   private def parseStmt(line: String): Option[AnyRef] = line match {
     case PortRe(dir, name, typeStr, srcOpt) =>
       val (tpe, _) = parseType(typeStr)
@@ -380,8 +413,11 @@ object ChirrtlParser {
       // Parse just the type prefix; ignore the clock/reset/init operands.
       val (tpe, _) = parseType(typeStr.trim)
       Some(RegDecl(name, tpe, parseSrc(Option(srcOpt))))
-    case MemRe(name, _, srcOpt) =>
-      Some(MemDecl(name, parseSrc(Option(srcOpt))))
+    case MPortRe(mode, name, mem, addr, _clk, srcOpt) =>
+      Some(MPortDecl(name, mem, addr.trim, mode, parseSrc(Option(srcOpt))))
+    case MemRe(kw, name, typeStr, srcOpt) =>
+      val (elem, depth) = parseMemType(typeStr)
+      Some(MemDecl(name, elem, depth, sync = kw == "smem", parseSrc(Option(srcOpt))))
     case NodeRe(name, expr, srcOpt) =>
       val (op, operands) = parseNodeExpr(expr)
       Some(NodeDecl(name, op, operands, parseSrc(Option(srcOpt))))

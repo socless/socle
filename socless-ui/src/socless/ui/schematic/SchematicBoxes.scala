@@ -207,6 +207,43 @@ private[schematic] object SchematicBoxes {
     )
   }
 
+  // ── memory node (issue #205) ──
+  // Instance-style box (header + WEST/EAST pin rows) marked with a stacked-rows
+  // glyph and a RAM/SRAM depth×elem tag. Pins keep their role labels (R0 addr,
+  // R0 data, ...). Tagged `data-mem` for ui-smoke.
+  def memBox(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double, active: Boolean,
+             sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
+    val c            = g.c
+    val info         = g.mod.logic.find(_.id == n.id).flatMap(_.memInfo)
+    val tag          = info.map(mi => s"${if (mi.sync) "SRAM" else "RAM"} ${mi.depth}x${mi.elem}").getOrElse("mem")
+    val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
+    val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
+    val borderCol    = if (selectedHere) Tokens.accent else Tokens.border
+    val boxShadow    = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}" else "0 1px 2px rgba(0,0,0,.04)"
+    div(
+      dataAttr("mem") := n.id,
+      dataAttr("box-inst") := n.id,
+      dataAttr("pan-block") := "1",
+      title := s"memory ($tag)",
+      styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
+        s"opacity:${if (active) "1" else "0.18"};" +
+        s"background:${if (ctx.colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panel};border:1px solid $borderCol;border-radius:6px;" +
+        s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
+        "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+      div(
+        styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
+          s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+        onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
+        span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.ink3};font-size:11px", "▤"),
+        span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
+        div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
+          span(styleAttr := s"font-family:${Tokens.mono};font-size:9px;color:${Tokens.ink3};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis", tag)),
+      ),
+      renderPortRows(ctx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
+      renderPortRows(ctx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),
+    )
+  }
+
   // ── port rows inside an instance box ──
   def renderPortRows(ctx: Ctx, g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String,
                      sel: Option[String], hov: Option[String],

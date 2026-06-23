@@ -310,6 +310,10 @@ object Schematic {
         // but non-drillable and tinted to read as a state machine. Intercepted
         // before the childless-boundary arm since it has no `children` entry.
         else if (n.kind == NodeKind.Fsm) SchematicBoxes.fsmBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        // A memory node (issue #205): instance-style box with a memory glyph and a
+        // RAM/SRAM depth×elem tag. Has no `children` entry, so it must be
+        // intercepted before the childless-boundary arm like reg/op/fsm.
+        else if (n.kind == NodeKind.Mem) SchematicBoxes.memBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
