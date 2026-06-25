@@ -295,6 +295,7 @@ object App {
             cls := "scl-design-picker", dataAttr("design-picker") := "1",
             title := "Switch design (multi-top build)",
             value <-- loader.activeDesignSig,
+            disabled <-- loader.loadingSig,
             onChange.mapToValue --> { p =>
               loader.selectDesign(p, ds.find(_._3 == p).map(_._2).getOrElse(p))
             },

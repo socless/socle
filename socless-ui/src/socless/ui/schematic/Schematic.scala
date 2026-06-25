@@ -80,6 +80,24 @@ object Schematic {
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
 
+    // Memoize elkjs layout results so repeated drill / expand / collapse and
+    // Optimize-off return instantly instead of re-running the engine on the main
+    // thread (perf). Keyed by module + mode + expansion + box overrides, and
+    // cleared when the design changes (live reload), since the same module name
+    // can then describe different internals. Bounded so pathological expand
+    // toggling cannot grow it without limit.
+    val engineCache    = scala.collection.mutable.LinkedHashMap.empty[String, LaidOut]
+    val engineCacheCap = 96
+    def engineKey(modName: String, mode: String, expanded: Set[String], overrides: Map[String, BoxOverride]): String = {
+      val exp = expanded.toList.sorted.mkString(",")
+      val ovr = overrides.toList.sortBy(_._1).map { case (k, o) => s"$k=${o.height.getOrElse(0.0)}" }.mkString(",")
+      s"$modName|$mode|$exp|$ovr"
+    }
+    def engineCachePut(key: String, v: LaidOut): Unit = {
+      engineCache(key) = v
+      if (engineCache.size > engineCacheCap) engineCache.remove(engineCache.head._1)
+    }
+
     // ── geometry signal ──
     def computeGeom(d: Design, mod: ModuleDef, engine: Option[LaidOut], expanded: Set[String]): Geom = {
       val c       = Tokens.consts(d)
@@ -130,15 +148,23 @@ object Schematic {
                   Some(inst -> BoxOverride(Some(br.boxH), br.pinY(c.headerH, c.portPad, c.portStep)))
                 else None
               }
+              val mode = if (optimize) "optimize" else "reroute"
+              val key  = engineKey(mod.name, mode, expanded, overrides)
               engineGen += 1
               val myGen = engineGen
-              pendingVar.set(true)
-              BrowserLayout.runTyped(mod, d, if (optimize) "optimize" else "reroute", overrides, expanded).onComplete {
-                case Success(res) => if (myGen == engineGen) { engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
-                case Failure(e)   => if (myGen == engineGen) {
-                  engineVar.set(None); pendingVar.set(false)
-                  dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
-                }
+              engineCache.get(key) match {
+                case Some(cached) =>
+                  // Cache hit: place synchronously, no engine run, no spinner.
+                  engineVar.set(Some((mod.name, cached))); pendingVar.set(false)
+                case None =>
+                  pendingVar.set(true)
+                  BrowserLayout.runTyped(mod, d, mode, overrides, expanded).onComplete {
+                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
+                    case Failure(e)   => if (myGen == engineGen) {
+                      engineVar.set(None); pendingVar.set(false)
+                      dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
+                    }
+                  }
               }
           }
         case _ => engineVar.set(None)
@@ -469,8 +495,14 @@ object Schematic {
         s"position:absolute;left:0;top:0;width:${w}px;height:${h}px;transform:translate(${px}px,${py}px) scale($z);transform-origin:0 0;transition:width .3s,height .3s"
     }
 
+    // Debounce the filter so each keystroke does not rebuild every box + wire and
+    // re-run the fuzzy match: the input itself stays responsive (it binds
+    // `filterVar` directly in the chrome), only the dim recompute waits for a
+    // brief pause in typing (perf).
+    val filterDimSig: Signal[String] = filterVar.signal.composeChanges(_.debounce(140))
+
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
-      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterVar.signal, showLayersVar.signal,
+      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterDimSig, showLayersVar.signal,
                      colorBoxesVar.signal, colorWiresVar.signal).map {
         case (Some(g), sel, hov, filter, showLayers, colorBoxes, colorWires) =>
           renderContent(g, sel, hov, filter, showLayers, colorBoxes, colorWires)
@@ -547,6 +579,17 @@ object Schematic {
         },
       ),
       SchematicChrome.controls(ctrlCtx),
+      // Non-blocking "laying out…" badge while the in-browser engine runs, so a
+      // re-layout reads as progress instead of a freeze (perf feedback). Click-
+      // through (pointer-events:none); the last-good schematic stays interactive.
+      child.maybe <-- pendingVar.signal.map(p => if (p) Some(
+        div(dataAttr("layout-spinner") := "1",
+          styleAttr := s"position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};pointer-events:none;box-shadow:0 1px 5px rgba(0,0,0,.14)",
+          span(cls := "scl-spinner"), span("laying out…"))
+      ) else None),
+      // Drop the memoized engine layouts when the design itself changes (live
+      // reload / picker switch): a reused module name can describe new internals.
+      designSig.changes --> { _ => engineCache.clear() },
       // Minimap, shown only when content overflows the viewport at this zoom.
       child.maybe <-- Signal.combine(geomSig, panVar.signal, zoomVar.signal, viewSizeVar.signal).map {
         case (Some(g), (px, py), z, (vw, vh))

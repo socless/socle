@@ -32,6 +32,7 @@ final class DesignLoader(
   // "multi" (a non-primary top). None until the first design loads.
   private val sourceVar        = Var[Option[(String, String)]](None)
   private val errorVar         = Var[Option[String]](None)
+  private val loadingVar       = Var(false)                          // a design fetch/parse is in flight
   private val liveUpdatedAtVar = Var[Double](0d)                     // ms of the last live auto-reload; 0 = never
   private val dragActiveVar    = Var(false)                          // drop-zone overlay visibility
   private val toastVar         = Var[Option[(String, String)]](None) // (message, kind: info|ok|err)
@@ -50,6 +51,7 @@ final class DesignLoader(
   val designSig:        Signal[Option[Design]]                   = designVar.signal
   val sourceSig:        Signal[Option[(String, String)]]         = sourceVar.signal
   val errorSig:         Signal[Option[String]]                   = errorVar.signal
+  val loadingSig:       Signal[Boolean]                          = loadingVar.signal
   val liveUpdatedAtSig: Signal[Double]                           = liveUpdatedAtVar.signal
   val dragActiveSig:    Signal[Boolean]                          = dragActiveVar.signal
   val toastSig:         Signal[Option[(String, String)]]         = toastVar.signal
@@ -99,12 +101,13 @@ final class DesignLoader(
         try { val d = upickle.default.read[Design](txt); setDesign(d, ("snapshot", s"${topOf(d)} (snapshot)")) }
         catch { case e: Throwable => errorVar.set(Some(msgOf(e))) }
       case None =>
+        loadingVar.set(true)
         dom.fetch("design.json").flatMap { r =>
           if (r.ok) { liveBaseline = headerStamp(r); r.text() }
           else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
         }.map(txt => upickle.default.read[Design](txt)).onComplete {
-          case Success(d) => setDesign(d, ("live", "live (design.json)")); startLiveWatch()
-          case Failure(e) => errorVar.set(Some(msgOf(e)))
+          case Success(d) => loadingVar.set(false); setDesign(d, ("live", "live (design.json)")); startLiveWatch()
+          case Failure(e) => loadingVar.set(false); errorVar.set(Some(msgOf(e)))
         }
     }
   }
@@ -128,15 +131,17 @@ final class DesignLoader(
   def selectDesign(path: String, label: String): Unit = {
     if (path == activeDesignVar.now()) return
     activeDesignVar.set(path)
+    loadingVar.set(true)
     val primary = path == "design.json"
     dom.fetch(path).flatMap { r =>
       if (r.ok) { if (primary) liveBaseline = headerStamp(r); r.text() }
       else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
     }.map(txt => upickle.default.read[Design](txt)).onComplete {
       case Success(d) =>
+        loadingVar.set(false)
         if (primary) { setDesign(d, ("live", "live (design.json)")); startLiveWatch() }
         else setDesign(d, ("multi", label))
-      case Failure(e) => errorVar.set(Some(msgOf(e)))
+      case Failure(e) => loadingVar.set(false); errorVar.set(Some(msgOf(e)))
     }
   }
 
