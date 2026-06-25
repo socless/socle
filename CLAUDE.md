@@ -106,6 +106,21 @@ build** - just `./mill socless-ui.dist`. It parses `design.json` into the typed
 class MyTopForSocless extends MyTop(defaultParams)
 ```
 
+**Two ELK engines, one shared core (deliberate, not duplication).** Layout has a
+single pure, engine-independent core (`layout/LayoutCore.scala`, plus `Schema`,
+`BundleTree`, `Synthetic`) that `build.mill` cross-compiles into BOTH the JVM
+`socless` module and the Scala.js `socless-js` module (`sharedSources`), so the
+graph prep cannot drift. Only the ELK runtime *binding* is duplicated: `Layout.scala`
+(JVM, wraps Eclipse ELK Java) bakes per-module layouts into `design.json` at export
+time, and `BrowserLayout.scala` (JS, wraps elkjs) re-lays-out in the browser. Both
+exist on purpose: the baked JVM layout gives instant first paint, deterministic
+golden snapshots (`LayoutStructureGoldenTest`), and headless `soclessDebugLayout`
+(no browser); elkjs gives interactive re-layout for expansions / drill-in / Optimize
+that the backend cannot precompute (issue #167). ELK versions are pinned together
+(`V.elk` and the vendored `elk.bundled.js`). Keep the two engine bindings behaviorally
+aligned when you touch either; consolidating to elkjs-only is possible but would trade
+away first-paint and the JVM-side layout tests (see the perf plan, not yet scheduled).
+
 ## Schema Contract
 
 `Schema.scala` case classes are the JSON contract with the `socless-ui` frontend, which reads `design.json` into the typed `Design` via the shared upickle ReadWriters. Adding fields must be backward-compatible (use a trailing default so older `design.json` still parses). Never remove or rename existing fields without updating the UI.
