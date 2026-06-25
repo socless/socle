@@ -244,14 +244,49 @@ object BrowserLayout {
     LaidOut(nodes, edges, g.width.toInt.max(1), g.height.toInt.max(1))
   }
 
+  /** A single ELK engine, created once and reused across every layout call.
+    *
+    * When the elkjs bundle source is inlined into the page (the shipped
+    * single-file UI tags that script `id="socless-elk"`, see `socless-ui.dist`),
+    * run ELK in a **Blob-URL Web Worker** so the layout algorithm no longer
+    * blocks the main thread (Phase 2). A self-contained file opened from
+    * `file://` cannot load a separate worker URL, so the worker is built from a
+    * Blob of that same inlined source: the vendored bundle self-detects worker
+    * context and installs its own message handler.
+    *
+    * Falls back to the in-process (main-thread) engine when no inlined source is
+    * present (the dev loop loads elkjs from a CDN `<script>`) or if worker
+    * construction throws. Either way layout stays a `Future`, so the caller and
+    * the "use baked layout on failure" path are unchanged. */
+  private lazy val engine: js.Dynamic = {
+    val ELK = js.Dynamic.global.ELK
+    // The worker build of elkjs, inlined by `socless-ui.dist` as a non-executing
+    // <script id="socless-elk-worker">. Absent in the dev loop (elkjs loaded from
+    // a CDN <script>), where we fall back to the in-process engine.
+    val el  = js.Dynamic.global.document.getElementById("socless-elk-worker")
+    val src = if (js.isUndefined(el) || el == null) "" else el.textContent.asInstanceOf[String]
+    if (src.nonEmpty) {
+      try {
+        val blob = js.Dynamic.newInstance(js.Dynamic.global.Blob)(
+          js.Array[js.Any](src), js.Dynamic.literal(`type` = "text/javascript"))
+        val url  = js.Dynamic.global.URL.createObjectURL(blob)
+        // Pass only workerFactory (no workerUrl, which makes elkjs try its Node
+        // web-worker package and warn). elkjs calls factory(workerUrl); we ignore
+        // the url and serve the Blob worker built from the inlined worker source.
+        val factory: js.Function1[js.Any, js.Any] = (_: js.Any) => js.Dynamic.newInstance(js.Dynamic.global.Worker)(url)
+        js.Dynamic.newInstance(ELK)(js.Dynamic.literal(workerFactory = factory))
+      } catch { case _: Throwable => js.Dynamic.newInstance(ELK)() }
+    } else js.Dynamic.newInstance(ELK)()
+  }
+
   /** Lay out one module with elkjs, returning a [[LaidOut]] (the in-process
-    * seam for the Scala.js + Laminar UI, epic #172). */
+    * seam for the Scala.js + Laminar UI, epic #172). The engine runs off the
+    * main thread when available (see [[engine]]). */
   def runTyped(module: ModuleDef, design: Design, mode: String,
                overrides: Map[String, BoxOverride], expanded: Set[String]): Future[LaidOut] = {
     val prep  = LayoutCore.prepare(module, design, expanded)
     val graph = buildGraph(prep, mode, overrides)
-    val elk   = js.Dynamic.newInstance(js.Dynamic.global.ELK)()
-    val laid: Future[js.Dynamic] = elk.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
+    val laid: Future[js.Dynamic] = engine.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
     laid.map(res => extractTyped(prep, res))
   }
 

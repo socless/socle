@@ -215,6 +215,9 @@ object `socless-ui` extends ScalaJSModule {
   // The module owns its HTML template + vendored elkjs runtime.
   def uiTemplate  = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "html" / "SoCLess.src.html")
   def uiVendorElk = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk.bundled.js")
+  // The worker build of elkjs (matched version), inlined as a non-executing
+  // script the runtime reads to spin up the Blob-URL layout Web Worker (Phase 2).
+  def uiVendorElkWorker = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk-worker.min.js")
 
   /** The shipped single-file UI: the fullLinkJS output + the vendored elkjs
     * bundle inlined into the template, producing one offline file. Built
@@ -223,9 +226,10 @@ object `socless-ui` extends ScalaJSModule {
   def dist = Task {
     val tpl = os.read(uiTemplate().path)
     val elk = os.read(uiVendorElk().path)
+    val elkWorker = os.read(uiVendorElkWorker().path)
     val js  = os.read(fullLinkJS().dest.path / "main.js")
       .replaceAll("(?s)\\n?//# sourceMappingURL=.*$", "\n") // drop the sourcemap comment
-    for (code <- Seq(elk, js)) if (code.contains("</script"))
+    for (code <- Seq(elk, elkWorker, js)) if (code.contains("</script"))
       sys.error("inlined script contains '</script' and cannot be embedded safely")
 
     val elkRe = """<script src="https://unpkg\.com/elkjs@([^/"]+)[^"]*"[^>]*></script>""".r
@@ -235,7 +239,14 @@ object `socless-ui` extends ScalaJSModule {
     if (jsRe.findFirstIn(tpl).isEmpty) sys.error("socless-ui.js script tag not found in SoCLess.src.html")
 
     def quote(s: String) = java.util.regex.Matcher.quoteReplacement(s)
-    var html = elkRe.replaceFirstIn(tpl, quote(s"<script>/* elkjs@$elkVer bundled (vendored) */\n$elk\n</script>"))
+    // Inline the elkjs client (executes, sets window.ELK) plus the worker build
+    // as a non-executing script the runtime reads to build the Blob-URL layout
+    // Web Worker (Phase 2): a single offline file cannot load a separate worker
+    // URL, so the worker source must travel inline.
+    val elkInline =
+      s"<script>/* elkjs@$elkVer bundled (vendored) */\n$elk\n</script>\n" +
+      s"""<script type="text/plain" id="socless-elk-worker">/* elkjs@$elkVer worker (vendored) */""" + s"\n$elkWorker\n</script>"
+    var html = elkRe.replaceFirstIn(tpl, quote(elkInline))
     html = jsRe.replaceFirstIn(html, quote(s"<script>/* socless-ui (Scala.js + Laminar) */\n$js\n</script>"))
     val doctypeRe = """(?i)^<!doctype html>""".r
     if (doctypeRe.findFirstIn(html).isEmpty) sys.error("expected the template to start with a doctype")
