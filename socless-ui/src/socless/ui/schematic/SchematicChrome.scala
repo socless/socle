@@ -25,8 +25,6 @@ private[schematic] object SchematicChrome {
     engineSig:     Signal[Option[LaidOut]],
     layerHasSig:   Signal[Boolean],
     showLayersVar: Var[Boolean],
-    colorBoxesVar: Var[Boolean],
-    colorWiresVar: Var[Boolean],
     zoomSig:       Signal[Double],
     onOptimize:    () => Unit,
     onFit:         () => Unit,
@@ -86,21 +84,8 @@ private[schematic] object SchematicChrome {
           onClick --> { (_: dom.MouseEvent) => c.showLayersVar.update(!_) },
           child.text <-- c.showLayersVar.signal.map(s => if (s) "layers ✓" else "layers")))
       },
-      // Colorize components by node kind / wires by bundle+net (issue #266).
-      // Interim home: these toolbar toggles move into the settings panel (#198)
-      // when it returns. Both default off (neutral rendering unchanged).
-      button(
-        dataAttr("toggle-colorize") := "1",
-        styleAttr <-- c.colorBoxesVar.signal.map(s => zbtn + s";color:${if (s) Tokens.accent else Tokens.ink3}"),
-        title := "Colorize components by type (instances, registers, ops, FSMs, IO)",
-        onClick --> { (_: dom.MouseEvent) => c.colorBoxesVar.update(!_) },
-        child.text <-- c.colorBoxesVar.signal.map(s => if (s) "colorize ✓" else "colorize")),
-      button(
-        dataAttr("toggle-colorize-wires") := "1",
-        styleAttr <-- c.colorWiresVar.signal.map(s => zbtn + s";color:${if (s) Tokens.accent else Tokens.ink3}"),
-        title := "Colorize wires by bundle type (per-net for plain wires)",
-        onClick --> { (_: dom.MouseEvent) => c.colorWiresVar.update(!_) },
-        child.text <-- c.colorWiresVar.signal.map(s => if (s) "wires ✓" else "wires")),
+      // The colorize-components / colorize-wires toggles moved into the settings
+      // panel (#274); they live in App now and the schematic reads them via params.
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
       button(styleAttr := zbtn, title := "Fit to view", onClick --> { (_: dom.MouseEvent) => c.onFit() }, "fit"),
       button(styleAttr := zbtn, title := "Zoom out", onClick --> { (_: dom.MouseEvent) => c.zoomBy(0.8) }, "−"),

@@ -47,6 +47,10 @@ object Schematic {
     hoveredVar: Var[Option[String]],
     expandedPortsVar: Var[Set[String]],
     drillInto: String => Unit,
+    // Colorize toggles live in the settings panel (#274), so App owns them and
+    // passes them in; the schematic reads them per-render (#266).
+    colorBoxesVar: Var[Boolean],
+    colorWiresVar: Var[Boolean],
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
   ): Element = {
 
@@ -62,8 +66,6 @@ object Schematic {
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
     val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
-    val colorBoxesVar = Var(false) // colorize components by node kind (issue #266)
-    val colorWiresVar = Var(false) // colorize wires by bundle / net (issue #266)
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
@@ -523,8 +525,6 @@ object Schematic {
       engineSig     = engineVar.signal.map(_.map(_._2)),
       layerHasSig   = geomSig.map(_.exists(_.mod.logic.exists(_.layer))),
       showLayersVar = showLayersVar,
-      colorBoxesVar = colorBoxesVar,
-      colorWiresVar = colorWiresVar,
       zoomSig       = zoomVar.signal,
       onOptimize    = () => optNonceVar.update(_ + 1),
       onFit         = () => doFit(),

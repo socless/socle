@@ -151,6 +151,39 @@
   :root[data-density="compact"] .scl-pane-title { padding: 5px 10px; }
   :root[data-density="compact"] .scl-hier-row { height: 20px; font-size: 11px; }
   :root[data-density="compact"] .scl-hier-type { font-size: 9.5px; }
+  /* Comfy density (#274): loosen the chrome a touch. */
+  :root[data-density="comfy"] body { font-size: 14px; }
+  :root[data-density="comfy"] .scl-topbar { padding: 11px 16px; }
+  :root[data-density="comfy"] .scl-pane-title { padding: 11px 14px; }
+  :root[data-density="comfy"] .scl-hier-row { height: 28px; font-size: 13px; }
+  /* Settings panel (#274): a frosted, sectioned control panel. */
+  .scl-set-panel { position: absolute; top: 34px; right: 0; z-index: 50; width: 236px;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+    border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 44px rgba(0,0,0,.34);
+    padding: 12px; display: flex; flex-direction: column; gap: 9px;
+    font-family: var(--mono); font-size: 11px; color: var(--ink2); }
+  .scl-set-sect { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink3); margin: 4px 0 1px; }
+  .scl-set-sect:first-child { margin-top: 0; }
+  .scl-set-row-label { color: var(--ink2); }
+  .scl-seg { position: relative; display: flex; padding: 3px; border-radius: 9px;
+    background: var(--panelAlt); border: 1px solid var(--border); }
+  .scl-seg-thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 6px; background: var(--panel);
+    border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,.18);
+    transition: left .18s cubic-bezier(.3,.7,.4,1), width .18s; }
+  .scl-seg button { position: relative; z-index: 1; flex: 1; border: 0; background: transparent;
+    color: var(--ink2); font: 500 11px var(--mono); height: 23px; border-radius: 6px; cursor: pointer; }
+  .scl-seg button.on { color: var(--ink); }
+  .scl-tg-row { display: flex; align-items: center; justify-content: space-between; height: 24px; color: var(--ink2); }
+  .scl-tg { position: relative; width: 34px; height: 19px; border: 1px solid var(--border); border-radius: 99px;
+    background: var(--panelAlt); cursor: pointer; transition: background .16s; flex-shrink: 0; padding: 0; }
+  .scl-tg[data-on="1"] { background: var(--accent); border-color: transparent; }
+  .scl-tg i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .16s; }
+  .scl-tg[data-on="1"] i { transform: translateX(15px); }
+  .scl-set-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
@@ -275,9 +308,9 @@
       if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
       if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
       if (DARK[t]) document.documentElement.setAttribute('data-mode', 'dark');
-      // Density (#198), also applied before paint to avoid a reflow.
+      // Density (#198 / #274), also applied before paint to avoid a reflow.
       var density = localStorage.getItem('socless-density');
-      if (density === 'compact') document.documentElement.setAttribute('data-density', 'compact');
+      if (density === 'compact' || density === 'comfy') document.documentElement.setAttribute('data-density', density);
     } catch (e) { /* private mode / no storage - default light */ }
   })();
 </script>

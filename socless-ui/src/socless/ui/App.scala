@@ -35,7 +35,11 @@ object App {
   // Settings panel view preferences, persisted and applied as <html> attributes
   // (also set before paint in the template): theme id (#275) + density (#198).
   private val settingsOpenVar = Var(false)
-  private val densityVar      = Var[String]("comfortable")      // "comfortable" | "compact"
+  private val densityVar      = Var[String]("comfortable")      // "compact" | "comfortable" | "comfy"
+  // Colorize toggles (#266) live in the settings panel now (#274); App owns them
+  // and passes them into the schematic.
+  private val colorBoxesVar   = Var(false)
+  private val colorWiresVar   = Var(false)
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
@@ -124,23 +128,40 @@ object App {
   // gallery in the settings panel picks any named theme.
   private def toggleTheme(): Unit = applyTheme(if (darkThemes(currentTheme())) "light" else "dark")
 
-  // ── Settings panel: density (#198) ─────────────────────────────────────────
+  // ── Settings panel: density (#198 / #274) ──────────────────────────────────
+  // "comfortable" is the default (no attribute); "compact" and "comfy" set
+  // data-density and CSS tightens/loosens the chrome accordingly.
+  private val densityOpts = List(("compact", "Compact"), ("comfortable", "Comfortable"), ("comfy", "Comfy"))
   private def currentDensity(): String =
-    if (dom.document.documentElement.getAttribute("data-density") == "compact") "compact" else "comfortable"
+    Option(dom.document.documentElement.getAttribute("data-density")).filter(_.nonEmpty).getOrElse("comfortable")
   private def applyDensity(d: String): Unit = {
-    if (d == "compact") dom.document.documentElement.setAttribute("data-density", "compact")
-    else dom.document.documentElement.removeAttribute("data-density")
+    if (d == "comfortable") dom.document.documentElement.removeAttribute("data-density")
+    else dom.document.documentElement.setAttribute("data-density", d)
     try dom.window.localStorage.setItem("socless-density", d) catch { case _: Throwable => () }
     densityVar.set(d)
   }
 
-  private def densityBtn(id: String, label: String): Element =
-    button(dataAttr("density-option") := id,
-      styleAttr <-- densityVar.signal.map { d =>
-        val sel = d == id
-        s"flex:1;border:1px solid ${if (sel) Tokens.accent else Tokens.border};background:${if (sel) Tokens.accentBg else "transparent"};color:${if (sel) Tokens.accent else Tokens.ink2};border-radius:5px;padding:4px 6px;cursor:pointer;font-family:inherit;font-size:11px"
-      },
-      onClick --> { _ => applyDensity(id) }, label)
+  // Segmented control with an animated sliding thumb (#274). The thumb left/width
+  // are computed from the selected index over three equal segments.
+  private def densitySegment(): Element =
+    div(cls := "scl-seg",
+      div(cls := "scl-seg-thumb", styleAttr <-- densityVar.signal.map { d =>
+        val i = densityOpts.indexWhere(_._1 == d).max(0)
+        s"left:calc(3px + $i * (100% - 6px) / 3);width:calc((100% - 6px) / 3)"
+      }),
+      densityOpts.map { case (id, label) =>
+        button(dataAttr("density-option") := id,
+          cls.toggle("on") <-- densityVar.signal.map(_ == id),
+          onClick --> { _ => applyDensity(id) }, label)
+      })
+
+  // An iOS-style toggle row bound to a boolean Var (#274).
+  private def toggleRow(label: String, hook: String, v: Var[Boolean]): Element =
+    div(cls := "scl-tg-row",
+      span(label),
+      button(cls := "scl-tg", dataAttr(hook) := "1",
+        dataAttr("on") <-- v.signal.map(b => if (b) "1" else "0"),
+        onClick --> { _ => v.update(!_) }, i()))
 
   // A theme card: a live palette preview (bg fill + accent dot) over the name,
   // highlighted when active.
@@ -155,24 +176,23 @@ object App {
         div(styleAttr := s"position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:$accent;box-shadow:0 0 0 1px rgba(0,0,0,.18)")),
       div(styleAttr := s"font-size:9.5px;font-weight:500;color:${Tokens.ink2};padding:3px 5px;text-align:left;background:${Tokens.panel}", label))
 
-  /** The gear button + its settings popover (#198 / #275). Anchored relative so
-    * the popover drops under the gear; Esc closes it (see installKeyboard). */
+  /** The gear button + its frosted settings popover (#274). Sectioned into
+    * Display (density + colorize) and Theme (gallery). Esc closes it. */
   private def settingsControl(): Element =
     span(styleAttr := "position:relative;display:inline-flex",
       button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings",
         onClick --> { _ => settingsOpenVar.update(!_) }, "⚙"),
       child.maybe <-- settingsOpenVar.signal.map { open =>
         if (!open) None else Some(
-          div(dataAttr("settings-panel") := "1",
-            styleAttr := s"position:absolute;top:32px;right:0;z-index:50;width:228px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:10px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};display:flex;flex-direction:column;gap:12px",
-            div(
-              div(styleAttr := s"color:${Tokens.ink4};margin-bottom:5px", "Density"),
-              div(styleAttr := "display:flex;gap:6px",
-                densityBtn("comfortable", "Comfortable"), densityBtn("compact", "Compact"))),
-            div(
-              div(styleAttr := s"color:${Tokens.ink4};margin-bottom:6px", "Theme"),
-              div(styleAttr := "display:grid;grid-template-columns:repeat(3,1fr);gap:6px",
-                themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) })),
+          div(cls := "scl-set-panel", dataAttr("settings-panel") := "1",
+            div(cls := "scl-set-sect", "Display"),
+            div(cls := "scl-set-row-label", "Density"),
+            densitySegment(),
+            toggleRow("Colorize components", "toggle-colorize", colorBoxesVar),
+            toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
+            div(cls := "scl-set-sect", "Theme"),
+            div(cls := "scl-set-gallery",
+              themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) }),
           ))
       })
 
@@ -272,6 +292,8 @@ object App {
             hoveredVar       = hoveredSigVar,
             expandedPortsVar = expandedPortsVar,
             drillInto        = drillInto,
+            colorBoxesVar    = colorBoxesVar,
+            colorWiresVar    = colorWiresVar,
             designSnapshot   = () => loader.snapshot(),
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
