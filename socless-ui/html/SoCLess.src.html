@@ -68,6 +68,24 @@
     --dir-slave-bg: oklch(0.30 0.05 50); --dir-slave-fg: oklch(0.82 0.12 50);
     --badge-unconn-bg: oklch(0.32 0.07 30); --badge-unconn-fg: oklch(0.80 0.13 30);
   }
+  /* Accent presets (#198 settings panel): re-hue the accent triple for both
+     themes. No data-accent attribute = the default blue above, untouched.
+     Inline attribute on <html> is set by the settings panel / set-before-paint. */
+  :root[data-accent="green"]  { --accent: oklch(0.55 0.15 150); --accentBg: oklch(0.96 0.03 150); --accentLine: oklch(0.55 0.15 150 / 0.18); }
+  :root[data-accent="violet"] { --accent: oklch(0.55 0.18 300); --accentBg: oklch(0.96 0.03 300); --accentLine: oklch(0.55 0.18 300 / 0.18); }
+  :root[data-accent="amber"]  { --accent: oklch(0.62 0.15 70);  --accentBg: oklch(0.96 0.04 70);  --accentLine: oklch(0.62 0.15 70 / 0.20); }
+  :root[data-accent="rose"]   { --accent: oklch(0.58 0.18 20);  --accentBg: oklch(0.96 0.03 20);  --accentLine: oklch(0.58 0.18 20 / 0.18); }
+  :root[data-theme="dark"][data-accent="green"]  { --accent: oklch(0.70 0.15 150); --accentBg: oklch(0.30 0.06 150); --accentLine: oklch(0.70 0.15 150 / 0.4); }
+  :root[data-theme="dark"][data-accent="violet"] { --accent: oklch(0.68 0.17 300); --accentBg: oklch(0.30 0.07 300); --accentLine: oklch(0.68 0.17 300 / 0.4); }
+  :root[data-theme="dark"][data-accent="amber"]  { --accent: oklch(0.75 0.15 70);  --accentBg: oklch(0.30 0.06 70);  --accentLine: oklch(0.75 0.15 70 / 0.4); }
+  :root[data-theme="dark"][data-accent="rose"]   { --accent: oklch(0.70 0.17 20);  --accentBg: oklch(0.30 0.07 20);  --accentLine: oklch(0.70 0.17 20 / 0.4); }
+  /* Compact density (#198): tighten the chrome row heights + fonts. The schematic
+     geometry is baked by the backend and unaffected; this is chrome only. */
+  :root[data-density="compact"] body { font-size: 12px; }
+  :root[data-density="compact"] .scl-topbar { padding: 5px 12px; gap: 10px; }
+  :root[data-density="compact"] .scl-pane-title { padding: 5px 10px; }
+  :root[data-density="compact"] .scl-hier-row { height: 20px; font-size: 11px; }
+  :root[data-density="compact"] .scl-hier-type { font-size: 9.5px; }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; }
   body { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
@@ -189,6 +207,12 @@
       var dark = saved ? saved === 'dark'
         : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
       if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      // View preferences from the settings panel (#198): density + accent, also
+      // applied before paint so there is no reflow/recolor flash.
+      var density = localStorage.getItem('socless-density');
+      if (density === 'compact') document.documentElement.setAttribute('data-density', 'compact');
+      var accent = localStorage.getItem('socless-accent');
+      if (accent && accent !== 'default') document.documentElement.setAttribute('data-accent', accent);
     } catch (e) { /* private mode / no storage - default light */ }
   })();
 </script>
