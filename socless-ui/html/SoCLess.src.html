@@ -68,17 +68,82 @@
     --dir-slave-bg: oklch(0.30 0.05 50); --dir-slave-fg: oklch(0.82 0.12 50);
     --badge-unconn-bg: oklch(0.32 0.07 30); --badge-unconn-fg: oklch(0.80 0.13 30);
   }
-  /* Accent presets (#198 settings panel): re-hue the accent triple for both
-     themes. No data-accent attribute = the default blue above, untouched.
-     Inline attribute on <html> is set by the settings panel / set-before-paint. */
-  :root[data-accent="green"]  { --accent: oklch(0.55 0.15 150); --accentBg: oklch(0.96 0.03 150); --accentLine: oklch(0.55 0.15 150 / 0.18); }
-  :root[data-accent="violet"] { --accent: oklch(0.55 0.18 300); --accentBg: oklch(0.96 0.03 300); --accentLine: oklch(0.55 0.18 300 / 0.18); }
-  :root[data-accent="amber"]  { --accent: oklch(0.62 0.15 70);  --accentBg: oklch(0.96 0.04 70);  --accentLine: oklch(0.62 0.15 70 / 0.20); }
-  :root[data-accent="rose"]   { --accent: oklch(0.58 0.18 20);  --accentBg: oklch(0.96 0.03 20);  --accentLine: oklch(0.58 0.18 20 / 0.18); }
-  :root[data-theme="dark"][data-accent="green"]  { --accent: oklch(0.70 0.15 150); --accentBg: oklch(0.30 0.06 150); --accentLine: oklch(0.70 0.15 150 / 0.4); }
-  :root[data-theme="dark"][data-accent="violet"] { --accent: oklch(0.68 0.17 300); --accentBg: oklch(0.30 0.07 300); --accentLine: oklch(0.68 0.17 300 / 0.4); }
-  :root[data-theme="dark"][data-accent="amber"]  { --accent: oklch(0.75 0.15 70);  --accentBg: oklch(0.30 0.06 70);  --accentLine: oklch(0.75 0.15 70 / 0.4); }
-  :root[data-theme="dark"][data-accent="rose"]   { --accent: oklch(0.70 0.17 20);  --accentBg: oklch(0.30 0.07 20);  --accentLine: oklch(0.70 0.17 20 / 0.4); }
+  /* ── Theme gallery (#275) ──────────────────────────────────────────────────
+     Cohesive named themes. The default :root is "paper" (light) and
+     :root[data-theme="dark"] is "carbon"; both above are untouched. Each theme
+     below overrides only the CORE surface/accent vars; the secondary palettes
+     (#220 channel/kind, #266 node fills + wire, syntax/link/dir/badge) come from
+     :root (light themes) or :root[data-mode="dark"] (dark themes), which the app
+     sets alongside data-theme. The set-before-paint script applies both. */
+  :root[data-mode="dark"] {
+    --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
+    --chan-w: oklch(0.72 0.15 170); --chan-r: oklch(0.75 0.15 50);
+    --chan-b: oklch(0.68 0.17 25);
+    --kind-instance: oklch(0.70 0.15 290); --kind-port: oklch(0.72 0.15 50);
+    --node-inst: oklch(0.32 0.04 250); --node-boundary: oklch(0.34 0.05 90);
+    --node-reg: oklch(0.34 0.05 150); --node-const: oklch(0.33 0.05 305);
+    --node-op: oklch(0.33 0.06 25); --node-fsm: oklch(0.33 0.05 215);
+    --node-mem: oklch(0.34 0.05 75);
+    --wire-l: 0.72; --wire-c: 0.15;
+    --syntax-kw: oklch(0.72 0.14 290); --syntax-ty: oklch(0.72 0.12 200);
+    --syntax-lit: oklch(0.75 0.14 40);
+    --link-child-bg: oklch(0.30 0.06 200); --link-child-fg: oklch(0.80 0.12 250);
+    --link-sel-bg: oklch(0.32 0.08 90);
+    --dir-master-bg: oklch(0.30 0.05 250); --dir-master-fg: oklch(0.80 0.12 250);
+    --dir-slave-bg: oklch(0.30 0.05 50); --dir-slave-fg: oklch(0.82 0.12 50);
+    --badge-unconn-bg: oklch(0.32 0.07 30); --badge-unconn-fg: oklch(0.80 0.13 30);
+  }
+  /* Blueprint: cyan on navy, on-brand for a schematic tool (a faint grid is
+     drawn on <body> when this theme is active, see .scl-shell rule below). */
+  :root[data-theme="blueprint"] {
+    --bg:#08182b; --panel:#0d2238; --panelAlt:#123049; --border:#1d4366; --borderSoft:#123049;
+    --ink:#dbeeff; --ink2:#8fb6d4; --ink3:#5e85a3; --ink4:#4a6c87;
+    --accent:#39c2ff; --accentBg:#0e2c44; --accentLine:rgba(57,194,255,.34);
+    --hi:rgba(57,194,255,.14); --ok:#4ec9a6; --warn:#e0af68;
+  }
+  :root[data-theme="nord"] {
+    --bg:#2e3440; --panel:#3b4252; --panelAlt:#434c5e; --border:#4c566a; --borderSoft:#3b4252;
+    --ink:#eceff4; --ink2:#c0c8d6; --ink3:#8b94a6; --ink4:#6f7889;
+    --accent:#88c0d0; --accentBg:#3b4654; --accentLine:rgba(136,192,208,.36);
+    --hi:rgba(136,192,208,.14); --ok:#a3be8c; --warn:#ebcb8b;
+  }
+  :root[data-theme="gruvbox"] {
+    --bg:#282828; --panel:#32302f; --panelAlt:#3c3836; --border:#504945; --borderSoft:#3c3836;
+    --ink:#ebdbb2; --ink2:#c5b18b; --ink3:#a89984; --ink4:#7c6f64;
+    --accent:#fabd2f; --accentBg:#3a3327; --accentLine:rgba(250,189,47,.34);
+    --hi:rgba(250,189,47,.13); --ok:#b8bb26; --warn:#fe8019;
+  }
+  :root[data-theme="dracula"] {
+    --bg:#282a36; --panel:#343746; --panelAlt:#3c3f51; --border:#4a4d63; --borderSoft:#343746;
+    --ink:#f8f8f2; --ink2:#c9cbe0; --ink3:#8d90a8; --ink4:#6c6f86;
+    --accent:#bd93f9; --accentBg:#343150; --accentLine:rgba(189,147,249,.4);
+    --hi:rgba(189,147,249,.16); --ok:#50fa7b; --warn:#ffb86c;
+  }
+  :root[data-theme="contrast"] {
+    --bg:#000000; --panel:#0b0b0b; --panelAlt:#141414; --border:#3a3a3a; --borderSoft:#222222;
+    --ink:#ffffff; --ink2:#d6d6d6; --ink3:#9a9a9a; --ink4:#7a7a7a;
+    --accent:#ffd400; --accentBg:#2a2600; --accentLine:rgba(255,212,0,.4);
+    --hi:rgba(255,212,0,.16); --ok:#3fff6a; --warn:#ffae00;
+  }
+  /* Light themes: core only; secondary palette inherits the light :root. */
+  :root[data-theme="solarized"] {
+    --bg:#fdf6e3; --panel:#fbf3df; --panelAlt:#eee8d5; --border:#e3dcc4; --borderSoft:#eee8d5;
+    --ink:#3a4d52; --ink2:#62787f; --ink3:#93a1a1; --ink4:#a8b3b3;
+    --accent:#268bd2; --accentBg:#e7eef4; --accentLine:rgba(38,139,210,.22);
+    --hi:rgba(181,137,0,.16); --ok:#859900; --warn:#cb4b16;
+  }
+  :root[data-theme="sepia"] {
+    --bg:#f3ead6; --panel:#fbf4e3; --panelAlt:#ece0c6; --border:#ddceac; --borderSoft:#ece0c6;
+    --ink:#43341f; --ink2:#6f5b3e; --ink3:#9a8763; --ink4:#b09a73;
+    --accent:#b45309; --accentBg:#f0e2c4; --accentLine:rgba(180,83,9,.2);
+    --hi:rgba(180,83,9,.12); --ok:#5f7d4f; --warn:#b45309;
+  }
+  /* Blueprint grid texture (cosmetic, only this theme). */
+  :root[data-theme="blueprint"] .scl-shell {
+    background-image: linear-gradient(rgba(57,194,255,.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(57,194,255,.05) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
   /* Compact density (#198): tighten the chrome row heights + fonts. The schematic
      geometry is baked by the backend and unaffected; this is chrome only. */
   :root[data-density="compact"] body { font-size: 12px; }
@@ -199,20 +264,20 @@
   .scl-insp-leaf:hover .copy-btn { opacity: 1; }
 </style>
 <script>
-  // Set the theme before first paint so there is no light/dark flash (issue #2).
-  // Order: saved choice in localStorage, else the OS prefers-color-scheme.
+  // Set the theme before first paint so there is no flash (#2 / #275). Order:
+  // saved theme id in localStorage, else the OS prefers-color-scheme. Dark themes
+  // also get data-mode="dark" so the shared dark secondary palette applies; keep
+  // this list in sync with App.darkThemes.
   (function () {
+    var DARK = { dark:1, blueprint:1, nord:1, gruvbox:1, dracula:1, contrast:1 };
     try {
-      var saved = localStorage.getItem('socless-theme');
-      var dark = saved ? saved === 'dark'
-        : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      if (dark) document.documentElement.setAttribute('data-theme', 'dark');
-      // View preferences from the settings panel (#198): density + accent, also
-      // applied before paint so there is no reflow/recolor flash.
+      var t = localStorage.getItem('socless-theme');
+      if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
+      if (DARK[t]) document.documentElement.setAttribute('data-mode', 'dark');
+      // Density (#198), also applied before paint to avoid a reflow.
       var density = localStorage.getItem('socless-density');
       if (density === 'compact') document.documentElement.setAttribute('data-density', 'compact');
-      var accent = localStorage.getItem('socless-accent');
-      if (accent && accent !== 'default') document.documentElement.setAttribute('data-accent', accent);
     } catch (e) { /* private mode / no storage - default light */ }
   })();
 </script>

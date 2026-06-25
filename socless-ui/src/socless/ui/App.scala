@@ -31,12 +31,11 @@ object App {
   private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
   private val paletteOpenVar = Var(false)                       // command palette (Ctrl/Cmd+K)
   private val helpOpenVar    = Var(false)                       // keyboard-help overlay (?)
-  private val themeVar       = Var[String]("light")             // "light" | "dark" (issue #2)
-  // Settings panel view preferences (#198): density + accent, persisted and
-  // applied as <html> attributes (also set before paint in the template).
+  private val themeVar       = Var[String]("light")             // active theme id (#2 / #275)
+  // Settings panel view preferences, persisted and applied as <html> attributes
+  // (also set before paint in the template): theme id (#275) + density (#198).
   private val settingsOpenVar = Var(false)
   private val densityVar      = Var[String]("comfortable")      // "comfortable" | "compact"
-  private val accentVar       = Var[String]("default")          // "default" | "green" | "violet" | "amber" | "rose"
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
@@ -63,7 +62,7 @@ object App {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
-    densityVar.set(currentDensity()); accentVar.set(currentAccent()) // ditto for #198 prefs
+    densityVar.set(currentDensity())
     render(container, shell())
     installKeyboard()
     loader.installDragDrop()
@@ -88,27 +87,44 @@ object App {
       }
     })
 
-  // ── Theme toggle (issue #2) ────────────────────────────────────────────────
-  // The set-before-paint script in the template sets data-theme="dark" from the
-  // saved choice / OS preference; light is the default (no attribute). The toggle
-  // flips data-theme on <html>, persists to localStorage, and mirrors into
-  // themeVar so the button glyph re-renders.
-  private def currentTheme(): String =
-    if (dom.document.documentElement.getAttribute("data-theme") == "dark") "dark" else "light"
+  // ── Themes (#2 / #275) ─────────────────────────────────────────────────────
+  // Each theme is a complete palette defined as a `:root[data-theme=id]` block in
+  // the template; "light" is the default (no attribute). Dark themes also carry
+  // data-mode="dark" so the shared dark secondary palette applies. The
+  // set-before-paint script applies the saved theme; keep `darkThemes` in sync
+  // with the DARK map there. Each entry: (id, label, previewBg, previewAccent).
+  private val themes: List[(String, String, String, String)] = List(
+    ("light",     "Paper",      "#fbfbfa", "oklch(0.55 0.16 250)"),
+    ("dark",      "Carbon",     "#0d1117", "#1f6feb"),
+    ("blueprint", "Blueprint",  "#08182b", "#39c2ff"),
+    ("nord",      "Nord",       "#2e3440", "#88c0d0"),
+    ("gruvbox",   "Gruvbox",    "#282828", "#fabd2f"),
+    ("dracula",   "Dracula",    "#282a36", "#bd93f9"),
+    ("solarized", "Solarized",  "#fdf6e3", "#268bd2"),
+    ("sepia",     "Sepia",      "#f3ead6", "#b45309"),
+    ("contrast",  "Contrast",   "#000000", "#ffd400"),
+  )
+  private val darkThemes: Set[String] = Set("dark", "blueprint", "nord", "gruvbox", "dracula", "contrast")
 
-  private def applyTheme(theme: String): Unit = {
-    if (theme == "dark") dom.document.documentElement.setAttribute("data-theme", "dark")
-    else dom.document.documentElement.removeAttribute("data-theme")
-    try dom.window.localStorage.setItem("socless-theme", theme) catch { case _: Throwable => () }
-    themeVar.set(theme)
+  private def currentTheme(): String =
+    Option(dom.document.documentElement.getAttribute("data-theme")).filter(_.nonEmpty).getOrElse("light")
+
+  /** Apply a theme id: set data-theme (absent for the default "light"), set
+    * data-mode for dark themes (drives the shared dark secondary palette),
+    * persist, and mirror into themeVar so the gallery + toggle re-render. */
+  private def applyTheme(id: String): Unit = {
+    val root = dom.document.documentElement
+    if (id == "light") root.removeAttribute("data-theme") else root.setAttribute("data-theme", id)
+    if (darkThemes(id)) root.setAttribute("data-mode", "dark") else root.removeAttribute("data-mode")
+    try dom.window.localStorage.setItem("socless-theme", id) catch { case _: Throwable => () }
+    themeVar.set(id)
   }
 
-  private def toggleTheme(): Unit = applyTheme(if (currentTheme() == "dark") "light" else "dark")
+  // The ☾/☀ button stays a quick light<->dark toggle for muscle memory; the
+  // gallery in the settings panel picks any named theme.
+  private def toggleTheme(): Unit = applyTheme(if (darkThemes(currentTheme())) "light" else "dark")
 
-  // ── Settings panel: density + accent (#198) ────────────────────────────────
-  // Same mechanism as the theme toggle: reflect an <html> attribute (also set
-  // before paint), persist to localStorage, mirror into a Var so the panel
-  // re-renders. "comfortable"/"default" are the no-attribute baselines.
+  // ── Settings panel: density (#198) ─────────────────────────────────────────
   private def currentDensity(): String =
     if (dom.document.documentElement.getAttribute("data-density") == "compact") "compact" else "comfortable"
   private def applyDensity(d: String): Unit = {
@@ -117,25 +133,6 @@ object App {
     try dom.window.localStorage.setItem("socless-density", d) catch { case _: Throwable => () }
     densityVar.set(d)
   }
-  private def currentAccent(): String =
-    Option(dom.document.documentElement.getAttribute("data-accent")).filter(_.nonEmpty).getOrElse("default")
-  private def applyAccent(a: String): Unit = {
-    if (a == "default") dom.document.documentElement.removeAttribute("data-accent")
-    else dom.document.documentElement.setAttribute("data-accent", a)
-    try dom.window.localStorage.setItem("socless-accent", a) catch { case _: Throwable => () }
-    accentVar.set(a)
-  }
-
-  // Accent preset id -> (label, light-theme preview swatch). The CSS in the
-  // template re-hues the accent triple per preset for both themes; the swatch
-  // shows the light-theme color so the choices read on the panel.
-  private val accentPresets: List[(String, String, String)] = List(
-    ("default", "Blue",   "oklch(0.55 0.16 250)"),
-    ("green",   "Green",  "oklch(0.55 0.15 150)"),
-    ("violet",  "Violet", "oklch(0.55 0.18 300)"),
-    ("amber",   "Amber",  "oklch(0.62 0.15 70)"),
-    ("rose",    "Rose",   "oklch(0.58 0.18 20)"),
-  )
 
   private def densityBtn(id: String, label: String): Element =
     button(dataAttr("density-option") := id,
@@ -145,15 +142,21 @@ object App {
       },
       onClick --> { _ => applyDensity(id) }, label)
 
-  private def accentSwatch(id: String, label: String, color: String): Element =
-    button(dataAttr("accent-option") := id, title := label,
-      styleAttr <-- accentVar.signal.map { a =>
-        s"width:22px;height:22px;border-radius:50%;cursor:pointer;background:$color;border:2px solid ${if (a == id) Tokens.ink else Tokens.border}"
+  // A theme card: a live palette preview (bg fill + accent dot) over the name,
+  // highlighted when active.
+  private def themeCard(id: String, label: String, bg: String, accent: String): Element =
+    button(dataAttr("theme-option") := id, title := label,
+      styleAttr <-- themeVar.signal.map { t =>
+        val sel = t == id
+        s"position:relative;display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;cursor:pointer;border-radius:7px;border:1px solid ${if (sel) Tokens.accent else Tokens.border};outline:${if (sel) s"1px solid ${Tokens.accent}" else "none"};outline-offset:-2px"
       },
-      onClick --> { _ => applyAccent(id) })
+      onClick --> { _ => applyTheme(id) },
+      div(styleAttr := s"height:26px;background:$bg;position:relative",
+        div(styleAttr := s"position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:$accent;box-shadow:0 0 0 1px rgba(0,0,0,.18)")),
+      div(styleAttr := s"font-size:9.5px;font-weight:500;color:${Tokens.ink2};padding:3px 5px;text-align:left;background:${Tokens.panel}", label))
 
-  /** The gear button + its settings popover (#198). Anchored relative so the
-    * popover drops under the gear; Esc closes it (see installKeyboard). */
+  /** The gear button + its settings popover (#198 / #275). Anchored relative so
+    * the popover drops under the gear; Esc closes it (see installKeyboard). */
   private def settingsControl(): Element =
     span(styleAttr := "position:relative;display:inline-flex",
       button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings",
@@ -161,15 +164,15 @@ object App {
       child.maybe <-- settingsOpenVar.signal.map { open =>
         if (!open) None else Some(
           div(dataAttr("settings-panel") := "1",
-            styleAttr := s"position:absolute;top:32px;right:0;z-index:50;width:200px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:10px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};display:flex;flex-direction:column;gap:12px",
+            styleAttr := s"position:absolute;top:32px;right:0;z-index:50;width:228px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.18);padding:10px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};display:flex;flex-direction:column;gap:12px",
             div(
               div(styleAttr := s"color:${Tokens.ink4};margin-bottom:5px", "Density"),
               div(styleAttr := "display:flex;gap:6px",
                 densityBtn("comfortable", "Comfortable"), densityBtn("compact", "Compact"))),
             div(
-              div(styleAttr := s"color:${Tokens.ink4};margin-bottom:5px", "Accent"),
-              div(styleAttr := "display:flex;gap:8px;flex-wrap:wrap",
-                accentPresets.map { case (id, label, color) => accentSwatch(id, label, color) })),
+              div(styleAttr := s"color:${Tokens.ink4};margin-bottom:6px", "Theme"),
+              div(styleAttr := "display:grid;grid-template-columns:repeat(3,1fr);gap:6px",
+                themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) })),
           ))
       })
 
@@ -400,9 +403,9 @@ object App {
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.
       button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
         dataAttr("theme") <-- themeVar.signal,
-        title <-- themeVar.signal.map(t => if (t == "dark") "Switch to light theme" else "Switch to dark theme"),
+        title <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
         onClick --> { _ => toggleTheme() },
-        child.text <-- themeVar.signal.map(t => if (t == "dark") "☀" else "☾")),
+        child.text <-- themeVar.signal.map(t => if (darkThemes(t)) "☀" else "☾")),
       // Help affordance.
       button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),
