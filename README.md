@@ -1,255 +1,86 @@
-# SoCLess — Chisel integration
+# SoCLess
 
-Two-artifact Mill plugin that turns a Chisel design into a `design.json` the
-SoCLess UI consumes. Tested against Chisel 7.x and Mill 1.1.6 (the latest
-release in the 1.1.x line; anything `>= 1.1, <= 1.1.6` should work).
+**An interactive UI for inspecting hardware designs.** SoCLess turns an
+elaborated design into a navigable schematic, hierarchy, and inspector so a
+hardware designer gets quick visual feedback on what their code actually built:
+the module tree, the wires between instances, the intra-module logic (muxes,
+adders, registers, memories), bundle structure, widths, and the source behind
+each block.
 
-```
-build.mill                 # Mill 1.1.x — builds + publishes both artifacts
-socless/                   # runtime library (Scala 2.13)
-  src/socless/
-    Schema.scala           # JSON case classes (contract with the UI)
-    SoclessExporter.scala  # public entry: SoclessExporter.export(gen, path)
-    ChirrtlParser.scala    # CHIRRTL text -> typed AST
-    IrWalk.scala           # AST -> Design (UI JSON shape)
-    Launcher.scala         # reflection-based main the plugin invokes
-  test/src/socless/        # utest suite (./mill socless.test)
-mill-socless/              # Mill plugin (Scala 3)
-  src/socless/mill/
-    SoclessModule.scala    # the trait users mix in
-example/                   # bundled demos — moduleDeps, no publishLocal
-  src/
-    axisystem/             # AXI4 interconnect (AXISystem)
-    gcd/                   # simple GCD
-    rvpipeline/            # 4-stage RISC-V pipeline
-    deephier/              # deep hierarchy (DeepSoc)
-    iobundles/             # vec-of-bundle ports (Interconnect)
-    regheavy/              # register-heavy design (Datapath)
-```
+Today it reads **Chisel / CHIRRTL**. The viewer is a single, self-contained HTML
+file with no network dependencies, so a design is something you can open, share,
+and explore offline.
 
-## Seamless Mill plugin (preferred flow)
+There are two ways to use it, and **the standalone app and the Mill plugin are
+equal front doors** to the same UI:
 
-**One-time: build + publish to your local Maven cache.**
+- **Standalone app** - point the bundled, Python-free server at any `.fir`
+  (CHIRRTL) or `design.json`, from any build that can emit CHIRRTL (sbt, mill,
+  raw Chisel, ...). See **[docs/usage-standalone.md](docs/usage-standalone.md)**.
+- **Mill plugin** - the smoothest Chisel integration: one task elaborates your
+  design and serves the UI. See **[docs/usage-mill.md](docs/usage-mill.md)**.
 
-```bash
-mill socless.publishLocal
-mill mill-socless.publishLocal
-```
-
-**In your project's `build.mill`:**
-
-```scala
-//| mill-version: 1.1.6
-//| mvnDeps:
-//|   - io.socless::mill-socless::0.1.0-SNAPSHOT
-
-import mill._, scalalib._
-import socless.mill.SoclessModule
-
-trait ChiselModule extends ScalaModule {
-  def scalaVersion = "2.13.16"
-  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.11.0")
-  def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
-    mvn"org.chipsalliance:::chisel-plugin:7.11.0"
-  )
-}
-
-object myDesign extends ChiselModule with SoclessModule {
-  def soclessTop = "mypkg.MyTop"   // FQCN of your top-level Chisel module
-}
-```
-
-**Run:**
-
-```bash
-mill myDesign.soclessUI            # elaborate + serve the UI, open the browser
-mill myDesign.soclessUI --port 9000
-```
-
-`soclessUI` elaborates your design, extracts the single-file UI from the JAR,
-drops `design.json` next to it, and serves both on a local port (default 8765,
-loopback only). The UI auto-fetches `design.json` on load; the top-bar status
-reads "live". While the server is up you can also drag-and-drop a `.fir`
-(CHIRRTL) file onto the page to convert and view it on the fly.
-
-Just want the JSON (to wire into your own pipeline)?
-
-```bash
-mill myDesign.socless              # elaborate + emit design.json
-mill show myDesign.socless         # prints the resulting JSON path
-```
-
-To browse an existing `.fir` with no Chisel project at all:
-
-```bash
-mill myDesign.soclessServe         # serve the UI; drag-drop a .fir onto the page
-```
-
-## What the plugin gives you
-
-The `SoclessModule` trait adds these (overridable) members to your module:
-
-| Member | Default | Use |
-|---|---|---|
-| `soclessTop: T[String]` | (no default — required) | FQCN of the design to elaborate: a class with a no-arg constructor, a Scala object with a zero-arg `apply()`/`build()`, or a zero-arg factory method (`mypkg.Gens.smallSoC`). For parameterized designs, a generator object is the natural wrapper: `object MyTopForSocless { def apply() = new MyTop(defaultParams) }`. |
-| `soclessTops: T[Seq[String]]` | `Seq(soclessTop())` | Elaborate several tops from one build (the whole SoC, a core, the NoC, ...) and switch between them in the UI's design picker. The first is `design.json`; the rest are `design-<top>.json`, indexed by a `designs.json`. One broken top is skipped, not fatal. |
-| `soclessVersion: T[String]` | this plugin's version | Runtime library version (generated from the build, so it cannot drift from the plugin). |
-| `soclessOutputName: T[String]` | `"design.json"` | Filename inside `Task.dest`. |
-| `soclessUiPort: T[Int]` | `8765` | Default port for `soclessUI` / `soclessServe`. |
-| `soclessRuntimeDeps: T[Seq[Dep]]` | `socless::soclessVersion` | Runtime deps injected into `mvnDeps`. Override to swap to an in-tree `moduleDeps` build. |
-| `socless: T[PathRef]` | provided | Elaborate + emit `design.json`. Forks `java -cp <runClasspath> socless.cli.Launcher --top … --output …`. |
-| `soclessUI(args)` | provided | Elaborate, then serve the UI + `design.json` and open a browser. Accepts `--port <N>` or a bare port. Blocks until Ctrl-C. |
-| `soclessServe(args)` | provided | Serve the UI without elaborating first; drag-drop a `.fir` to convert. Same port args. |
-
-## How it works
-
-1. The `socless` task forks `java` with your module's `runClasspath` and
-   invokes `socless.cli.Launcher`.
-2. `Launcher` reflection-resolves your top (class, generator object, or
-   factory method) and hands it to `SoclessExporter.export`.
-3. `SoclessExporter` calls Chisel's public `circt.stage.ChiselStage.emitCHIRRTL`
-   to get the elaborated design as CHIRRTL text — bundles still aggregate
-   at this level.
-4. `ChirrtlParser` turns the text into a typed AST.
-5. `IrWalk` translates the AST into the `Design` schema and coalesces
-   ground-typed `connect` statements back into bundle-level wires.
-6. JSON gets written to `Task.dest/design.json`. Mill's `show` task prints
-   that path on stdout.
-
-No `chisel3.internal.*` imports anywhere — survives Chisel patch updates.
-
-## The UI
-
-The viewer is a single self-contained HTML file: the **Scala.js + Laminar**
-frontend (`socless-ui`), built by `mill socless-ui.dist` with elkjs vendored
-inline, so it has **no network dependencies** and works offline. `soclessUI`
-serves it for you (it is embedded in the JAR); it loads `design.json` over HTTP.
-
-What you can do in it:
+## Features
 
 - **Navigate** the hierarchy tree or the schematic; double-click a box to drill
-  into a submodule, breadcrumb back out (zoom/pan is preserved per level).
+  into a submodule and breadcrumb back out (pan/zoom preserved per level).
+- **Intra-module logic** as first-class nodes: muxes, primops/ALUs, registers,
+  constants, FSMs, and memories are drawn and routed, not hidden.
 - **Expand bundle ports** in place to see channels and fields; wires stay
   orthogonal and boxes move aside so nothing overlaps.
 - **Inspect** any wire or module (types, widths, registers/memories, source
-  location) and **jump to the source** in your editor (VS Code / IntelliJ link,
-  right-click the path to switch).
-- **Command palette** (Ctrl/Cmd-K) with fuzzy search over modules, instances
-  and pins; `?` lists the keyboard shortcuts.
-- **Dark mode** (persists), and a **Source** tab that shows the Chisel behind
-  each module when the design was exported with a source root.
-- **Export**: SVG / PNG of the current schematic, or a self-contained
-  **HTML snapshot** with the design embedded - send it to a colleague and they
-  open it from `file://` with full interactivity, no repo or build needed.
+  location) and **jump to the source** in your editor (VS Code / IntelliJ).
+- **Command palette** (Ctrl/Cmd-K): fuzzy search over modules, instances, and
+  pins, plus actions (theme, panels, optimize); `?` lists keyboard shortcuts.
+- **Filter** the schematic with a live match count; a **sortable, filterable
+  ports** table; a **Source** tab showing the Chisel behind each module.
+- **Themes**: nine cohesive palettes (including an on-brand Blueprint) and a
+  density control, in a settings panel.
+- **Export**: SVG / PNG of the current schematic, or a self-contained **HTML
+  snapshot** with the design embedded - send it to a colleague and they open it
+  from `file://` with full interactivity, no repo or build needed.
 
-## Trying the bundled demos
+## Quick start
+
+Browse one of the bundled demos without publishing anything:
 
 ```bash
-mill example.soclessRun          # AXISystem (default)
+mill example.soclessRun          # AXISystem (default); serves the UI
 mill example.soclessRunGcd       # GCD
 mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
 mill example.soclessRunDeepSoc   # deep hierarchy
 mill example.soclessRunIoBundles # vec-of-bundle ports
 mill example.soclessRunRegHeavy  # register-heavy design
-mill show example.soclessRun     # prints the JSON path
 ```
 
-The `example/` module is wired with `moduleDeps = Seq(socless)` instead of
-the plugin, so it works without `publishLocal`.
+Then point it at your own design via the **[standalone
+app](docs/usage-standalone.md)** or the **[Mill plugin](docs/usage-mill.md)**.
 
-## Using SoCLess with sbt (or any build)
+## How it works
 
-The Mill plugin is the smoothest path, but SoCLess does not need Mill. The
-runtime library ships a standalone, Python-free UI server, so any build that
-can emit CHIRRTL works in two steps.
+Chisel design -> `ChiselStage.emitCHIRRTL` -> CHIRRTL text -> typed AST -> bundle
+dedup + wire coalescing + logic-node extraction -> `design.json` -> the Scala.js
+UI. The exporter only uses Chisel's public CHIRRTL surface (no
+`chisel3.internal.*`), so it survives Chisel patch updates. Details in
+**[docs/how-it-works.md](docs/how-it-works.md)**; the per-file module map for
+contributors is in [CLAUDE.md](CLAUDE.md).
 
-**1. Dump CHIRRTL from your own build.** Anywhere you can run Chisel:
+## Roadmap
 
-```scala
-import circt.stage.ChiselStage
-ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
-// writes MyTop.fir
-```
+SoCLess is a hardware-inspection UI first; the Chisel/CHIRRTL exporter and the
+Mill plugin are the first integrations. Planned directions:
 
-(or `sbt "runMain ..."` a tiny main that does the same).
+- **Simulation frontend** - discover and run ChiselSim suites from the UI,
+  ingest the waveforms, and cross-probe them against the schematic (epic
+  [#127](https://github.com/e-ban/SoCless/issues/127)).
+- **CIRCT multi-level IR** - inspect a design across lowering passes, not just
+  at the CHIRRTL level.
+- **Exports & teamwork** - richer shareable artifacts and integrations for
+  presentation and collaboration (the self-contained HTML snapshot is the first
+  step).
 
-**2. Convert + serve with the standalone CLI.** Build a single self-contained
-jar once (`socless.cli.Launcher` is its main class), then run it anywhere, with no
-Mill, no Python, and no design checkout:
+## Contributing & releases
 
-```bash
-mill socless.assembly                       # one fat jar at out/socless/assembly.dest/out.jar
-jar=out/socless/assembly.dest/out.jar
-
-# one-off convert:
-java -jar "$jar" --fir-input MyTop.fir --output design.json
-
-# or serve the UI and drag-drop the .fir onto the page (in-process /convert):
-java -jar "$jar" serve --dir .              # serves design.json from . if present; --port N to override
-```
-
-Once the artifact is published to a repository you can resolve, coursier runs
-the same main without building the jar (the artifact is `0.1.0-SNAPSHOT`, so
-this needs a `mill socless.publishLocal` first, or a published release):
-
-```bash
-cs launch io.socless::socless:<version> -M socless.cli.Launcher -- \
-  serve --dir .
-```
-
-`serve` extracts the bundled single-file UI, serves it on `127.0.0.1` (loopback
-only), and converts dropped `.fir` files in-process - no Mill, no Python. Add
-`--dir <dir>` to also serve a `design.json` / `designs.json` from that
-directory so the UI auto-loads it.
-
-### Live dev loop (save and see)
-
-`serve --watch <file.fir>` re-converts a CHIRRTL file in-process every time it
-changes and serves the result at `/design.json`; the UI polls that endpoint and
-hot-reloads the schematic on its own (an "updated Ns ago" indicator shows the
-loop is live). Pair it with a build that re-dumps the `.fir` on every edit for a
-save-and-see workflow:
-
-```bash
-# terminal 1 - your build re-emits MyTop.fir on every source change:
-sbt "~runMain mypkg.DumpMain"          # DumpMain calls emitCHIRRTLFile (step 1 above)
-
-# terminal 2 - serve + watch that file:
-cs launch io.socless::socless:<version> -M socless.cli.Launcher -- \
-  serve --watch MyTop.fir
-```
-
-Edit your Chisel, sbt re-dumps `MyTop.fir`, and the open UI reloads within ~1s.
-A 0-module or mid-write parse is ignored (the last good design stays on screen),
-so a save caught mid-flush never flickers the view to an error.
-
-With Mill, compose the plugin's `-w` watch with a static `serve` instead. The
-`socless` task writes `design.json` into its task-dest, so point `serve --dir`
-there (`mill show myDesign.socless` prints the exact path):
-
-```bash
-mill -w myDesign.socless                          # terminal 1: re-emits design.json on every edit
-cs launch ... -- serve --dir out/myDesign/socless.dest   # terminal 2: serves it, UI hot-reloads
-```
-
-The plugin writes `design.json` atomically, so the UI's poller never reads a
-half-written file.
-
-## Compatibility notes
-
-- **Chisel** — example elaboration runs against 7.11.0, but the parser is
-  written for cross-version portability and a committed fixture matrix proves
-  it: `VersionMatrixTest` parses the *same* design emitted in three syntax eras
-  (SFC/legacy `lhs <= rhs` + `reg ... with`, early-CIRCT `connect` + `regreset`
-  without `public module`, and modern `public module` + `layer`) and asserts
-  all three yield an identical topology. So the legacy `<=` form, the
-  `reg ... with : (reset => ...)` reset, and the `public module` / layer syntax
-  are each held by CI. If you use an older Chisel and hit a parse gap, please
-  open an issue with the `.fir` (capture it with `Launcher --chirrtl-out`) — it
-  becomes a new row in the matrix.
-- **Mill** — tested on 1.1.6 (use `>= 1.1, <= 1.1.6`). If
-  `mvn"com.lihaoyi::mill-libs:1.1.6"` doesn't resolve in your environment,
-  swap to the specific submodule (e.g. `mill-scalalib`) — the trait only
-  uses `ScalaModule` + `Dep`.
-- `gates` is `None` in the emitted JSON — elaboration alone can't know
-  that. Populate it from your synth output (yosys stat JSON, etc.).
+- Build, test, and dev-loop details: [CONTRIBUTING.md](CONTRIBUTING.md).
+- Versioning and the release procedure: [RELEASING.md](RELEASING.md).
+- Architecture and design decisions for contributors: [CLAUDE.md](CLAUDE.md).
