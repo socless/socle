@@ -159,6 +159,7 @@ object Chrome {
     "Schematic" -> Seq(
       Seq("dbl-click")  -> "Drill into module instance",
       Seq("breadcrumb") -> "Navigate up the hierarchy",
+      Seq("/")          -> "Focus the filter",
     ),
     "Help" -> Seq(Seq("?") -> "Open this overlay"),
   )

@@ -50,6 +50,9 @@ object Inspector {
 
     def setSel(p: String): Unit  = selectedVar.set(Some(p))
     def toggleBundle(k: String): Unit = expandedBundlesVar.update(s => if (s(k)) s - k else s + k)
+    // Expand / collapse every field in the current bundle tree at once (#276).
+    def bulkBundle(paths: Set[String], on: Boolean): Unit =
+      expandedBundlesVar.update(s => if (on) s ++ paths else s -- paths)
 
     val sigSig: Signal[Option[String]] =
       Signal.combine(selectedVar.signal, hoveredVar.signal).map { case (s, h) => s.orElse(h) }
@@ -66,7 +69,7 @@ object Inspector {
           (sig, logicNode, wire) match {
             case (None, _, _)              => metaView(mod)
             case (Some(_), Some(ln), _)    => logicView(ln, mod, d)
-            case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle)
+            case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle, bulkBundle)
             case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
                 case Some(inst) => instanceView(inst, mod.children, d, setSel)
@@ -224,8 +227,14 @@ object Inspector {
 
   // ── Wire bundle tree ─────────────────────────────────────────────────────────
   private def bundleView(wire: WireDef, sig: String, expanded: Set[String], d: Design,
-                         setSel: String => Unit, toggleBundle: String => Unit): Element = {
+                         setSel: String => Unit, toggleBundle: String => Unit,
+                         bulkBundle: (Set[String], Boolean) => Unit): Element = {
     val tree = BundleTree.portTree(wire.bundle, None, wire.from, d)
+    // Every expandable field path, for the expand/collapse-all control (#276).
+    def collectExpandable(n: BundleTree.PortNode): List[String] =
+      (if (n.isExpandable) List(n.path) else Nil) ++ n.children.flatMap(collectExpandable)
+    val allPaths = tree.children.flatMap(collectExpandable).toSet
+    val allOpen  = allPaths.nonEmpty && allPaths.subsetOf(expanded)
     div(styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := "margin-bottom:10px",
         div(styleAttr := s"font-family:${Tokens.mono};font-size:12px;font-weight:600;color:${Tokens.ink};margin-bottom:2px;display:flex;align-items:center;gap:4px",
@@ -237,7 +246,14 @@ object Inspector {
       div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
         span(styleAttr := s"color:${Tokens.ink3}", wire.bundle),
         span(styleAttr := s"color:${Tokens.ink2}", s"${totalWidth(wire.bundle, d)} bits")),
-      sectionTitle("Fields"),
+      div(styleAttr := "display:flex;align-items:center;justify-content:space-between",
+        sectionTitle("Fields"),
+        if (allPaths.size > 1)
+          button(dataAttr("bundle-expand-all") := (if (allOpen) "collapse" else "expand"),
+            styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:${Tokens.mono};font-size:10px;padding:2px 4px",
+            onClick --> { _ => bulkBundle(allPaths, !allOpen) },
+            if (allOpen) "collapse all" else "expand all")
+        else emptyNode),
       div(tree.children.map(c => treeNode(c, 0, sig, expanded, setSel, toggleBundle))),
       div(styleAttr := "margin-top:14px", sectionTitle("Source")),
       div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",

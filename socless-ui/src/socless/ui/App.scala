@@ -86,6 +86,11 @@ object App {
         e.preventDefault(); helpOpenVar.set(false); paletteOpenVar.set(true)
       } else if (!typing && !mod && e.key == "?") {
         e.preventDefault(); helpOpenVar.update(!_)
+      } else if (!typing && !mod && e.key == "/") {
+        // Focus the schematic filter (#276). The input carries data-filter-input.
+        Option(dom.document.querySelector("[data-filter-input]")).foreach { el =>
+          e.preventDefault(); el.asInstanceOf[dom.html.Element].focus()
+        }
       } else if (e.key == "Escape") {
         paletteOpenVar.set(false); helpOpenVar.set(false); settingsOpenVar.set(false)
       }
