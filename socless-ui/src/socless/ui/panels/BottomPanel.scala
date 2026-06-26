@@ -265,27 +265,58 @@ object BottomPanel {
       d.modules.find(_.name == c.`type`).foreach(_.ports.foreach(p =>
         rows += PortRow(c.name, c.`type`, p.name, p.dir, p.bundle, p.doc, p.connected)))
     }
-    val thStyle = s"text-align:left;padding:7px 12px;font-size:10px;color:${Tokens.ink3};font-weight:600;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid ${Tokens.borderSoft}"
-    table(styleAttr := s"width:100%;border-collapse:collapse;font-family:${Tokens.mono};font-size:11px",
-      thead(tr(styleAttr := s"background:${Tokens.panelAlt}",
-        Seq("Instance","Type","Port","Dir","Bundle","Width","Notes").map(h => th(styleAttr := thStyle, h)))),
-      tbody(rows.toSeq.map { r =>
-        val dirBg  = if (r.dir == PortDir.Master) Tokens.dirMasterBg else Tokens.dirSlaveBg
-        val dirCol = if (r.dir == PortDir.Master) Tokens.dirMasterFg else Tokens.dirSlaveFg
-        tr(cls := "scl-ports-row", styleAttr := s"cursor:pointer;border-bottom:1px solid ${Tokens.borderSoft}",
-          dataAttr("port-row") := s"${r.inst}.${r.port}",
-          onClick --> { _ => setSel(s"${r.inst}.${r.port}") },
-          td(styleAttr := s"padding:6px 12px;font-weight:600;color:${Tokens.ink}", r.inst),
-          td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", r.tpe),
-          td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.port),
-          td(styleAttr := "padding:6px 12px", span(styleAttr := s"padding:1px 6px;border-radius:2px;background:$dirBg;color:$dirCol;font-size:10px", r.dir)),
-          td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.bundle),
-          td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", s"${Inspector.totalWidth(r.bundle, d)}b"),
-          td(styleAttr := s"padding:6px 12px;color:${Tokens.ink4};font-size:11px",
-            if (!r.connected) span(title := "This port is not referenced anywhere in the source (genuinely unconnected).",
-              styleAttr := s"padding:1px 6px;border-radius:2px;background:${Tokens.badgeUnconnBg};color:${Tokens.badgeUnconnFg};font-family:${Tokens.mono};font-size:9.5px;margin-right:6px", "unconnected") else emptyNode,
-            r.doc),
-        )
-      }))
+    val all = rows.toSeq
+    // Sortable + filterable ports table (#276). Sort by any column (click to
+    // toggle direction); a quick filter narrows by any text column. Width sorts
+    // numerically. State resets when the module (hence this view) changes.
+    val headers = Seq("Instance", "Type", "Port", "Dir", "Bundle", "Width", "Notes")
+    val sortVar = Var((0, true)) // (column, ascending)
+    val qVar    = Var("")
+    def colText(r: PortRow, c: Int): String = c match {
+      case 0 => r.inst; case 1 => r.tpe; case 2 => r.port; case 3 => r.dir; case 4 => r.bundle; case _ => r.doc
+    }
+    def rowText(r: PortRow): String = Seq(r.inst, r.tpe, r.port, r.dir, r.bundle, r.doc).mkString(" ").toLowerCase
+    val viewSig: Signal[Seq[PortRow]] = Signal.combine(sortVar.signal, qVar.signal).map { case ((col, asc), q) =>
+      val nq = q.trim.toLowerCase
+      val filtered = if (nq.isEmpty) all else all.filter(r => rowText(r).contains(nq))
+      val sorted = if (col == 5) filtered.sortBy(r => Inspector.totalWidth(r.bundle, d))
+                   else filtered.sortBy(r => colText(r, col).toLowerCase)
+      if (asc) sorted else sorted.reverse
+    }
+    def sortBy(c: Int): Unit = sortVar.update { case (cur, asc) => if (cur == c) (c, !asc) else (c, true) }
+    val thStyle = s"text-align:left;padding:7px 12px;font-size:10px;color:${Tokens.ink3};font-weight:600;text-transform:uppercase;letter-spacing:.6px;border-bottom:1px solid ${Tokens.borderSoft};position:sticky;top:0;background:${Tokens.panelAlt};cursor:pointer;user-select:none"
+    def portRowEl(r: PortRow): Element = {
+      val dirBg  = if (r.dir == PortDir.Master) Tokens.dirMasterBg else Tokens.dirSlaveBg
+      val dirCol = if (r.dir == PortDir.Master) Tokens.dirMasterFg else Tokens.dirSlaveFg
+      tr(cls := "scl-ports-row", styleAttr := s"cursor:pointer;border-bottom:1px solid ${Tokens.borderSoft}",
+        dataAttr("port-row") := s"${r.inst}.${r.port}",
+        onClick --> { _ => setSel(s"${r.inst}.${r.port}") },
+        td(styleAttr := s"padding:6px 12px;font-weight:600;color:${Tokens.ink}", r.inst),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", r.tpe),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.port),
+        td(styleAttr := "padding:6px 12px", span(styleAttr := s"padding:1px 6px;border-radius:2px;background:$dirBg;color:$dirCol;font-size:10px", r.dir)),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.bundle),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", s"${Inspector.totalWidth(r.bundle, d)}b"),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink4};font-size:11px",
+          if (!r.connected) span(title := "This port is not referenced anywhere in the source (genuinely unconnected).",
+            styleAttr := s"padding:1px 6px;border-radius:2px;background:${Tokens.badgeUnconnBg};color:${Tokens.badgeUnconnFg};font-family:${Tokens.mono};font-size:9.5px;margin-right:6px", "unconnected") else emptyNode,
+          r.doc),
+      )
+    }
+    div(
+      div(styleAttr := s"display:flex;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid ${Tokens.borderSoft}",
+        input(dataAttr("ports-filter") := "1", placeholder := "filter ports…",
+          styleAttr := s"border:1px solid ${Tokens.border};outline:none;background:${Tokens.panel};border-radius:5px;padding:3px 8px;width:160px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink}",
+          controlled(value <-- qVar.signal, onInput.mapToValue --> qVar.writer)),
+        span(styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink4};font-variant-numeric:tabular-nums",
+          child.text <-- viewSig.map(rs => s"${rs.length} / ${all.length}"))),
+      table(styleAttr := s"width:100%;border-collapse:collapse;font-family:${Tokens.mono};font-size:11px",
+        thead(tr(
+          headers.zipWithIndex.map { case (h, i) =>
+            th(styleAttr := thStyle, dataAttr("ports-sort") := i.toString, onClick --> { _ => sortBy(i) },
+              h, span(styleAttr := s"color:${Tokens.accent}",
+                child.text <-- sortVar.signal.map { case (c, asc) => if (c == i) (if (asc) " ▲" else " ▼") else "" }))
+          })),
+        tbody(children <-- viewSig.map(_.map(portRowEl)))))
   }
 }
