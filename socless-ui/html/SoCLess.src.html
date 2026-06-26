@@ -169,7 +169,8 @@
     border: 1px solid var(--border); border-radius: 14px;
     box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 44px rgba(0,0,0,.34);
     padding: 12px; display: flex; flex-direction: column; gap: 9px;
-    font-family: var(--sans); font-size: 11px; color: var(--ink2); }
+    font-family: var(--sans); font-size: 11px; color: var(--ink2);
+    animation: scl-pop .14s cubic-bezier(.3, .7, .4, 1); }
   .scl-set-sect { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
     color: var(--ink3); margin: 4px 0 1px; }
   .scl-set-sect:first-child { margin-top: 0; }
@@ -215,6 +216,13 @@
     border: 2px solid var(--border); border-top-color: var(--accent);
     animation: scl-spin 0.7s linear infinite; }
   @keyframes scl-spin { to { transform: rotate(360deg); } }
+  /* Overlay reveal + keyboard focus ring + reduced-motion (#277). */
+  .scl-pop { animation: scl-pop .14s cubic-bezier(.3, .7, .4, 1); }
+  @keyframes scl-pop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
   /* Drag-drop overlay (#194): full-window, click-through (drop is on window). */
   .scl-dropzone { position: fixed; inset: 0; z-index: 9000; display: none;
     align-items: center; justify-content: center; pointer-events: none;

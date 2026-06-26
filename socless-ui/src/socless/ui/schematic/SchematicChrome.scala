@@ -119,7 +119,7 @@ private[schematic] object SchematicChrome {
       centerOnContent(mx / s, my / s)
     }
     div(dataAttr("minimap") := "1", dataAttr("pan-block") := "1", title := "Click or drag to pan",
-      styleAttr := s"position:absolute;bottom:12px;left:12px;z-index:3;width:${w}px;height:${h}px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:4px;cursor:pointer;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.14)",
+      styleAttr := s"position:absolute;bottom:12px;left:12px;z-index:3;width:${w}px;height:${h}px;background:color-mix(in srgb, ${Tokens.panel} 80%, transparent);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);border:1px solid ${Tokens.border};border-radius:7px;cursor:pointer;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.2)",
       onMouseDown --> { (e: dom.MouseEvent) =>
         if (e.button == 0) {
           e.preventDefault(); e.stopPropagation()

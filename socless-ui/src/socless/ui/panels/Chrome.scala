@@ -104,10 +104,10 @@ object Chrome {
       if (!open) None
       else Some(
         div(dataAttr("command-palette") := "1",
-          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.32);display:flex;justify-content:center;padding-top:12vh;z-index:100",
+          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.32);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);display:flex;justify-content:center;padding-top:12vh;z-index:100",
           onClick --> { _ => close() },
-          div(
-            styleAttr := s"width:580px;max-width:90vw;max-height:70vh;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,0.22);display:flex;flex-direction:column;overflow:hidden",
+          div(cls := "scl-pop",
+            styleAttr := s"width:580px;max-width:90vw;max-height:70vh;background:color-mix(in srgb, ${Tokens.panel} 82%, transparent);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border:1px solid ${Tokens.border};border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px rgba(0,0,0,0.32);display:flex;flex-direction:column;overflow:hidden",
             onClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
             div(styleAttr := s"display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ${Tokens.borderSoft}",
               input(dataAttr("cmd-input") := "1", placeholder := "Search modules, instances, ports…",
@@ -172,9 +172,10 @@ object Chrome {
       if (!open) None
       else Some(
         div(dataAttr("help-overlay") := "1",
-          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.38);display:flex;justify-content:center;align-items:flex-start;padding-top:10vh;z-index:200",
+          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.38);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:flex-start;padding-top:10vh;z-index:200",
           onClick --> { _ => openVar.set(false) },
-          div(styleAttr := s"width:420px;max-width:90vw;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:10px;box-shadow:0 24px 60px rgba(0,0,0,0.22);overflow:hidden",
+          div(cls := "scl-pop",
+            styleAttr := s"width:420px;max-width:90vw;background:color-mix(in srgb, ${Tokens.panel} 82%, transparent);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border:1px solid ${Tokens.border};border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px rgba(0,0,0,0.32);overflow:hidden",
             onClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
             div(styleAttr := s"display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid ${Tokens.borderSoft}",
               span(styleAttr := s"font-weight:600;font-size:13px;color:${Tokens.ink}", "Keyboard shortcuts"),
