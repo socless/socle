@@ -181,12 +181,42 @@ object App {
         div(styleAttr := s"position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:$accent;box-shadow:0 0 0 1px rgba(0,0,0,.18)")),
       div(styleAttr := s"font-size:9.5px;font-weight:500;color:${Tokens.ink2};padding:3px 5px;text-align:left;background:${Tokens.panel}", label))
 
+  // ── Inline SVG icon set (#277) ─────────────────────────────────────────────
+  // Stroke icons (currentColor) replacing the obscure chrome glyphs. Stroke
+  // styling is set via CSS so we only need shape elements + viewBox.
+  private val iconStyle =
+    "width:15px;height:15px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"
+  private def ico(shapes: com.raquo.laminar.nodes.ChildNode.Base*): Element =
+    svg.svg(svg.viewBox := "0 0 24 24", svg.style := iconStyle, shapes)
+  private def panelRect = svg.rect(svg.x := "3", svg.y := "4", svg.width := "18", svg.height := "16", svg.rx := "2")
+  private def iconPanelLeft   = ico(panelRect, svg.line(svg.x1 := "9",  svg.y1 := "4", svg.x2 := "9",  svg.y2 := "20"))
+  private def iconPanelBottom = ico(panelRect, svg.line(svg.x1 := "3",  svg.y1 := "15", svg.x2 := "21", svg.y2 := "15"))
+  private def iconPanelRight  = ico(panelRect, svg.line(svg.x1 := "15", svg.y1 := "4", svg.x2 := "15", svg.y2 := "20"))
+  private def iconMoon = ico(svg.path(svg.d := "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"))
+  private def iconSun = ico(
+    svg.circle(svg.cx := "12", svg.cy := "12", svg.r := "4"),
+    svg.line(svg.x1 := "12", svg.y1 := "1.5", svg.x2 := "12", svg.y2 := "4"),
+    svg.line(svg.x1 := "12", svg.y1 := "20", svg.x2 := "12", svg.y2 := "22.5"),
+    svg.line(svg.x1 := "1.5", svg.y1 := "12", svg.x2 := "4", svg.y2 := "12"),
+    svg.line(svg.x1 := "20", svg.y1 := "12", svg.x2 := "22.5", svg.y2 := "12"),
+    svg.line(svg.x1 := "4.8", svg.y1 := "4.8", svg.x2 := "6.5", svg.y2 := "6.5"),
+    svg.line(svg.x1 := "17.5", svg.y1 := "17.5", svg.x2 := "19.2", svg.y2 := "19.2"),
+    svg.line(svg.x1 := "4.8", svg.y1 := "19.2", svg.x2 := "6.5", svg.y2 := "17.5"),
+    svg.line(svg.x1 := "17.5", svg.y1 := "6.5", svg.x2 := "19.2", svg.y2 := "4.8"))
+  private def iconSettings = ico( // sliders
+    svg.line(svg.x1 := "4", svg.y1 := "7",  svg.x2 := "20", svg.y2 := "7"),
+    svg.line(svg.x1 := "4", svg.y1 := "12", svg.x2 := "20", svg.y2 := "12"),
+    svg.line(svg.x1 := "4", svg.y1 := "17", svg.x2 := "20", svg.y2 := "17"),
+    svg.circle(svg.cx := "15", svg.cy := "7",  svg.r := "2.3"),
+    svg.circle(svg.cx := "9",  svg.cy := "12", svg.r := "2.3"),
+    svg.circle(svg.cx := "16", svg.cy := "17", svg.r := "2.3"))
+
   /** The gear button + its frosted settings popover (#274). Sectioned into
     * Display (density + colorize) and Theme (gallery). Esc closes it. */
   private def settingsControl(): Element =
     span(styleAttr := "position:relative;display:inline-flex",
       button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings",
-        onClick --> { _ => settingsOpenVar.update(!_) }, "⚙"),
+        onClick --> { _ => settingsOpenVar.update(!_) }, iconSettings),
       child.maybe <-- settingsOpenVar.signal.map { open =>
         if (!open) None else Some(
           div(cls := "scl-set-panel", dataAttr("settings-panel") := "1",
@@ -425,15 +455,15 @@ object App {
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
         cls.toggle("off") <-- leftOpenVar.signal.map(!_),
         title := "Toggle the hierarchy panel",
-        onClick --> { _ => leftOpenVar.update(!_) }, "⊢"),
+        onClick --> { _ => leftOpenVar.update(!_) }, iconPanelLeft),
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "bottom",
         cls.toggle("off") <-- bottomOpenVar.signal.map(!_),
         title := "Toggle the bottom panel",
-        onClick --> { _ => bottomOpenVar.update(!_) }, "⊥"),
+        onClick --> { _ => bottomOpenVar.update(!_) }, iconPanelBottom),
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
         cls.toggle("off") <-- rightOpenVar.signal.map(!_),
         title := "Toggle the inspector panel",
-        onClick --> { _ => rightOpenVar.update(!_) }, "⊣"),
+        onClick --> { _ => rightOpenVar.update(!_) }, iconPanelRight),
       // View settings (#198): density + accent presets.
       settingsControl(),
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.
@@ -441,7 +471,7 @@ object App {
         dataAttr("theme") <-- themeVar.signal,
         title <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
         onClick --> { _ => toggleTheme() },
-        child.text <-- themeVar.signal.map(t => if (darkThemes(t)) "☀" else "☾")),
+        child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon)),
       // Help affordance.
       button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),
