@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SoCLess</title>
+<!-- IBM Plex (#277): the CDN stylesheet is for the dev loop only; the
+     socless-ui.dist task replaces this <link> with inlined base64 @font-face so
+     the shipped single file stays offline. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="socless-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
 <style>
   /* Theme tokens (issue #2). Every color resolves to one of these CSS variables
      (see Tokens.scala), so flipping data-theme on <html> re-themes the whole app
@@ -16,7 +21,8 @@
     --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.96 0.02 250);
     --accentLine: oklch(0.55 0.16 250 / 0.18);
     --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
     /* Accent palette (#220): panel-pane colors that used to be inline OKLCH
        literals in Inspector / BottomPanel / Chrome. Kept here so they recolor
        under dark theme like every other token. */
@@ -163,7 +169,7 @@
     border: 1px solid var(--border); border-radius: 14px;
     box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 44px rgba(0,0,0,.34);
     padding: 12px; display: flex; flex-direction: column; gap: 9px;
-    font-family: var(--mono); font-size: 11px; color: var(--ink2); }
+    font-family: var(--sans); font-size: 11px; color: var(--ink2); }
   .scl-set-sect { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
     color: var(--ink3); margin: 4px 0 1px; }
   .scl-set-sect:first-child { margin-top: 0; }
@@ -190,7 +196,7 @@
   .scl-shell { display: flex; flex-direction: column; height: 100vh; }
   .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     border-bottom: 1px solid var(--border); background: var(--panel); }
-  .scl-logo { font-weight: 700; flex-shrink: 0; }
+  .scl-logo { font-weight: 700; flex-shrink: 0; font-family: var(--sans); letter-spacing: -.01em; }
   .scl-sub { color: var(--ink3); }
   .scl-engine { color: var(--accent); flex-shrink: 0; }
   /* SOURCE indicator + LIVE badge (#194 / #120). */
@@ -256,7 +262,7 @@
   .scl-pane-schematic { flex: 1;
     background: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0/20px 20px, var(--bg); }
   .scl-pane-inspector { width: 300px; border-right: none; }
-  .scl-pane-title { padding: 8px 12px; color: var(--ink3); font-size: 11px;
+  .scl-pane-title { padding: 8px 12px; color: var(--ink3); font-size: 11px; font-family: var(--sans);
     letter-spacing: .04em; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; justify-content: space-between; }
   .scl-pane-body { padding: 12px; color: var(--ink3); }

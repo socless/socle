@@ -218,6 +218,9 @@ object `socless-ui` extends ScalaJSModule {
   // The worker build of elkjs (matched version), inlined as a non-executing
   // script the runtime reads to spin up the Blob-URL layout Web Worker (Phase 2).
   def uiVendorElkWorker = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk-worker.min.js")
+  // IBM Plex woff2 (vendored, #277): inlined as base64 @font-face so the shipped
+  // file carries its own fonts offline (the template links a CDN for dev only).
+  def uiVendorFonts = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "fonts")
 
   /** The shipped single-file UI: the fullLinkJS output + the vendored elkjs
     * bundle inlined into the template, producing one offline file. Built
@@ -248,6 +251,25 @@ object `socless-ui` extends ScalaJSModule {
       s"""<script type="text/plain" id="socless-elk-worker">/* elkjs@$elkVer worker (vendored) */""" + s"\n$elkWorker\n</script>"
     var html = elkRe.replaceFirstIn(tpl, quote(elkInline))
     html = jsRe.replaceFirstIn(html, quote(s"<script>/* socless-ui (Scala.js + Laminar) */\n$js\n</script>"))
+
+    // Inline IBM Plex as base64 @font-face, replacing the dev CDN <link> (#277).
+    // Plex Sans is a variable woff2 (one face, 400-700); Plex Mono is three
+    // static weights. The preconnect hint is dropped (it points at gstatic).
+    val fontsDir = uiVendorFonts().path
+    def b64(file: String) = java.util.Base64.getEncoder.encodeToString(os.read.bytes(fontsDir / file))
+    def face(family: String, weight: String, file: String) =
+      s"@font-face{font-family:'$family';font-style:normal;font-weight:$weight;font-display:swap;" +
+      s"src:url(data:font/woff2;base64,${b64(file)}) format('woff2');}"
+    val fontCss =
+      face("IBM Plex Sans", "400 700", "IBMPlexSans-var.woff2") + "\n" +
+      face("IBM Plex Mono", "400", "IBMPlexMono-400.woff2") + "\n" +
+      face("IBM Plex Mono", "500", "IBMPlexMono-500.woff2") + "\n" +
+      face("IBM Plex Mono", "600", "IBMPlexMono-600.woff2")
+    val fontsRe = """<link id="socless-fonts"[^>]*>""".r
+    if (fontsRe.findFirstIn(tpl).isEmpty) sys.error("socless-fonts <link> not found in SoCLess.src.html")
+    html = """(?m)^\s*<link rel="preconnect" href="https://fonts\.gstatic\.com"[^>]*>\s*$\n?""".r.replaceFirstIn(html, "")
+    html = fontsRe.replaceFirstIn(html, quote(s"<style>/* IBM Plex (vendored, #277) */\n$fontCss\n</style>"))
+
     val doctypeRe = """(?i)^<!doctype html>""".r
     if (doctypeRe.findFirstIn(html).isEmpty) sys.error("expected the template to start with a doctype")
     html = doctypeRe.replaceFirstIn(html, quote(
@@ -255,6 +277,8 @@ object `socless-ui` extends ScalaJSModule {
       "     socless-ui/html/SoCLess.src.html (Scala.js + Laminar inlined offline, epic #172). -->"))
 
     if (html.contains("unpkg.com")) sys.error("dist still references unpkg.com (offline guarantee broken)")
+    if (html.contains("fonts.googleapis.com") || html.contains("fonts.gstatic.com"))
+      sys.error("dist still references a font CDN (offline guarantee broken)")
     os.write(Task.dest / "SoCLess.html", html)
     PathRef(Task.dest / "SoCLess.html")
   }
