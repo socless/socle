@@ -41,6 +41,9 @@ object App {
   // and passes them into the schematic.
   private val colorBoxesVar   = Var(false)
   private val colorWiresVar   = Var(false)
+  // Auto-optimize (#209): run the in-browser optimize layout on every module view
+  // (off-thread) so the initial render matches Optimize. Default on; persisted.
+  private val autoOptimizeVar = Var(true)
   // Declutter (#223): node kinds hidden from the schematic. Empty = show all.
   private val hiddenKindsVar  = Var[Set[String]](Set.empty)
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
@@ -70,6 +73,7 @@ object App {
     if (container == null) return "no-root"
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
     densityVar.set(currentDensity()); labelSizeVar.set(currentLabelSize())
+    try autoOptimizeVar.set(dom.window.localStorage.getItem("socless-autoopt") != "off") catch { case _: Throwable => () }
     render(container, shell())
     installKeyboard()
     loader.installDragDrop()
@@ -195,6 +199,17 @@ object App {
         dataAttr("on") <-- v.signal.map(b => if (b) "1" else "0"),
         onClick --> { _ => v.update(!_) }, i()))
 
+  // Auto-optimize (#209): a persisted boolean toggle row.
+  private def autoOptRow(): Element =
+    div(cls := "scl-tg-row",
+      span("Auto-optimize layout"),
+      button(cls := "scl-tg", dataAttr("auto-optimize") := "1",
+        dataAttr("on") <-- autoOptimizeVar.signal.map(b => if (b) "1" else "0"),
+        onClick --> { _ =>
+          val nv = !autoOptimizeVar.now(); autoOptimizeVar.set(nv)
+          try dom.window.localStorage.setItem("socless-autoopt", if (nv) "on" else "off") catch { case _: Throwable => () }
+        }, i()))
+
   // Declutter (#223): a visibility toggle for one node kind. ON = visible (kind
   // absent from hiddenKindsVar); toggling off hides it and re-lays-out.
   private def declutterRow(label: String, kind: String): Element =
@@ -265,6 +280,7 @@ object App {
             labelSegment(),
             toggleRow("Colorize components", "toggle-colorize", colorBoxesVar),
             toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
+            autoOptRow(),
             div(cls := "scl-set-sect", "Show"),
             declutterRow("Operators", "op"),
             declutterRow("Registers", "reg"),
@@ -376,6 +392,7 @@ object App {
             colorBoxesVar    = colorBoxesVar,
             colorWiresVar    = colorWiresVar,
             hiddenKindsVar   = hiddenKindsVar,
+            autoOptimizeVar  = autoOptimizeVar,
             designSnapshot   = () => loader.snapshot(),
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),

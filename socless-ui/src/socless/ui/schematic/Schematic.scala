@@ -54,6 +54,9 @@ object Schematic {
     // Declutter (#223): node kinds hidden from the schematic; App owns the set so
     // the settings panel can drive it. Empty = show everything.
     hiddenKindsVar: Var[Set[String]],
+    // Auto-optimize (#209): when on, run the optimize layout on every module view
+    // so the initial render matches Optimize (off-thread, so it stays responsive).
+    autoOptimizeVar: Var[Boolean],
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
   ): Element = {
 
@@ -654,13 +657,15 @@ object Schematic {
           pendingFit = false
         }
       },
-      // in-process engine re-layout on module / expansion / Optimize / declutter
-      Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal, hiddenKindsVar.signal) --> {
-        (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String])) =>
-          val optimize = t._4 != lastNonce
+      // in-process engine re-layout on module / expansion / Optimize / declutter /
+      // auto-optimize. When auto-optimize (#209) is on, every view runs the
+      // optimize pass so the initial render matches Optimize (off-thread).
+      Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal, hiddenKindsVar.signal, autoOptimizeVar.signal) --> {
+        (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String], Boolean)) =>
+          val manualOpt = t._4 != lastNonce
           lastNonce = t._4
           val eff = t._3 ++ (for { d <- t._1; m <- t._2 } yield lockedExpansions(d, m)).getOrElse(Set.empty)
-          runEngine(t._1, t._2, eff, optimize, t._5)
+          runEngine(t._1, t._2, eff, manualOpt || t._6, t._5)
       },
     )
   }
