@@ -18,7 +18,9 @@ object Chrome {
   def macHint: Boolean = isMac
 
   // ── Command palette ─────────────────────────────────────────────────────────
-  private final case class Item(kind: String, label: String, sub: String, payload: List[String])
+  // payload drives navigation (module path); `run` is set for action items
+  // (command hub, #276) and takes precedence over navigation.
+  private final case class Item(kind: String, label: String, sub: String, payload: List[String], run: Option[() => Unit] = None)
 
   private val VecRe = """^Vec\[(.+),\s*(\d+)\]$""".r
 
@@ -83,17 +85,25 @@ object Chrome {
     else items.flatMap(it => score(it, needle).map(s => (it, s))).sortBy(_._2).map(_._1).take(100)
   }
 
-  private val kindColor = Map("module" -> Tokens.accent, "instance" -> Tokens.kindInstance, "port" -> Tokens.kindPort)
+  private val kindColor = Map("module" -> Tokens.accent, "instance" -> Tokens.kindInstance,
+    "port" -> Tokens.kindPort, "action" -> Tokens.ok)
 
-  def commandPalette(designSig: Signal[Option[Design]], openVar: Var[Boolean], onNavigate: List[String] => Unit): Element = {
+  /** The command palette (Ctrl/Cmd+K). `actions` are command-hub entries
+    * (label, sub, run) searchable alongside modules/instances/ports (#276). */
+  def commandPalette(designSig: Signal[Option[Design]], openVar: Var[Boolean],
+                     onNavigate: List[String] => Unit,
+                     actions: Seq[(String, String, () => Unit)] = Nil): Element = {
     val qVar       = Var("")
     val cursorVar  = Var(0)
     val resultsVar = Var[Seq[Item]](Nil) // mirror of resultsSig so the keydown handler can read it
+    val actionItems = actions.map { case (label, sub, run) => Item("action", label, sub, Nil, Some(run)) }
     def close(): Unit = openVar.set(false)
-    def navigate(it: Item): Unit = { onNavigate(it.payload); close() }
+    def navigate(it: Item): Unit = { it.run match { case Some(r) => r(); case None => onNavigate(it.payload) }; close() }
 
     val resultsSig: Signal[Seq[Item]] =
-      Signal.combine(designSig, qVar.signal).map { case (dO, q) => dO.map(d => results(buildItems(d), q)).getOrElse(Nil) }
+      Signal.combine(designSig, qVar.signal).map { case (dO, q) =>
+        results(actionItems ++ dO.map(buildItems).getOrElse(Nil), q)
+      }
 
     // `display:contents` holder: keeps the results mirror live and renders the
     // modal (a fixed-position overlay) only when open.
@@ -110,7 +120,7 @@ object Chrome {
             styleAttr := s"width:580px;max-width:90vw;max-height:70vh;background:color-mix(in srgb, ${Tokens.panel} 82%, transparent);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border:1px solid ${Tokens.border};border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px rgba(0,0,0,0.32);display:flex;flex-direction:column;overflow:hidden",
             onClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
             div(styleAttr := s"display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid ${Tokens.borderSoft}",
-              input(dataAttr("cmd-input") := "1", placeholder := "Search modules, instances, ports…",
+              input(dataAttr("cmd-input") := "1", placeholder := "Search modules, instances, ports, actions…",
                 styleAttr := s"flex:1;border:none;outline:none;background:transparent;font-size:14px;color:${Tokens.ink}",
                 controlled(value <-- qVar.signal, onInput.mapToValue --> qVar.writer),
                 onMountCallback { ctx => ctx.thisNode.ref.focus() },

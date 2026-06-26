@@ -312,7 +312,16 @@ object App {
         expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
       },
       // Command palette + keyboard-help overlays (fixed-position modals).
-      Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p)),
+      Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p),
+        actions = Seq(
+          ("Toggle theme",           "dark / light",              () => toggleTheme()),
+          ("Open settings",          "density, theme, color",     () => settingsOpenVar.set(true)),
+          ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
+          ("Toggle hierarchy panel", "left pane",                 () => leftOpenVar.update(!_)),
+          ("Toggle bottom panel",    "source / waveform / ports", () => bottomOpenVar.update(!_)),
+          ("Toggle inspector panel", "right pane",                () => rightOpenVar.update(!_)),
+          ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
+        )),
       Chrome.helpOverlay(helpOpenVar),
       // Design-input chrome (#194): drag-drop overlay + transient toasts.
       dropOverlay(),
