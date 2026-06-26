@@ -283,8 +283,20 @@ object BrowserLayout {
     * seam for the Scala.js + Laminar UI, epic #172). The engine runs off the
     * main thread when available (see [[engine]]). */
   def runTyped(module: ModuleDef, design: Design, mode: String,
-               overrides: Map[String, BoxOverride], expanded: Set[String]): Future[LaidOut] = {
-    val prep  = LayoutCore.prepare(module, design, expanded)
+               overrides: Map[String, BoxOverride], expanded: Set[String],
+               hidden: Set[String] = Set.empty): Future[LaidOut] = {
+    val prep0 = LayoutCore.prepare(module, design, expanded)
+    // Declutter (#223): drop nodes of hidden kinds and any edge that touches one,
+    // then re-lay-out the visible subset. Wires that targeted a now-absent node
+    // surface as dangling stubs (SchematicGeom.buildWires) since their endpoint no
+    // longer resolves to a box.
+    val prep = if (hidden.isEmpty) prep0 else {
+      val hiddenPaths = prep0.nodes.iterator.filter(n => hidden.contains(n.kind))
+        .flatMap(n => Iterator(n.id) ++ n.pins.iterator.map(_.path)).toSet
+      LayoutCore.Prepared(
+        prep0.nodes.filterNot(n => hidden.contains(n.kind)),
+        prep0.edges.filterNot(e => hiddenPaths.contains(e.fromPath) || hiddenPaths.contains(e.toPath)))
+    }
     val graph = buildGraph(prep, mode, overrides)
     val laid: Future[js.Dynamic] = engine.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
     laid.map(res => extractTyped(prep, res))

@@ -108,7 +108,8 @@ private[schematic] object SchematicGeom {
     }
 
   def buildWires(dwires: Seq[LayoutCore.DisplayWire], layout: LaidOut, boxById: Map[String, LaidNodeR],
-                 pinYMap: Map[String, Map[String, Double]], boxShift: BoxShift): Seq[Wire] = {
+                 pinYMap: Map[String, Map[String, Double]], boxShift: BoxShift,
+                 hiddenIds: Set[String] = Set.empty): Seq[Wire] = {
     val edgeByKey = layout.edges.map(e => (e.from + " " + e.to) -> e).toMap
     // Routed points for a display wire's pin pair, oriented source->sink to match
     // this wire's (from = sink, to = source). The display fold and the layout
@@ -190,7 +191,11 @@ private[schematic] object SchematicGeom {
               Some(Wire(s"w$i", w.from, w.to, fromInst, toInst, w.bundle, w.bidir,
                 Seq((sink._1 - 24.0, sink._2), sink), dangling = true))
             case (None, None) =>
-              dom.console.warn(s"[socless] wire dropped, no anchor for ${w.from} -> ${w.to}")
+              // Both endpoints gone. Under declutter (#223) this is expected when
+              // a wire ran between two now-hidden nodes - drop it silently. Only
+              // warn for a genuinely-unexpected anchorless wire.
+              if (!(hiddenIds.contains(LayoutCore.nodeBaseId(fromInst)) || hiddenIds.contains(LayoutCore.nodeBaseId(toInst))))
+                dom.console.warn(s"[socless] wire dropped, no anchor for ${w.from} -> ${w.to}")
               None
           }
       }

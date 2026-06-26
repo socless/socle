@@ -51,6 +51,9 @@ object Schematic {
     // passes them in; the schematic reads them per-render (#266).
     colorBoxesVar: Var[Boolean],
     colorWiresVar: Var[Boolean],
+    // Declutter (#223): node kinds hidden from the schematic; App owns the set so
+    // the settings panel can drive it. Empty = show everything.
+    hiddenKindsVar: Var[Set[String]],
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
   ): Element = {
 
@@ -90,10 +93,11 @@ object Schematic {
     // toggling cannot grow it without limit.
     val engineCache    = scala.collection.mutable.LinkedHashMap.empty[String, LaidOut]
     val engineCacheCap = 96
-    def engineKey(modName: String, mode: String, expanded: Set[String], overrides: Map[String, BoxOverride]): String = {
+    def engineKey(modName: String, mode: String, expanded: Set[String], overrides: Map[String, BoxOverride], hidden: Set[String]): String = {
       val exp = expanded.toList.sorted.mkString(",")
       val ovr = overrides.toList.sortBy(_._1).map { case (k, o) => s"$k=${o.height.getOrElse(0.0)}" }.mkString(",")
-      s"$modName|$mode|$exp|$ovr"
+      val hid = hidden.toList.sorted.mkString(",")
+      s"$modName|$mode|$exp|$ovr|$hid"
     }
     def engineCachePut(key: String, v: LaidOut): Unit = {
       engineCache(key) = v
@@ -108,7 +112,18 @@ object Schematic {
       val pinYMap = rows.map { case (i, br) => i -> br.pinY(c.headerH, c.portPad, c.portStep) }
       val boxById = layout.nodes.map(n => n.id -> n).toMap
       val shift   = computeBoxShift(layout, rows)
-      val wires   = buildWires(displayWires(mod, expanded), layout, boxById, pinYMap, shift)
+      // Node ids hidden by declutter (#223): wires that ran solely between them are
+      // dropped silently rather than warned (an expected drop, not an anomaly).
+      val hk = hiddenKindsVar.now()
+      val hiddenIds = if (hk.isEmpty) Set.empty[String] else mod.logic.iterator.filter(n => hk.contains(n.kind)).map(_.id).toSet
+      // A wire running solely between two hidden nodes is dropped outright; one
+      // with a single hidden end stays so buildWires can stub it (#223). Resolve
+      // synthetic pin heads (`x~q`, `_T~in0`) to their node id to test membership.
+      def wireNode(p: String): String = LayoutCore.nodeBaseId(p.split('.').headOption.getOrElse(p))
+      val dw0 = displayWires(mod, expanded)
+      val dw  = if (hiddenIds.isEmpty) dw0
+                else dw0.filterNot(w => hiddenIds.contains(wireNode(w.from)) && hiddenIds.contains(wireNode(w.to)))
+      val wires   = buildWires(dw, layout, boxById, pinYMap, shift, hiddenIds)
       val canvasH = (layout.h + 40) + shift.total
       Geom(layout, mod, d, rows, wires, shift, canvasH, c, boxById)
     }
@@ -134,11 +149,13 @@ object Schematic {
       }
 
     // ── in-process engine re-layout (issue #167) ──
-    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean): Unit =
+    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String]): Unit =
       (dO, mO) match {
         case (Some(d), Some(mod)) =>
           val hasExpansion = expanded.nonEmpty
-          if (!hasExpansion && !optimize) { engineVar.set(None); return }
+          // Declutter (#223) forces the engine too: the baked layout has every
+          // node, so hiding kinds needs a re-layout over the visible subset.
+          if (!hasExpansion && !optimize && hidden.isEmpty) { engineVar.set(None); return }
           bakedOf(d, mod) match {
             case None => engineVar.set(None)
             case Some(bl) =>
@@ -151,7 +168,7 @@ object Schematic {
                 else None
               }
               val mode = if (optimize) "optimize" else "reroute"
-              val key  = engineKey(mod.name, mode, expanded, overrides)
+              val key  = engineKey(mod.name, mode, expanded, overrides, hidden)
               engineGen += 1
               val myGen = engineGen
               engineCache.get(key) match {
@@ -160,7 +177,7 @@ object Schematic {
                   engineVar.set(Some((mod.name, cached))); pendingVar.set(false)
                 case None =>
                   pendingVar.set(true)
-                  BrowserLayout.runTyped(mod, d, mode, overrides, expanded).onComplete {
+                  BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden).onComplete {
                     case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
                     case Failure(e)   => if (myGen == engineGen) {
                       engineVar.set(None); pendingVar.set(false)
@@ -637,13 +654,13 @@ object Schematic {
           pendingFit = false
         }
       },
-      // in-process engine re-layout on module / expansion / Optimize
-      Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal) --> {
-        (t: (Option[Design], Option[ModuleDef], Set[String], Int)) =>
+      // in-process engine re-layout on module / expansion / Optimize / declutter
+      Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal, hiddenKindsVar.signal) --> {
+        (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String])) =>
           val optimize = t._4 != lastNonce
           lastNonce = t._4
           val eff = t._3 ++ (for { d <- t._1; m <- t._2 } yield lockedExpansions(d, m)).getOrElse(Set.empty)
-          runEngine(t._1, t._2, eff, optimize)
+          runEngine(t._1, t._2, eff, optimize, t._5)
       },
     )
   }

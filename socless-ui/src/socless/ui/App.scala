@@ -40,6 +40,8 @@ object App {
   // and passes them into the schematic.
   private val colorBoxesVar   = Var(false)
   private val colorWiresVar   = Var(false)
+  // Declutter (#223): node kinds hidden from the schematic. Empty = show all.
+  private val hiddenKindsVar  = Var[Set[String]](Set.empty)
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
@@ -168,6 +170,15 @@ object App {
         dataAttr("on") <-- v.signal.map(b => if (b) "1" else "0"),
         onClick --> { _ => v.update(!_) }, i()))
 
+  // Declutter (#223): a visibility toggle for one node kind. ON = visible (kind
+  // absent from hiddenKindsVar); toggling off hides it and re-lays-out.
+  private def declutterRow(label: String, kind: String): Element =
+    div(cls := "scl-tg-row",
+      span(label),
+      button(cls := "scl-tg", dataAttr("declutter-kind") := kind,
+        dataAttr("on") <-- hiddenKindsVar.signal.map(h => if (h.contains(kind)) "0" else "1"),
+        onClick --> { _ => hiddenKindsVar.update(h => if (h.contains(kind)) h - kind else h + kind) }, i()))
+
   // A theme card: a live palette preview (bg fill + accent dot) over the name,
   // highlighted when active.
   private def themeCard(id: String, label: String, bg: String, accent: String): Element =
@@ -225,6 +236,12 @@ object App {
             densitySegment(),
             toggleRow("Colorize components", "toggle-colorize", colorBoxesVar),
             toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
+            div(cls := "scl-set-sect", "Show"),
+            declutterRow("Operators", "op"),
+            declutterRow("Registers", "reg"),
+            declutterRow("Constants", "const"),
+            declutterRow("Memories", "mem"),
+            declutterRow("State machines", "fsm"),
             div(cls := "scl-set-sect", "Theme"),
             div(cls := "scl-set-gallery",
               themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) }),
@@ -329,6 +346,7 @@ object App {
             drillInto        = drillInto,
             colorBoxesVar    = colorBoxesVar,
             colorWiresVar    = colorWiresVar,
+            hiddenKindsVar   = hiddenKindsVar,
             designSnapshot   = () => loader.snapshot(),
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
