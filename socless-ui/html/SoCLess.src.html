@@ -23,6 +23,9 @@
     --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
     --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    /* Schematic label sizes (#follow-up): centralized so the "Label size" setting
+       can scale them. Bumped from the old hardcoded 8-11.5px for legibility. */
+    --sch-name: 12px; --sch-type: 10px; --sch-label: 9.5px; --sch-mark: 8.5px;
     /* Accent palette (#220): panel-pane colors that used to be inline OKLCH
        literals in Inspector / BottomPanel / Chrome. Kept here so they recolor
        under dark theme like every other token. */
@@ -162,6 +165,10 @@
   :root[data-density="comfy"] .scl-topbar { padding: 11px 16px; }
   :root[data-density="comfy"] .scl-pane-title { padding: 11px 14px; }
   :root[data-density="comfy"] .scl-hier-row { height: 28px; font-size: 13px; }
+  /* Schematic label size setting: scales the centralized --sch-* vars so port
+     labels + component names stay readable when zoomed out on large designs. */
+  :root[data-labels="large"] { --sch-name: 14.5px; --sch-type: 12px; --sch-label: 11.5px; --sch-mark: 10px; }
+  :root[data-labels="xl"]    { --sch-name: 17px;   --sch-type: 14px; --sch-label: 14px;   --sch-mark: 12px; }
   /* Settings panel (#274): a frosted, sectioned control panel. */
   .scl-set-panel { position: absolute; top: 34px; right: 0; z-index: 50; width: 236px;
     background: color-mix(in srgb, var(--panel) 80%, transparent);
@@ -256,12 +263,12 @@
   .scl-kbd { margin-left: auto; font-family: var(--mono); font-size: 10px; padding: 1px 4px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
   .scl-help-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
-    color: var(--ink3); border-radius: 50%; width: 20px; height: 20px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; }
+    color: var(--ink3); border-radius: 50%; width: 26px; height: 26px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
   .scl-help-btn:hover { background: var(--panelAlt); color: var(--ink); }
   /* Theme toggle (issue #2): same chrome as the help button, sun/moon glyph. */
   .scl-theme-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
-    color: var(--ink3); border-radius: 50%; width: 22px; height: 22px; flex-shrink: 0;
+    color: var(--ink3); border-radius: 50%; width: 26px; height: 26px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
   .scl-theme-btn:hover { background: var(--panelAlt); color: var(--ink); }
   .scl-panes { display: flex; flex: 1; min-height: 0; }
@@ -325,6 +332,8 @@
       // Density (#198 / #274), also applied before paint to avoid a reflow.
       var density = localStorage.getItem('socless-density');
       if (density === 'compact' || density === 'comfy') document.documentElement.setAttribute('data-density', density);
+      var labels = localStorage.getItem('socless-labels');
+      if (labels === 'large' || labels === 'xl') document.documentElement.setAttribute('data-labels', labels);
     } catch (e) { /* private mode / no storage - default light */ }
   })();
 </script>

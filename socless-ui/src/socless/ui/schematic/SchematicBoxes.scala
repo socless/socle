@@ -145,7 +145,7 @@ private[schematic] object SchematicBoxes {
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
         s"opacity:${if (active) "1" else "0.18"};transition:opacity .15s;" +
         s"background:${if (ctx.colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panelAlt};border:1px dashed ${Tokens.border};border-radius:4px;" +
-        s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:9.5px;color:${Tokens.ink3};overflow:hidden;cursor:default",
+        s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;cursor:default",
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
       n.ports.map { p =>
@@ -159,8 +159,8 @@ private[schematic] object SchematicBoxes {
               s"background:${if (p.interface) Tokens.accent else Tokens.ink4};border-radius:${if (p.interface) 3 else 1}px;" +
               (if (p.interface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px" else "")),
           if (p.label.nonEmpty) span(
-            styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;font-family:${Tokens.mono};font-size:8.5px;" +
-              s"color:${if (p.interface) Tokens.ink2 else Tokens.ink3};white-space:nowrap;pointer-events:none;" +
+            styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;font-family:${Tokens.mono};font-size:var(--sch-label);" +
+              s"color:${if (p.interface) Tokens.ink else Tokens.ink2};white-space:nowrap;pointer-events:none;" +
               s"max-width:${math.max(12.0, n.w - pw - 8)}px;overflow:hidden;text-overflow:ellipsis;line-height:10px",
             stripQ(p.label)) else emptyNode,
         )
@@ -200,7 +200,7 @@ private[schematic] object SchematicBoxes {
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
         onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
-        span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
+        span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
       ),
       renderPortRows(ctx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
       renderPortRows(ctx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),
@@ -235,9 +235,9 @@ private[schematic] object SchematicBoxes {
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
         onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.ink3};font-size:11px", "▤"),
-        span(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
+        span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
         div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
-          span(styleAttr := s"font-family:${Tokens.mono};font-size:9px;color:${Tokens.ink3};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis", tag)),
+          span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};white-space:nowrap;max-width:120px;overflow:hidden;text-overflow:ellipsis", tag)),
       ),
       renderPortRows(ctx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
       renderPortRows(ctx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),
@@ -267,7 +267,7 @@ private[schematic] object SchematicBoxes {
           dataAttr("bundle-group-dir") := (if (isWest) "in" else "out"),
           dataAttr("pan-block") := "1",
           styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;display:flex;align-items:center;height:16px;" +
-            s"font-family:${Tokens.mono};font-size:8.5px;font-weight:600;color:${Tokens.ink3};white-space:nowrap;pointer-events:none",
+            s"font-family:${Tokens.mono};font-size:var(--sch-label);font-weight:600;color:${Tokens.ink2};white-space:nowrap;pointer-events:none",
           span(stripQ(row.label)),
         )
       } else if (row.isTopLevel) {
@@ -290,10 +290,10 @@ private[schematic] object SchematicBoxes {
             if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
             styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (pw + 4 + indentPx) - 4)}px;" +
               s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
-              s"font-family:${Tokens.mono};font-size:8.5px;color:${Tokens.ink2};white-space:nowrap;overflow:hidden;" +
+              s"font-family:${Tokens.mono};font-size:var(--sch-label);color:${Tokens.ink};white-space:nowrap;overflow:hidden;" +
               s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
             if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:8px;line-height:1",
+            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:var(--sch-mark);line-height:1",
               child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
             span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
           ),
@@ -319,13 +319,13 @@ private[schematic] object SchematicBoxes {
             if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
             styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
               s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
-              s"font-family:${Tokens.mono};font-size:8px;color:${Tokens.ink3};white-space:nowrap;overflow:hidden;" +
+              s"font-family:${Tokens.mono};font-size:var(--sch-label);color:${Tokens.ink2};white-space:nowrap;overflow:hidden;" +
               s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
             if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:8px",
+            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink3};font-size:var(--sch-mark)",
               child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
             span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
-            if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink4};font-size:7px", s"${row.width}b") else emptyNode,
+            if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink3};font-size:var(--sch-mark)", s"${row.width}b") else emptyNode,
           ),
         )
       }

@@ -36,6 +36,7 @@ object App {
   // (also set before paint in the template): theme id (#275) + density (#198).
   private val settingsOpenVar = Var(false)
   private val densityVar      = Var[String]("comfortable")      // "compact" | "comfortable" | "comfy"
+  private val labelSizeVar    = Var[String]("normal")           // "normal" | "large" | "xl" (schematic labels)
   // Colorize toggles (#266) live in the settings panel now (#274); App owns them
   // and passes them into the schematic.
   private val colorBoxesVar   = Var(false)
@@ -68,7 +69,7 @@ object App {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
-    densityVar.set(currentDensity())
+    densityVar.set(currentDensity()); labelSizeVar.set(currentLabelSize())
     render(container, shell())
     installKeyboard()
     loader.installDragDrop()
@@ -162,6 +163,30 @@ object App {
           onClick --> { _ => applyDensity(id) }, label)
       })
 
+  // Schematic label size (follow-up): scales the --sch-* CSS vars via a
+  // data-labels attribute so port labels + component names stay readable when
+  // zoomed out. "normal" is the no-attribute default.
+  private val labelOpts = List(("normal", "Normal"), ("large", "Large"), ("xl", "XL"))
+  private def currentLabelSize(): String =
+    Option(dom.document.documentElement.getAttribute("data-labels")).filter(_.nonEmpty).getOrElse("normal")
+  private def applyLabelSize(v: String): Unit = {
+    if (v == "normal") dom.document.documentElement.removeAttribute("data-labels")
+    else dom.document.documentElement.setAttribute("data-labels", v)
+    try dom.window.localStorage.setItem("socless-labels", v) catch { case _: Throwable => () }
+    labelSizeVar.set(v)
+  }
+  private def labelSegment(): Element =
+    div(cls := "scl-seg",
+      div(cls := "scl-seg-thumb", styleAttr <-- labelSizeVar.signal.map { v =>
+        val i = labelOpts.indexWhere(_._1 == v).max(0)
+        s"left:calc(3px + $i * (100% - 6px) / 3);width:calc((100% - 6px) / 3)"
+      }),
+      labelOpts.map { case (id, label) =>
+        button(dataAttr("label-option") := id,
+          cls.toggle("on") <-- labelSizeVar.signal.map(_ == id),
+          onClick --> { _ => applyLabelSize(id) }, label)
+      })
+
   // An iOS-style toggle row bound to a boolean Var (#274).
   private def toggleRow(label: String, hook: String, v: Var[Boolean]): Element =
     div(cls := "scl-tg-row",
@@ -195,10 +220,12 @@ object App {
   // ── Inline SVG icon set (#277) ─────────────────────────────────────────────
   // Stroke icons (currentColor) replacing the obscure chrome glyphs. Stroke
   // styling is set via CSS so we only need shape elements + viewBox.
+  // Size via the width/height presentation attributes (CSS width on an inline
+  // <svg> was being ignored, rendering the icons ~6px); stroke styling stays CSS.
   private val iconStyle =
-    "width:15px;height:15px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round"
+    "display:block;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"
   private def ico(shapes: com.raquo.laminar.nodes.ChildNode.Base*): Element =
-    svg.svg(svg.viewBox := "0 0 24 24", svg.style := iconStyle, shapes)
+    svg.svg(svg.viewBox := "0 0 24 24", svg.width := "18", svg.height := "18", svg.style := iconStyle, shapes)
   private def panelRect = svg.rect(svg.x := "3", svg.y := "4", svg.width := "18", svg.height := "16", svg.rx := "2")
   private def iconPanelLeft   = ico(panelRect, svg.line(svg.x1 := "9",  svg.y1 := "4", svg.x2 := "9",  svg.y2 := "20"))
   private def iconPanelBottom = ico(panelRect, svg.line(svg.x1 := "3",  svg.y1 := "15", svg.x2 := "21", svg.y2 := "15"))
@@ -234,6 +261,8 @@ object App {
             div(cls := "scl-set-sect", "Display"),
             div(cls := "scl-set-row-label", "Density"),
             densitySegment(),
+            div(cls := "scl-set-row-label", styleAttr := "margin-top:8px", "Label size"),
+            labelSegment(),
             toggleRow("Colorize components", "toggle-colorize", colorBoxesVar),
             toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
             div(cls := "scl-set-sect", "Show"),
