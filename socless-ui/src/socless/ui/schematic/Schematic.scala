@@ -275,6 +275,8 @@ object Schematic {
             sa("data-wire") := w.fromPath,
             sa("data-pan-block") := "1",
             sa("style") := "stroke:transparent;stroke-width:14;fill:none;cursor:pointer;pointer-events:stroke",
+            // Native hover tooltip: bundle + endpoints + direction (#276).
+            svg.titleTag((if (w.bundle.nonEmpty) w.bundle + "  " else "") + w.fromPath + (if (w.bidir) "  <->  " else "  ->  ") + w.toPath),
             onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, w.fromPath) },
             onMouseEnter --> { (_: dom.MouseEvent) => hoveredVar.set(Some(w.fromPath)) },
             onMouseLeave --> { (_: dom.MouseEvent) => hoveredVar.set(None) },
@@ -503,6 +505,17 @@ object Schematic {
     // brief pause in typing (perf).
     val filterDimSig: Signal[String] = filterVar.signal.composeChanges(_.debounce(140))
 
+    // Matched/total box count for the filter chip (#276): None when no filter.
+    val matchSig: Signal[Option[(Int, Int)]] =
+      Signal.combine(geomSig, filterDimSig).map {
+        case (Some(g), f) if f.trim.nonEmpty =>
+          val q = f.trim.toLowerCase
+          val matched = g.layout.nodes.count(n =>
+            fuzzyHas((n.id + " " + g.mod.children.find(_.name == n.id).map(_.`type`).getOrElse("")).toLowerCase, q))
+          Some((matched, g.layout.nodes.size))
+        case _ => None
+      }
+
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
       Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterDimSig, showLayersVar.signal,
                      colorBoxesVar.signal, colorWiresVar.signal).map {
@@ -541,7 +554,7 @@ object Schematic {
       dataAttr("layout-ready") <-- pendingVar.signal.map(p => if (p) "0" else "1"),
       cls := "scl-pane scl-pane-schematic",
       styleAttr := "flex:1;position:relative;overflow:hidden",
-      SchematicChrome.chrome(moduleSig, filterVar),
+      SchematicChrome.chrome(moduleSig, filterVar, matchSig),
       div(
         styleAttr := "position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none",
         onMouseDown --> handlePanStart,

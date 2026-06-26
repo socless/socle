@@ -36,7 +36,8 @@ private[schematic] object SchematicChrome {
   )
 
   // ── chrome (top-left chips) ──
-  def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String]): Element =
+  def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String],
+             matchSig: Signal[Option[(Int, Int)]] = Val(None)): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
         child <-- moduleSig.map {
@@ -56,6 +57,12 @@ private[schematic] object SchematicChrome {
             styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:inherit;font-size:11px;color:${Tokens.ink}",
             controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
             onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
+          // Live match count "N / M" while filtering (#276).
+          child.maybe <-- matchSig.map {
+            case Some((m, t)) => Some(span(dataAttr("filter-count") := "1",
+              styleAttr := s"color:${if (m == 0) Tokens.warn else Tokens.ink3};font-variant-numeric:tabular-nums;flex-shrink:0", s"$m / $t"))
+            case None => None
+          },
           child.maybe <-- filterVar.signal.map(f => if (f.nonEmpty)
             Some(button(title := "Clear filter (Esc)", styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0",
               onClick --> { _ => filterVar.set("") }, "×")) else None)),
