@@ -10,6 +10,8 @@ panel follows your cursor, and clicking a box in the panel jumps to its source.
 It does not replace Metals: it offers no diagnostics, completion, hover or
 go-to-definition, so run both side by side (see [With Metals](#with-metals)).
 
+Using VS Code? See [SoCLess in VS Code](ide-vscode.md).
+
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath of the file
 the lens is in). Your tests and build are never modified.

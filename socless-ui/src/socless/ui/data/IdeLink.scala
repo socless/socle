@@ -30,15 +30,7 @@ object IdeState {
   def errorSummary(message: String, max: Int = 80): String = {
     val lines = message.linesIterator.toSeq
     val line  = lines.find(_.contains("[error]")).orElse(lines.find(_.trim.nonEmpty)).getOrElse("").trim
-    var i = 0
-    var n = 0
-    while (i < line.length && n < max) {
-      val pair = Character.isHighSurrogate(line.charAt(i)) && i + 1 < line.length &&
-        Character.isLowSurrogate(line.charAt(i + 1))
-      i += (if (pair) 2 else 1)
-      n += 1
-    }
-    if (i < line.length) line.substring(0, i) + "…" else line
+    socless.ui.model.ScalaClassLabel.truncate(line, max)
   }
 }
 

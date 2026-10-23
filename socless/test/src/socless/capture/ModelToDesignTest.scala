@@ -88,6 +88,10 @@ object ModelToDesignTest extends TestSuite {
           s"instances of ${om.name}: ${m.children} != ${om.children}")
       }
       assert(d.modules.find(_.name == "Cluster").get.parameters("nCores") == "<unreadable>")
+      // Declaration order and declared types survive in parameterDecls.
+      val q = d.modules.find(_.name == "Queue4_Token").get
+      assert(q.parameterDecls.map(_.name) == Seq("gen", "entries", "pipe", "flow", "useSyncReadMem", "hasFlush"))
+      assert(q.parameterDecls(1) == ParamDef("entries", "Int", "4"))
     }
 
     test("layouts bake") {
@@ -182,6 +186,7 @@ object ModelToDesignTest extends TestSuite {
       assert(d.modules.forall(_.scalaClass == ""))
       assert(d.bundles.values.forall(_.scalaClass == ""))
       assert(d.modules.flatMap(_.children).forall(_.params.isEmpty))
+      assert(d.modules.forall(_.parameterDecls.isEmpty))
     }
 
     test("field order, directions and wiring follow the CHIRRTL") {

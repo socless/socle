@@ -74,6 +74,7 @@ object ModelToDesign {
         metrics    = Metrics(0, 0, 0),
         parameters = params(c.name),
         scalaClass = c.scalaClass,
+        parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),
       )
     }
     Design(

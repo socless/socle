@@ -6,6 +6,7 @@ import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 import java.nio.channels.{Channels, Pipe}
 import java.util.concurrent.{CompletableFuture, ConcurrentLinkedQueue}
 import org.eclipse.lsp4j._
+import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.eclipse.lsp4j.launch.LSPLauncher
 import org.eclipse.lsp4j.services.{LanguageClient, LanguageServer}
 import scala.jdk.CollectionConverters._
@@ -27,7 +28,9 @@ object LanguageServerTest extends TestSuite {
   private def uri(p: os.Path) = p.toNIO.toUri.toString
 
   /** Records what the server sends to the editor. */
-  final class RecordingClient(showDocumentOk: Boolean) extends LanguageClient {
+  final class RecordingClient(showDocumentOk: Boolean) extends SoclessClient {
+    val panels    = new ConcurrentLinkedQueue[OpenPanelParams]
+    override def openPanel(p: OpenPanelParams): Unit = panels.add(p)
     val documents = new ConcurrentLinkedQueue[ShowDocumentParams]
     val messages  = new ConcurrentLinkedQueue[MessageParams]
     def telemetryEvent(o: Object): Unit = ()
@@ -43,7 +46,7 @@ object LanguageServerTest extends TestSuite {
   }
 
   /** A server wired to a recording client; `cp` is what the stub classpath returns. */
-  final class Fixture(showDocumentOk: Boolean = true) {
+  final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None) {
     @volatile var cp: Either[String, Seq[os.Path]] = Right(exampleCp)
     @volatile var cpFn: () => Either[String, Seq[os.Path]] = () => cp
     val browser = new ConcurrentLinkedQueue[String]
@@ -63,8 +66,9 @@ object LanguageServerTest extends TestSuite {
 
     private val toServer = Pipe.open()
     private val toClient = Pipe.open()
-    private val serverLauncher = LSPLauncher.createServerLauncher(
-      server, Channels.newInputStream(toServer.source), Channels.newOutputStream(toClient.sink))
+    private val serverLauncher = new Launcher.Builder[SoclessClient]()
+      .setLocalService(server).setRemoteInterface(classOf[SoclessClient])
+      .setInput(Channels.newInputStream(toServer.source)).setOutput(Channels.newOutputStream(toClient.sink)).create()
     server.connect(serverLauncher.getRemoteProxy)
     serverLauncher.startListening()
     private val clientLauncher = LSPLauncher.createClientLauncher(
@@ -74,6 +78,7 @@ object LanguageServerTest extends TestSuite {
 
     val init = new InitializeParams
     init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(root), "socless")))
+    panel.foreach { m => val o = new JsonObject; o.addProperty("panel", m); init.setInitializationOptions(o) }
     val capabilities = remote.initialize(init).get()
     remote.initialized(new InitializedParams)
 
@@ -405,6 +410,27 @@ object LanguageServerTest extends TestSuite {
         eventually("two messages")(Some(c.messages.asScala.count(_.getMessage.contains("probe missing"))).filter(_ == 2))
         assert(runnerCalls.get == 1)
       } finally { server.stopAll(); toServer.sink.close(); toClient.sink.close() }
+    }
+    test("client-hosted panel") {
+      val f = new Fixture(panel = Some("client"))
+      try {
+        f.view(gcdArgs: _*)
+        f.view(gcdArgs: _*)
+        val ps = eventually("two openPanel")(Some(f.client.panels.asScala.toSeq).filter(_.size == 2))
+        assert(ps.map(_.getUrl).distinct.size == 1, ps.head.getUrl.matches("http://127\\.0\\.0\\.1:\\d+/"))
+        Thread.sleep(300)
+        assert(f.client.panels.size == 2)
+        assert(f.client.documents.asScala.count(_.getExternal == true) == 0)
+        assert(f.browser.isEmpty)
+      } finally f.close()
+    }
+    test("panel option absent or not client keeps the default") {
+      val f = new Fixture(panel = Some("browser"))
+      try {
+        f.view(gcdArgs: _*)
+        eventually("browser doc")(f.client.documents.asScala.find(_.getExternal == true))
+        assert(f.client.panels.isEmpty)
+      } finally f.close()
     }
   }
 }

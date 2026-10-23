@@ -56,6 +56,11 @@ java -javaagent:<socless-probe agent jar> \
   after the capture, so firtool and Verilator never run. Scalatest therefore
   reports the test as FAILED: trust only `status`, never the test outcome or the
   JVM exit code.
+- **No Verilator needed.** View mode works on a machine without Verilator.
+  ChiselSim looks Verilator up (`svsim.verilator.Backend$.initializeFromProcessEnvironment`)
+  before it elaborates; in view mode only, the probe turns a failed lookup into a
+  placeholder backend that is never used. Without view mode the lookup error
+  surfaces as usual.
 - **First elaboration wins.** The first elaboration of any kind is captured
   (including an `emitCHIRRTL` call or a failure the test intercepts).
 - **Missing file.** A missing output file means the probe itself failed. A
@@ -71,7 +76,8 @@ java -javaagent:<socless-probe agent jar> \
 `./mill example.soclessView <Suite> "<test>"` runs this contract on the bundled
 examples, adapts the capture and serves it in the UI. The `socless-lsp` language
 server runs the same contract from an editor (a View design lens per test, a
-live panel, refresh on save): see [SoCLess in Neovim](ide-neovim.md).
+live panel, refresh on save): see [SoCLess in Neovim](ide-neovim.md) and
+[SoCLess in VS Code](ide-vscode.md).
 
 ## Compatibility notes
 

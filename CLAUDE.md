@@ -21,6 +21,7 @@ mill mill-socless.publishLocal   # Scala 3 Mill plugin
 # (alternative) SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
 ./mill socless-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
 ./mill socless-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
+./mill socless-vscode.test        # VS Code extension logic (Scala.js, runs on Node)
 ./mill example.test               # the example ChiselSim tests (needs Verilator on PATH)
 
 # Run bundled examples (no publishLocal needed)
@@ -35,6 +36,10 @@ mill show example.soclessRun     # Print path to emitted design.json
 
 # Chisel IDE: language server jar for editors (java -jar, probe agent inside); setup in docs/ide-neovim.md
 ./mill socless-lsp.assembly       # -> out/socless-lsp/assembly.dest/out.jar
+# VS Code extension (docs/ide-vscode.md): vsix bundles the server jar
+./mill socless-vscode.vsix        # -> out/socless-vscode/vsix.dest/socless-<version>.vsix (needs node/npm)
+./mill socless-vscode.stage       # extension dir for the e2e
+socless-vscode/e2e/run.sh out/socless-vscode/stage.dest  # headless VS Code e2e; NOT a Mill command (it would contend on the out/ lock); never run it during another ./mill
 
 # Inspect baked layout geometry headlessly (no UI)
 mill example.soclessDebugLayout          # dump default design's per-module SVG + text
@@ -75,6 +80,11 @@ socless-lsp/src/socless/lsp/  # Language server (stdio): "View design" lenses + 
   ViewRunner.scala       # forks the test with the probe agent, adapts the capture to a Design
   RunQueue.scala         # one view run at a time; newer request replaces a queued one
   LiveHttp.scala         # 127.0.0.1 panel: UI, /design.json, /ide.json, POST /open
+
+socless-vscode/            # VS Code extension (Scala.js, CommonJS; docs/ide-vscode.md)
+  src/socless/vscode/    # Extension (activate), Panel (webview), Logic (pure, unit-tested), facade/ (vscode, languageclient, node)
+  package.json           # manifest template (@VERSION@ placeholders), rendered by Mill
+  e2e/                   # index.js (runs inside VS Code) + run.sh (headless launcher)
 
 mill-socless/src/socless/mill/
   SoclessModule.scala    # Trait users mix into ScalaModule; defines `socless` and `soclessUI` tasks
@@ -157,3 +167,4 @@ away first-paint and the JVM-side layout tests (see the perf plan, not yet sched
 | `mill-socless` | 3.8.2 | Mill 1.1.6 APIs |
 | `socless-lsp` | 2.13.16 | lsp4j 1.0.0, scalameta 4.17.4; depends on `socless` |
 | `socless-probe` | 2.13.16 | Chisel 7.16.0 compile-only (the test JVM provides it); Byte Buddy 1.18.15 + upickle shaded under `socless.shaded` in the agent jar |
+| `socless-vscode` | 2.13.16 (Scala.js 1.19) | vscode-languageclient 9.0.1 (npm, only into the vsix); vsce 3.2.1 |

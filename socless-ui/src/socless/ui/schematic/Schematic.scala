@@ -390,6 +390,8 @@ object Schematic {
           val isBlackbox = childMod.exists(m => m.kind == ModuleKind.External || m.kind == ModuleKind.Intrinsic)
           val extLabel: String = childMod.map(m => if (m.kind == ModuleKind.Intrinsic) "intrinsic" else "ext").getOrElse("ext")
           val drillable  = childMod.exists(m => !isBlackbox && m.children.nonEmpty)
+          // Generator signature of a captured module; empty from CHIRRTL.
+          val sigFull    = childMod.filter(_.scalaClass.nonEmpty).map(ScalaClassLabel.signature).getOrElse("")
           // Clock/reset are filtered from the wire graph (no laid pin, see
           // displayWires), so a clocked instance carries a compact corner cue
           // instead of a routed clock tree: a clock-input notch bottom-left and a
@@ -420,10 +422,20 @@ object Schematic {
               onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
               span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", Glyphs.of(g.design, ch.`type`)),
               span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
-              div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",
+              // A captured design names the Scala generator and its parameter
+              // values instead of the module name; the right group then shrinks
+              // (ellipsis) far ahead of the instance name, which stays readable.
+              // CHIRRTL designs (no scalaClass) keep the exact markup below.
+              div(styleAttr := (if (sigFull.isEmpty) "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px"
+                                else "margin-left:auto;flex-shrink:1000;min-width:0;display:flex;align-items:center;gap:6px"),
                 opt(isBlackbox)(span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px dashed ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px",
                   extLabel)),
-                span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px", ch.`type`),
+                if (sigFull.isEmpty)
+                  span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px", ch.`type`)
+                else
+                  span(dataAttr("box-class") := n.id, title := sigFull,
+                    styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0",
+                    ScalaClassLabel.truncate(sigFull, ScalaClassLabel.HeaderMax)),
                 opt(drillable)(span(styleAttr := s"font-family:${Tokens.mono};font-size:9px;color:${Tokens.accent}", "↵")),
               ),
             ),

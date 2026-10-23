@@ -1,0 +1,71 @@
+{
+  "name": "socless",
+  "displayName": "SoCLess (Chisel)",
+  "description": "Live schematic view of Chisel designs, linked to the source.",
+  "publisher": "socless",
+  "version": "@VERSION@",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/e-ban/SoCless"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Programming Languages", "Visualization"],
+  "main": "./out/extension.js",
+  "activationEvents": ["onLanguage:scala"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "SoCLess runs your build (Mill) and tests, which requires a trusted workspace."
+    }
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "scala",
+        "aliases": ["Scala"],
+        "extensions": [".scala"]
+      }
+    ],
+    "configuration": {
+      "title": "SoCLess",
+      "properties": {
+        "socless.javaPath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Java 21+ executable that runs the SoCLess language server. Empty: $JAVA_HOME/bin/java, else java on the PATH."
+        },
+        "socless.serverJar": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "SoCLess language server jar. Empty: the one bundled with the extension."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "socless.showPanel",
+        "title": "SoCLess: Show design panel"
+      },
+      {
+        "command": "socless._panelUrl",
+        "title": "SoCLess: Panel URL (test only)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "socless._panelUrl",
+          "when": "false"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "@VSCODE_LANGUAGECLIENT@"
+  }
+}

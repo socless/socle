@@ -43,7 +43,9 @@ object Main {
       openBrowser,
       onExit = () => exited.countDown(),
     )
-    val launcher = LSPLauncher.createServerLauncher(server, in, out)
+    val launcher = new org.eclipse.lsp4j.jsonrpc.Launcher.Builder[SoclessClient]()
+      .setLocalService(server).setRemoteInterface(classOf[SoclessClient])
+      .setInput(in).setOutput(out).create()
     server.connect(launcher.getRemoteProxy)
     val listening = launcher.startListening()
     // TEST HOOK ONLY (StdioSmokeTest sets SOCLESS_LSP_STRAY_OUTPUT; never set

@@ -61,6 +61,18 @@ object Capture {
     case t => writeOrLog(CapturedModel(status = "elaboration-error", top = "", modules = Nil, error = rootMessage(t)))
   }
 
+  /** Exit of `svsim.verilator.Backend$.initializeFromProcessEnvironment`, in
+    * view mode only. ChiselSim looks Verilator up before elaborating, and view
+    * mode stops before Verilator would run, so a failed lookup (no `verilator`,
+    * or no `which`, on the PATH) gets a placeholder backend that is never used.
+    * Returns the backend the method returns: its own when the lookup worked,
+    * null (the throwable is kept) on a fatal error. */
+  def onVerilatorLookupExit(thrown: Throwable, returned: Any): Any = thrown match {
+    case null                           => returned
+    case scala.util.control.NonFatal(_) => new svsim.verilator.Backend("verilator")
+    case _                              => null
+  }
+
   /** JVM shutdown: the test never elaborated a design. When it did and nothing
     * was written, the probe failed: the file stays missing rather than claim
     * "no-design". */

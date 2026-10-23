@@ -23,7 +23,7 @@ import mill._
 import mill.scalalib._
 import mill.scalalib.publish._
 import mill.scalajslib._
-import mill.scalajslib.api.ModuleKind
+import mill.scalajslib.api.{JsEnvConfig, ModuleKind}
 
 object V {
   val scala       = "2.13.16"
@@ -39,6 +39,8 @@ object V {
   val byteBuddy   = "1.18.15"         // socless-probe agent; 1.15 fails on Java 25
   val lsp4j       = "1.0.0"           // socless-lsp language server
   val scalameta   = "4.17.4"          // socless-lsp syntactic test discovery
+  val vscodeLanguageClient = "9.0.1"  // npm, staged into the VS Code extension at packaging
+  val vsce        = "3.2.1"           // @vscode/vsce, packages the VS Code extension
   val publishVer  = "0.15.1-SNAPSHOT"
 }
 
@@ -668,5 +670,89 @@ object `socless-lsp` extends ScalaModule {
         s"-Dfixtures.cp=${cp(`socless-probe`.fixtures.runClasspath())}",
       )
     }
+  }
+}
+
+// ─── VS Code extension (Scala.js, Chisel IDE) ───────────────────────────────
+// The extension's code, linked as CommonJS so VS Code's Node host can
+// `require` it. `vscode` is provided by VS Code at runtime and
+// `vscode-languageclient/node` is staged from npm at packaging time; neither is
+// needed to compile. Tests run the pure logic under plain Node.
+object `socless-vscode` extends ScalaJSModule {
+  def scalaVersion   = V.scala
+  def scalaJSVersion = V.scalaJs
+  def moduleKind     = ModuleKind.CommonJSModule
+
+  def packageJsonTemplate = Task.Source("package.json")
+
+  /** The extension's package.json, rendered from the template with versions from V.
+    *
+    * `@VERSION@` is V.publishVer as semver (`-SNAPSHOT` becomes `-snapshot`),
+    * `@VSCODE_LANGUAGECLIENT@` is V.vscodeLanguageClient. Writes `package.json` in its dest.
+    */
+  def packageJson = Task {
+    val text = os.read(packageJsonTemplate().path)
+      .replace("@VERSION@", V.publishVer.replace("-SNAPSHOT", "-snapshot"))
+      .replace("@VSCODE_LANGUAGECLIENT@", V.vscodeLanguageClient)
+    os.write(Task.dest / "package.json", text)
+    PathRef(Task.dest / "package.json")
+  }
+
+  def readme  = Task.Source("README.md")
+  def license = Task.Source(mill.api.BuildCtx.workspaceRoot / "LICENSE")
+
+  private def extVersion = V.publishVer.replace("-SNAPSHOT", "-snapshot")
+
+  // Runs a packaging tool in `dir`; on failure the Mill error carries its output.
+  private def runTool(dir: os.Path, cmd: String*): Unit = {
+    val r = os.proc(cmd).call(cwd = dir, stdout = os.Pipe, stderr = os.Pipe, check = false)
+    if (r.exitCode != 0)
+      sys.error(s"${cmd.mkString(" ")} failed (exit ${r.exitCode})\n${r.out.text()}\n${r.err.text()}")
+  }
+
+  /** The extension directory: `out/extension.js`, `server/socless-lsp.jar`, `package.json`, README, LICENSE, `node_modules`.
+    *
+    * Copies the linked JS and the server assembly, then runs `npm install --omit=dev` for
+    * `vscode-languageclient`. This directory is what the E2E loads as `--extensionDevelopmentPath`.
+    * Needs network on the first run (npm cache afterwards).
+    */
+  def stage = Task {
+    val d = Task.dest
+    os.copy(fullLinkJS().dest.path / "main.js", d / "out" / "extension.js", createFolders = true)
+    os.copy(`socless-lsp`.assembly().path, d / "server" / "socless-lsp.jar", createFolders = true)
+    os.copy(packageJson().path, d / "package.json")
+    os.copy(readme().path, d / "README.md")
+    os.copy(license().path, d / "LICENSE")
+    // Package only the runtime files, whatever else lands in the stage.
+    os.write(d / ".vscodeignore", ".vscodeignore\npackage-lock.json\n")
+    runTool(d, "npm", "install", "--omit=dev", "--no-audit", "--no-fund")
+    PathRef(d)
+  }
+
+  /** The installable extension: `socless-<version>.vsix`, packaged with vsce from a copy of the stage.
+    *
+    * Needs network on the first run (npx fetches @vscode/vsce).
+    */
+  def vsix = Task {
+    val work = Task.dest / "work"
+    os.copy(stage().path, work, createFolders = true)
+    val out = Task.dest / s"socless-$extVersion.vsix"
+    runTool(work, "npx", "--yes", s"@vscode/vsce@${V.vsce}", "package", "--out", out.toString)
+    PathRef(out)
+  }
+
+  object test extends ScalaJSTests with TestModule.Utest {
+    def mvnDeps = super.mvnDeps() ++ Seq(mvn"com.lihaoyi::utest::${V.utest}")
+
+    /** Empty `vscode` and `vscode-languageclient/node` modules so the test bundle loads under plain Node.
+      *
+      * The top-level exports keep the facades reachable, so the bundle `require`s them; tests never use them.
+      */
+    def nodeStubs = Task {
+      os.write(Task.dest / "vscode" / "index.js", "module.exports = {};\n", createFolders = true)
+      os.write(Task.dest / "vscode-languageclient" / "node.js", "module.exports = {};\n", createFolders = true)
+      PathRef(Task.dest)
+    }
+    def jsEnvConfig = Task { JsEnvConfig.NodeJs(env = Map("NODE_PATH" -> nodeStubs().path.toString)) }
   }
 }

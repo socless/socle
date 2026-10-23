@@ -44,6 +44,7 @@ final class SoclessLanguageServer(
   }
 
   @volatile private var client: LanguageClient = null
+  @volatile private var clientPanel                = false // client sent initializationOptions.panel == "client"
   @volatile private var ws: Option[Workspace]  = None
   @volatile private var stopped                = false // after shutdown/exit every request is a no-op
   @volatile private var shutdownRequested      = false
@@ -71,6 +72,7 @@ final class SoclessLanguageServer(
     val folder = Option(p.getWorkspaceFolders).flatMap(_.asScala.headOption).map(_.getUri)
     val root   = folder.orElse(Option(p.getRootUri)).flatMap(uriToPath)
     if (root.isEmpty) log("no workspace root in initialize: views are disabled")
+    clientPanel = panelIsClient(p.getInitializationOptions)
     ws = root.map(r => new Workspace(r, cpFor(r)))
 
     val caps = new ServerCapabilities
@@ -201,7 +203,8 @@ final class SoclessLanguageServer(
   private def openPanel(): Unit = {
     val url = lock.synchronized {
       if (port.isEmpty) port = Some(http.start())
-      if (browserOpened) None
+      if (clientPanel) { sendOpenPanel(s"http://127.0.0.1:${port.get}/"); None }
+      else if (browserOpened) None
       else { browserOpened = true; Some(s"http://127.0.0.1:${port.get}/") }
     }
     url.foreach { u =>
@@ -216,6 +219,12 @@ final class SoclessLanguageServer(
         }
       }
     }
+  }
+
+  /** Client-hosted panel: tell the client where the UI is, on every view. */
+  private def sendOpenPanel(url: String): Unit = client match {
+    case c: SoclessClient => c.openPanel(new OpenPanelParams(url))
+    case _                => log("panel=client but the client connection has no socless/openPanel")
   }
 
   private def browse(url: String): Unit =
@@ -312,6 +321,13 @@ object SoclessLanguageServer {
     raw.map(_.normalize()).filter(_.isAbsolute)
       .filter(p => p.startsWith(root.toNIO) || sources.contains(file))
       .map(os.Path(_))
+  }
+
+  /** `initializationOptions` is a Gson element (or null): only `{"panel":"client"}` opts in. */
+  private[lsp] def panelIsClient(opts: Any): Boolean = opts match {
+    case o: JsonObject =>
+      Option(o.get("panel")).filter(_.isJsonPrimitive).exists(_.getAsString == "client")
+    case _ => false
   }
 
   private def uriToPath(uri: String): Option[os.Path] =

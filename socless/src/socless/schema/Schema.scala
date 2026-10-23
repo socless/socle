@@ -169,8 +169,19 @@ case class ModuleDef(
   // Generator class ("gcd.GCD") when the design was captured from elaborated
   // Chisel objects by the probe; empty from the CHIRRTL path. Additive, last.
   scalaClass: String = "",
+  // The generator's constructor parameters in declaration order, with their
+  // declared Scala type (`parameters` is an unordered name -> value map and
+  // keeps no type). From a probe capture; empty from the CHIRRTL path.
+  // Additive, last.
+  parameterDecls: Seq[ParamDef] = Seq.empty,
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
+
+/** One constructor parameter of a captured generator: its name, its declared
+  * Scala type ("Int", "T") and its value as read at elaboration ("4",
+  * "<unreadable>", or a long value cut with "...(truncated)"). */
+case class ParamDef(name: String, tpe: String, value: String)
+object ParamDef { implicit val rw: ReadWriter[ParamDef] = macroRW }
 
 case class PortDef(
   name:   String,

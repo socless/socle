@@ -107,13 +107,15 @@ object Inspector {
           span(styleAttr := s"color:${Tokens.ink4}", k),
           span(styleAttr := s"color:${Tokens.ink2}", v),
         ) }),
+      if (mod.scalaClass.nonEmpty) div(styleAttr := "margin-top:14px", scalaClassView(mod)) else emptyMod,
       div(styleAttr := s"margin-top:14px;color:${Tokens.ink4};font-size:11px", "Click a wire or module to inspect."),
     )
   }
 
   // ── Instance detail (clock/reset domains + peers + params) ──────────────────
   private def instanceView(inst: InstanceDef, siblings: Seq[InstanceDef], d: Design, setSel: String => Unit): Element = {
-    val params     = d.modules.find(_.name == inst.`type`).map(_.parameters).getOrElse(Map.empty)
+    val instMod    = d.modules.find(_.name == inst.`type`)
+    val params     = instMod.map(_.parameters).getOrElse(Map.empty)
     val clockPeers = if (inst.clock.nonEmpty) siblings.filter(c => c.name != inst.name && c.clock == inst.clock) else Nil
     def labelRow(k: String, v: Element): Seq[Element] =
       Seq(span(styleAttr := s"color:${Tokens.ink4}", k), v)
@@ -133,13 +135,34 @@ object Inspector {
               styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2};background:${Tokens.panelAlt};border:1px solid ${Tokens.borderSoft};border-radius:4px;padding:2px 6px;cursor:pointer",
               onClick --> { _ => setSel(c.name) }, c.name))))
       else emptyNode,
-      if (params.nonEmpty)
+      // A captured module lists its Scala class and typed, ordered parameters
+      // instead of the plain name -> value grid below.
+      instMod.filter(_.scalaClass.nonEmpty).fold[Modifier[HtmlElement]](emptyMod)(scalaClassView),
+      if (params.nonEmpty && !instMod.exists(_.scalaClass.nonEmpty))
         div(sectionTitle("Parameters"),
           div(styleAttr := s"display:grid;grid-template-columns:auto 1fr;row-gap:5px;column-gap:8px;font-size:11px;font-family:${Tokens.mono}",
             params.toSeq.flatMap { case (k, v) => Seq(
               span(styleAttr := s"color:${Tokens.ink4}", k),
               span(styleAttr := s"color:${Tokens.ink2};word-break:break-all", v),
             ) }))
+      else emptyNode,
+    )
+  }
+
+  // ── Scala generator of a captured module: full class + every parameter ─────
+  private def scalaClassView(m: ModuleDef): Element = {
+    val ps = ScalaClassLabel.params(m)
+    div(dataAttr("scala-class") := m.scalaClass,
+      sectionTitle("Scala class"),
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all;margin-bottom:12px", m.scalaClass),
+      if (ps.nonEmpty)
+        div(sectionTitle("Parameters"),
+          div(styleAttr := s"display:flex;flex-direction:column;row-gap:5px;font-size:11px;font-family:${Tokens.mono}",
+            ps.map(p => div(dataAttr("scala-param") := p.name,
+              styleAttr := s"color:${Tokens.ink2};word-break:break-all", ScalaClassLabel.line(p)))),
+          if (ps.exists(_.tpe.isEmpty))
+            div(styleAttr := s"margin-top:6px;color:${Tokens.ink4};font-size:10.5px", "parameter types not recorded")
+          else emptyNode)
       else emptyNode,
     )
   }

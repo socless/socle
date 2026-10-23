@@ -1,4 +1,4 @@
-FIRRTL version 6.0.0
+FIRRTL version 7.0.0
 circuit RVPipeline :%[[
   {
     "class":"firrtl.transforms.DedupGroupAnnotation",
