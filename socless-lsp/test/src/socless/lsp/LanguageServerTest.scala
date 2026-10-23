@@ -46,7 +46,7 @@ object LanguageServerTest extends TestSuite {
   }
 
   /** A server wired to a recording client; `cp` is what the stub classpath returns. */
-  final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None) {
+  final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None, ws: os.Path = root) {
     @volatile var cp: Either[String, Seq[os.Path]] = Right(exampleCp)
     @volatile var cpFn: () => Either[String, Seq[os.Path]] = () => cp
     val browser = new ConcurrentLinkedQueue[String]
@@ -77,7 +77,7 @@ object LanguageServerTest extends TestSuite {
     val remote: LanguageServer = clientLauncher.getRemoteProxy
 
     val init = new InitializeParams
-    init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(root), "socless")))
+    init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(ws), "socless")))
     panel.foreach { m => val o = new JsonObject; o.addProperty("panel", m); init.setInitializationOptions(o) }
     val capabilities = remote.initialize(init).get()
     remote.initialized(new InitializedParams)
@@ -166,6 +166,29 @@ object LanguageServerTest extends TestSuite {
         fx.open(f)
         assert(fx.lenses(f).isEmpty)
       } finally os.remove.all(dir)
+    }
+    test("lenses on suites inheriting ChiselSim refresh on save") {
+      val dir  = os.temp.dir(prefix = "socless-simbase-ws-")
+      val base = dir / "src" / "SimBase.scala"
+      val spec = dir / "test" / "S.scala"
+      os.write(dir / "build.mill", "")
+      os.write(base, "package p\ntrait SimBase extends AnyFlatSpec with ChiselSim", createFolders = true)
+      os.write(spec, "package q\nclass S extends p.SimBase {\n  behavior of \"A\"\n  it should \"x\" in { }\n}",
+        createFolders = true)
+      val f = new Fixture(ws = dir)
+      try {
+        f.open(spec)
+        val ls = f.lenses(spec)
+        assert(ls.map(_.getCommand.getArguments.asScala.map {
+          case p: JsonPrimitive => p.getAsString
+          case o                => String.valueOf(o)
+        }.toSeq) == Seq(Seq(uri(spec), "q.S", "A should x")))
+        assert(ls.head.getRange.getStart.getLine == 3)
+        os.write.over(base, "package p\ntrait SimBase extends AnyFlatSpec")
+        os.mtime.set(base, os.mtime(base) + 5000)
+        f.save(base)
+        assert(f.lenses(spec).isEmpty)
+      } finally { f.close(); os.remove.all(dir) }
     }
     test("lenses follow unsaved edits") {
       val f = gcdSpec / os.up / "Unsaved.scala"

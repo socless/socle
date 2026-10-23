@@ -13,8 +13,8 @@ go-to-definition, so run both side by side (see [With Metals](#with-metals)).
 Using VS Code? See [SoCLess in VS Code](ide-vscode.md).
 
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
-`./mill` at its root (the server asks Mill for the test classpath of the file
-the lens is in). Your tests and build are never modified.
+`./mill` at its root (the server asks Mill for the test classpath and fork
+settings of the file the lens is in). Your tests and build are never modified.
 
 ## Build the server
 
@@ -69,8 +69,11 @@ vim.api.nvim_create_autocmd('CursorHold', {
 
 1. Open a ChiselSim test, for example `example/test/src/gcd/GcdSpec.scala` in
    this repo. A `View design` lens appears on each test (`it("...")`,
-   `test("...")`, `"X" should "y" in`) of a suite that mixes in `ChiselSim`,
-   only in a Mill project (a `build.mill` above the file).
+   `test("...")`, `"X" should "y" in`, `behavior of "X"` then
+   `it should "y" in`; not on `ignore` tests) of a suite that mixes in
+   `ChiselSim`, directly or through a base class or trait of the workspace,
+   or whose body calls `simulate(`, only in a Mill project (a `build.mill`
+   above the file).
 2. Put the cursor on the lens line and run it with `grx` (the 0.12 default
    mapping) or `:lua vim.lsp.codelens.run()`.
 3. The first view opens the panel at `http://127.0.0.1:<port>/` through
@@ -88,6 +91,26 @@ vim.api.nvim_create_autocmd('CursorHold', {
 
 The panel listens on `127.0.0.1` only, on a new port for each server. Quitting
 Neovim stops the server and the panel.
+
+## How a view run is forked
+
+The server forks the test JVM the way `./mill <module>.test` does, with the
+settings of the test module that owns the file, read in one Mill call
+(`show <m>.{runClasspath,forkArgs,allForkEnv,forkWorkingDir,testSandboxWorkingDir}`):
+
+- the module's run classpath and its `forkArgs` (so `-D` config properties
+  reach your design);
+- the server's environment plus Mill's `allForkEnv` for the module: its
+  `forkEnv`, `MILL_WORKSPACE_ROOT` (so config read from
+  `$MILL_WORKSPACE_ROOT/config/...` resolves), `MILL_TEST_RESOURCE_DIR` and a
+  `PATH` with the module's JDK first, exactly as Mill passes them to tests;
+- a fresh temporary working directory, as Mill's default test sandbox; with
+  `testSandboxWorkingDir = false` the module's `forkWorkingDir` instead.
+
+The probe's own options come after `forkArgs` on the command line, so they win
+over any conflicting `-D` there. A module without these tasks (a custom
+module, an older Mill) is run with its classpath and `MILL_WORKSPACE_ROOT`
+only, and the server logs it.
 
 ## With Metals
 

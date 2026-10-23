@@ -31,7 +31,12 @@ with Node.
 ## Use it
 
 1. Open a ChiselSim test, for example `example/test/src/gcd/GcdSpec.scala`. A
-   `View design` lens appears on each test.
+   `View design` lens appears on each test (the same rules as in
+   [Neovim](ide-neovim.md#use-it), including suites that inherit `ChiselSim`
+   from a project base trait and `behavior of` + `it should` tests). Runs are
+   forked with the test module's `forkArgs`, `forkEnv` and
+   `MILL_WORKSPACE_ROOT`, as `./mill <module>.test` does (see
+   [How a view run is forked](ide-neovim.md#how-a-view-run-is-forked)).
 2. Click the lens. The panel opens beside the editor. The first run of a test
    module compiles it with Mill, so it can take a while; the panel shows
    "waiting for the first design" until it succeeds.

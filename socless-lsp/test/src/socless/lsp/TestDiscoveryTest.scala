@@ -70,6 +70,133 @@ object TestDiscoveryTest extends TestSuite {
           |class Ok extends AnyFunSuite with ChiselSim { test("ok") { } }""".stripMargin
       assert(TestDiscovery.find(src).map(t => (t.suite, t.name)) == Seq(("p.Ok", "ok")))
     }
+    test("behavior of sets the subject") {
+      val src =
+        """package unittest
+          |class TensorGemmTestSuite extends AnyFlatSpecSim {
+          |  behavior of "TensorGemmSimple"
+          |  it should "compute a simple operation" in
+          |    simulate(new TensorGemmSimple)(new TensorGemmTester(_))
+          |
+          |  it should "correctly generate indices" in simulate(new TensorGemmSimple)(
+          |    new TensorGemmIdxTester(_)
+          |  )
+          |  behavior of "TensorGemmIndexGenerator"
+          |  it should "perform correctly" in simulate(new TensorGemmIndexGenerator)(x)
+          |  behavior.of("Dotted")
+          |  they must "work" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src, Set("AnyFlatSpecSim")).map(t => (t.suite, t.name, t.line)) == Seq(
+        ("unittest.TensorGemmTestSuite", "TensorGemmSimple should compute a simple operation", 3),
+        ("unittest.TensorGemmTestSuite", "TensorGemmSimple should correctly generate indices", 6),
+        ("unittest.TensorGemmTestSuite", "TensorGemmIndexGenerator should perform correctly", 10),
+        ("unittest.TensorGemmTestSuite", "Dotted must work", 12)))
+    }
+    test("it before any subject") {
+      // scalatest names it "should x" (std-vta-dev ComputeTestLeNet5)
+      val src =
+        """class S extends AnyFlatSpec with ChiselSim {
+          |  it should "x" in { }
+          |  behavior of "A"
+          |  it must "y" in { }
+          |}
+          |class T extends AnyFlatSpec with ChiselSim {
+          |  it can "z" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(t => (t.suite, t.name)) ==
+        Seq(("S", "should x"), ("S", "A must y"), ("T", "can z")))
+    }
+    test("a base declaring a subject hides it before the suite's own") {
+      // scalatest names the first test "X should y" (X set in Base's body): unknown here
+      val src =
+        """class S extends Base {
+          |  it should "y" in { }
+          |  "A" should "x" in { }
+          |  behavior of "Z"
+          |  it should "w" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src, Set("Base"), Set("Base")).map(_.name) == Seq("A should x", "Z should w"))
+      assert(TestDiscovery.find(src, Set("Base"), Set("Other")).map(_.name) ==
+        Seq("should y", "A should x", "Z should w"))
+      assert(TestDiscovery.find(src.replace("extends Base", "extends p.Base"), Set("Base"), Set("Base"))
+        .map(_.name) == Seq("A should x", "Z should w"))
+    }
+    test("fallback: simulate with type arguments") {
+      val src =
+        """class T extends AnyFlatSpec with X { "A" should "x" in { simulate[Foo](new Foo)(_ => ()) } }
+          |class R extends AnyFlatSpec with X { "B" should "y" in { sim.simulateRaw[Foo](new Foo) { _ => () } } }""".stripMargin
+      assert(TestDiscovery.find(src).map(_.name) == Seq("A should x", "B should y"))
+    }
+    test("non-literal behavior of clears the subject") {
+      val src =
+        """class S extends AnyFlatSpec with ChiselSim {
+          |  behavior of "A"
+          |  it should "a" in { }
+          |  behavior of tag
+          |  it should "b" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(_.name) == Seq("A should a"))
+    }
+    test("ignore gets no lens and keeps the subject") {
+      val src =
+        """class S extends AnyFlatSpec with ChiselSim {
+          |  behavior of "A"
+          |  ignore should "x" in { }
+          |  ignore must "x2" taggedAs (T) in { }
+          |  it should "y" in { }
+          |  "B" should "z" ignore { }
+          |  it can "w" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(_.name) == Seq("A should y", "B can w"))
+    }
+    test("taggedAs keeps the name") {
+      val src =
+        """class S extends AnyFlatSpec with ChiselSim {
+          |  behavior of "A"
+          |  it should "y" taggedAs(UnitTests) in { }
+          |  it should "z" taggedAs (T1, T2) in { }
+          |  "B" must "w" taggedAs (T1) taggedAs (T2) in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(t => (t.name, t.line)) ==
+        Seq(("A should y", 2), ("A should z", 3), ("B must w", 4)))
+    }
+    test("fallback: a body calling simulate") {
+      val src =
+        """package p
+          |class T extends AnyFlatSpec with CustomThing {
+          |  "A" should "x" in { simulate(new Foo)(_ => ()) }
+          |}
+          |class R extends AnyFlatSpec with Other {
+          |  "B" should "y" in { chisel3.simulator.EphemeralSimulator.simulateRaw(new Foo) { _ => () } }
+          |}
+          |class N extends AnyFlatSpec with Other {
+          |  "C" should "z" in { simulateLater(new Foo) }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(t => (t.suite, t.name)) ==
+        Seq(("p.T", "A should x"), ("p.R", "B should y")))
+    }
+    test("simBases match simple, qualified and generic parents") {
+      def names(ext: String) =
+        TestDiscovery.find(s"class S extends $ext { test(\"a\") { } }", Set("Base", "p.q.Base")).map(_.name)
+      assert(names("Base") == Seq("a"))
+      assert(names("p.q.Base") == Seq("a"))
+      assert(names("other.Base") == Seq("a")) // same simple name: prefer the lens
+      assert(names("Base[Int](1)") == Seq("a"))
+      assert(names("AnyFunSuite with Other").isEmpty)
+    }
+    test("tests registered inside a def are skipped") {
+      // the subject at the def site is not the one at its call sites
+      val src =
+        """class S extends AnyFlatSpec with ChiselSim {
+          |  behavior of "A"
+          |  def shared(): Unit = {
+          |    behavior of "Inner"
+          |    it should "in def" in { }
+          |  }
+          |  it should "x" in { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(_.name) == Seq("A should x"))
+    }
     test("parse failure") {
       assert(TestDiscovery.find("class {{{").isEmpty)
       assert(TestDiscovery.enclosingClass("class {{{", 0).isEmpty)

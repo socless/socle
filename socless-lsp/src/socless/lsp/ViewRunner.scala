@@ -17,25 +17,31 @@ final case class Failed(status: String, message: String) extends RunResult
   * docs/how-it-works.md) and adapts what the probe captured to a laid-out
   * [[socless.schema.Design]].
   *
-  * Each run forks `java -javaagent:<probe>` on the test classpath in a fresh
-  * temp working directory, so `build/chiselsim` never lands in the user's
-  * workspace. Output goes to a log file, never to this process's stdout (the
-  * LSP channel). Only the probe's out file counts, never the exit code. A run
+  * Each run forks `java -javaagent:<probe>` with the test module's fork
+  * settings ([[TestFork]]): its classpath, its `forkArgs` as JVM options, this
+  * process's environment plus its `env`, and its working directory when it has
+  * one; otherwise (Mill's default test sandbox) a fresh temp directory, so
+  * `build/chiselsim` never lands in the user's workspace. The probe's own
+  * options come after the user's: on the JVM command line the last
+  * `-Dname=value` wins, so `forkArgs` cannot turn the probe off or redirect
+  * its output (a second `-javaagent` would load as well, ours still runs).
+  * Output goes to a log file, never to this process's stdout (the LSP
+  * channel). Only the probe's out file counts, never the exit code. A run
   * never throws: every failure is a [[Failed]].
   */
 final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = ViewRunner.defaultJava, timeoutMs: Long = 120000) {
 
-  def run(classpath: Seq[os.Path], suite: String, test: String): RunResult = {
-    val cwd = os.temp.dir(prefix = "socless-view-")
+  def run(fork: TestFork, suite: String, test: String): RunResult = {
+    val tmp = os.temp.dir(prefix = "socless-view-") // probe output and log, and the cwd unless the fork has one
     try {
-      val out = cwd / "captured.json"
-      val log = cwd / "run.log"
+      val out = tmp / "captured.json"
+      val log = tmp / "run.log"
       val sub = os.proc(
-        java, s"-javaagent:$probeJar",
+        java, fork.jvmArgs, s"-javaagent:$probeJar",
         "-Dsocless.probe.mode=view", s"-Dsocless.probe.out=$out",
-        "-cp", classpath.mkString(_root_.java.io.File.pathSeparator),
+        "-cp", fork.classpath.mkString(_root_.java.io.File.pathSeparator),
         "org.scalatest.tools.Runner", "-oW", "-s", suite, "-t", test,
-      ).spawn(cwd = cwd, stdin = "", stdout = log, mergeErrIntoOut = true)
+      ).spawn(cwd = fork.workingDir.getOrElse(tmp), env = fork.env, stdin = "", stdout = log, mergeErrIntoOut = true)
       // stdout/stderr are a file redirect (no pumper thread), so once the
       // process has exited the log is complete.
       if (!ProcessTree.waitOrKill(sub.wrapped, timeoutMs))
@@ -44,7 +50,7 @@ final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = Vi
       else captured(os.read(out), log)
     } catch {
       case NonFatal(e) => Failed("probe-failure", String.valueOf(e.getMessage))
-    } finally os.remove.all(cwd)
+    } finally os.remove.all(tmp)
   }
 
   private def captured(json: String, log: os.Path): RunResult =

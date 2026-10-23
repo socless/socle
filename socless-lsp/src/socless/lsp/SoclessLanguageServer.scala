@@ -41,6 +41,7 @@ final class SoclessLanguageServer(
   private final class Workspace(val root: os.Path, val cp: ClasspathProvider) {
     lazy val runner: Either[String, ViewRunner] = runnerFor(root) // first view
     val queue = new RunQueue(req => exec(this, req), onResult)
+    val index = new SimBaseIndex(root) // base traits reaching ChiselSim, used by lenses
   }
 
   @volatile private var client: LanguageClient = null
@@ -74,6 +75,7 @@ final class SoclessLanguageServer(
     if (root.isEmpty) log("no workspace root in initialize: views are disabled")
     clientPanel = panelIsClient(p.getInitializationOptions)
     ws = root.map(r => new Workspace(r, cpFor(r)))
+    warmIndex() // the first lens should not pay the cold parse of the workspace
 
     val caps = new ServerCapabilities
     caps.setCodeLensProvider(new CodeLensOptions(false))
@@ -120,6 +122,8 @@ final class SoclessLanguageServer(
         file <- uriToPath(p.getTextDocument.getUri)
         if file.ext == "scala" && file.startsWith(w.root)
       } lock.synchronized {
+        w.index.invalidate() // a base trait may have changed: the next lens re-stats
+        warmIndex()
         pendingSave.foreach(_.cancel(false))
         try pendingSave = Some(timer.schedule((() => rerun()): Runnable, debounceMs, TimeUnit.MILLISECONDS))
         catch { case _: RejectedExecutionException => () } // shut down meanwhile
@@ -137,6 +141,11 @@ final class SoclessLanguageServer(
 
   def getTextDocumentService: TextDocumentService = textDocuments
 
+  /** Builds the base index on the parser thread, off the reader thread. */
+  private def warmIndex(): Unit =
+    for (w <- ws) try parser.execute(() => { w.index.bases(); () })
+    catch { case _: RejectedExecutionException => () } // shut down meanwhile
+
   /** Open text, else the file on disk, else nothing. */
   private def textOf(uri: String): Option[String] =
     Option(texts.get(uri)).orElse(uriToPath(uri).filter(os.isFile).flatMap(f => Try(os.read(f)).toOption))
@@ -145,7 +154,10 @@ final class SoclessLanguageServer(
     * filesystem walk, never a Mill call). */
   private def lenses(uri: String): java.util.List[CodeLens] =
     uriToPath(uri).filter(MillBridge.findRoot(_).isDefined).flatMap(_ => textOf(uri))
-      .toSeq.flatMap(TestDiscovery.find).map { t =>
+      .toSeq.flatMap { text =>
+        val (sim, subject) = ws.fold((Set.empty[String], Set.empty[String]))(_.index.both())
+        TestDiscovery.find(text, sim, subject)
+      }.map { t =>
       val at = new Position(t.line, 0)
       val args = java.util.List.of[Object](uri, t.suite, t.name)
       new CodeLens(new Range(at, at), new Command("View design", ViewCommand, args), null)
@@ -242,9 +254,9 @@ final class SoclessLanguageServer(
 
   // Runs on the RunQueue worker: the only place Mill and the probe are called.
   private def exec(w: Workspace, req: ViewRequest): RunResult =
-    w.cp.testClasspath(req.file) match {
-      case Left(msg) => Failed("classpath", msg)
-      case Right(cp) => w.runner.fold(Failed("probe-failure", _), _.run(cp, req.suite, req.test))
+    w.cp.testFork(req.file) match {
+      case Left(msg)   => Failed("classpath", msg)
+      case Right(fork) => w.runner.fold(Failed("probe-failure", _), _.run(fork, req.suite, req.test))
     }
 
   private def onResult(req: ViewRequest, res: RunResult): Unit = {

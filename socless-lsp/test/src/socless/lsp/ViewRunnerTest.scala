@@ -70,7 +70,7 @@ object ViewRunnerTest extends TestSuite {
     }
     test("view gcd") {
       val t0  = System.nanoTime()
-      val res = runner.run(cp("example.cp"), "gcd.GcdSpec", "GCD computes gcd(48, 18)")
+      val res = runner.run(TestFork(cp("example.cp")), "gcd.GcdSpec", "GCD computes gcd(48, 18)")
       println(s"[ViewRunnerTest] view gcd took ${(System.nanoTime() - t0) / 1000000} ms")
       res match {
         case Viewed(d) =>
@@ -82,15 +82,65 @@ object ViewRunnerTest extends TestSuite {
       }
     }
     test("elaboration error") {
-      runner.run(cp("fixtures.cp"), "probefix.BrokenSpec", "broken module") match {
+      runner.run(TestFork(cp("fixtures.cp")), "probefix.BrokenSpec", "broken module") match {
         case Failed(status, msg) =>
           assert(status == "elaboration-error")
           assert(msg.contains("broken on purpose"))
         case other => sys.error(s"expected Failed, got $other")
       }
     }
+    test("fork settings: config from forkArgs and MILL_WORKSPACE_ROOT") {
+      val ws = os.temp.dir(prefix = "socless-fork-ws-")
+      try {
+        os.write(ws / "config" / "fixture.json", "{}", createFolders = true)
+        val fork = TestFork(cp("fixtures.cp"), Seq("-Dfixture.config=abc"), Map("MILL_WORKSPACE_ROOT" -> ws.toString))
+        runner.run(fork, "probefix.ConfigSpec", "configured module") match {
+          case Viewed(d) => assert(d.top == "Configured")
+          case other     => sys.error(s"expected Viewed, got $other")
+        }
+        // without the settings the same test cannot elaborate: they matter
+        runner.run(TestFork(cp("fixtures.cp")), "probefix.ConfigSpec", "configured module") match {
+          case Failed(status, msg) =>
+            assert(status == "elaboration-error")
+            assert(msg.contains("missing -Dfixture.config"))
+          case other => sys.error(s"expected Failed, got $other")
+        }
+        runner.run(TestFork(cp("fixtures.cp"), Seq("-Dfixture.config=abc")), "probefix.ConfigSpec",
+          "configured module") match {
+          case Failed(status, msg) =>
+            assert(status == "elaboration-error")
+            assert(msg.contains("missing config file"))
+          case other => sys.error(s"expected Failed, got $other")
+        }
+      } finally os.remove.all(ws)
+    }
+    test("fork settings: user jvmArgs cannot override the probe's") {
+      val ws = os.temp.dir(prefix = "socless-fork-ws-")
+      try {
+        val fork = TestFork(cp("example.cp"),
+          Seq("-Dsocless.probe.mode=off", s"-Dsocless.probe.out=${ws / "elsewhere.json"}"))
+        runner.run(fork, "gcd.GcdSpec", "GCD computes gcd(48, 18)") match {
+          case Viewed(d) => assert(d.top == "GCD")
+          case other     => sys.error(s"expected Viewed, got $other")
+        }
+        assert(!os.exists(ws / "elsewhere.json"))
+      } finally os.remove.all(ws)
+    }
+    test("fork settings: working dir") {
+      // the run's cwd is the fork's working dir when given: with an empty
+      // MILL_WORKSPACE_ROOT (this JVM inherits Mill's) the fixture reads config/ from the cwd
+      val ws = os.temp.dir(prefix = "socless-fork-cwd-")
+      try {
+        os.write(ws / "config" / "fixture.json", "{}", createFolders = true)
+        val fork = TestFork(cp("fixtures.cp"), Seq("-Dfixture.config=abc"), Map("MILL_WORKSPACE_ROOT" -> ""), Some(ws))
+        runner.run(fork, "probefix.ConfigSpec", "configured module") match {
+          case Viewed(d) => assert(d.top == "Configured")
+          case other     => sys.error(s"expected Viewed, got $other")
+        }
+      } finally os.remove.all(ws)
+    }
     test("no design") {
-      val res = runner.run(cp("fixtures.cp"), "probefix.NoSimulateSpec", "plain arithmetic")
+      val res = runner.run(TestFork(cp("fixtures.cp")), "probefix.NoSimulateSpec", "plain arithmetic")
       assert(res.isInstanceOf[Failed])
       assert(res.asInstanceOf[Failed].status == "no-design")
     }
@@ -98,7 +148,7 @@ object ViewRunnerTest extends TestSuite {
       val dir = os.temp.dir()
       try {
         val broken = new ViewRunner(dir / "no-such-probe.jar", root, javaBin)
-        val res    = broken.run(cp("fixtures.cp"), "probefix.NoSimulateSpec", "plain arithmetic")
+        val res    = broken.run(TestFork(cp("fixtures.cp")), "probefix.NoSimulateSpec", "plain arithmetic")
         assert(res.isInstanceOf[Failed])
         val Failed(status, msg) = res
         assert(status == "probe-failure")
@@ -120,7 +170,7 @@ object ViewRunnerTest extends TestSuite {
         val saved  = System.out
         System.setOut(ps)
         val res =
-          try Console.withOut(ps)(quick.run(cp("example.cp"), "gcd.GcdSpec", "GCD computes gcd(48, 18)"))
+          try Console.withOut(ps)(quick.run(TestFork(cp("example.cp")), "gcd.GcdSpec", "GCD computes gcd(48, 18)"))
           finally System.setOut(saved)
         assert(res == Failed("probe-failure", "timed out after 1 s"))
         val ids = os.read.lines(pids).map(_.trim.toLong)

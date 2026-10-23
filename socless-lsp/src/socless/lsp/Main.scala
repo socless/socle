@@ -35,12 +35,14 @@ object Main {
       .map(e => s"SoCLess cannot view designs: the probe agent is unavailable (${e.getMessage})")
 
     val exited = new java.util.concurrent.CountDownLatch(1)
+    val log: String => Unit = m => Console.err.println(s"[socless-lsp] $m")
     lazy val http: LiveHttp = new LiveHttp((file, line) => server.openInEditor(file, line))
     lazy val server: SoclessLanguageServer = new SoclessLanguageServer(
-      root => MillBridge.default(root),
+      root => MillBridge.default(root, log),
       root => probe.map(jar => new ViewRunner(jar, root)),
       http,
       openBrowser,
+      log = log,
       onExit = () => exited.countDown(),
     )
     val launcher = new org.eclipse.lsp4j.jsonrpc.Launcher.Builder[SoclessClient]()

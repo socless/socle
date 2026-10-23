@@ -17,6 +17,8 @@ object MillBridgeTest extends TestSuite {
       |  def scalaVersion = "2.13.16"
       |  object test extends ScalaTests with TestModule.Utest {
       |    def mvnDeps = Seq(mvn"com.lihaoyi::utest:0.8.5")
+      |    def forkArgs = Seq("-Dfixture.config=abc")
+      |    def forkEnv = Map("FIXTURE_ENV" -> "1")
       |  }
       |}
       |""".stripMargin
@@ -48,6 +50,27 @@ object MillBridgeTest extends TestSuite {
     val f = dir / "fake-mill.sh"
     os.write.over(f, "#!/bin/sh\n" + body, perms = os.PermSet.fromString("rwx------"))
     Seq(f.toString)
+  }
+
+  /** A fake `mill` for a project whose only test module is `t` with sources
+    * in `src`: `resolve`, `show t.sources` and `show t.runClasspath` answer as
+    * Mill 1.1.6 does; the combined fork query prints `fork.json` (exit 0) or,
+    * when it is empty, fails with Mill's "Cannot resolve" line. */
+  private def fakeTestMill(dir: os.Path, forkQuery: Option[String]): Seq[String] = {
+    os.write.over(dir / "build.mill", "// fake\n")
+    os.write.over(dir / "fork.json", forkQuery.getOrElse[String](""))
+    fakeMill(dir,
+      s"""case "$$*" in
+         |  *"resolve __.test.sources") echo t.sources ;;
+         |  *"show t.sources") echo '["ref:v0:00000000:$dir/src"]' ;;
+         |  *"show t.runClasspath") echo '["qref:v1:0000abcd:$dir/a.jar"]' ;;
+         |  *"show t.{"*)
+         |    if [ -s $dir/fork.json ]; then cat $dir/fork.json
+         |    else echo "[error] show Cannot resolve t.testSandboxWorkingDir. Try mill resolve t._ to see what is available." >&2; exit 1
+         |    fi ;;
+         |  *) echo "unexpected: $$*" >&2; exit 2 ;;
+         |esac
+         |""".stripMargin)
   }
 
   val tests = Tests {
@@ -106,6 +129,40 @@ object MillBridgeTest extends TestSuite {
       assert(paths.contains(proj / "out" / "lib" / "test" / "compile.dest" / "classes"))
       assert(paths.exists(_.last.startsWith("utest_2.13-0.8.5")))
     }
+    test("fork settings") {
+      val f = timed("fork settings") { bridge.testFork(testFile) }
+      val fork = f.getOrElse(throw new java.lang.AssertionError(s"expected Right, got $f"))
+      assert(fork.classpath.contains(proj / "out" / "lib" / "test" / "compile.dest" / "classes"))
+      assert(fork.jvmArgs == Seq("-Dfixture.config=abc"))
+      // Mill's allForkEnv: the user's forkEnv plus what Mill sets for tests
+      assert(fork.env.get("FIXTURE_ENV") == Some("1"))
+      assert(fork.env.get("MILL_WORKSPACE_ROOT") == Some(proj.toString))
+      assert(fork.env.get("MILL_TEST_RESOURCE_DIR") == Some((proj / "lib" / "test" / "resources").toString))
+      assert(fork.workingDir.isEmpty) // testSandboxWorkingDir (default true): a fresh dir, like Mill's sandbox
+    }
+    test("fork settings: no sandbox runs in forkWorkingDir, allForkEnv as is") {
+      val dir = os.temp.dir(prefix = "socless-fakefork-")
+      try {
+        val json =
+          s"""{"t.runClasspath": ["qref:v1:0000abcd:$dir/a.jar"], "t.forkArgs": ["-Xss8m"],
+             | "t.allForkEnv": {"MILL_WORKSPACE_ROOT": "/ws", "X": "1"}, "t.forkWorkingDir": "$dir/wd",
+             | "t.testSandboxWorkingDir": false}""".stripMargin
+        val b = new MillBridge(dir, fakeTestMill(dir, Some(json)))
+        assert(b.testFork(dir / "src" / "ASpec.scala") ==
+          Right(TestFork(Seq(dir / "a.jar"), Seq("-Xss8m"), Map("MILL_WORKSPACE_ROOT" -> "/ws", "X" -> "1"), Some(dir / "wd"))))
+      } finally os.remove.all(dir)
+    }
+    test("fork settings unavailable: classpath only, logged") {
+      val dir = os.temp.dir(prefix = "socless-fakefork-")
+      try {
+        val logs = new java.util.concurrent.ConcurrentLinkedQueue[String]
+        val b = new MillBridge(dir, fakeTestMill(dir, None), log = m => { logs.add(m); () })
+        assert(b.testFork(dir / "src" / "ASpec.scala") ==
+          Right(TestFork(Seq(dir / "a.jar"), env = Map("MILL_WORKSPACE_ROOT" -> dir.toString))))
+        import scala.jdk.CollectionConverters._
+        assert(logs.asScala.exists(l => l.contains("classpath only") && l.contains("Cannot resolve")))
+      } finally os.remove.all(dir)
+    }
     test("not a test module") {
       val r = bridge.testClasspath(proj / "lib" / "src" / "Lib.scala")
       assert(r == Left(s"not in a Mill test module: ${proj / "lib" / "src" / "Lib.scala"}"))
@@ -118,6 +175,11 @@ object MillBridgeTest extends TestSuite {
         r match {
           case Left(msg) => assert(msg.contains("Broken.scala"))
           case Right(cp) => throw new java.lang.AssertionError(s"expected Left, got $cp")
+        }
+        // the fork query reports it too (a compile error is not a fallback case)
+        timed("fork settings with compile error") { bridge.testFork(testFile) } match {
+          case Left(msg)   => assert(msg.contains("Broken.scala"))
+          case Right(fork) => throw new java.lang.AssertionError(s"expected Left, got $fork")
         }
       } finally os.remove(broken)
     }
