@@ -33,9 +33,49 @@ For the per-file module map and the key design decisions (CHIRRTL extraction
 surface, bundle dedup, wire coalescing, the two ELK engines, the schema
 contract), see [CLAUDE.md](../CLAUDE.md).
 
+## View-mode probe: run contract
+
+`socless-probe` is a Java agent that captures the design an unmodified ChiselSim
+scalatest test elaborates, without changing the test or its build. A caller runs
+one test in its own JVM:
+
+```bash
+java -javaagent:<socless-probe agent jar> \
+  -Dsocless.probe.mode=view -Dsocless.probe.out=<captured.json> \
+  -cp <the test classpath> \
+  org.scalatest.tools.Runner -s <Suite> -t "<full test name>"
+```
+
+- **Status.** `<captured.json>` holds a `CapturedModel` whose `status` is one of:
+  - `ok`: a design was captured (`problems` lists anything the probe could not
+    read; `modules` may then be empty);
+  - `no-design`: the test never elaborated a design;
+  - `elaboration-error`: the user's elaboration threw (`error` has the root
+    cause's message).
+- **ViewOnly.** In view mode the probe throws `socless.probe.ViewOnly` right
+  after the capture, so firtool and Verilator never run. Scalatest therefore
+  reports the test as FAILED: trust only `status`, never the test outcome or the
+  JVM exit code.
+- **First elaboration wins.** The first elaboration of any kind is captured
+  (including an `emitCHIRRTL` call or a failure the test intercepts).
+- **Missing file.** A missing output file means the probe itself failed. A
+  failure of the probe never becomes `elaboration-error` and never fails a run
+  that is not in view mode.
+- **Wiring.** When every module's `wires` is empty and `chirrtl` is non-empty,
+  derive the wiring from the CHIRRTL with `socless.capture.WiresFromChirrtl`
+  (what `ModelToDesign` does).
+- **Versions.** The agent is compiled against Scala 2.13 and Chisel 7.16 only;
+  it uses the test JVM's own Scala and Chisel, so other versions are unsupported.
+  `chiselVersion` records the Chisel the test ran.
+
+`./mill example.soclessView <Suite> "<test>"` runs this contract on the bundled
+examples, adapts the capture and serves it in the UI. The `socless-lsp` language
+server runs the same contract from an editor (a View design lens per test, a
+live panel, refresh on save): see [SoCLess in Neovim](ide-neovim.md).
+
 ## Compatibility notes
 
-- **Chisel** - example elaboration runs against 7.11.0, but the parser is
+- **Chisel** - example elaboration runs against 7.16.0, but the parser is
   written for cross-version portability and a committed fixture matrix proves it:
   `VersionMatrixTest` parses the *same* design emitted in three syntax eras
   (SFC/legacy `lhs <= rhs` + `reg ... with`, early-CIRCT `connect` + `regreset`

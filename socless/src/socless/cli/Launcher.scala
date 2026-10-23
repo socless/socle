@@ -61,6 +61,8 @@ object Launcher {
       |  dump        --top <fqcn> --chirrtl-out <path>   Emit raw CHIRRTL and stop.
       |  serve       serve [server options]  Standalone loopback UI server (no Mill, no Python).
       |  debug-layout <design.json> ...     Render baked layout geometry to SVG + text (no UI).
+      |  from-capture <captured.json> [--output <path>] [--source-root <dir>]
+      |                                     Adapt a socless-probe capture to design.json.
       |
       |Export flags (elaborate / convert / dump):
       |  --top <fqcn>         design to elaborate: a no-arg class, an object's apply()/build(),
@@ -312,11 +314,40 @@ object Launcher {
     0
   }
 
+  /** `from-capture <captured.json> [--output <path>] [--source-root <dir>]`:
+    * adapt a socless-probe capture to design.json. Returns the exit code. */
+  def runFromCapture(args: Array[String]): Int = {
+    def usage(msg: String): Int = {
+      Console.err.println(s"[socless] from-capture: $msg (usage: from-capture <captured.json> [--output <path>] [--source-root <dir>])")
+      2
+    }
+    var in: Option[String]   = None
+    var out                  = "design.json"
+    var root: Option[String] = None
+    val it = args.iterator
+    while (it.hasNext) it.next() match {
+      case "--output" if it.hasNext                 => out = it.next()
+      case "--source-root" if it.hasNext            => root = Some(it.next())
+      case a if !a.startsWith("--") && in.isEmpty   => in = Some(a)
+      case a                                        => return usage(s"unrecognized argument '$a'")
+    }
+    if (in.isEmpty) return usage("a <captured.json> path is required")
+    try {
+      SoclessExporter.fromCaptured(os.read(Path(in.get, os.pwd)), Path(out, os.pwd), root.map(Path(_, os.pwd)))
+      0
+    } catch {
+      case e: IllegalArgumentException =>
+        Console.err.println(s"[socless] from-capture: ${e.getMessage}")
+        1
+    }
+  }
+
   def main(args: Array[String]): Unit = {
     // `serve` subcommand: a standalone, Mill/Python-free UI server (issue
     // #115). Anything else is the flag-based elaborate / convert path.
     if (args.headOption.contains("serve")) { Serve.run(args.tail); return }
     if (args.headOption.contains("debug-layout")) sys.exit(runDebugLayout(args.tail))
+    if (args.headOption.contains("from-capture")) sys.exit(runFromCapture(args.tail))
     parseArgs(args) match {
       case Left("help") =>
         println(HelpText)

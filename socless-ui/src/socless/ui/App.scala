@@ -6,7 +6,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import socless.schema.{Design, ModuleDef, ModuleKind}
-import socless.ui.data.DesignLoader
+import socless.ui.data.{DesignLoader, IdeLink, IdeState}
 import socless.ui.theme._
 import socless.ui.model._
 import socless.ui.schematic._
@@ -66,6 +66,9 @@ object App {
     if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d)
 
   private val loader = new DesignLoader(topOf = topOf, onFresh = navResetToTop, onLive = navReconcile)
+  // Language-server link (plan 2): run status, editor cursor focus, open on
+  // select. Disables itself when the page is not served by the language server.
+  private val ide = new IdeLink
 
   @JSExport
   def main(rootId: String): String = {
@@ -79,6 +82,7 @@ object App {
     loader.installDragDrop()
     setInterval(1000d) { tickVar.update(_ + 1) } // drives the "updated Ns ago" badge
     loader.start() // load design.json + the multi-top picker index (#197)
+    ide.start()    // probe /ide.json; polls only when served by the language server
     "mounted"
   }
 
@@ -394,6 +398,7 @@ object App {
             hiddenKindsVar   = hiddenKindsVar,
             autoOptimizeVar  = autoOptimizeVar,
             designSnapshot   = () => loader.snapshot(),
+            focusClassSig    = ide.focusClassSig,
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
@@ -405,6 +410,15 @@ object App {
       pathVar.signal.changes --> { _ =>
         expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
       },
+      // Open on select (plan 2): selecting an instance asks the editor to show
+      // its module's source: an absolute file, or a repo-relative one embedded
+      // in design.sources (the language server resolves it against the
+      // workspace). Library modules (e.g. chisel3.util.Queue) are neither.
+      // debounce(0) + distinct: only a real selection change opens. Export's
+      // withCleared clears and restores the selection synchronously, which
+      // coalesces to the unchanged value and is dropped; a user deselect (None)
+      // lands as its own event, so selecting the same box again re-opens.
+      selectedSigVar.signal.changes.debounce(0).distinct --> { sel => sel.foreach(openInstanceSource) },
       // Command palette + keyboard-help overlays (fixed-position modals).
       Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p),
         actions = Seq(
@@ -442,6 +456,34 @@ object App {
       span(cls := "scl-live-ago", dataAttr("live-ago") <-- agoSig, child.text <-- agoSig),
     )
   }
+
+  /** Top-bar run status from the language server: `running…` while a view run
+    * is in flight, the summary line of the error while the last one failed
+    * ([[IdeState.errorSummary]]), with the full text in the tooltip. None for
+    * idle / ok. */
+  private def ideStatus(s: IdeState): Option[Element] = s.status match {
+    case "running" =>
+      Some(span(cls := "scl-ide-status scl-ide-running", dataAttr("ide-status") := "running",
+        title := (if (s.test.nonEmpty) s"running ${s.test}" else "running"), "running…"))
+    case "error" =>
+      val short = IdeState.errorSummary(s.message)
+      Some(span(cls := "scl-ide-status scl-ide-error", dataAttr("ide-status") := "error",
+        title := s.message, short))
+    case _ => None
+  }
+
+  /** `POST /open` for a selected instance of the current module whose module
+    * source file is absolute or a key of `design.sources` (a user file read
+    * from the source root). Wire / port selections are ignored. */
+  private def openInstanceSource(sel: String): Unit =
+    for {
+      d     <- loader.currentDesign
+      mod   <- currentModule(d, pathVar.now())
+      child <- mod.children.find(_.name == sel)
+      cm    <- d.modules.find(_.name == child.`type`)
+      src    = cm.source
+      if src.file.startsWith("/") || src.file.matches("^[A-Za-z]:[\\\\/].*") || d.sources.contains(src.file)
+    } ide.open(src.file, src.line)
 
   /** Full-window drop-zone overlay, shown while a file is dragged over the page. */
   private def dropOverlay(): Element =
@@ -486,11 +528,12 @@ object App {
         // stable hook the smoke watches to confirm a live reload swapped designs.
         dataAttr("source") <-- loader.sourceSig.map(_.map(_._1).getOrElse("none")),
         dataAttr("top")    <-- loader.designSig.map(_.map(topOf).getOrElse("")),
-        child.text <-- Signal.combine(loader.designSig, loader.sourceSig).map {
-          case (Some(d), src) =>
+        child.text <-- Signal.combine(loader.designSig, loader.sourceSig, loader.waitingSig).map {
+          case (Some(d), src, _) =>
             val label = src.map(_._2).getOrElse("")
             s"${topOf(d)}  -  ${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
-          case (None, _) => "loading design.json…"
+          case (None, _, true)  => "waiting for the first design…"
+          case (None, _, false) => "loading design.json…"
         },
       ),
       // Multi-top design picker (#197): switch between elaborated tops in place.
@@ -514,6 +557,8 @@ object App {
       },
       // LIVE badge + "updated Ns ago" (#120): only while showing the live design.
       child.maybe <-- loader.sourceSig.map(s => if (s.exists(_._1 == "live")) Some(liveBadge()) else None),
+      // Language-server run status (plan 2): nothing unless a run is in flight or failed.
+      child.maybe <-- ide.stateSig.map(_.flatMap(ideStatus)),
       // Panel toggles (#206): hide the hierarchy / bottom / inspector panel to
       // focus on the schematic. The `off` class dims a button when its pane is hidden.
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
@@ -553,10 +598,12 @@ object App {
         span(cls := "scl-count", child.text <-- rowsSignal.map(_.length.toString))),
       div(cls := "scl-hier",
         // Error / empty note when nothing loaded.
-        child.maybe <-- Signal.combine(loader.designSig, loader.errorSig).map {
-          case (None, Some(err)) => Some(div(cls := "scl-pane-body", s"no design: $err"))
-          case (None, None)      => Some(div(cls := "scl-pane-body", "loading…"))
-          case _                 => None
+        child.maybe <-- Signal.combine(loader.designSig, loader.errorSig, loader.waitingSig).map {
+          case (None, _, true)      =>
+            Some(div(cls := "scl-pane-body", dataAttr("design-waiting") := "1", "waiting for the first design…"))
+          case (None, Some(err), _) => Some(div(cls := "scl-pane-body", s"no design: $err"))
+          case (None, None, _)      => Some(div(cls := "scl-pane-body", "loading…"))
+          case _                    => None
         },
         children <-- rowsSignal.map(_.map { case (d, r) => row(d, r) }),
       ),

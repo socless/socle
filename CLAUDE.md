@@ -19,6 +19,9 @@ mill mill-socless.publishLocal   # Scala 3 Mill plugin
 ./mill socless.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, GoldenDesign, ...)
 ./mill socless.regenerateGoldens  # Regenerate golden JSON snapshots after intentional pipeline changes
 # (alternative) SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
+./mill socless-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
+./mill socless-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
+./mill example.test               # the example ChiselSim tests (needs Verilator on PATH)
 
 # Run bundled examples (no publishLocal needed)
 mill example.soclessRun          # AXISystem design
@@ -27,7 +30,11 @@ mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
 mill example.soclessRunDeepSoc   # Deep hierarchy (DeepSoc)
 mill example.soclessRunIoBundles # Vec-of-bundle ports (Interconnect)
 mill example.soclessRunRegHeavy  # Register-heavy design (Datapath)
+./mill example.soclessView gcd.GcdSpec "GCD computes gcd(48, 18)"  # view a ChiselSim test's design (probe, no simulation)
 mill show example.soclessRun     # Print path to emitted design.json
+
+# Chisel IDE: language server jar for editors (java -jar, probe agent inside); setup in docs/ide-neovim.md
+./mill socless-lsp.assembly       # -> out/socless-lsp/assembly.dest/out.jar
 
 # Inspect baked layout geometry headlessly (no UI)
 mill example.soclessDebugLayout          # dump default design's per-module SVG + text
@@ -53,6 +60,21 @@ socless/src/socless/
   ChirrtlParser.scala    # CHIRRTL text → typed AST (GroundT, BundleT, VecT, Port, Inst, Conn)
   IrWalk.scala           # AST → Design; bundle deduplication & wire coalescing
   Launcher.scala         # Reflection-based main; CLI entry invoked by the Mill plugin
+  capture/               # View-mode capture: CapturedModel (shared with socless-probe),
+                         # ModelToDesign (capture -> Design), WiresFromChirrtl (wiring fallback)
+
+socless-probe/             # Java agent: captures a ChiselSim test's elaborated design (view mode)
+  src/socless/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk
+  fixtures/src/probefix/ # NoSimulateSpec, BrokenSpec: compiled fixtures for AgentRunTest
+
+socless-lsp/src/socless/lsp/  # Language server (stdio): "View design" lenses + live panel
+  Main.scala             # entry point; stdout is the JSON-RPC channel (prints go to stderr)
+  SoclessLanguageServer.scala  # lenses, socless.viewDesign, save refresh, socless/cursor, panel-to-editor
+  TestDiscovery.scala    # scalameta: ChiselSim test cases, enclosing class at a line
+  MillBridge.scala       # asks ./mill for a source file's test classpath
+  ViewRunner.scala       # forks the test with the probe agent, adapts the capture to a Design
+  RunQueue.scala         # one view run at a time; newer request replaces a queued one
+  LiveHttp.scala         # 127.0.0.1 panel: UI, /design.json, /ide.json, POST /open
 
 mill-socless/src/socless/mill/
   SoclessModule.scala    # Trait users mix into ScalaModule; defines `socless` and `soclessUI` tasks
@@ -129,7 +151,9 @@ away first-paint and the JVM-side layout tests (see the perf plan, not yet sched
 
 | Module | Scala | Key deps |
 |--------|-------|----------|
-| `socless` | 2.13.16 | Chisel 7.11.0, upickle 4.0.2, os-lib 0.11.4 |
+| `socless` | 2.13.16 | Chisel 7.16.0, upickle 4.0.2, os-lib 0.11.4 |
 | `socless-js` | 2.13.16 (Scala.js 1.19) | upickle; elkjs (`window.ELK`) at runtime |
 | `socless-ui` | 2.13.16 (Scala.js 1.19) | Laminar 17.2.0; depends on `socless-js` |
 | `mill-socless` | 3.8.2 | Mill 1.1.6 APIs |
+| `socless-lsp` | 2.13.16 | lsp4j 1.0.0, scalameta 4.17.4; depends on `socless` |
+| `socless-probe` | 2.13.16 | Chisel 7.16.0 compile-only (the test JVM provides it); Byte Buddy 1.18.15 + upickle shaded under `socless.shaded` in the agent jar |

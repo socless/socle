@@ -16,7 +16,7 @@ import mill.scalalib._
   *
   *   object myDesign extends ScalaModule with SoclessModule {
   *     def scalaVersion = "2.13.18"
-  *     def mvnDeps      = Seq(mvn"org.chipsalliance::chisel:7.11.0")
+  *     def mvnDeps      = Seq(mvn"org.chipsalliance::chisel:7.16.0")
   *     def soclessTop   = "mypkg.MyTop"
   *   }
   * }}}

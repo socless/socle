@@ -1,0 +1,410 @@
+package socless.lsp
+
+import com.google.gson.{JsonObject, JsonPrimitive}
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
+import java.nio.channels.{Channels, Pipe}
+import java.util.concurrent.{CompletableFuture, ConcurrentLinkedQueue}
+import org.eclipse.lsp4j._
+import org.eclipse.lsp4j.launch.LSPLauncher
+import org.eclipse.lsp4j.services.{LanguageClient, LanguageServer}
+import scala.jdk.CollectionConverters._
+import socless.schema.Design
+import utest._
+
+/** The language server in-process, over lsp4j launchers on in-memory pipes,
+  * with a stub classpath (the example test classpath from build.mill), so no
+  * nested Mill. View runs fork the real probe. */
+object LanguageServerTest extends TestSuite {
+  private def prop(k: String) = sys.props.getOrElse(k, sys.error(s"missing -D$k (set by build.mill forkArgs)"))
+  private val root    = os.Path(prop("socless.root"))
+  private val exampleCp = prop("example.cp").split(java.io.File.pathSeparator).toSeq.filter(_.nonEmpty).map(os.Path(_))
+  private val javaBin = (os.Path(sys.props("java.home")) / "bin" / "java").toString
+
+  private val gcdSpec = root / "example" / "test" / "src" / "gcd" / "GcdSpec.scala"
+  private val gcdSrc  = root / "example" / "src" / "gcd" / "GCD.scala"
+  private val deepSoc = root / "example" / "src" / "deephier" / "DeepSoc.scala"
+  private def uri(p: os.Path) = p.toNIO.toUri.toString
+
+  /** Records what the server sends to the editor. */
+  final class RecordingClient(showDocumentOk: Boolean) extends LanguageClient {
+    val documents = new ConcurrentLinkedQueue[ShowDocumentParams]
+    val messages  = new ConcurrentLinkedQueue[MessageParams]
+    def telemetryEvent(o: Object): Unit = ()
+    def publishDiagnostics(p: PublishDiagnosticsParams): Unit = ()
+    def showMessage(p: MessageParams): Unit = messages.add(p)
+    def showMessageRequest(p: ShowMessageRequestParams): CompletableFuture[MessageActionItem] =
+      CompletableFuture.completedFuture(null)
+    def logMessage(p: MessageParams): Unit = ()
+    override def showDocument(p: ShowDocumentParams): CompletableFuture[ShowDocumentResult] = {
+      documents.add(p)
+      CompletableFuture.completedFuture(new ShowDocumentResult(showDocumentOk))
+    }
+  }
+
+  /** A server wired to a recording client; `cp` is what the stub classpath returns. */
+  final class Fixture(showDocumentOk: Boolean = true) {
+    @volatile var cp: Either[String, Seq[os.Path]] = Right(exampleCp)
+    @volatile var cpFn: () => Either[String, Seq[os.Path]] = () => cp
+    val browser = new ConcurrentLinkedQueue[String]
+    val log     = new ConcurrentLinkedQueue[String]
+    private val stub = new ClasspathProvider {
+      def testClasspath(file: os.Path) = cpFn()
+    }
+    private lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l))
+    lazy val server: SoclessLanguageServer = new SoclessLanguageServer(
+      _ => stub,
+      r => Right(new ViewRunner(ViewRunner.extractProbeJar(), r, javaBin)),
+      http,
+      u => { browser.add(u); () },
+      log = m => { log.add(m); () },
+    )
+    val client = new RecordingClient(showDocumentOk)
+
+    private val toServer = Pipe.open()
+    private val toClient = Pipe.open()
+    private val serverLauncher = LSPLauncher.createServerLauncher(
+      server, Channels.newInputStream(toServer.source), Channels.newOutputStream(toClient.sink))
+    server.connect(serverLauncher.getRemoteProxy)
+    serverLauncher.startListening()
+    private val clientLauncher = LSPLauncher.createClientLauncher(
+      client, Channels.newInputStream(toClient.source), Channels.newOutputStream(toServer.sink))
+    clientLauncher.startListening()
+    val remote: LanguageServer = clientLauncher.getRemoteProxy
+
+    val init = new InitializeParams
+    init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(root), "socless")))
+    val capabilities = remote.initialize(init).get()
+    remote.initialized(new InitializedParams)
+
+    def open(p: os.Path): Unit =
+      remote.getTextDocumentService.didOpen(new DidOpenTextDocumentParams(
+        new TextDocumentItem(uri(p), "scala", 1, os.read(p))))
+
+    def lenses(p: os.Path): Seq[CodeLens] =
+      remote.getTextDocumentService.codeLens(new CodeLensParams(new TextDocumentIdentifier(uri(p)))).get().asScala.toSeq
+
+    def view(args: String*): Unit =
+      remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.viewDesign", args.map(a => a: Object).asJava)).get()
+
+    def save(p: os.Path): Unit =
+      remote.getTextDocumentService.didSave(new DidSaveTextDocumentParams(new TextDocumentIdentifier(uri(p))))
+
+    def cursor(p: os.Path, line: Int): Unit = {
+      val o = new JsonObject
+      o.addProperty("uri", uri(p))
+      o.addProperty("line", line)
+      clientLauncher.getRemoteEndpoint.notify("socless/cursor", o)
+    }
+
+    def close(): Unit = { server.stopAll(); toServer.sink.close(); toClient.sink.close() }
+  }
+
+  private val httpClient = HttpClient.newHttpClient()
+  private def get(base: String, path: String): HttpResponse[String] =
+    httpClient.send(HttpRequest.newBuilder(URI.create(base + path.stripPrefix("/"))).build(),
+      HttpResponse.BodyHandlers.ofString())
+  private def post(base: String, path: String, body: String): HttpResponse[String] =
+    httpClient.send(HttpRequest.newBuilder(URI.create(base + path.stripPrefix("/")))
+      .header("Content-Type", "application/json")
+      .POST(HttpRequest.BodyPublishers.ofString(body)).build(), HttpResponse.BodyHandlers.ofString())
+  private def ide(base: String): IdeState = upickle.default.read[IdeState](get(base, "/ide.json").body)
+
+  private def eventually[T](what: String, timeoutMs: Long = 60000)(f: => Option[T]): T = {
+    val end = System.currentTimeMillis() + timeoutMs
+    var r   = Option.empty[T]
+    while (r.isEmpty && System.currentTimeMillis() < end) {
+      r = try f catch { case _: Exception => None }
+      if (r.isEmpty) Thread.sleep(100)
+    }
+    r.getOrElse(sys.error(s"timed out waiting for $what"))
+  }
+
+  private val gcdArgs = Seq(uri(gcdSpec), "gcd.GcdSpec", "GCD computes gcd(48, 18)")
+
+  // Shared by the tests below, which run in order: view, refresh, error, ...
+  private lazy val fx = new Fixture()
+  private lazy val base: String = fx.client.documents.asScala.find(_.getExternal == true)
+    .map(_.getUri).getOrElse(sys.error("browser never opened"))
+
+  override def utestAfterAll(): Unit = fx.close()
+
+  val tests = Tests {
+    test("capabilities") {
+      val c = fx.capabilities.getCapabilities
+      assert(c.getCodeLensProvider != null)
+      assert(c.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign"))
+      val sync = c.getTextDocumentSync.getRight
+      assert(sync.getChange == TextDocumentSyncKind.Full, sync.getOpenClose == true, sync.getSave != null)
+    }
+    test("lenses") {
+      fx.open(gcdSpec)
+      val ls = fx.lenses(gcdSpec)
+      assert(ls.size == 1)
+      val cmd  = ls.head.getCommand
+      val args = cmd.getArguments.asScala.map {
+        case p: JsonPrimitive => p.getAsString
+        case o                => String.valueOf(o)
+      }
+      assert(cmd.getTitle == "View design", cmd.getCommand == "socless.viewDesign", args == gcdArgs)
+      assert(ls.head.getRange.getStart.getLine == 8)
+      fx.open(gcdSrc)
+      assert(fx.lenses(gcdSrc).isEmpty)
+    }
+    test("no lens outside a Mill project") {
+      val dir = os.temp.dir(prefix = "socless-nomill-")
+      try {
+        val f = dir / "GcdSpec.scala"
+        os.write(f, os.read(gcdSpec))
+        assert(MillBridge.findRoot(f).isEmpty) // precondition: no build.mill above the temp dir
+        fx.open(f)
+        assert(fx.lenses(f).isEmpty)
+      } finally os.remove.all(dir)
+    }
+    test("lenses follow unsaved edits") {
+      val f = gcdSpec / os.up / "Unsaved.scala"
+      val u = uri(f)
+      fx.remote.getTextDocumentService.didOpen(new DidOpenTextDocumentParams(
+        new TextDocumentItem(u, "scala", 1, "package x\nclass A")))
+      assert(fx.lenses(f).isEmpty)
+      val change = new TextDocumentContentChangeEvent(os.read(gcdSpec))
+      fx.remote.getTextDocumentService.didChange(new DidChangeTextDocumentParams(
+        new VersionedTextDocumentIdentifier(u, 2), java.util.List.of(change)))
+      assert(fx.lenses(f).size == 1)
+    }
+    test("view") {
+      val t0 = System.nanoTime()
+      fx.view(gcdArgs: _*)
+      val d = eventually("design.json") {
+        val r = get(base, "/design.json")
+        if (r.statusCode == 200) Some(upickle.default.read[Design](r.body)) else None
+      }
+      println(s"[LanguageServerTest] view took ${(System.nanoTime() - t0) / 1000000} ms")
+      assert(d.top == "GCD")
+      val st = eventually("status ok")(Some(ide(base)).filter(_.status == "ok"))
+      assert(st.test == "GCD computes gcd(48, 18)")
+      val opened = fx.client.documents.asScala.filter(_.getExternal == true).toSeq
+      assert(opened.size == 1)
+      assert(opened.head.getUri.matches("http://127\\.0\\.0\\.1:[0-9]+/"))
+      assert(fx.browser.isEmpty)
+    }
+    test("refresh on save") {
+      val lm0 = get(base, "/design.json").headers.firstValue("Last-Modified").get
+      fx.save(gcdSpec)
+      eventually("new Last-Modified") {
+        Some(get(base, "/design.json").headers.firstValue("Last-Modified").get).filter(_ != lm0)
+      }
+      eventually("status ok")(Some(ide(base)).filter(_.status == "ok"))
+      // a second command does not open the browser again
+      fx.view(gcdArgs: _*)
+      eventually("status ok")(Some(ide(base)).filter(_.status == "ok"))
+      assert(fx.client.documents.asScala.count(_.getExternal == true) == 1)
+    }
+    test("error keeps design") {
+      val before = get(base, "/design.json").body
+      fx.cp = Left("[error] Gcd.scala:3: boom")
+      fx.client.messages.clear()
+      fx.save(gcdSpec)
+      val st = eventually("status error")(Some(ide(base)).filter(_.status == "error"))
+      assert(st.message.contains("boom"))
+      val msgs = fx.client.messages.asScala.toSeq
+      assert(msgs.exists(m => m.getType == MessageType.Error && m.getMessage.contains("boom")))
+      val after = get(base, "/design.json")
+      assert(after.statusCode == 200, after.body == before)
+      assert(upickle.default.read[Design](after.body).top == "GCD")
+    }
+    test("not in a test module") {
+      val msg = s"not in a Mill test module: $gcdSpec"
+      fx.cp = Left(msg)
+      fx.client.messages.clear()
+      fx.log.clear()
+      fx.view(gcdArgs: _*)
+      eventually("showMessage")(fx.client.messages.asScala.find(_.getMessage.contains(msg)))
+      assert(ide(base).status == "error")
+      assert(!fx.log.asScala.exists(l => l.contains("Exception") || l.contains("failed")))
+    }
+    test("open") {
+      // /open carries the 1-based SourceRef line; LSP positions are 0-based
+      fx.client.documents.clear()
+      val r = post(base, "/open", ujson.write(ujson.Obj("file" -> gcdSrc.toString, "line" -> 24)))
+      assert(r.statusCode == 204)
+      val d = eventually("showDocument")(fx.client.documents.asScala.headOption)
+      assert(d.getUri == uri(gcdSrc), d.getSelection.getStart.getLine == 23, d.getTakeFocus == true)
+      assert(d.getExternal != true)
+      // a path relative to the workspace root resolves under it
+      fx.client.documents.clear()
+      post(base, "/open", ujson.write(ujson.Obj("file" -> "example/src/gcd/GCD.scala", "line" -> 3)))
+      val rel = eventually("showDocument")(fx.client.documents.asScala.headOption)
+      assert(rel.getUri == uri(gcdSrc), rel.getSelection.getStart.getLine == 2)
+    }
+    test("open outside the workspace is ignored") {
+      fx.client.documents.clear()
+      fx.log.clear()
+      val outside = Seq("/etc/passwd", "example/../../../../../etc/passwd", "file:///etc/passwd")
+      for (f <- outside) {
+        val r = post(base, "/open", ujson.write(ujson.Obj("file" -> f, "line" -> 1)))
+        assert(r.statusCode == 204)
+      }
+      eventually("three log lines")(Some(fx.log.asScala.count(_.contains("ignored /open"))).filter(_ == 3))
+      Thread.sleep(300)
+      assert(fx.client.documents.isEmpty)
+    }
+    test("open target rule") {
+      import SoclessLanguageServer.openTarget
+      val ws = os.Path("/work/proj")
+      assert(openTarget("/work/proj/src/A.scala", ws, Set.empty) == Some(ws / "src" / "A.scala"))
+      assert(openTarget("src/../src/A.scala", ws, Set.empty) == Some(ws / "src" / "A.scala"))
+      assert(openTarget("file:///work/proj/A.scala", ws, Set.empty) == Some(ws / "A.scala"))
+      assert(openTarget("../other/B.scala", ws, Set.empty) == None)
+      assert(openTarget("/opt/lib/C.scala", ws, Set.empty) == None)
+      assert(openTarget("/work/proj/../proj2/D.scala", ws, Set.empty) == None)
+      // a key of the published design's sources is allowed even outside the root
+      assert(openTarget("/opt/lib/C.scala", ws, Set("/opt/lib/C.scala")) == Some(os.Path("/opt/lib/C.scala")))
+    }
+    test("cursor") {
+      val lines = os.read.lines(deepSoc)
+      val inCluster = lines.indexWhere(_.startsWith("class Cluster")) + 2
+      fx.cursor(deepSoc, inCluster)
+      eventually("focusClass")(Some(ide(base)).filter(_.focusClass == "deephier.Cluster"))
+      fx.cursor(deepSoc, 0) // the package line: no enclosing class
+      eventually("focusClass cleared")(Some(ide(base)).filter(_.focusClass == ""))
+    }
+    test("browser fallback when the editor cannot open urls") {
+      val f = new Fixture(showDocumentOk = false)
+      try {
+        f.cp = Left("nope")
+        f.view(gcdArgs: _*)
+        val url = eventually("openBrowser")(Option(f.browser.peek()))
+        assert(url.matches("http://127\\.0\\.0\\.1:[0-9]+/"))
+        f.view(gcdArgs: _*)
+        eventually("second error")(Some(f.client.messages.size).filter(_ >= 2))
+        assert(f.browser.size == 1)
+      } finally f.close()
+    }
+    test("a superseded result is not published") {
+      val f = new Fixture()
+      try {
+        val started = new java.util.concurrent.CountDownLatch(1)
+        val release = new java.util.concurrent.CountDownLatch(1)
+        f.cpFn = () => { started.countDown(); release.await(); Left("first run") }
+        f.view(gcdArgs: _*)
+        assert(started.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        f.cpFn = () => Left("second run")
+        f.view(gcdArgs: _*) // queued behind the running one
+        release.countDown()
+        eventually("second result")(f.client.messages.asScala.find(_.getMessage == "second run"))
+        Thread.sleep(300)
+        assert(!f.client.messages.asScala.exists(_.getMessage == "first run"))
+      } finally f.close()
+    }
+    test("Main.serve exit codes") {
+      /** Runs Main.serve on pipes; `drive` gets the client proxy and a closer for stdin. */
+      def serve(drive: (LanguageServer, () => Unit) => Unit): Int = {
+        val toServer = Pipe.open()
+        val toClient = Pipe.open()
+        val done = new java.util.concurrent.CompletableFuture[Int]
+        val t = new Thread(() => {
+          done.complete(Main.serve(Channels.newInputStream(toServer.source), Channels.newOutputStream(toClient.sink))); ()
+        })
+        t.setDaemon(true)
+        t.start()
+        val cl = LSPLauncher.createClientLauncher(new RecordingClient(true),
+          Channels.newInputStream(toClient.source), Channels.newOutputStream(toServer.sink))
+        cl.startListening()
+        val init = new InitializeParams
+        init.setRootUri(uri(root))
+        val caps = cl.getRemoteProxy.initialize(init).get().getCapabilities
+        assert(caps.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign"))
+        try {
+          drive(cl.getRemoteProxy, () => toServer.sink.close())
+          done.get(10, java.util.concurrent.TimeUnit.SECONDS)
+        } finally { toServer.sink.close(); toClient.sink.close() }
+      }
+      val clean = serve { (s, _) => s.shutdown().get(); s.exit() }
+      val noShutdown = serve { (s, _) => s.exit() }
+      val eof = serve { (_, closeStdin) => closeStdin() }
+      assert(clean == 0, noShutdown == 1, eof == 1)
+    }
+    test("requests after shutdown are no-ops") {
+      val f = new Fixture()
+      try {
+        f.remote.shutdown().get()
+        f.open(gcdSpec)
+        assert(f.lenses(gcdSpec).isEmpty)
+        f.cursor(deepSoc, 120)
+        f.save(gcdSpec)
+        f.view(gcdArgs: _*)
+        assert(f.client.messages.isEmpty)
+        assert(!f.log.asScala.exists(_.contains("Rejected")))
+      } finally f.close()
+    }
+    test("a failing command while a run is in flight keeps its error") {
+      val f = new Fixture()
+      try {
+        val started = new java.util.concurrent.CountDownLatch(1)
+        val release = new java.util.concurrent.CountDownLatch(1)
+        f.cpFn = () => { started.countDown(); release.await(); Left("late run") }
+        f.view(gcdArgs: _*)
+        assert(started.await(10, java.util.concurrent.TimeUnit.SECONDS))
+        f.view("only-one-arg") // fails at once
+        eventually("bad args message")(f.client.messages.asScala.find(_.getMessage.contains("expects")))
+        release.countDown()
+        Thread.sleep(500)
+        assert(!f.client.messages.asScala.exists(_.getMessage == "late run"))
+      } finally f.close()
+    }
+    test("edit, save, see") {
+      // view; a save that breaks the build keeps the design; a save that fixes it shows the new one
+      val f = new Fixture()
+      try {
+        f.view(gcdArgs: _*)
+        val b = eventually("browser url")(f.client.documents.asScala.find(_.getExternal == true).map(_.getUri))
+        eventually("status ok")(Some(ide(b)).filter(_.status == "ok"))
+        val good = get(b, "/design.json")
+        assert(upickle.default.read[Design](good.body).top == "GCD")
+        val lm0 = good.headers.firstValue("Last-Modified").get
+
+        f.cp = Left("[error] GcdSpec.scala:12: boom")
+        f.save(gcdSpec)
+        val st = eventually("status error")(Some(ide(b)).filter(_.status == "error"))
+        assert(st.message.contains("boom"))
+        val kept = get(b, "/design.json")
+        assert(kept.body == good.body, kept.headers.firstValue("Last-Modified").get == lm0)
+
+        f.cp = Right(exampleCp)
+        f.save(gcdSpec)
+        eventually("status ok again")(Some(ide(b)).filter(_.status == "ok"))
+        val fresh = get(b, "/design.json")
+        assert(upickle.default.read[Design](fresh.body).top == "GCD")
+        assert(fresh.headers.firstValue("Last-Modified").get != lm0)
+      } finally f.close()
+    }
+    test("missing probe is reported on every command") {
+      val c = new RecordingClient(true)
+      val toServer = Pipe.open()
+      val toClient = Pipe.open()
+      val runnerCalls = new java.util.concurrent.atomic.AtomicInteger
+      val server = new SoclessLanguageServer(_ => (_ => Left("unused")),
+        _ => { runnerCalls.incrementAndGet(); Left("probe missing") },
+        new LiveHttp((_, _) => ()), _ => ())
+      val sl = LSPLauncher.createServerLauncher(server, Channels.newInputStream(toServer.source), Channels.newOutputStream(toClient.sink))
+      server.connect(sl.getRemoteProxy)
+      sl.startListening()
+      val cl = LSPLauncher.createClientLauncher(c, Channels.newInputStream(toClient.source), Channels.newOutputStream(toServer.sink))
+      cl.startListening()
+      val init = new InitializeParams
+      init.setRootUri(uri(root))
+      cl.getRemoteProxy.initialize(init).get()
+      try {
+        // the probe is extracted on the first view, not at start, and only once
+        assert(runnerCalls.get == 0)
+        val p = new ExecuteCommandParams("socless.viewDesign", gcdArgs.map(a => a: Object).asJava)
+        cl.getRemoteProxy.getWorkspaceService.executeCommand(p).get()
+        cl.getRemoteProxy.getWorkspaceService.executeCommand(p).get()
+        eventually("two messages")(Some(c.messages.asScala.count(_.getMessage.contains("probe missing"))).filter(_ == 2))
+        assert(runnerCalls.get == 1)
+      } finally { server.stopAll(); toServer.sink.close(); toClient.sink.close() }
+    }
+  }
+}

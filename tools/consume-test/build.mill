@@ -21,9 +21,9 @@ import socless.mill.SoclessModule
 
 object demo extends ScalaModule with SoclessModule {
   def scalaVersion = "2.13.16"
-  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.11.0")
+  def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.chipsalliance::chisel:7.16.0")
   def scalacPluginMvnDeps = super.scalacPluginMvnDeps() ++ Seq(
-    mvn"org.chipsalliance:::chisel-plugin:7.11.0"
+    mvn"org.chipsalliance:::chisel-plugin:7.16.0"
   )
   // Two tops exercise the multi-top path (issue #117): design.json is Blinky
   // (the first), design-demo_Counter.json is Counter, designs.json indexes both.

@@ -122,6 +122,36 @@ object SoclessExporter {
     design
   }
 
+  /** Adapt a socless-probe capture (`CapturedModel` JSON) to a laid-out
+    * [[Design]] with no file I/O: ports and submodules only (`ModelToDesign`),
+    * sources embedded, layouts baked. Throws IllegalArgumentException when the
+    * capture's status is not "ok". */
+  def designFromCaptured(capturedJson: String, sourceRoot: Option[Path] = None): Design =
+    designFromCaptured(socless.capture.CapturedModel.fromJson(capturedJson), sourceRoot)
+
+  /** [[designFromCaptured]] of an already parsed capture. */
+  def designFromCaptured(captured: socless.capture.CapturedModel, sourceRoot: Option[Path]): Design = {
+    val core    = socless.capture.ModelToDesign.design(captured)
+    val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
+    Layout.withLayouts(core.copy(sources = sources, sourceRoot = sourceRoot.map(_.toString).getOrElse("")))
+  }
+
+  /** [[designFromCaptured]], written to `outputPath` as design.json. */
+  def fromCaptured(
+    capturedJson: String,
+    outputPath:   Path,
+    sourceRoot:   Option[Path] = None,
+    indent:       Int          = 2,
+  ): Design = {
+    val design = designFromCaptured(capturedJson, sourceRoot)
+    writeAtomic(outputPath, upickle.default.write(design, indent = indent))
+    Console.err.println(
+      s"[socless] wrote $outputPath - ${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
+    )
+    logWarnings(design)
+    design
+  }
+
   /** Gather all unique source.file paths referenced anywhere in the design
     * and read them from the filesystem (relative to `sourceRoot`). The
     * resulting Map is the UI's lookup table - it slices out the relevant

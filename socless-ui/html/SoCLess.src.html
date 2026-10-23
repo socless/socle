@@ -213,6 +213,12 @@
   .scl-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
     animation: scl-pulse 1.8s ease-in-out infinite; }
   .scl-live-ago { color: var(--ink4); }
+  /* Language-server run status (plan 2): running / last error, top bar. */
+  .scl-ide-status { flex-shrink: 1; min-width: 0; max-width: 360px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 11px; padding: 1px 7px;
+    border-radius: 4px; }
+  .scl-ide-running { color: var(--ink3); }
+  .scl-ide-error { background: var(--badge-unconn-bg); color: var(--badge-unconn-fg); }
   @keyframes scl-pulse {
     0%   { box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
     70%  { box-shadow: 0 0 0 5px rgba(63,185,80,0); }

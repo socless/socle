@@ -144,7 +144,7 @@ Key dependencies to watch for updates:
 
 | Dependency | Current version | Location in `build.mill` |
 |------------|-----------------|--------------------------|
-| Chisel     | 7.11.0          | `V.chisel`               |
+| Chisel     | 7.16.0          | `V.chisel`               |
 | Mill       | 1.1.6           | `V.mill`                 |
 | upickle    | 4.0.2           | `V.upickle`              |
 | os-lib     | 0.11.4          | `V.osLib`                |

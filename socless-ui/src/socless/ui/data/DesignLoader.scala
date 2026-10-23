@@ -33,6 +33,9 @@ final class DesignLoader(
   private val sourceVar        = Var[Option[(String, String)]](None)
   private val errorVar         = Var[Option[String]](None)
   private val loadingVar       = Var(false)                          // a design fetch/parse is in flight
+  // design.json answered 404 at load (a language server that has not
+  // published yet): the initial load is retried until the first design.
+  private val waitingVar       = Var(false)
   private val liveUpdatedAtVar = Var[Double](0d)                     // ms of the last live auto-reload; 0 = never
   private val dragActiveVar    = Var(false)                          // drop-zone overlay visibility
   private val toastVar         = Var[Option[(String, String)]](None) // (message, kind: info|ok|err)
@@ -52,6 +55,7 @@ final class DesignLoader(
   val sourceSig:        Signal[Option[(String, String)]]         = sourceVar.signal
   val errorSig:         Signal[Option[String]]                   = errorVar.signal
   val loadingSig:       Signal[Boolean]                          = loadingVar.signal
+  val waitingSig:       Signal[Boolean]                          = waitingVar.signal
   val liveUpdatedAtSig: Signal[Double]                           = liveUpdatedAtVar.signal
   val dragActiveSig:    Signal[Boolean]                          = dragActiveVar.signal
   val toastSig:         Signal[Option[(String, String)]]         = toastVar.signal
@@ -77,6 +81,7 @@ final class DesignLoader(
     onFresh(d)
     sourceVar.set(Some(source))
     errorVar.set(None)
+    waitingVar.set(false)
   }
 
   /** Live reload (#120): swap in a re-converted design but keep the user's
@@ -100,16 +105,41 @@ final class DesignLoader(
       case Some(txt) =>
         try { val d = upickle.default.read[Design](txt); setDesign(d, ("snapshot", s"${topOf(d)} (snapshot)")) }
         catch { case e: Throwable => errorVar.set(Some(msgOf(e))) }
-      case None =>
-        loadingVar.set(true)
-        dom.fetch("design.json").flatMap { r =>
-          if (r.ok) { liveBaseline = headerStamp(r); r.text() }
-          else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
-        }.map(txt => upickle.default.read[Design](txt)).onComplete {
-          case Success(d) => loadingVar.set(false); setDesign(d, ("live", "live (design.json)")); startLiveWatch()
-          case Failure(e) => loadingVar.set(false); errorVar.set(Some(msgOf(e)))
-        }
+      case None => fetchInitialDesign()
     }
+  }
+
+  private object NoDesignYet extends RuntimeException("no design yet")
+
+  /** The initial live load. A 404 means the server has no design yet (the
+    * language server before its first successful run): show a calm waiting
+    * state and retry every 1500 ms while the tab is visible, until the first
+    * design lands or another source (a dropped file) takes over. */
+  private def fetchInitialDesign(): Unit = {
+    loadingVar.set(true)
+    dom.fetch("design.json").flatMap { r =>
+      if (r.ok) { liveBaseline = headerStamp(r); r.text() }
+      else if (r.status == 404) Future.failed(NoDesignYet)
+      else Future.failed(new RuntimeException(s"HTTP ${r.status}"))
+    }.map(txt => upickle.default.read[Design](txt)).onComplete { res =>
+      loadingVar.set(false)
+      if (sourceVar.now().isDefined) waitingVar.set(false) // a dropped file took over
+      else res match {
+        case Success(d) =>
+          waitingVar.set(false); setDesign(d, ("live", "live (design.json)")); startLiveWatch()
+        case Failure(NoDesignYet) => waitingVar.set(true); retryInitialDesign()
+        case Failure(e)           => waitingVar.set(false); errorVar.set(Some(msgOf(e)))
+      }
+    }
+  }
+
+  private def retryInitialDesign(): Unit = {
+    setTimeout(1500d) {
+      if (sourceVar.now().isDefined) waitingVar.set(false)
+      else if (dom.document.visibilityState.asInstanceOf[String] == "visible") fetchInitialDesign()
+      else retryInitialDesign()
+    }
+    ()
   }
 
   /** Best-effort fetch of the multi-top index (#197). Absent (404) or

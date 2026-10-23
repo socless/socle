@@ -28,7 +28,7 @@ import mill.scalajslib.api.ModuleKind
 object V {
   val scala       = "2.13.16"
   val scala3Mill  = "3.8.2"          // Mill 1.1.x runs on Scala 3
-  val chisel      = "7.11.0"
+  val chisel      = "7.16.0"
   val mill        = "1.1.6"
   val upickle     = "4.0.2"
   val osLib       = "0.11.4"
@@ -36,6 +36,9 @@ object V {
   val elk         = "0.9.1"
   val scalaJs     = "1.19.0"          // Scala.js for the in-browser layout (issue #167)
   val laminar     = "17.2.0"          // Scala.js UI framework for the frontend (epic #172)
+  val byteBuddy   = "1.18.15"         // socless-probe agent; 1.15 fails on Java 25
+  val lsp4j       = "1.0.0"           // socless-lsp language server
+  val scalameta   = "4.17.4"          // socless-lsp syntactic test discovery
   val publishVer  = "0.15.1-SNAPSHOT"
 }
 
@@ -334,6 +337,14 @@ object example extends ChiselToolchain {
   /** Default top - kept for back-compat with `mill example.soclessRun`. */
   def soclessTop: String = "axisystem.AXISystem"
 
+  /** Plain ChiselSim scalatest suites: unmodified-user-test fixtures for the
+    * "View design" probe. They deliberately import nothing from SoCLess. */
+  object test extends ScalaTests with TestModule.ScalaTest {
+    def mvnDeps = super.mvnDeps() ++ Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+    )
+  }
+
   /** Internal: fork java with this module's runClasspath, call socless.cli.Launcher
     * with `--top <fqcn>`, and return the path to the emitted design.json.
     * Called from each named soclessRun* task below.
@@ -440,6 +451,45 @@ object example extends ChiselToolchain {
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
+  /** View the design a ChiselSim test elaborates, in the UI, without simulating.
+    *
+    * Runs the unmodified test in view mode with the socless-probe agent
+    * (`example.test.runClasspath`), adapts the capture to design.json (layouts
+    * baked) and serves it like `soclessUI`. Blocks until Ctrl-C.
+    *
+    * @param args `<Suite> <full test name> [--port N]`, e.g.
+    *             `gcd.GcdSpec "GCD computes gcd(48, 18)"`
+    */
+  def soclessView(args: Args) = Task.Command {
+    val (suite, testName, rest) = args.value match {
+      case Seq(s, t, r @ _*) => (s, t, r)
+      case _ => sys.error("[socless] usage: soclessView <Suite> <full test name> [--port N]")
+    }
+    val port     = parseSoclessPort(rest, 8765)
+    val captured = Task.dest / "captured.json"
+    val sep      = java.io.File.pathSeparator
+    // Exit code 1 is the normal view-mode result (the probe stops the test);
+    // only the captured status counts.
+    val run = os.proc(
+      "java", s"-javaagent:${build.`socless-probe`.assembly().path}",
+      "-Dsocless.probe.mode=view", s"-Dsocless.probe.out=$captured",
+      "-cp", test.runClasspath().map(_.path.toString).mkString(sep),
+      "org.scalatest.tools.Runner", "-oW", "-s", suite, "-t", testName,
+    ).call(cwd = Task.dest, check = false, mergeErrIntoOut = true)
+    if (!os.exists(captured))
+      sys.error(s"[socless] the probe wrote no capture; test JVM output:\n${run.out.text()}")
+    val uiDir = Task.dest / "ui"
+    os.makeDir.all(uiDir)
+    val rc = os.proc(
+      "java", "-cp", runClasspath().map(_.path.toString).mkString(sep),
+      "socless.cli.Launcher", "from-capture", captured.toString,
+      "--output", (uiDir / "design.json").toString,
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt $captured (exit ${rc.exitCode})")
+    serve(uiDir, runClasspath(), port, Task.log)
+  }
+
   /** Start the SoCLess UI server without elaborating any design first.
     *
     * Extracts SoCLess.html from the JAR and serves it on a local port.
@@ -511,6 +561,112 @@ object example extends ChiselToolchain {
       ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
       if (rc.exitCode != 0) throw new RuntimeException(s"CHIRRTL dump failed for top=$top")
       Task.log.info(s"[socless] $top -> $dest")
+    }
+  }
+}
+
+// ─── View-design probe (Java agent side, Chisel 7.16) ───────────────────────
+// Walks the live, elaborated Chisel objects of a user's test JVM into the
+// shared CapturedModel. Chisel is compile-only: the agent jar built from this
+// module must NOT contain Chisel/firrtl (the user's test JVM provides them),
+// so mvnDeps is set without ChiselToolchain's runtime Chisel dependency.
+object `socless-probe` extends ChiselToolchain {
+  def mvnDeps = Seq(
+    mvn"com.lihaoyi::upickle:${V.upickle}",
+    mvn"net.bytebuddy:byte-buddy:${V.byteBuddy}",
+  )
+  def compileMvnDeps = super.compileMvnDeps() ++ Seq(
+    mvn"org.chipsalliance::chisel:${V.chisel}",
+    mvn"org.scala-lang:scala-reflect:${V.scala}",
+  )
+  // The captured model is shared with `socless` (which adapts it to the
+  // design.json schema), like `socless-js.sharedSources`, so it cannot drift.
+  def sharedSources = Task.Sources(
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "capture" / "CapturedModel.scala",
+  )
+  def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
+
+  // `assembly` is the agent jar (`java -javaagent:<jar>`). It runs inside the
+  // user's test JVM, which provides Scala and Chisel: those are left out, and
+  // the libraries the probe brings (and its own copy of the captured model,
+  // which socless also ships) are relocated so they cannot clash with the
+  // user's versions.
+  def manifest = Task {
+    super.manifest().add(
+      "Premain-Class"           -> "socless.probe.Agent",
+      "Can-Retransform-Classes" -> "true",
+    )
+  }
+  def prependShellScript = ""
+  def assemblyRules = super.assemblyRules ++
+    Seq("net.bytebuddy", "upickle", "ujson", "upack", "geny", "sourcecode", "socless.capture").map { p =>
+      Assembly.Rule.Relocate(s"$p.**", "socless.shaded.@0")
+    } ++
+    Seq("scala/.*", "chisel3/.*", "firrtl/.*", "circt/.*", ".*module-info\\.class", "rootdoc\\.txt", "library\\.properties")
+      .map(Assembly.Rule.ExcludePattern(_))
+
+  /** Unmodified-user-test fixtures for AgentRunTest (a test without `simulate`,
+    * a module that fails to elaborate). Compiled, never run as a test module. */
+  object fixtures extends ChiselToolchain {
+    def mvnDeps = super.mvnDeps() ++ Seq(
+      mvn"org.scalatest::scalatest:3.2.19",
+    )
+  }
+
+  // Elaborates the bundled examples in-process (Chisel at runtime via example).
+  object test extends ScalaTests with TestModule.Utest {
+    def moduleDeps = super.moduleDeps ++ Seq(example)
+    def mvnDeps = super.mvnDeps() ++ Seq(
+      mvn"com.lihaoyi::utest:${V.utest}",
+    )
+    // AgentRunTest forks `java -javaagent:<assembly>` on these classpaths.
+    def forkArgs = Task {
+      def cp(rc: Seq[PathRef]) = rc.map(_.path.toString).mkString(java.io.File.pathSeparator)
+      super.forkArgs() ++ Seq(
+        s"-Dprobe.jar=${`socless-probe`.assembly().path}",
+        s"-Dexample.cp=${cp(example.test.runClasspath())}",
+        s"-Dfixtures.cp=${cp(fixtures.runClasspath())}",
+      )
+    }
+  }
+}
+
+// ─── Language server (Chisel IDE) ───────────────────────────────────────────
+object `socless-lsp` extends ScalaModule {
+  def scalaVersion = V.scala
+  def moduleDeps = Seq(socless)
+  def mvnDeps = Seq(
+    mvn"org.eclipse.lsp4j:org.eclipse.lsp4j:${V.lsp4j}",
+    mvn"org.scalameta::scalameta:${V.scalameta}",
+  )
+  def mainClass = Some("socless.lsp.Main")
+  // No mixin forwarders: forwarders of lsp4j's default methods (initialized(),
+  // initialized(params)) make its reflection see "Duplicate RPC method".
+  def scalacOptions = super.scalacOptions() ++ Seq("-Xmixin-force-forwarders:false")
+
+  /** The socless-probe agent jar, as the `socless-probe.jar` resource ViewRunner extracts. */
+  def probeJarResource = Task {
+    os.copy(`socless-probe`.assembly().path, Task.dest / "socless-probe.jar")
+    PathRef(Task.dest)
+  }
+  def resources = Task { super.resources() :+ probeJarResource() }
+  // `assembly` is what editors launch: `java -jar out.jar` (Main-Class above,
+  // the probe jar inside as a resource). No launcher script in front of the zip.
+  def prependShellScript = ""
+
+  object test extends ScalaTests with TestModule.Utest {
+    def mvnDeps = super.mvnDeps() ++ Seq(mvn"com.lihaoyi::utest:${V.utest}")
+    // Tests read the example suites from the repo; ViewRunnerTest forks the
+    // probe on the example and probe-fixture test classpaths; StdioSmokeTest
+    // runs the assembly as an editor does.
+    def forkArgs = Task {
+      def cp(rc: Seq[PathRef]) = rc.map(_.path.toString).mkString(java.io.File.pathSeparator)
+      super.forkArgs() ++ Seq(
+        s"-Dsocless.root=${mill.api.BuildCtx.workspaceRoot}",
+        s"-Dlsp.jar=${`socless-lsp`.assembly().path}",
+        s"-Dexample.cp=${cp(example.test.runClasspath())}",
+        s"-Dfixtures.cp=${cp(`socless-probe`.fixtures.runClasspath())}",
+      )
     }
   }
 }

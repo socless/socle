@@ -82,7 +82,8 @@ for (const design of designs) {
   page.on('response', (r) => {
     // designs.json is the optional plugin multi-top index (#117): a 404 just
     // means single-top / non-plugin serve, which is the smoke's case.
-    const optional = ['/favicon.ico', '/designs.json'];
+    // ide.json is the language-server link (plan 2): a 404 disables it.
+    const optional = ['/favicon.ico', '/designs.json', '/ide.json'];
     if (r.status() === 404 && !optional.some((s) => r.url().endsWith(s))) {
       errors.push('http 404: ' + r.url());
     }

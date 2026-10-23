@@ -20,3 +20,5 @@ SoCLess.zip
 .claude/
 # AI-workflow plan/spec/screenshot artifacts (not project docs)
 docs/superpowers/
+# ChiselSim build output (written under the test working dir)
+/build/

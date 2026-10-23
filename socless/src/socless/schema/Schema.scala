@@ -118,6 +118,11 @@ case class Design(
   // metrics. Not rendered yet (the FSM box is collapsed/non-drillable in this
   // slice); stored so a future drill-in view is pure UI. Additive, last.
   regions: Map[String, ModuleDef] = Map.empty,
+  // Draw every port of the viewed module as a boundary pin, even when no wire
+  // ends on it. Set only for probe-captured designs (ModelToDesign), whose
+  // wiring keeps port-to-port wires only, so a port fed through internal logic
+  // would otherwise vanish from the schematic. Additive, last.
+  showUnwiredPorts: Boolean = false,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 
@@ -161,6 +166,9 @@ case class ModuleDef(
   // Intra-module logic nodes (registers, constants) made visible in the
   // schematic (issue #188 B1). Trailing default keeps older design.json loadable.
   logic: Seq[LogicNodeDef] = Seq.empty,
+  // Generator class ("gcd.GCD") when the design was captured from elaborated
+  // Chisel objects by the probe; empty from the CHIRRTL path. Additive, last.
+  scalaClass: String = "",
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
 
@@ -191,6 +199,10 @@ case class InstanceDef(
   // change the goldens. Kept LAST so positional constructions stay compatible.
   clock:  String = "",
   reset:  String = "",
+  // The instantiated module's constructor parameters (name -> value, or
+  // "<unreadable>"), from a probe capture; empty from the CHIRRTL path.
+  // Additive, last.
+  params: Map[String, String] = Map.empty,
 )
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 
@@ -272,6 +284,9 @@ case class BundleDef(
   fields:   Seq[FieldDef]    = Nil,       // ground-typed fields (Decoupled/leaf)
   channels: Seq[ChannelDef]  = Nil,       // sub-bundles (Bundle kind)
   source:   SourceRef        = SourceRef.unknown,
+  // Chisel class of the bundle ("chisel3.util.DecoupledIO") from a probe
+  // capture; empty from the CHIRRTL path. Additive, last.
+  scalaClass: String         = "",
 )
 object BundleDef { implicit val rw: ReadWriter[BundleDef] = macroRW }
 

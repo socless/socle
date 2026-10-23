@@ -243,7 +243,7 @@ object Serve {
     Console.err.println(s"[socless] watching $fir for changes -- re-converting on save")
   }
 
-  private def httpDate(millis: Long): String =
+  private[socless] def httpDate(millis: Long): String =
     java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
       java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(millis), java.time.ZoneOffset.UTC))
 
@@ -262,7 +262,7 @@ object Serve {
     }
   }
 
-  private def send(ex: HttpExchange, code: Int, ctype: String, body: Array[Byte]): Unit = {
+  private[socless] def send(ex: HttpExchange, code: Int, ctype: String, body: Array[Byte]): Unit = {
     ex.getResponseHeaders.set("Content-Type", ctype)
     val head = ex.getRequestMethod == "HEAD"
     ex.sendResponseHeaders(code, if (head) -1L else body.length.toLong)
@@ -272,13 +272,13 @@ object Serve {
     }
   }
 
-  private def contentType(name: String): String =
+  private[socless] def contentType(name: String): String =
     if (name.endsWith(".json")) "application/json"
     else if (name.endsWith(".html")) "text/html; charset=utf-8"
     else if (name.endsWith(".js")) "text/javascript"
     else "text/plain"
 
-  private def readResource(name: String): Option[String] = {
+  private[socless] def readResource(name: String): Option[String] = {
     val s = getClass.getResourceAsStream(name)
     if (s == null) None
     else try Some(new String(s.readAllBytes(), UTF_8)) finally s.close()

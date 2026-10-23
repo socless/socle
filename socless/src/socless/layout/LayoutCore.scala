@@ -290,6 +290,83 @@ object LayoutCore {
 
   case class Prepared(nodes: Seq[PreparedNode], edges: Seq[PreparedEdge])
 
+  private val VecKeyN = """^Vec\[(.+),\s*(\d+)\]$""".r
+
+  /** For [[Design.showUnwiredPorts]] (probe-captured designs): show the full
+    * interface of the module's boundary and of every child instance box, even
+    * where no wire was kept.
+    *
+    * Each port starts as one stub, split per channel when its type is a Bundle
+    * (`io.in`, `io.out`), the granularity IrWalk coalesces wires at. A stub no
+    * wired pin overlaps is added as is; one a wired pin covers (same path or a
+    * prefix of it) is skipped; one only partly covered by deeper wired pins is
+    * refined into its children (Bundle channels; a Decoupled's `valid`, `ready`
+    * and `bits.<field>` leaves; Vec elements), recursively, so exactly the
+    * uncovered parts get a stub. Each stub sits on the declared side of its own
+    * direction (port direction composed with flips; `ready` runs against
+    * `valid`). Clock/reset ports stay hidden, as their wires do: by type, or by
+    * name for a ground port (a top module's implicit reset is a Bool). */
+  private def addUnwiredPorts(
+    module:        ModuleDef,
+    design:        Design,
+    modulesByName: Map[String, ModuleDef],
+    pinOrder:      mutable.LinkedHashMap[(String, String), mutable.LinkedHashSet[String]],
+    declaredOf:    mutable.Map[(String, String, String), String],
+    ifaceOf:       mutable.Map[(String, String, String), Boolean],
+    bundleOf:      mutable.Map[(String, String, String), String],
+  ): Unit = {
+    def overlaps(a: String, b: String): Boolean =
+      a == b || a.startsWith(b + ".") || a.startsWith(b + "[") || b.startsWith(a + ".") || b.startsWith(a + "[")
+    def covers(w: String, path: String): Boolean =
+      path == w || path.startsWith(w + ".") || path.startsWith(w + "[")
+    def flipDir(d: String) = if (d == PortDir.Out) PortDir.In else PortDir.Out
+    def hidden(p: PortDef): Boolean =
+      ClockResetBundles.contains(p.bundle) ||
+        ((p.name == "clock" || p.name == "reset") && !BundleTree.isAggregateType(p.bundle, design))
+    // (path, dir, type key) of the parts one level below `path`.
+    def children(path: String, dir: String, key: String): Seq[(String, String, String)] =
+      design.bundles.get(key) match {
+        case Some(b) if b.kind == BundleKind.Bundle =>
+          b.channels.map(ch => (s"$path.${ch.name}", if (ch.flip) flipDir(dir) else dir, ch.`type`))
+        case Some(b) if b.kind == BundleKind.Decoupled =>
+          Seq((s"$path.valid", dir, "UInt<1>"), (s"$path.ready", flipDir(dir), "UInt<1>")) ++
+            b.fields.map(f => (s"$path.bits.${f.name}", dir, s"UInt<${f.width}>"))
+        case Some(_) => Nil
+        case None => key match {
+          case VecKeyN(inner, n) => (0 until n.toInt).map(i => (s"$path[$i]", dir, inner.trim))
+          case _                 => Nil
+        }
+      }
+    // Add stubs for the parts of the subtree at `path` that no wired pin covers.
+    def refine(wired: Seq[String], path: String, dir: String, key: String)(add: (String, String, String) => Unit): Unit =
+      if (!wired.exists(overlaps(_, path))) add(path, dir, key)
+      else if (!wired.exists(covers(_, path)))
+        children(path, dir, key).foreach { case (cp, cd, ck) => refine(wired, cp, cd, ck)(add) }
+    def stubsOf(ports: Seq[PortDef], prefix: String, wired: Seq[String])(add: (String, String, String) => Unit): Unit =
+      for (p <- ports if !hidden(p)) {
+        val dir = if (p.dir == PortDir.Out || p.dir == PortDir.Master) PortDir.Out else PortDir.In
+        val start = design.bundles.get(p.bundle) match {
+          case Some(b) if b.kind == BundleKind.Bundle && b.channels.nonEmpty => children(prefix + p.name, dir, p.bundle)
+          case _                                                             => Seq((prefix + p.name, dir, p.bundle))
+        }
+        start.foreach { case (path, d, key) => refine(wired, path, d, key)(add) }
+      }
+    def record(nodeId: String, kind: String, path: String, dir: String, key: String): Unit = {
+      val k = (nodeId, kind, path)
+      pinOrder.getOrElseUpdate((nodeId, kind), mutable.LinkedHashSet.empty) += path
+      declaredOf(k) = sideFor(kind, dir)
+      ifaceOf(k) = isInterfaceBundle(key, design)
+      bundleOf(k) = key
+    }
+
+    val boundaryWired = pinOrder.iterator.collect { case ((_, NodeKind.Boundary), paths) => paths }.flatten.toSeq
+    stubsOf(module.ports, "", boundaryWired) { (path, dir, key) => record(path, NodeKind.Boundary, path, dir, key) }
+    for (c <- module.children; child <- modulesByName.get(c.`type`)) {
+      val wired = pinOrder.get((c.name, NodeKind.Inst)).map(_.toSeq).getOrElse(Nil)
+      stubsOf(child.ports, c.name + ".", wired) { (path, dir, key) => record(c.name, NodeKind.Inst, path, dir, key) }
+    }
+  }
+
   /** Resolve a module into an engine-agnostic graph: nodes with sizes + per-pin
     * coordinates, and anti-parallel-collapsed edges. This is the entire pure
     * pipeline that used to live inline in [[Layout.layout]] before the ELK
@@ -354,6 +431,7 @@ object LayoutCore {
     module.children.foreach { c =>
       pinOrder.getOrElseUpdate((c.name, NodeKind.Inst), mutable.LinkedHashSet.empty)
     }
+    if (design.showUnwiredPorts) addUnwiredPorts(module, design, modulesByName, pinOrder, declaredOf, ifaceOf, bundleOf)
 
     // Build nodePins from the vote tallies.
     val nodePins = mutable.LinkedHashMap.empty[(String, String), PinMap]
@@ -365,6 +443,9 @@ object LayoutCore {
           if (eastVotes(k) > westVotes(k)) PinSide.East
           else if (westVotes(k) > eastVotes(k)) PinSide.West
           else if (kind == NodeKind.Boundary) declaredOf.getOrElse(k, PinSide.East)
+          // An unwired instance stub (showUnwiredPorts) has no vote at all and
+          // takes its declared side; a wired pin always carries a vote.
+          else if (eastVotes(k) == 0 && westVotes(k) == 0) declaredOf.getOrElse(k, PinSide.East)
           else PinSide.East
         val bundle = bundleOf.get(k)
         pins(path) = PinSpec(path, side, ifaceOf(k), bundle.getOrElse(""))
