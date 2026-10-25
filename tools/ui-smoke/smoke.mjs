@@ -94,7 +94,7 @@ for (const design of designs) {
   // The captured view stands in for the language server: `/ide.json` enables
   // the editor link and `POST /open` records what selecting asks to open.
   const opened = [];
-  if (design === 'deepsoc-view') {
+  if (design === 'deepsoc-view' || design === 'fsm-view') {
     await page.route('**/ide.json', (r) => r.fulfill({ contentType: 'application/json', body: '{"status":"idle"}' }));
     await page.route('**/open', (r) => {
       try { opened.push(JSON.parse(r.request().postData() || '{}')); } catch { opened.push({}); }
@@ -428,6 +428,312 @@ for (const design of designs) {
       drain(`${where} (${m})`);
     }
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__blocks.png` }).catch(() => {});
+  }
+
+  // FSM diagram (slice 3): the captured TrafficFsm's FSM block opens into its
+  // state diagram. Clicking a state or a transition opens its source; Escape,
+  // a breadcrumb segment and a live reload that drops the block close it.
+  if (design === 'fsm-view') {
+    const where = 'fsm diagram';
+    const id = 'blk$TrafficFsm$fsm$state';
+    const file = 'example/src/fsm/TrafficFsm.scala';
+    const diag = `[data-fsm-diagram="${id}"]`;
+    const ready = () => page.waitForSelector(`${diag}[data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    };
+    // Everything the diagram shows, in one read: states, transitions (with the
+    // distance from each label's center to its path's midpoint), markers, note.
+    const readDiagram = () => page.evaluate((sel) => {
+      const root = document.querySelector(sel);
+      if (!root) return null;
+      const center = (r) => ({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
+      return {
+        states: Array.from(root.querySelectorAll('[data-fsm-state]')).map((s) => {
+          const r = s.getBoundingClientRect();
+          return { name: s.getAttribute('data-fsm-state'), initial: s.getAttribute('data-initial') === '1',
+                   box: { l: r.left, t: r.top, r: r.right, b: r.bottom } };
+        }),
+        transitions: Array.from(root.querySelectorAll('[data-fsm-transition]')).map((t) => {
+          const path = t.querySelector('[data-fsm-path]');
+          const label = t.querySelector('[data-fsm-label]');
+          let dist = null, len = 0;
+          if (path) {
+            len = path.getTotalLength();
+            const p = path.getPointAtLength(len / 2);
+            const m = path.getScreenCTM();
+            const mid = { x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f };
+            if (label) { const c = center(label.getBoundingClientRect()); dist = Math.hypot(c.x - mid.x, c.y - mid.y); }
+          }
+          return { from: t.getAttribute('data-from'), to: t.getAttribute('data-to'),
+                   text: (label?.textContent || '').trim(), len, dist };
+        }),
+        any: root.querySelectorAll('[data-fsm-any]').length,
+        note: (root.querySelector('[data-fsm-note]')?.textContent || '').trim(),
+      };
+    }, diag);
+    const overlaps = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+    const crumbs = () => page.$$eval('.scl-crumb', (els) => els.map((e) => e.textContent.trim()));
+    const schematicShown = () => page.evaluate((fid) => {
+      const b = document.querySelector(`[data-fsm="${fid}"]`);
+      if (!b) return false;
+      const r = b.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !document.querySelector('[data-fsm-diagram]') && !!top && b.contains(top);
+    }, id);
+    // A reload of a design derived from the served one (a later Last-Modified each time).
+    const base = JSON.parse(await (await page.request.get(`${BASE}/${design}/design.json`)).text());
+    let stamp = 2031;
+    const serve = async (mutate) => {
+      const d = structuredClone(base);
+      mutate(d);
+      await page.unroute('**/design.json');
+      await page.route('**/design.json', (rt) => rt.fulfill({
+        contentType: 'application/json', body: JSON.stringify(d),
+        headers: { 'Last-Modified': `Wed, 01 Jan ${stamp++} 00:00:00 GMT` },
+      }));
+    };
+    const fsmOf = (d) => d.modules.flatMap((m) => m.logic || []).find((n) => n.id === id).fsm;
+    const openDiagram = async (step) => {
+      await page.locator(`[data-fsm="${id}"]`).first().dblclick({ timeout: 3000, position: { x: 30, y: 8 } })
+        .catch((e) => note(design, where, `${step}: dblclick: ${e.message}`));
+      if (!(await ready())) { note(design, where, `${step}: no ready ${diag} after a double-click`); return false; }
+      return true;
+    };
+    const expectOpened = async (step, line) => {
+      await page.waitForTimeout(250);
+      if (!opened.some((o) => o.file === file && o.line === line))
+        note(design, where, `${step}: expected POST /open ${file}:${line}, got ${JSON.stringify(opened)}`);
+    };
+    // A real (hit-tested) click on a state's box.
+    const clickState = async (name, line) => {
+      opened.length = 0;
+      await page.locator(`${diag} [data-fsm-state="${name}"] rect`).first().click({ timeout: 3000 })
+        .catch((e) => note(design, where, `click ${name}: ${e.message}`));
+      await expectOpened(`click ${name}`, line);
+    };
+    // A real (hit-tested) mouse click at a transition path's midpoint.
+    const clickTransition = async (from, to, line) => {
+      const step = `click ${from}->${to}`;
+      opened.length = 0;
+      const pt = await page.evaluate(([sel, f, t]) => {
+        const path = document.querySelector(`${sel} [data-fsm-transition][data-from="${f}"][data-to="${t}"] [data-fsm-path]`);
+        if (!path) return null;
+        const p = path.getPointAtLength(path.getTotalLength() / 2);
+        const m = path.getScreenCTM();
+        return { x: m.a * p.x + m.c * p.y + m.e, y: m.b * p.x + m.d * p.y + m.f };
+      }, [diag, from, to]);
+      if (!pt) { note(design, where, `${step}: no path`); return; }
+      await page.mouse.click(pt.x, pt.y);
+      await expectOpened(step, line);
+    };
+
+    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});
+    await settle();
+    if (await openDiagram('open')) {
+      const r = await readDiagram();
+      const names = r.states.map((s) => s.name).sort().join(',');
+      if (names !== 'sGreen,sRed,sYellow') note(design, where, `states ${names}`);
+      const initial = r.states.filter((s) => s.initial).map((s) => s.name);
+      if (initial.join() !== 'sRed') note(design, where, `initial states ${JSON.stringify(initial)}`);
+      const pairs = r.transitions.map((t) => `${t.from}->${t.to}`).sort().join(',');
+      if (pairs !== 'sGreen->sYellow,sRed->sGreen,sYellow->sRed') note(design, where, `transitions ${pairs}`);
+      for (const t of r.transitions) {
+        if (t.text !== 'io.tick') note(design, where, `${t.from}->${t.to} label ${JSON.stringify(t.text)}`);
+        if (t.dist === null || t.dist > 40) note(design, where, `${t.from}->${t.to} label ${t.dist?.toFixed(1)}px from its path's midpoint`);
+      }
+      for (let i = 0; i < r.states.length; i++) for (let j = i + 1; j < r.states.length; j++)
+        if (overlaps(r.states[i].box, r.states[j].box)) note(design, where, `${r.states[i].name} overlaps ${r.states[j].name}`);
+      const cs = await crumbs();
+      if (cs[cs.length - 1] !== 'FSM: state') note(design, where, `last breadcrumb ${JSON.stringify(cs)}`);
+      // The start dot sits above the initial state (it is laid out in the first layer).
+      const start = await page.evaluate((sel) => {
+        const dot = document.querySelector(`${sel} [data-fsm-start]`)?.getBoundingClientRect();
+        const init = document.querySelector(`${sel} [data-fsm-state][data-initial="1"]`)?.getBoundingClientRect();
+        return dot && init && { dotY: dot.top + dot.height / 2, initTop: init.top };
+      }, diag);
+      if (!start || !(start.dotY < start.initTop))
+        note(design, where, `the start dot is not above the initial state: ${JSON.stringify(start)}`);
+      // `/` does not focus the schematic filter hidden under the diagram.
+      await page.evaluate(() => document.activeElement?.blur?.());
+      await page.keyboard.press('/');
+      await page.waitForTimeout(100);
+      if (await page.evaluate(() => !!document.activeElement?.closest?.('[data-filter-input]') || document.activeElement?.hasAttribute?.('data-filter-input')))
+        note(design, where, '`/` focused the hidden schematic filter while the diagram is open');
+      await page.evaluate(() => document.activeElement?.blur?.());
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram.png` }).catch(() => {});
+      // Clicks: a transition opens its assignment, a state its `is` line.
+      await clickTransition('sGreen', 'sYellow', 17);
+      await clickState('sYellow', 18);
+      drain(`${where} (open)`);
+      // Escape that closes the palette, or leaves the filter input, keeps the diagram.
+      await page.keyboard.press('Control+k');
+      await page.waitForSelector('[data-command-palette]', { timeout: 3000 }).catch(() => note(design, where, 'Ctrl-K did not open the palette over the diagram'));
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      if (await page.locator('[data-command-palette]').count()) note(design, where, 'Escape did not close the palette');
+      if (!(await page.locator(diag).count())) note(design, where, 'Escape in the palette also closed the diagram');
+      await page.locator('[data-filter-input]').first().focus().catch((e) => note(design, where, `filter focus: ${e.message}`));
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      if (!(await page.locator(diag).count())) note(design, where, 'Escape in the filter input also closed the diagram');
+      drain(`${where} (escape in an overlay)`);
+      // Escape closes it and the schematic is back.
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      if (!(await schematicShown())) note(design, where, 'Escape did not bring the schematic back');
+      // The header's open control opens it too; the current module's
+      // breadcrumb segment closes it.
+      await page.locator(`[data-fsm-open="${id}"]`).first().click({ timeout: 3000 })
+        .catch((e) => note(design, where, `open control: ${e.message}`));
+      if (!(await ready())) note(design, where, `no ready ${diag} after clicking [data-fsm-open]`);
+      else {
+        await page.locator('.scl-crumb').first().click().catch((e) => note(design, where, `crumb: ${e.message}`));
+        await page.waitForTimeout(200);
+        if (!(await schematicShown())) note(design, where, 'the breadcrumb did not bring the schematic back');
+      }
+      // The open control is keyboard-reachable: focus + Enter opens.
+      await page.locator(`[data-fsm-open="${id}"]`).first().focus().catch((e) => note(design, where, `open control focus: ${e.message}`));
+      await page.keyboard.press('Enter');
+      if (!(await ready())) note(design, where, `no ready ${diag} after Enter on [data-fsm-open]`);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      if (!(await schematicShown())) note(design, where, 'Escape after a keyboard open did not bring the schematic back');
+      drain(`${where} (close)`);
+    }
+
+    // Live reload with the diagram open, keeping the block: a self-loop, a
+    // transition from any state and renamed labels show up in place; a label
+    // over 60 characters is cut with an ellipsis and kept whole in the tooltip.
+    const longLabel = 'io.tick && io.mode === 3.U && !(io.hold || io.stall) && io.count =/= 0.U';
+    if (await openDiagram('before reload')) {
+      await serve((d) => {
+        const f = fsmOf(d);
+        f.transitions[0].label = 'io.tick && go';
+        f.transitions[1].label = longLabel;
+        f.transitions.push({ from: 'sGreen', to: 'sGreen', label: 'io.hold', source: { file, line: 30, col: 5 } });
+        f.transitions.push({ from: '*', to: 'sRed', label: 'io.reset', source: { file, line: 31, col: 5 } });
+        f.transitions.push({ from: 'sRed', to: 'sBlue', label: 'io.odd', source: { file, line: 32, col: 5 } });
+      });
+      const updated = await page.waitForFunction((sel) => document.querySelectorAll(`${sel}[data-fsm-ready="1"] [data-fsm-transition]`).length === 5,
+        diag, { timeout: 10000 }).then(() => true).catch(() => false);
+      if (!updated) note(design, where, 'reload keeping the block: the open diagram did not show the 5 new transitions');
+      else {
+        const r = await readDiagram();
+        if (!r.transitions.some((t) => t.text === 'io.tick && go')) note(design, where, 'reload: the renamed label is missing');
+        const long = await page.evaluate((sel) => {
+          const t = document.querySelector(`${sel} [data-fsm-transition][data-from="sGreen"][data-to="sYellow"]`);
+          return t && { text: t.querySelector('[data-fsm-label]')?.textContent || '', tip: t.querySelector('title')?.textContent || '' };
+        }, diag);
+        if (!long || long.text !== longLabel.slice(0, 59) + '…' || !long.tip.includes(longLabel))
+          note(design, where, `long label not cut to 60 characters with its full text as a tooltip: ${JSON.stringify(long)}`);
+        const loop = r.transitions.find((t) => t.from === 'sGreen' && t.to === 'sGreen');
+        if (!loop || !(loop.len > 10)) note(design, where, `self-loop not drawn: ${JSON.stringify(loop)}`);
+        if (r.any !== 1) note(design, where, `expected one [data-fsm-any], got ${r.any}`);
+        if (!r.transitions.some((t) => t.from === '*' && t.to === 'sRed')) note(design, where, 'no transition from * to sRed');
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram-reload.png` }).catch(() => {});
+        const unknown = '1 transition to an unknown state is not shown.';
+        if (!r.note.includes(unknown)) note(design, where, `reload: note ${JSON.stringify(r.note)} lacks ${JSON.stringify(unknown)}`);
+        await clickTransition('sGreen', 'sGreen', 30);
+        await clickTransition('*', 'sRed', 31);
+      }
+      drain(`${where} (reload, self-loop, any)`);
+
+      // Fallback: no transitions, a note; the states still show.
+      const fallback = 'Transitions are not available: the state machine\'s Scala source could not be read.';
+      await serve((d) => { const f = fsmOf(d); f.transitions = []; f.note = fallback; });
+      const fell = await page.waitForFunction((sel) =>
+        (document.querySelector(`${sel}[data-fsm-ready="1"] [data-fsm-note]`)?.textContent || '').startsWith('Transitions are not available'),
+        diag, { timeout: 10000 }).then(() => true).catch(() => false);
+      if (!fell) note(design, where, 'fallback: no [data-fsm-note]');
+      else {
+        const r = await readDiagram();
+        if (r.note !== fallback) note(design, where, `fallback note ${JSON.stringify(r.note)}`);
+        if (r.states.length !== 3) note(design, where, `fallback: ${r.states.length} states`);
+        if (r.transitions.length) note(design, where, `fallback: ${r.transitions.length} transitions`);
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram-fallback.png` }).catch(() => {});
+      }
+      drain(`${where} (fallback)`);
+
+      // A diagram wider than the pane fits it by default; at 1:1 it scrolls
+      // and both ends stay reachable.
+      await serve((d) => {
+        const f = fsmOf(d);
+        f.note = '';
+        f.states = Array.from({ length: 15 }, (_, i) => ({ name: `sState${i}`, initial: i === 0, source: { file, line: 40 + i, col: 5 } }));
+        f.transitions = f.states.slice(1).map((s, i) => ({ from: 'sState0', to: s.name,
+          label: `io.cmd === ${i + 1}.U && io.valid && !io.busy`, source: { file, line: 60 + i, col: 5 } }));
+      });
+      const wide = await page.waitForFunction((sel) => document.querySelectorAll(`${sel}[data-fsm-ready="1"] [data-fsm-state]`).length === 15,
+        diag, { timeout: 10000 }).then(() => true).catch(() => false);
+      if (!wide) note(design, where, 'wide diagram: the 15 states never showed');
+      else {
+        const geo = () => page.evaluate((sel) => {
+          const pane = document.querySelector(`${sel} [data-fsm-scroll]`);
+          const states = Array.from(document.querySelectorAll(`${sel} [data-fsm-state]`)).map((s) => s.getBoundingClientRect());
+          const p = pane?.getBoundingClientRect();
+          return pane && { pane: { l: p.left, r: p.right, t: p.top, b: p.bottom },
+            left: Math.min(...states.map((r) => r.left)), right: Math.max(...states.map((r) => r.right)),
+            top: Math.min(...states.map((r) => r.top)), bottom: Math.max(...states.map((r) => r.bottom)),
+            scrollW: pane.scrollWidth, clientW: pane.clientWidth };
+        }, diag);
+        const fit = await geo();
+        if (!fit) note(design, where, 'wide diagram: no [data-fsm-scroll] pane');
+        else if (fit.left < fit.pane.l || fit.right > fit.pane.r || fit.top < fit.pane.t || fit.bottom > fit.pane.b)
+          note(design, where, `wide diagram (fit): states [${fit.left}, ${fit.right}] outside the pane ${JSON.stringify(fit.pane)}`);
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram-wide-fit.png` }).catch(() => {});
+        // The fit follows the pane, not only the window: toggling the inspector
+        // resizes the pane, and the SVG is rescaled to fit it again.
+        const fitError = () => page.evaluate((sel) => {
+          const pane = document.querySelector(`${sel} [data-fsm-scroll]`);
+          const svg = pane?.querySelector('svg');
+          if (!svg) return null;
+          const [, , vw, vh] = svg.getAttribute('viewBox').split(' ').map(Number);
+          const pad = 24;
+          const s = Math.max(0.05, Math.min(1, (pane.clientWidth - 2 * pad) / vw, (pane.clientHeight - 2 * pad) / vh));
+          const r = svg.getBoundingClientRect();
+          return { paneW: pane.clientWidth, err: Math.max(Math.abs(r.width - vw * s), Math.abs(r.height - vh * s)) };
+        }, diag);
+        const togglePanel = () => page.locator('button[title="Toggle the inspector panel"]').first().click({ timeout: 3000 })
+          .catch((e) => note(design, where, `inspector toggle: ${e.message}`));
+        const before = await fitError();
+        for (const step of ['toggled', 'toggled back']) {
+          await togglePanel();
+          await page.waitForTimeout(300);
+          const after = await fitError();
+          if (!after || after.err > 1.5)
+            note(design, where, `wide diagram (fit), inspector ${step}: the SVG does not fit the resized pane ${JSON.stringify({ before, after })}`);
+          else if (step === 'toggled' && before && after.paneW === before.paneW)
+            note(design, where, `wide diagram (fit): toggling the inspector did not resize the pane (${after.paneW})`);
+        }
+        await page.locator(`${diag} [data-fsm-zoom="1:1"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `1:1 toggle: ${e.message}`));
+        await page.waitForTimeout(200);
+        const one = await geo();
+        if (one && !(one.scrollW > one.clientW)) note(design, where, `wide diagram (1:1): does not scroll (${one.scrollW} <= ${one.clientW})`);
+        await page.evaluate((sel) => { document.querySelector(`${sel} [data-fsm-scroll]`).scrollLeft = 0; }, diag);
+        const atLeft = await geo();
+        if (atLeft && atLeft.left < atLeft.pane.l - 1) note(design, where, `wide diagram (1:1): the leftmost state is unreachable (${atLeft.left} < ${atLeft.pane.l})`);
+        await page.evaluate((sel) => { const e = document.querySelector(`${sel} [data-fsm-scroll]`); e.scrollLeft = e.scrollWidth; }, diag);
+        const atRight = await geo();
+        if (atRight && atRight.right > atRight.pane.r + 1) note(design, where, `wide diagram (1:1): the rightmost state is unreachable (${atRight.right} > ${atRight.pane.r})`);
+        if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram-wide-1to1.png` }).catch(() => {});
+      }
+      drain(`${where} (wide)`);
+
+      // A reload that drops the block closes the diagram.
+      await serve((d) => { for (const m of d.modules) m.logic = (m.logic || []).filter((n) => n.id !== id); });
+      const closed = await page.waitForFunction(() => !document.querySelector('[data-fsm-diagram]') && !document.querySelector('[data-fsm]'),
+        null, { timeout: 10000 }).then(() => true).catch(() => false);
+      if (!closed) note(design, where, 'reload dropping the block: the diagram stayed open');
+      drain(`${where} (reload dropping the block)`);
+      // Restore the served design for the later steps.
+      await serve(() => {});
+      await page.waitForSelector(`[data-fsm="${id}"]`, { timeout: 10000 }).catch(() => note(design, where, 'restore: the block never came back'));
+      await page.unroute('**/design.json');
+      await settle();
+    }
+    drain(where);
   }
 
   // Back to the top module (richest view: instances, wires, interface pins).

@@ -2,6 +2,7 @@ package socless.capture
 
 import scala.collection.mutable
 
+import socless.ir.FsmDetect
 import socless.parse.ChirrtlParser
 import socless.schema._
 
@@ -23,6 +24,10 @@ import socless.schema._
   * or instance pins is dropped with its wires, so a tied port shows unwired.
   * A wire is kept when both ends resolve to a port, an instance pin, a block
   * pin or a const.
+  *
+  * An FSM block carries its state diagram: the `index`'s, with the block's
+  * source moved to the `switch`, else the states from the case literals and a
+  * note that the transitions are unknown.
   */
 object ModelToDesign {
 
@@ -87,7 +92,21 @@ object ModelToDesign {
           val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName)
           regions ++= bodies
           regions ++= im.logic.filter(_.kind == NodeKind.Fsm).flatMap(n => ir.regions.get(n.id).map(n.id -> _))
-          (folded.logic, folded.wires)
+          lazy val caseLits = circ.modules.find(_.name == c.name).toSeq.flatMap(FsmDetect.detect)
+            .map(f => f.stateReg -> f.caseLits).toMap
+          val fsmPrefix = s"blk$$${c.name}$$fsm$$"
+          val logic = folded.logic.map {
+            case n if n.kind == NodeKind.Fsm && n.id.startsWith(fsmPrefix) =>
+              val register = n.id.stripPrefix(fsmPrefix)
+              index.flatMap(_.fsm(c.scalaClass, register)) match {
+                case Some(src) => n.copy(fsm = Some(src.diagram), source = src.switch)
+                case None      =>
+                  val note = if (index.isEmpty) NoIndexNote else FallbackNote
+                  n.copy(fsm = Some(fallbackDiagram(caseLits.getOrElse(register, Nil), note)))
+              }
+            case n => n
+          }
+          (logic, folded.wires)
         case None =>
           (Nil, c.wires.map(w => WireDef(w.from, w.to, "", "", SourceRef.unknown)))
       }
@@ -148,6 +167,31 @@ object ModelToDesign {
       // A port no wire reaches (probe-supplied wiring, an unused input) still shows.
       showUnwiredPorts = true,
     )
+  }
+
+  private val FallbackNote = "Transitions are not available: the state machine's Scala source could not be read."
+  private val NoIndexNote  = "Transitions are not shown: this view was built without the Scala source index."
+  private val LitValue     = """^(?:UInt|SInt)(?:<\d+>)?\((.*)\)$""".r
+
+  /** A diagram with only the states, from FsmDetect's case literals. */
+  private def fallbackDiagram(caseLits: Seq[String], note: String): FsmDiagram =
+    FsmDiagram(caseLits.map(l => FsmState(litValue(l))), Nil, note)
+
+  /** A CHIRRTL literal's value in decimal: `UInt<2>(0h1)` gives `1`. */
+  private def litValue(lit: String): String = lit.trim match {
+    case LitValue(v) =>
+      val digits = v.trim.stripPrefix("\"").stripSuffix("\"")
+      val neg    = digits.startsWith("-")
+      val body   = digits.stripPrefix("-").stripPrefix("0")
+      val radix  = body.headOption match {
+        case Some('h') => 16
+        case Some('b') => 2
+        case Some('o') => 8
+        case _         => 10
+      }
+      val num = if (radix == 10) digits.stripPrefix("-") else body.drop(1)
+      scala.util.Try(BigInt(num, radix)).map(b => (if (neg) -b else b).toString).getOrElse(v)
+    case other => other
   }
 
   private val GroundKey = """(UInt|SInt)(<\d+>)?|Clock|Reset|AsyncReset|Analog""".r

@@ -1,6 +1,10 @@
 package socless.capture
 
-import socless.schema.SourceRef
+import socless.schema.{FsmDiagram, SourceRef}
+
+/** A state machine read from the Scala source: its diagram, and `switch`, the
+  * position of the first `switch(register)` on it. */
+case class FsmSource(diagram: FsmDiagram, switch: SourceRef)
 
 /** A Scala source construct that gives generated hardware a shape: a `when`
   * chain, a `for` loop, a `switch`. `id` is stable per construct; `label` is a
@@ -13,4 +17,8 @@ case class Construct(id: String, label: String, source: SourceRef)
   * class is unknown, and an implementation may then return `None`. */
 trait SourceIndex {
   def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct]
+
+  /** The state machine `scalaClass` builds on `register` with `switch`, or
+    * `None` when the source does not give one. */
+  def fsm(scalaClass: String, register: String): Option[FsmSource] = None
 }

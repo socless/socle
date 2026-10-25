@@ -9,7 +9,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
-import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind, SourceRef}
 import socless.layout.{InstanceFold, LayoutCore}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, LaidPortR, BoxOverride}
@@ -59,6 +59,11 @@ object Schematic {
     // Auto-optimize (#209): when on, run the optimize layout on every module view
     // so the initial render matches Optimize (off-thread, so it stays responsive).
     autoOptimizeVar: Var[Boolean],
+    // The FSM block whose state diagram replaces the schematic (App owns it, so
+    // the breadcrumb, Escape and navigation can close it); None = the schematic.
+    fsmOpenVar: Var[Option[String]],
+    // Open a source position in the editor (a diagram's state or transition).
+    openSource: SourceRef => Unit,
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
     // Generator class under the editor cursor (plan 2, language server); "" = none.
     focusClassSig: Signal[String] = Signal.fromValue(""),
@@ -276,7 +281,7 @@ object Schematic {
                       focusClass: String): Seq[ReactiveElement.Base] = {
       // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216);
       // colorBoxes (#266) flows in per-render so the toggle re-tints live.
-      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar, colorBoxes)
+      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar, colorBoxes, id => fsmOpenVar.set(Some(id)))
       // Verification-layer nodes (issue #212) and their wires are hidden unless
       // "show layers" is on. layerIds empty for a design with no layer content.
       // A wire's fromInst/toInst is a raw pin head (`L~in<i>`, `L~q`); resolve it
@@ -705,6 +710,13 @@ object Schematic {
           styleAttr := s"position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:4;display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};pointer-events:none;box-shadow:0 1px 5px rgba(0,0,0,.14)",
           span(cls := "scl-spinner"), span("laying out…"))
       ) else None),
+      // The open FSM block's state diagram, over the schematic (which stays
+      // mounted, keeping its view). A new element per diagram, so a live reload
+      // that changes the diagram lays it out again.
+      child.maybe <-- Signal.combine(moduleSig, fsmOpenVar.signal).map {
+        case (Some(mod), Some(id)) => mod.logic.find(_.id == id).flatMap(n => n.fsm.map(id -> _))
+        case _                     => None
+      }.distinct.map(_.map { case (id, fsm) => FsmDiagramView.render(id, fsm, openSource) }),
       // Drop the memoized engine layouts when the design itself changes (live
       // reload / picker switch): a reused module name can describe new internals.
       designSig.changes --> { _ => engineCache.clear() },

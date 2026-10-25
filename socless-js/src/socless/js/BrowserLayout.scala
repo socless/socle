@@ -304,4 +304,77 @@ object BrowserLayout {
     laid.map(res => extractTyped(prep, res))
   }
 
+  // ── State diagrams (FSM) ───────────────────────────────────────────────────
+
+  /** `first` pins the node to the first layer (the top): the start dot. */
+  case class DiagramNode(id: String, width: Double, height: Double, first: Boolean = false)
+  case class DiagramEdge(id: String, from: String, to: String, labelWidth: Double, labelHeight: Double)
+  /** `points` is the routed spline (SPLINES routing): the start point, then
+    * cubic Bezier segments as (control 1, control 2, end) triples. Empty when
+    * ELK routed no section (a self-loop may get none). `label` is the label's
+    * top-left. */
+  case class DiagramEdgePath(points: Seq[(Double, Double)], label: Option[(Double, Double)])
+  case class DiagramLayout(nodes: Map[String, (Double, Double)], edges: Map[String, DiagramEdgePath],
+                           width: Double, height: Double)
+
+  @js.native private trait ElkLabeledEdge extends ElkEdge {
+    def id: String = js.native
+    def labels: js.UndefOr[js.Array[ElkPoint]] = js.native
+  }
+
+  /** Lay out a state diagram (nodes + labelled directed edges, self-loops
+    * allowed) top-down with elkjs. Coordinates are in the diagram's own space
+    * (root-relative; the root is the edges' container, so label x/y need no
+    * offset). Self-loops use ELK's default loop handling. */
+  def layoutDiagram(nodes: Seq[DiagramNode], edges: Seq[DiagramEdge]): Future[DiagramLayout] = {
+    val children = nodes.map { n =>
+      val c = js.Dynamic.literal(id = n.id, width = n.width, height = n.height)
+      if (n.first)
+        c.updateDynamic("layoutOptions")(js.Dynamic.literal("elk.layered.layering.layerConstraint" -> "FIRST"))
+      c
+    }.toJSArray
+    val elkEdges = edges.map { e =>
+      val edge = js.Dynamic.literal(id = e.id, sources = js.Array[String](e.from), targets = js.Array[String](e.to))
+      if (e.labelWidth > 0 || e.labelHeight > 0)
+        edge.updateDynamic("labels")(js.Array(js.Dynamic.literal(
+          text = e.id, width = e.labelWidth, height = e.labelHeight)))
+      edge
+    }.toJSArray
+    val opts = js.Dynamic.literal(
+      "elk.algorithm"   -> "layered",
+      "elk.direction"   -> "DOWN",
+      "elk.edgeRouting" -> "SPLINES",
+      "elk.edgeLabels.placement" -> "CENTER",
+      "elk.layered.considerModelOrder.strategy" -> "NONE",
+      // Break cycles depth-first from the sources: the start dot (pinned to the
+      // first layer) is the only one, so the initial state sits right under it
+      // and the arrows that return to it point up.
+      "elk.layered.cycleBreaking.strategy" -> "DEPTH_FIRST",
+      "elk.spacing.nodeNode" -> "40",
+      "elk.layered.spacing.nodeNodeBetweenLayers" -> "56",
+      "elk.spacing.edgeLabel" -> "6",
+      // One layered graph, not packed components: states with no transition
+      // (the fallback diagram) line up in a row instead of a scattered pack.
+      "elk.separateConnectedComponents" -> "false",
+    )
+    val graph = js.Dynamic.literal(id = "root", layoutOptions = opts, children = children, edges = elkEdges)
+    val laid: Future[js.Dynamic] = engine.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
+    laid.map { res =>
+      val g = res.asInstanceOf[ElkGraph]
+      val nodePos = g.children.map(c => c.id -> ((c.x, c.y))).toMap
+      val paths = g.edges.toSeq.map { e0 =>
+        val e   = e0.asInstanceOf[ElkLabeledEdge]
+        val pts = scala.collection.mutable.ArrayBuffer.empty[(Double, Double)]
+        e.sections.toOption.flatMap(_.headOption).foreach { sec =>
+          pts += ((sec.startPoint.x, sec.startPoint.y))
+          sec.bendPoints.toOption.foreach(_.foreach(bp => pts += ((bp.x, bp.y))))
+          pts += ((sec.endPoint.x, sec.endPoint.y))
+        }
+        val label = e.labels.toOption.flatMap(_.headOption).map(l => (l.x, l.y))
+        e.id -> DiagramEdgePath(pts.toSeq, label)
+      }.toMap
+      DiagramLayout(nodePos, paths, g.width, g.height)
+    }
+  }
+
 }

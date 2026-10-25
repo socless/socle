@@ -26,6 +26,7 @@ const designs = [
   ['layers',       'soclessRunLayers',    'LayeredCounter (verification layers)'],
   ['scatter',      'soclessRunScatter',   'Scatter (bundle direction split)'],
   ['deepsoc-view', 'soclessCapturedDeepSoc', 'DeepSoc (captured view)'],
+  ['fsm-view',     'soclessCapturedFsm',  'TrafficFsm (captured view, diagram)'],
 ];
 
 if (!existsSync(UI)) {

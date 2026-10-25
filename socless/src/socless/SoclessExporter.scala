@@ -147,8 +147,9 @@ object SoclessExporter {
     outputPath:   Path,
     sourceRoot:   Option[Path] = None,
     indent:       Int          = 2,
+    index:        Option[socless.capture.SourceIndex] = None,
   ): Design = {
-    val design = designFromCaptured(capturedJson, sourceRoot)
+    val design = designFromCaptured(socless.capture.CapturedModel.fromJson(capturedJson), sourceRoot, index)
     writeAtomic(outputPath, upickle.default.write(design, indent = indent))
     Console.err.println(
       s"[socless] wrote $outputPath - ${design.modules.size} modules, ${design.bundles.size} bundles, ${design.layouts.size} layouts"
@@ -185,7 +186,10 @@ object SoclessExporter {
       m.ports.foreach(p => add(p.source))
       m.children.foreach(c => add(c.source))
       m.wires.foreach(w => add(w.source))
-      m.logic.foreach(n => add(n.source))
+      m.logic.foreach { n =>
+        add(n.source)
+        n.fsm.foreach(f => (f.states.map(_.source) ++ f.transitions.map(_.source)).foreach(add))
+      }
     }
 
     val out = mutable.LinkedHashMap.empty[String, String]

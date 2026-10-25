@@ -17,8 +17,9 @@ import utest._
   * then run, once per fixture,
   * `java -javaagent:out/socless-probe/assembly.dest/out.jar -Dsocless.probe.mode=view -Dsocless.probe.out=socless/test/resources/captured/<name>.json -cp "$(cat /tmp/example.cp)" org.scalatest.tools.Runner -oW -s <Suite> -t "<test>"`
   * with (gcd, gcd.GcdSpec, "GCD computes gcd(48, 18)"),
-  * (rvpipeline, rvpipeline.RVPipelineSpec, "RVPipeline should run a few cycles after reset") and
-  * (deepsoc, deephier.DeepSocSpec, "DeepSoc elaborates and steps"); scalatest
+  * (rvpipeline, rvpipeline.RVPipelineSpec, "RVPipeline should run a few cycles after reset"),
+  * (deepsoc, deephier.DeepSocSpec, "DeepSoc elaborates and steps") and
+  * (fsm, fsm.TrafficFsmSpec, "TrafficFsm cycles red, green, yellow"); scalatest
   * reports the test FAILED (ViewOnly), which is expected. Finally make the
   * source paths repo-relative: `sed -i "s|$PWD/||g" socless/test/resources/captured/[a-z]*.json`.
   */
@@ -37,6 +38,7 @@ object ModelToDesignTest extends TestSuite {
   private lazy val gcd        = captured("gcd")
   private lazy val rvpipeline = captured("rvpipeline")
   private lazy val deepsoc    = captured("deepsoc")
+  private lazy val fsm        = captured("fsm")
 
   private def check(cond: Boolean, msg: => String): Unit =
     if (!cond) throw new java.lang.RuntimeException(msg)
@@ -561,6 +563,72 @@ object ModelToDesignTest extends TestSuite {
       val top = d.modules.find(_.name == "Top").get
       check(top.logic.exists(n => n.source.file == "Gen.scala"), s"Top logic ${top.logic}")
       check(d.sources.contains("Gen.scala"), s"sources ${d.sources.keySet}")
+    }
+
+    test("an fsm block carries the diagram from the source index") {
+      val at      = SourceRef("example/src/fsm/TrafficFsm.scala", 16, 33)
+      val diagram = FsmDiagram(
+        states      = Seq(FsmState("sRed", initial = true), FsmState("sGreen"), FsmState("sYellow")),
+        transitions = Seq(FsmTransition("sRed", "sGreen", "io.tick", at),
+          FsmTransition("sGreen", "sYellow", "io.tick", at), FsmTransition("sYellow", "sRed", "io.tick", at)))
+      val switch  = SourceRef("example/src/fsm/TrafficFsm.scala", 15, 3)
+      val index = new SourceIndex {
+        def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
+        override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+          if (scalaClass == "fsm.TrafficFsm" && register == "state") Some(FsmSource(diagram, switch)) else None
+      }
+      val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
+      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      assert(block.fsm == Some(diagram))
+      assert(block.source == switch)
+    }
+
+    test("without an index the fsm block falls back to case literals") {
+      val m     = ModelToDesign.design(fsm).modules.find(_.name == "TrafficFsm").get
+      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
+        "Transitions are not shown: this view was built without the Scala source index.")))
+    }
+
+    test("an index that cannot read the fsm falls back with the read note") {
+      val index = new SourceIndex {
+        def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
+      }
+      val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
+      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
+        "Transitions are not available: the state machine's Scala source could not be read.")))
+    }
+
+    test("the sources embed the files of fsm states and transitions") {
+      val dir = os.temp.dir()
+      os.write(dir / "Switch.scala", "object Switch\n")
+      os.write(dir / "State.scala", "object State\n")
+      os.write(dir / "Step.scala", "object Step\n")
+      val diagram = FsmDiagram(
+        states      = Seq(FsmState("sRed", initial = true, source = SourceRef("State.scala", 1, 1)), FsmState("sGreen")),
+        transitions = Seq(FsmTransition("sRed", "sGreen", "io.tick", SourceRef("Step.scala", 1, 1))))
+      val index = new SourceIndex {
+        def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
+        override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+          if (register == "state") Some(FsmSource(diagram, SourceRef("Switch.scala", 1, 1))) else None
+      }
+      val d   = SoclessExporter.designFromCaptured(fsm, Some(dir), Some(index))
+      val mod = d.modules.find(_.name == "TrafficFsm").get
+      check(mod.source.file != "Step.scala", s"module source ${mod.source}")
+      check(Set("Switch.scala", "State.scala", "Step.scala").subsetOf(d.sources.keySet), s"sources ${d.sources.keySet}")
+    }
+
+    test("old json parses") {
+      val n = upickle.default.read[LogicNodeDef](
+        """{"id":"r","kind":"reg","label":"r","bundle":"UInt<1>","source":{"file":"","line":0,"col":0}}""")
+      assert(n.fsm == None)
+    }
+
+    test("the CHIRRTL view has no fsm diagrams") {
+      val d = SoclessExporter.designFromChirrtl(fsm.chirrtl)
+      check(!d.modules.flatMap(_.logic).exists(_.fsm.isDefined), "a CHIRRTL logic node carries an fsm diagram")
+      check(!d.regions.values.flatMap(_.logic).exists(_.fsm.isDefined), "a CHIRRTL region node carries an fsm diagram")
     }
   }
 }

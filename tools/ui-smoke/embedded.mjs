@@ -7,10 +7,12 @@
 // hierarchy only when the design changes, drill path, selection, details) and
 // follows `socless-navigate`.
 //
-// Usage (from the repo root, after `./mill socless-ui.dist` and the elaborated designs
-// `./mill example.soclessRunGcd` and `./mill example.soclessRunDeepSoc`):
+// Usage (from the repo root, after `./mill socless-ui.dist`, the elaborated designs
+// `./mill example.soclessRunGcd` and `./mill example.soclessRunDeepSoc`, and the
+// captured FSM design `./mill example.soclessCapturedFsm`):
 //   node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
-//     --deep out/example/soclessRunDeepSoc.dest/design.json
+//     --deep out/example/soclessRunDeepSoc.dest/design.json \
+//     --fsm out/example/soclessCapturedFsm.dest/design.json
 //
 // Serves the dist page itself (loopback, free port) with a two-entry designs.json so
 // the multi-top picker shows in normal mode. Uses CHROMIUM=/path like smoke.mjs.
@@ -28,13 +30,16 @@ const args = Object.fromEntries(
 const UI = args.ui || 'out/socless-ui/dist.dest/SoCLess.html';
 const DESIGN = args.design || 'out/example/soclessRunGcd.dest/design.json';
 const DEEP = args.deep || 'out/example/soclessRunDeepSoc.dest/design.json'; // a design with instances
-for (const f of [UI, DESIGN, DEEP]) if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
+const FSM = args.fsm || 'out/example/soclessCapturedFsm.dest/design.json'; // an FSM block with a state diagram
+for (const f of [UI, DESIGN, DEEP, FSM]) if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
 
 const files = {
   '/': ['text/html', readFileSync(UI)],
   '/design.json': ['application/json', readFileSync(DESIGN)],
   '/deep/': ['text/html', readFileSync(UI)],
   '/deep/design.json': ['application/json', readFileSync(DEEP)],
+  '/fsm/': ['text/html', readFileSync(UI)],
+  '/fsm/design.json': ['application/json', readFileSync(FSM)],
   '/designs.json': ['application/json', JSON.stringify({ designs: [
     { id: 'a', label: 'A', path: 'design.json' }, { id: 'b', label: 'B', path: 'design.json' }] })],
 };
@@ -242,6 +247,24 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const { ctx, page, errors } = await open('/deep/?host=vscode');
   await waitLoaded(page);
   check('top-level', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 7. The FSM state diagram, embedded: a double-click opens it, the breadcrumb
+// names it, Escape closes it.
+{
+  const { ctx, page, errors } = await open('/fsm/?host=vscode&theme=dark');
+  await waitLoaded(page);
+  const id = 'blk$TrafficFsm$fsm$state';
+  await page.locator(`[data-fsm="${id}"]`).first().dblclick({ position: { x: 30, y: 8 } }).catch(() => {});
+  const shown = await page.waitForSelector(`[data-fsm-diagram="${id}"][data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
+  check('fsm', shown, 'a double-click opens the state diagram');
+  const crumbs = await page.$$eval('.scl-crumb', (els) => els.map((e) => e.textContent.trim()));
+  check('fsm', crumbs.at(-1) === 'FSM: state', `breadcrumb ${JSON.stringify(crumbs)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  check('fsm', (await count(page, '[data-fsm-diagram]')) === 0 && (await count(page, `[data-fsm="${id}"]`)) === 1, 'Escape closes it');
+  check('fsm', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
 }
 

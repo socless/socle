@@ -5,7 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
-import socless.schema.{Design, ModuleDef, ModuleKind, NodeKind}
+import socless.schema.{Design, ModuleDef, ModuleKind, NodeKind, SourceRef}
 import socless.layout.InstanceFold
 import socless.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socless.ui.theme._
@@ -56,6 +56,9 @@ object App {
   private val rightOpenVar     = Var(true)
   private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
   private val bottomHeightVar  = Var(240.0)
+  // The FSM block (its id) whose state diagram is open in the schematic pane.
+  // Cleared when the drill path changes and when a design change drops the block.
+  private val fsmOpenVar       = Var[Option[String]](None)
 
   // Design loading + live poll + drag-drop + toasts (#219), owning the design /
   // source state. App injects how to reset navigation when a design lands.
@@ -63,11 +66,18 @@ object App {
     val top = topOf(d)
     pathVar.set(if (top.nonEmpty) List(top) else Nil)
     expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
+    fsmOpenVar.set(None)
     reconcileSelection(d)
   }
-  // Live reload keeps the drill path/expansion when it still resolves (#120).
+  // Live reload keeps the drill path/expansion when it still resolves (#120),
+  // and an open state diagram while its block still has one.
   private def navReconcile(d: Design): Unit =
-    if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d) else reconcileSelection(d)
+    if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d)
+    else {
+      reconcileSelection(d)
+      if (!fsmOpenVar.now().forall(id => shownModule(d, pathVar.now()).exists(_.logic.exists(n => n.id == id && n.fsm.isDefined))))
+        fsmOpenVar.set(None)
+    }
 
   /** On a design change, keep the selection only while it still names
     * something in the shown (folded) module: a stale one blanks the Inspector. */
@@ -122,12 +132,22 @@ object App {
         e.preventDefault(); helpOpenVar.set(false); paletteOpenVar.set(true)
       } else if (!typing && !mod && e.key == "?") {
         e.preventDefault(); helpOpenVar.update(!_)
-      } else if (!typing && !mod && e.key == "/") {
+      } else if (!typing && !mod && e.key == "/" && fsmOpenVar.now().isEmpty) {
         // Focus the schematic filter (#276). The input carries data-filter-input.
+        // Not while a state diagram covers the schematic: its filter is hidden.
         Option(dom.document.querySelector("[data-filter-input]")).foreach { el =>
           e.preventDefault(); el.asInstanceOf[dom.html.Element].focus()
         }
       } else if (e.key == "Escape") {
+        // An overlay closes first; with none open, Escape closes the state
+        // diagram. An Escape typed in a field (the palette's input, which closes
+        // the palette before this runs, or the schematic filter) is that field's.
+        val inField = e.target match {
+          case el: dom.Element => el.tagName == "INPUT" || el.tagName == "TEXTAREA" || el.closest("[data-command-palette]") != null
+          case _               => false
+        }
+        if (!inField && !e.defaultPrevented && !paletteOpenVar.now() && !helpOpenVar.now() && !settingsOpenVar.now())
+          fsmOpenVar.set(None)
         paletteOpenVar.set(false); helpOpenVar.set(false); settingsOpenVar.set(false)
       }
     })
@@ -463,8 +483,9 @@ object App {
   /** The design whose hierarchy was last posted to the side panel (compared by identity). */
   private var postedDesign = Option.empty[Option[Design]]
 
-  /** Navigate up to the breadcrumb segment at `idx`. */
-  private def navTo(idx: Int): Unit = pathVar.update(_.take(idx + 1))
+  /** Navigate up to the breadcrumb segment at `idx`; closes an open state
+    * diagram even when the path stays (the current module's segment). */
+  private def navTo(idx: Int): Unit = { fsmOpenVar.set(None); pathVar.update(_.take(idx + 1)) }
 
   // ── Hierarchy model ────────────────────────────────────────────────────────
   private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String])
@@ -536,6 +557,8 @@ object App {
             designSnapshot   = () => loader.snapshot(),
             focusClassSig    = ide.focusClassSig,
             showShare        = !Embedded.on,
+            fsmOpenVar       = fsmOpenVar,
+            openSource       = openSource,
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
@@ -545,7 +568,7 @@ object App {
       // clear them (and the selection) on navigation so expanding a port in one
       // module does not auto-expand an identically named port elsewhere (issue #94).
       pathVar.signal.changes --> { _ =>
-        expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None)
+        expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None); fsmOpenVar.set(None)
       },
       // Open on select (plan 2): selecting an instance asks the editor to show
       // its module's source: an absolute file, or a repo-relative one embedded
@@ -642,6 +665,11 @@ object App {
       if openableSource(d, src.file)
     } ide.open(src.file, src.line)
 
+  /** `POST /open` for a source position (a state diagram's state or
+    * transition), under the same [[openableSource]] gate. */
+  private def openSource(src: SourceRef): Unit =
+    loader.currentDesign.filter(d => openableSource(d, src.file)).foreach(_ => ide.open(src.file, src.line))
+
   /** Whether the editor can open a module source: an absolute file, or a
     * repo-relative one embedded in design.sources (the language server resolves
     * it against the workspace). Library modules (e.g. chisel3.util.Queue) are neither. */
@@ -671,12 +699,19 @@ object App {
       Option.when(!Embedded.on)(span(cls := "scl-logo", "SoCLess")),
       // Breadcrumb: clickable segments navigate up the hierarchy.
       div(cls := "scl-crumbs",
-        children <-- pathVar.signal.map { p =>
-          p.zipWithIndex.flatMap { case (seg, i) =>
+        // An open state diagram adds a last segment `FSM: <register>`.
+        children <-- Signal.combine(pathVar.signal, fsmOpenVar.signal).map { case (p, fsm) =>
+          val path = p.zipWithIndex.flatMap { case (seg, i) =>
             val sep: Seq[Element] = if (i > 0) Seq(span(cls := "scl-crumb-sep", "›")) else Nil
-            sep :+ button(cls := "scl-crumb", cls.toggle("active") := (i == p.length - 1),
+            sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
               title := p.take(i + 1).mkString(" > "),
               onClick --> { _ => navTo(i) }, seg)
+          }
+          path ++ fsm.toSeq.flatMap { id =>
+            val reg = id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id }
+            Seq(span(cls := "scl-crumb-sep", "›"),
+              button(cls := "scl-crumb", cls.toggle("active") := true, dataAttr("crumb-fsm") := id,
+                title := "State diagram (Esc closes it)", s"FSM: $reg"))
           }
         }),
       // Search trigger (opens the palette).

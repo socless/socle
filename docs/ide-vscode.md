@@ -126,15 +126,29 @@ or an instance is named after that signal without its Vec indices, so the lanes
 of `io.out.data.bits` share one pin, and a folded copy's pin takes the group's
 name (`acc_io_deq_bits`); a pin between two blocks is named after the signal
 that drives it. Selecting a block opens its
-code: the loop, the module, or for an FSM the line of its state register (the
-`switch` comes with the FSM diagram, later). Blocks that only carry debug logic
+code: the loop, the module, or for an FSM its `switch` line. Blocks that only carry debug logic
 (`printf`, `assert`) are labelled `debug logic` and stay hidden until you turn
 on `layers`. A port or an instance pin tied to a constant (`io.op := 0.U`) is
 not drawn as a constant node: it shows unconnected.
 
+Double-click an `FSM: <reg>` box (or click the `↵` at the right of its header,
+or focus it and press Enter) to open
+its state diagram: one node per state, the initial state marked by a dot, and an
+arrow per transition read from the `switch` in your source. An arrow's label is
+the Scala condition text of the `when` / `.elsewhen` that guards the assignment
+(`io.start`, `cond && !(inflight =/= 0.U)`); it is empty when the state moves on
+unconditionally, and a branch after earlier ones carries their negation (`!cond`).
+Click a state or an arrow to open its line. `fit` shows the whole diagram and
+`1:1` its natural size, scrolled; Escape returns to the schematic. A transition whose target is computed rather than a state name is
+not drawn, and the diagram says how many were skipped.
+
 `mill soclessView` (and the `Launcher` path behind it) has no source index: it
 shows the FSM and `logic` blocks, but no generator blocks; their logic stays in
-the `logic` block.
+the `logic` block. Its FSM diagrams list the states without transitions, under the
+note "Transitions are not shown: this view was built without the Scala source
+index." In the editor, a state machine whose source cannot be read shows its
+states the same way, with "Transitions are not available: the state machine's
+Scala source could not be read."
 
 Breadcrumbs, search, the run status, the bottom panel toggle, the view settings
 and the keyboard help work as in the browser. Opened in a browser or from

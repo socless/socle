@@ -58,9 +58,10 @@ path, selection, details) on load, drill and select, follows `socless-navigate`
 from the parent, and ignores self-posted or malformed messages:
 
 ```bash
-./mill socless-ui.dist && ./mill example.soclessRunGcd && ./mill example.soclessRunDeepSoc
+./mill socless-ui.dist && ./mill 'example.{soclessRunGcd,soclessRunDeepSoc,soclessCapturedFsm}'
 node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
-  --deep out/example/soclessRunDeepSoc.dest/design.json
+  --deep out/example/soclessRunDeepSoc.dest/design.json \
+  --fsm out/example/soclessCapturedFsm.dest/design.json
 ```
 
 ## Run

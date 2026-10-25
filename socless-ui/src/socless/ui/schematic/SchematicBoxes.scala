@@ -23,9 +23,9 @@ private[schematic] object SchematicBoxes {
   /** The interactive state the box renderers touch: the single-select model and
     * the in-box bundle-expansion set. `colorBoxes` (issue #266) tints each box
     * by node kind when the "colorize components" toggle is on; off leaves the
-    * neutral fills unchanged. */
+    * neutral fills unchanged. `openFsm` opens an FSM block's state diagram. */
   final case class Ctx(selectedVar: Var[Option[String]], expandedPortsVar: Var[Set[String]],
-                       colorBoxes: Boolean = false)
+                       colorBoxes: Boolean = false, openFsm: String => Unit = _ => ())
 
   private def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
@@ -173,10 +173,14 @@ private[schematic] object SchematicBoxes {
   // non-drillable: it represents a state machine collapsed into a single node,
   // so there is nothing to drill into. Styled distinctly (accent tint + a
   // double border) to read as an FSM, and tagged with `data-fsm` for ui-smoke.
+  // A block that carries a state diagram opens it on a double-click or from
+  // the header's open control (`data-fsm-open`).
   def fsmBox(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double, active: Boolean,
              sel: Option[String], hov: Option[String]): ReactiveElement.Base = {
     val c            = g.c
-    val label        = g.mod.logic.find(_.id == n.id).map(_.label).filter(_.nonEmpty).getOrElse(n.id)
+    val node         = g.mod.logic.find(_.id == n.id)
+    val label        = node.map(_.label).filter(_.nonEmpty).getOrElse(n.id)
+    val hasDiagram   = node.exists(_.fsm.isDefined)
     val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
     val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
     val borderCol    = if (selectedHere) Tokens.accent else Tokens.accentLine
@@ -194,13 +198,25 @@ private[schematic] object SchematicBoxes {
         s"background:${if (ctx.colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.accentBg};border:1px solid $borderCol;border-radius:6px;" +
         s"box-shadow:$boxShadow;cursor:default;overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+      if (hasDiagram) onDblClick --> { (_: dom.MouseEvent) => ctx.openFsm(n.id) } else emptyMod,
       // header (no drill handler: an FSM box is non-drillable)
       div(
         styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.accentLine};" +
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
+        // The first click selects, which re-renders the box, so the browser
+        // sends no dblclick to it: the second click (detail 2) opens instead.
+        onClick --> { (e: dom.MouseEvent) =>
+          if (hasDiagram && e.detail >= 2) ctx.openFsm(n.id) else toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
         span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
+        if (hasDiagram) span(dataAttr("fsm-open") := n.id, title := "Open the state diagram",
+          tabIndex := 0, role := "button",
+          styleAttr := s"margin-left:auto;flex-shrink:0;font-family:${Tokens.mono};font-size:9px;color:${Tokens.accent};cursor:pointer;padding:0 2px",
+          onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); ctx.openFsm(n.id) },
+          onKeyDown --> { (e: dom.KeyboardEvent) =>
+            if (e.key == "Enter" || e.key == " ") { e.preventDefault(); e.stopPropagation(); ctx.openFsm(n.id) } },
+          onDblClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
+          "↵") else emptyNode,
       ),
       renderPortRows(ctx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
       renderPortRows(ctx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),

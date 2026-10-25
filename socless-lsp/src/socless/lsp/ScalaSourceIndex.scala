@@ -2,7 +2,7 @@ package socless.lsp
 
 import scala.meta._
 import scala.util.control.NonFatal
-import socless.capture.{Construct, SourceIndex}
+import socless.capture.{Construct, FsmSource, SourceIndex}
 import socless.schema.SourceRef
 
 /** A [[SourceIndex]] over the Scala sources under `root`, parse-only
@@ -14,6 +14,11 @@ import socless.schema.SourceRef
   * a companion, an unrelated class) give `None`.
   *
   * `file` is resolved against `root` as `POST /open` resolves CHIRRTL paths.
+  * `fsm` reads the `switch(register)` state machine of those same bodies
+  * (see [[FsmFacts]]), from facts each file's parse keeps. It reads the
+  * workspace snapshot, which `refresh()` (once per view) renews, so an edit
+  * to the module's own file shows at the next view.
+  *
   * Long-lived: each file is parsed once per modification time and only its
   * spans are kept. The workspace (for a class's parents) is listed and
   * indexed by simple name on first need; `refresh()` (once per view) makes
@@ -26,13 +31,17 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
 
   private val lock    = new Object
   private var entries = Map.empty[os.Path, Entry]                   // guarded by lock
-  private var byName  = Option.empty[Map[String, Seq[Template0]]]   // guarded by lock: None = re-list
+  private var byName  = Option.empty[Map[String, Seq[Placed]]]      // guarded by lock: None = re-list
   private var owners  = Map.empty[String, Owners]                   // guarded by lock: by scalaClass
   private var parses  = 0                                           // guarded by lock
 
   def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] =
     if (scalaClass.isEmpty || line < 1 || col < 1) None
     else safe(lock.synchronized(find(scalaClass, file, line, col))).flatten
+
+  override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+    if (scalaClass.isEmpty || register.isEmpty) None
+    else safe(lock.synchronized(findFsm(scalaClass, register))).flatten
 
   /** Makes the next workspace lookup re-list the files under `root`. */
   def refresh(): Unit = lock.synchronized { byName = None; owners = Map.empty }
@@ -49,6 +58,19 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
     loop  <- index.loops.find(l => l.template == tmpl.id && l.start <= off && off < l.end)
   } yield Construct(s"$file:${loop.line}:${loop.col}", loop.label, SourceRef(file, loop.line, loop.col))
 
+  /** The owned bodies' facts, the class's own first, then its ancestors by
+    * file and position; ChiselEnum objects are looked up workspace-wide. */
+  private def findFsm(cls: String, register: String): Option[FsmSource] = {
+    val o      = ownersOf(cls)
+    val ws     = workspace
+    val placed = (simpleName(cls) +: o.ancestors.toSeq).distinct.flatMap(ws.getOrElse(_, Nil)).filter(p => o.counts(p.t))
+    val (own, inherited) = placed.sortBy(p => (p.path.toString, p.t.start)).partition(p => o.own(p.t.fq))
+    def facts(p: Placed) = p.index.fsm.get(p.t.id).map(p.path.relativeTo(root).toString -> _)
+    def enumValues(obj: String) =
+      ws.getOrElse(obj, Nil).filter(_.t.isObject).flatMap(p => p.index.fsm.get(p.t.id)).flatMap(_.chiselEnum)
+    FsmFacts.source((own ++ inherited).flatMap(facts), register, enumValues)
+  }
+
   /** The file's index, re-parsed when its modification time changed. */
   private def indexOf(path: os.Path): Option[FileIndex] = safe(os.mtime(path)).flatMap { mtime =>
     entries.get(path).filter(_.mtime == mtime).getOrElse {
@@ -60,17 +82,17 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
   }
 
   /** Every class, trait and object of the workspace, by simple name. */
-  private def workspace: Map[String, Seq[Template0]] = byName.getOrElse {
+  private def workspace: Map[String, Seq[Placed]] = byName.getOrElse {
     val files = SimBaseIndex.scalaFiles(root)
     val known = files.toSet
     entries = entries.filter { case (p, _) => known(p) }
-    val m = files.flatMap(indexOf).flatMap(_.templates).groupBy(_.simple)
+    val m = files.flatMap(p => indexOf(p).toSeq.flatMap(i => i.templates.map(Placed(p, i, _)))).groupBy(_.t.simple)
     byName = Some(m)
     m
   }
 
   private def ownersOf(cls: String): Owners = owners.getOrElse(cls, {
-    val named   = workspace.getOrElse(simpleName(cls), Nil)
+    val named   = workspace.getOrElse(simpleName(cls), Nil).map(_.t)
     val exact   = named.filter(_.fq == cls)
     val own     = if (exact.nonEmpty) exact else named.filter(_.isObject == cls.endsWith("$"))
     var parents = Set.empty[String]
@@ -81,7 +103,7 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
       queue = queue.tail
       if (!parents(p)) {
         parents += p
-        queue ++= workspace.getOrElse(p, Nil).filterNot(_.isObject).flatMap(_.parents).map(TestDiscovery.simpleName)
+        queue ++= workspace.getOrElse(p, Nil).map(_.t).filterNot(_.isObject).flatMap(_.parents).map(TestDiscovery.simpleName)
       }
     }
     val o = Owners(own.map(_.fq).toSet, parents)
@@ -115,6 +137,9 @@ object ScalaSourceIndex {
     def counts(t: Template0): Boolean = own(t.fq) || (!t.isObject && ancestors(t.simple))
   }
 
+  /** A template with the file that defines it and that file's index. */
+  private final case class Placed(path: os.Path, index: FileIndex, t: Template0)
+
   private final case class Entry(mtime: Long, index: Option[FileIndex])
 
   /** `None` for any non-fatal failure, and for the StackOverflowError a
@@ -125,7 +150,8 @@ object ScalaSourceIndex {
       case NonFatal(_)           => None
     }
 
-  private final case class FileIndex(lineStarts: IndexedSeq[Int], templates: Seq[Template0], loops: Seq[Loop]) {
+  private final case class FileIndex(
+      lineStarts: IndexedSeq[Int], templates: Seq[Template0], loops: Seq[Loop], fsm: Map[Int, FsmFacts.Facts]) {
     /** The offset of a 1-based line and column, when both lie in the file. */
     def offset(line: Int, col: Int): Option[Int] =
       Option.when(line <= lineStarts.size - 1 && lineStarts(line - 1) + col - 1 < lineStarts(line))(
@@ -136,13 +162,16 @@ object ScalaSourceIndex {
     def apply(source: Source): FileIndex = {
       val templates = Seq.newBuilder[Template0]
       val loops     = Seq.newBuilder[Loop]
+      val fsm       = Map.newBuilder[Int, FsmFacts.Facts]
       var nextId    = 0
 
       def define(d: Tree, name: String, isObject: Boolean, templ: Template, pkg: Seq[String], outer: Seq[String]): Unit = {
         val binary = (pkg :+ (outer :+ name).mkString("$")).mkString(".") + (if (isObject) "$" else "")
         val id     = nextId
         nextId += 1
-        templates += Template0(id, name, binary, isObject, TestDiscovery.parents(templ), d.pos.start, d.pos.end)
+        val parents = TestDiscovery.parents(templ)
+        templates += Template0(id, name, binary, isObject, parents, d.pos.start, d.pos.end)
+        fsm += id -> FsmFacts.collect(templ.body.stats, isObject && parents.exists(TestDiscovery.simpleName(_) == "ChiselEnum"))
         templ.body.stats.foreach(walk(_, pkg, outer :+ name, id, inLoop = false))
       }
 
@@ -163,7 +192,7 @@ object ScalaSourceIndex {
       val text = source.pos.input.text
       // Line starts, plus one past the end so the last line has a bound.
       val starts = (0 +: text.indices.filter(text(_) == '\n').map(_ + 1)) :+ (text.length + 1)
-      FileIndex(starts.toIndexedSeq, templates.result(), loops.result())
+      FileIndex(starts.toIndexedSeq, templates.result(), loops.result(), fsm.result())
     }
 
     /** The loop head's text: from the construct's start to its body (or the

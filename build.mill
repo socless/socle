@@ -475,6 +475,32 @@ object example extends ChiselToolchain {
     PathRef(out)
   }
 
+  def capturedFsmFixture = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "fsm.json")
+  // The Scala source the index reads the state diagram from.
+  def capturedFsmScala = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "example" / "src" / "fsm" / "TrafficFsm.scala")
+
+  /** Convert the committed TrafficFsm capture to a laid-out design.json with its state diagram.
+    *
+    * Runs `socless.lsp.FromCapture` (scalameta source index) so the FSM block
+    * carries the diagram read from the source. Caches on the fixture and the
+    * language server classpath.
+    */
+  def soclessCapturedFsm: T[PathRef] = Task {
+    capturedFsmScala() // only puts the source's hash in the graph: FromCapture reads it under --source-root
+    val out = Task.dest / "design.json"
+    val cp  = build.`socless-lsp`.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val rc = os.proc(
+      "java", "-cp", cp,
+      "socless.lsp.FromCapture", capturedFsmFixture().path.toString,
+      "--output", out.toString,
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the TrafficFsm capture (exit ${rc.exitCode})")
+    PathRef(out)
+  }
+
   /** View the design a ChiselSim test elaborates, in the UI, without simulating.
     *
     * Runs the unmodified test in view mode with the socless-probe agent
@@ -683,9 +709,13 @@ object `socless-lsp` extends ScalaModule {
     // Tests read the example suites from the repo; ViewRunnerTest forks the
     // probe on the example and probe-fixture test classpaths; StdioSmokeTest
     // runs the assembly as an editor does.
+    // FromCaptureTest reads this committed capture: a Source so a change re-runs the tests.
+    def capturedFsmFixture = Task.Source(
+      mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "fsm.json")
     def forkArgs = Task {
       def cp(rc: Seq[PathRef]) = rc.map(_.path.toString).mkString(java.io.File.pathSeparator)
       super.forkArgs() ++ Seq(
+        s"-Dcaptured.fsm=${capturedFsmFixture().path}",
         s"-Dsocless.root=${mill.api.BuildCtx.workspaceRoot}",
         s"-Dlsp.jar=${`socless-lsp`.assembly().path}",
         s"-Dexample.cp=${cp(example.test.runClasspath())}",

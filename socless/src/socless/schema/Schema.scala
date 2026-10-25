@@ -264,8 +264,26 @@ case class LogicNodeDef(
   // for pin labels + the inspector. None for every other kind. Trailing default
   // keeps older design.json loadable.
   memInfo: Option[MemInfo] = None,
+  // For kind "fsm" in the IDE view: the state diagram the UI opens. None for
+  // every other node and in the CHIRRTL view. Trailing default keeps older
+  // design.json loadable.
+  fsm: Option[FsmDiagram] = None,
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
+
+/** A state machine's diagram: its states and the transitions between them.
+  * `note` explains what the diagram leaves out ("" when nothing). */
+case class FsmDiagram(states: Seq[FsmState], transitions: Seq[FsmTransition], note: String = "")
+object FsmDiagram { implicit val rw: ReadWriter[FsmDiagram] = macroRW }
+
+/** One state; `source` is its first `is(...)` case, unknown when none. */
+case class FsmState(name: String, initial: Boolean = false, source: SourceRef = SourceRef.unknown)
+object FsmState { implicit val rw: ReadWriter[FsmState] = macroRW }
+
+/** One transition. `from == "*"` means from any state (an assignment outside
+  * the `switch`); `label` is its condition, "" when unconditional. */
+case class FsmTransition(from: String, to: String, label: String, source: SourceRef)
+object FsmTransition { implicit val rw: ReadWriter[FsmTransition] = macroRW }
 
 case class WireDef(
   from:   String,      // dotted path: "cpu.io" or "xbar.in[0].ar"

@@ -177,6 +177,9 @@ jobs:
       - name: Convert captured DeepSoc (instance fold)
         run: ./mill example.soclessCapturedDeepSoc
 
+      - name: Convert captured TrafficFsm (state diagram)
+        run: ./mill example.soclessCapturedFsm
+
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
       # (no Mill daemon) so it can be backgrounded and killed safely.
@@ -212,7 +215,7 @@ jobs:
       - name: Decide whether the UI smokes run
         id: uismoke
         run: |
-          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc}')
+          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm}')
           changed=""
           if [ "${{ github.event_name }}" = pull_request ]; then
             changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socless/test/resources/chirrtl .github/workflows)
