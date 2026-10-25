@@ -324,7 +324,9 @@ private[schematic] object SchematicBoxes {
             if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
             if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink3};font-size:var(--sch-mark)",
               child.text <-- ctx.expandedPortsVar.signal.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
-            span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
+            // No width:100% here: the name hugs its text so the width label sits right
+            // beside it ("reset 1b" / "1b valid"), not across the box near the centre.
+            span(title := titleOf(row), styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
             if (row.width > 0) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink3};font-size:var(--sch-mark)", s"${row.width}b") else emptyNode,
           ),
         )

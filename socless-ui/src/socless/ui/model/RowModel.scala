@@ -24,6 +24,7 @@ object RowModel {
     isGroupHeader: Boolean = false, // a scattered-bundle group header: label only, no pin/chevron
     locked: Boolean = false,        // always-open, non-collapsible (no chevron)
     drawPin: Boolean = false,       // render a pin dot at this (nested) row - a connected scattered leaf
+    ownedPins: Seq[String] = Nil,   // laid pins folded under this collapsed row: their wires end here
   )
 
   /** A box's WEST and EAST rows plus its expansion-aware height. */
@@ -44,10 +45,14 @@ object RowModel {
         // Top-level pins AND connected scattered-leaf rows (`drawPin`) get a
         // position: a scattered field is its own laid pin, so its wire must
         // terminate at the field row, not walk up to the group header (#237).
+        // A collapsed row also positions the laid pins folded under it, so their
+        // wires (and the engine's pin overrides) end on that row, not on the header.
         def proc(rows: Seq[Row]): Seq[(String, Double)] =
           rows.zipWithIndex.collect {
-            case (r, idx) if r.isTopLevel || r.drawPin => r.path -> (headerH + portPad + idx * portStep + portStep / 2)
-          }
+            case (r, idx) if r.isTopLevel || r.drawPin =>
+              val y = headerH + portPad + idx * portStep + portStep / 2
+              (r.path +: r.ownedPins).map(_ -> y)
+          }.flatten
         (proc(westRows) ++ proc(eastRows)).toMap.toSeq.toMap
       }
     }
@@ -109,13 +114,21 @@ object RowModel {
             // a normal pin: a leaf, or a non-scattered (wholesale) sub-bundle the user
             // can still expand/collapse on demand via expandedPorts (NOT locked).
             val laid = ports.find(_.path == n.path)
+            // A collapsed sub-bundle stands for the laid pins under it (`acc_i` for
+            // `acc_i.data`); once expanded, its child rows take them over.
+            val owned =
+              if (isAgg && !expandedPorts.contains(n.path))
+                ports.iterator.filter(p => p.side == side && (p.path.startsWith(n.path + ".") || p.path.startsWith(n.path + "[")))
+                  .map(_.path).toSeq.sorted
+              else Nil
             val added = pushRow(Row(
               depth = depth, label = n.name, dir = n.dir, width = n.width,
               path = n.path, bundleKey = n.bundleKey, isExpandable = isAgg,
               isTopLevel = false, side = side,
               pinX = laid.map(l => (l.x - box.x).toDouble).getOrElse(0.0),
               pinYBaked = laid.map(l => (l.y - box.y).toDouble).getOrElse(0.0),
-              drawPin = laid.isDefined, // connected -> own pin dot; unconnected -> label-only stub
+              drawPin = laid.isDefined || owned.nonEmpty, // connected -> own pin dot; unconnected -> label-only stub
+              ownedPins = owned,
             ))
             if (added && isAgg && expandedPorts.contains(n.path)) {
               val sub = BundleTree.portTree(n.bundleKey, n.dir, n.path, design)
