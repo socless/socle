@@ -91,6 +91,33 @@ for (const design of designs) {
 
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
+  // The first view of a module (on load, after a drill) must already be the
+  // fitted view: once the layout settles, pressing "Fit to view" must not move
+  // it. The armed fit once ran on the new width with a stale height, leaving the
+  // content pushed down until the user pressed fit.
+  const readView = () => page.evaluate(() => {
+    const t = document.querySelector('[data-content]')?.style.transform || '';
+    const m = t.match(/translate\(([-\d.e]+)px, ([-\d.e]+)px\) scale\(([-\d.e]+)\)/);
+    return m ? { x: +m[1], y: +m[2], z: +m[3] } : null;
+  });
+  const expectFitted = async (where) => {
+    await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+    let v = await readView();
+    for (let i = 0; i < 20; i++) {           // wait for the view to stop moving
+      await page.waitForTimeout(100);
+      const n = await readView();
+      if (JSON.stringify(n) === JSON.stringify(v)) break;
+      v = n;
+    }
+    const fit = page.locator('button[title="Fit to view"]');
+    if (!v || await fit.count() === 0) { note(design, where, 'first view: no content transform or Fit button'); return; }
+    await fit.first().click().catch((e) => note(design, where, e.message));
+    await page.waitForTimeout(60);
+    const f = await readView();
+    if (!f || Math.abs(f.x - v.x) > 2 || Math.abs(f.y - v.y) > 2 || Math.abs(f.z - v.z) > 0.005)
+      note(design, where, `first view is not the fitted view: ${JSON.stringify(v)} vs fit ${JSON.stringify(f)}`);
+  };
+
   // The captured view stands in for the language server: `/ide.json` enables
   // the editor link and `POST /open` records what selecting asks to open.
   const opened = [];
@@ -114,6 +141,7 @@ for (const design of designs) {
     await ctx.close();
     continue;
   }
+  await expectFitted('first view fit');
 
   // SOURCE indicator (#194): a design fetched from design.json is the "live"
   // source. The top bar must expose it via data-source so the live poller and
@@ -176,6 +204,7 @@ for (const design of designs) {
   for (const { path, leaf } of paths) {
     await page.locator(`[data-hier-path="${path}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, `click ${path}`, e.message));
     await page.waitForTimeout(120);
+    await expectFitted(`drill ${path} view fit`);
     // App must still be mounted: the hierarchy panel and a schematic host stay present.
     const alive = await page.locator('[data-hier-path]').count();
     if (alive === 0) note(design, `drill ${path}${leaf ? ' (leaf)' : ''}`, 'app unmounted / blank page');

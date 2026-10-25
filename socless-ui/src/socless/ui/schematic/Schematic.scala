@@ -98,6 +98,9 @@ object Schematic {
     var engineGen = 0
     var lastNonce = 0
     var pendingFit = true   // armed on a real path change; performed once dims are known (issue #207)
+    // The view is the automatic fit and the user has not panned or zoomed since:
+    // a later relayout (auto-optimize landing after the baked first paint) refits.
+    var autoFitted = false
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
 
@@ -236,10 +239,12 @@ object Schematic {
       val margin = 40.0
       val z = math.min(1.0, math.min((w - 2 * margin) / tw, (h - 2 * margin) / ch))
       zoomVar.set(z); panVar.set(((w - tw * z) / 2, (h - ch * z) / 2))
+      autoFitted = true
     }
 
 
     def zoomBy(factor: Double): Unit = {
+      autoFitted = false
       val z = zoomVar.now(); val newZ = clamp(z * factor)
       if (viewportNode != null) {
         val cx = viewportNode.clientWidth / 2.0; val cy = viewportNode.clientHeight / 2.0
@@ -258,7 +263,7 @@ object Schematic {
         val (px, py) = panVar.now(); val sx = e.clientX; val sy = e.clientY
         var moved = false
         lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => {
-          if (math.abs(ev.clientX - sx) + math.abs(ev.clientY - sy) > 3) moved = true
+          if (math.abs(ev.clientX - sx) + math.abs(ev.clientY - sy) > 3) { moved = true; autoFitted = false }
           panVar.set((px + (ev.clientX - sx), py + (ev.clientY - sy)))
         }
         lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
@@ -636,6 +641,7 @@ object Schematic {
 
     // Recenter the main view on a content-space point (used by the minimap).
     def centerOnContent(cx: Double, cy: Double): Unit = {
+      autoFitted = false
       val (vw, vh) = viewSizeVar.now(); val z = zoomVar.now()
       panVar.set((vw / 2 - cx * z, vh / 2 - cy * z))
     }
@@ -652,7 +658,7 @@ object Schematic {
       onOptimize    = () => optNonceVar.update(_ + 1),
       onFit         = () => doFit(),
       zoomBy        = (f: Double) => zoomBy(f),
-      onResetView   = () => { zoomVar.set(1.0); panVar.set((40.0, 40.0)) },
+      onResetView   = () => { autoFitted = false; zoomVar.set(1.0); panVar.set((40.0, 40.0)) },
       onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
       onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
       onShare       = Option.when(showShare)(() => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) }),
@@ -670,7 +676,7 @@ object Schematic {
         onMouseDown --> handlePanStart,
         onMountCallback { ctx =>
           viewportNode = ctx.thisNode.ref
-          totalWVar.set(1.0); canvasHVar.set(1.0)
+          Var.set(totalWVar -> 1.0, canvasHVar -> 1.0)
           // Track viewport size for the minimap (initial + on window resize).
           def measure(): Unit = viewSizeVar.set((viewportNode.clientWidth.toDouble, viewportNode.clientHeight.toDouble))
           measure()
@@ -678,6 +684,7 @@ object Schematic {
           // wheel-to-zoom, non-passive so preventDefault works
           val onWheel: js.Function1[dom.WheelEvent, Unit] = (e) => {
             e.preventDefault()
+            autoFitted = false
             val rect = viewportNode.getBoundingClientRect()
             val mx = e.clientX - rect.left; val my = e.clientY - rect.top
             val z = zoomVar.now(); val newZ = clamp(z * math.exp(-e.deltaY * 0.0015))
@@ -727,8 +734,10 @@ object Schematic {
           Some(SchematicChrome.minimap(g, px, py, z, vw, vh, centerOnContent))
         case _ => None
       },
-      // keep totalW/canvasH mirrors + current module name in sync with geometry
-      geomSig --> { (gO: Option[Geom]) => gO.foreach { g => totalWVar.set(g.layout.w.toDouble); canvasHVar.set(g.canvasH); curModName = g.mod.name } },
+      // keep totalW/canvasH mirrors + current module name in sync with geometry.
+      // Both dims are set in ONE transaction: two separate sets made the armed fit
+      // below run on the new width paired with the previous (placeholder) height.
+      geomSig --> { (gO: Option[Geom]) => gO.foreach { g => Var.set(totalWVar -> g.layout.w.toDouble, canvasHVar -> g.canvasH); curModName = g.mod.name } },
       // Clear the filter on navigation (JS clears it per path change).
       pathSig.map(_.mkString("/")).changes --> { _ => filterVar.set("") },
       // Track the current module path; arm a fit/restore only on a real path
@@ -742,17 +751,18 @@ object Schematic {
         prevPathKey = pk
       },
       // Perform the armed fit/restore once the geometry dimensions are known,
-      // then disarm. Later dimension changes (expansion, Optimize) leave the
-      // user's pan/zoom untouched.
+      // then disarm. Later dimension changes (expansion, Optimize, the engine
+      // relayout landing) refit only while the view is still the automatic fit;
+      // once the user pans or zooms, their view is left untouched.
       Signal.combine(totalWVar.signal, canvasHVar.signal) --> { (t: (Double, Double)) =>
         val (tw, ch) = t
         if (pendingFit && viewportNode != null && tw > 0 && ch > 0) {
           viewState.get(prevPathKey) match {
-            case Some((z, p)) => zoomVar.set(z); panVar.set(p)
+            case Some((z, p)) => zoomVar.set(z); panVar.set(p); autoFitted = false
             case None         => doFit()
           }
           pendingFit = false
-        }
+        } else if (autoFitted) doFit()
       },
       // in-process engine re-layout on module / expansion / Optimize / declutter /
       // auto-optimize. When auto-optimize (#209) is on, every view runs the
