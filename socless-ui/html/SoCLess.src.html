@@ -331,7 +331,12 @@
   (function () {
     var DARK = { dark:1, blueprint:1, nord:1, gruvbox:1, dracula:1, contrast:1 };
     try {
-      var t = localStorage.getItem('socless-theme');
+      // Embedded in VS Code (?host=vscode&theme=light|dark|hc): the editor's
+      // theme wins over the saved one (keep in sync with Embedded.themeFor).
+      var q = new URLSearchParams(location.search);
+      var k = q.get('theme'), t = null;
+      if (q.get('host') === 'vscode') t = k === 'light' ? 'light' : k === 'dark' ? 'dark' : k === 'hc' ? 'contrast' : null;
+      if (!t) t = localStorage.getItem('socless-theme');
       if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
       if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
       if (DARK[t]) document.documentElement.setAttribute('data-mode', 'dark');

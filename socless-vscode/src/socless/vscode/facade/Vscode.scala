@@ -95,6 +95,13 @@ object window extends js.Object {
   def showErrorMessage(message: String): js.Promise[js.UndefOr[String]] = js.native
   def showInformationMessage(message: String): js.Promise[js.UndefOr[String]] = js.native
   def onDidChangeTextEditorSelection(listener: js.Function1[TextEditorSelectionChangeEvent, Unit]): Disposable = js.native
+  def activeColorTheme: ColorTheme = js.native
+}
+
+@js.native
+trait ColorTheme extends js.Object {
+  /** `vscode.ColorThemeKind`: 1 Light, 2 Dark, 3 HighContrast, 4 HighContrastLight. */
+  val kind: Int = js.native
 }
 
 @js.native

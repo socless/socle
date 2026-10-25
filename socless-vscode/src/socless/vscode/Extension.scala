@@ -100,7 +100,8 @@ object Extension {
     client = Some(c)
 
     ctx.subscriptions.push(
-      c.onNotification("socless/openPanel", (params: js.Dynamic) => Panel.show(params.url.asInstanceOf[String]))
+      c.onNotification("socless/openPanel", (params: js.Dynamic) =>
+        Panel.show(params.url.asInstanceOf[String], params.test.asInstanceOf[js.UndefOr[String]].toOption.flatMap(Option(_))))
     )
 
     val debounce = new Debouncer(
@@ -124,7 +125,7 @@ object Extension {
     p.asInstanceOf[js.Dynamic].`catch`((_: js.Any) => ())
 
   private def showPanel(): Unit = Panel.lastUrl match {
-    case Some(url) => Panel.show(url)
+    case Some(url) => Panel.show(url, None)
     case None =>
       javaProblem match {
         case Some(problem) => window.showErrorMessage(problem)

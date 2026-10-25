@@ -219,7 +219,7 @@ final class SoclessLanguageServer(
         case (Left(msg), _) => fail(msg)
         case (_, None)      => fail(s"SoCLess: not a file URI: $uri")
         case (Right(_), Some(file)) =>
-          openPanel()
+          openPanel(test)
           submit(w, ViewRequest(file, suite, test))
       }
     case _ => fail(s"$ViewCommand expects [uri, suite, test], got ${args.mkString("[", ", ", "]")}")
@@ -272,10 +272,10 @@ final class SoclessLanguageServer(
   }
 
   /** Starts the HTTP endpoint on first use and opens the panel once. */
-  private def openPanel(): Unit = {
+  private def openPanel(test: String): Unit = {
     val url = lock.synchronized {
       if (port.isEmpty) port = Some(http.start())
-      if (clientPanel) { sendOpenPanel(s"http://127.0.0.1:${port.get}/"); None }
+      if (clientPanel) { sendOpenPanel(s"http://127.0.0.1:${port.get}/", test); None }
       else if (browserOpened) None
       else { browserOpened = true; Some(s"http://127.0.0.1:${port.get}/") }
     }
@@ -294,8 +294,8 @@ final class SoclessLanguageServer(
   }
 
   /** Client-hosted panel: tell the client where the UI is, on every view. */
-  private def sendOpenPanel(url: String): Unit = client match {
-    case c: SoclessClient => c.openPanel(new OpenPanelParams(url))
+  private def sendOpenPanel(url: String, test: String): Unit = client match {
+    case c: SoclessClient => c.openPanel(new OpenPanelParams(url, test))
     case _                => log("panel=client but the client connection has no socless/openPanel")
   }
 

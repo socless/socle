@@ -44,6 +44,20 @@ badge; overwriting the watched `.fir` hot-reloads the schematic in place;
 dropping a `.fir` on a plain `serve` renders it via `/convert`; and dropping a
 `design.json` renders it directly.
 
+## embedded: the VS Code panel mode
+
+`embedded.mjs` serves the dist page itself and checks that `?host=vscode`
+removes the Source / Waveform tabs, logo, design picker, theme toggle and
+gallery, share button and drop zone, starts with the bottom panel closed,
+takes its theme from `&theme=light|dark|hc`, and follows `socless-theme`
+messages from its parent frame only; and that without the parameter all of it
+is still there:
+
+```bash
+./mill socless-ui.dist && ./mill example.soclessRunGcd
+node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json
+```
+
 ## Run
 
 ```bash

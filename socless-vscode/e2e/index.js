@@ -14,6 +14,11 @@ const GCD_CLASS_LINE = 23; // 0-based line of `class GCD extends Module`
 const DEEP_SPEC_FILE = 'example/test/src/deephier/DeepSocSpec.scala';
 const DEEP_TEST_LINE = 7; // 0-based line of test("DeepSoc elaborates and steps")
 const CLICK_INST = 'cluster0'; // a deephier.Cluster instance in DeepSoc
+const GCD_TITLE = 'SoCLess: GCD computes gcd(48, 18)';
+const DEEP_TITLE = 'SoCLess: DeepSoc elaborates and steps';
+
+/** The UI's data-theme for a vscode.ColorThemeKind (null: the default light theme, no attribute). */
+const uiTheme = (kind) => (kind === 2 ? 'dark' : kind === 3 ? 'contrast' : null);
 
 const t0 = Date.now();
 const secs = (ms) => (ms / 1000).toFixed(1) + 's';
@@ -133,6 +138,7 @@ async function run() {
     const tabs = await poll('a SoCLess webview tab', 30000, () => soclessTabs().length > 0 && soclessTabs());
     log(`      tab "${tabs[0].label}" (${tabs[0].input.viewType})`);
     if (tabs.length !== 1) throw new Error(`expected one SoCLess tab, found ${tabs.length}`);
+    if (tabs[0].label !== GCD_TITLE) throw new Error(`tab title "${tabs[0].label}", expected "${GCD_TITLE}"`);
   });
 
   await step('4. cursor in class GCD focuses gcd.GCD', async () => {
@@ -197,6 +203,7 @@ async function run() {
       const j = await getJson(url + 'design.json');
       return j.top === 'DeepSoc' && j;
     }, 1000);
+    await poll(`the SoCLess tab titled "${DEEP_TITLE}"`, 10000, () => soclessTabs().some((t) => t.label === DEEP_TITLE));
 
     // Where a click on CLICK_INST must lead, from the design itself, and the UI's precondition for
     // sending POST open: the module source is absolute or one of the embedded sources.
@@ -222,7 +229,10 @@ async function run() {
 
     const requestFile = path.join(runDir, 'click-request.json');
     const resultFile = path.join(runDir, 'click-result.json');
-    fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ url, inst: CLICK_INST }));
+    // The driver also checks the embedded UI: no Source tab, logo or bottom panel, and VS Code's theme.
+    const theme = uiTheme(vscode.window.activeColorTheme.kind);
+    log(`      VS Code theme kind ${vscode.window.activeColorTheme.kind}, UI data-theme expected ${theme}`);
+    fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ url, inst: CLICK_INST, top: d.top, theme }));
     fs.renameSync(requestFile + '.tmp', requestFile);
     const res = await poll(`${resultFile} from webview-click.mjs`, 240000, () =>
       fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
@@ -235,6 +245,49 @@ async function run() {
       const e = vscode.window.activeTextEditor;
       return e && e.document.uri.fsPath === file && e.selection.active.line === src.line - 1;
     });
+  });
+
+  // The panel's page is set once per server URL: a second View design or Show design panel must not
+  // reload the iframe. The driver drilled into cluster0 and opened the bottom panel after step 7.
+  await step('8. UI state survives View design and Show design panel', async () => {
+    const runDir = process.env.SOCLESS_E2E_DIR;
+    await poll('state-ready.json from webview-click.mjs', 30000, () => fs.existsSync(path.join(runDir, 'state-ready.json')));
+    const deepUri = vscode.Uri.file(path.join(root(), DEEP_SPEC_FILE));
+    await openEditor(DEEP_SPEC_FILE);
+    const lens = await viewDesignLens(deepUri, DEEP_SPEC_FILE, (l) => l.range.start.line === DEEP_TEST_LINE);
+    await vscode.commands.executeCommand(lens.command.command, ...(lens.command.arguments || []));
+    await sleep(1000);
+    await poll('the second view run to end', 180000, async () => {
+      const s = (await getJson(url + 'ide.json')).status;
+      return s !== 'running' && s !== 'error';
+    }, 1000);
+    await vscode.commands.executeCommand('socless.showPanel');
+    await sleep(3000); // a reload (and the live poll of the new design) would land here
+    const resultFile = path.join(runDir, 'state-result.json');
+    fs.writeFileSync(path.join(runDir, 'state-request.json'), '{}');
+    const res = await poll(`${resultFile} from webview-click.mjs`, 30000, () =>
+      fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
+    if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
+    log(`      ${res.message}`);
+  });
+
+  // Live theme switch: the webview page's script forwards VS Code's new theme kind to the UI.
+  await step('9. the webview UI follows a VS Code theme change', async () => {
+    const runDir = process.env.SOCLESS_E2E_DIR;
+    const from = vscode.window.activeColorTheme.kind;
+    const [name, kind] = from === 1 ? ['Default Dark Modern', 2] : ['Default Light Modern', 1];
+    await vscode.workspace.getConfiguration('workbench').update('colorTheme', name, vscode.ConfigurationTarget.Global);
+    await poll(`VS Code theme ${name}`, 15000, () => vscode.window.activeColorTheme.kind === kind);
+    const theme = uiTheme(kind);
+    log(`      VS Code theme kind ${from} -> ${kind}, UI data-theme expected ${theme}`);
+    const requestFile = path.join(runDir, 'theme-request.json');
+    const resultFile = path.join(runDir, 'theme-result.json');
+    fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ theme }));
+    fs.renameSync(requestFile + '.tmp', requestFile);
+    const res = await poll(`${resultFile} from webview-click.mjs`, 60000, () =>
+      fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
+    if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
+    log(`      ${res.message}`);
   });
 
   log('ALL PASSED');

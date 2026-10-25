@@ -6,7 +6,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import socless.schema.{Design, ModuleDef, ModuleKind}
-import socless.ui.data.{DesignLoader, IdeLink, IdeState}
+import socless.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socless.ui.theme._
 import socless.ui.model._
 import socless.ui.schematic._
@@ -51,7 +51,7 @@ object App {
   // schematic; the bottom panel is also drag-resizable.
   private val leftOpenVar      = Var(true)
   private val rightOpenVar     = Var(true)
-  private val bottomOpenVar    = Var(true)
+  private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
   private val bottomHeightVar  = Var(240.0)
 
   // Design loading + live poll + drag-drop + toasts (#219), owning the design /
@@ -75,11 +75,15 @@ object App {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
+    if (Embedded.on) {
+      Embedded.initialTheme.foreach(applyTheme)
+      Embedded.onThemeMessage(applyTheme)
+    }
     densityVar.set(currentDensity()); labelSizeVar.set(currentLabelSize())
     try autoOptimizeVar.set(dom.window.localStorage.getItem("socless-autoopt") != "off") catch { case _: Throwable => () }
     render(container, shell())
     installKeyboard()
-    loader.installDragDrop()
+    if (Embedded.on) Embedded.blockFileDrops() else loader.installDragDrop()
     setInterval(1000d) { tickVar.update(_ + 1) } // drives the "updated Ns ago" badge
     loader.start() // load design.json + the multi-top picker index (#197)
     ide.start()    // probe /ide.json; polls only when served by the language server
@@ -131,12 +135,13 @@ object App {
 
   /** Apply a theme id: set data-theme (absent for the default "light"), set
     * data-mode for dark themes (drives the shared dark secondary palette),
-    * persist, and mirror into themeVar so the gallery + toggle re-render. */
+    * persist (not when embedded: the host's theme is not a user choice), and
+    * mirror into themeVar so the gallery + toggle re-render. */
   private def applyTheme(id: String): Unit = {
     val root = dom.document.documentElement
     if (id == "light") root.removeAttribute("data-theme") else root.setAttribute("data-theme", id)
     if (darkThemes(id)) root.setAttribute("data-mode", "dark") else root.removeAttribute("data-mode")
-    try dom.window.localStorage.setItem("socless-theme", id) catch { case _: Throwable => () }
+    if (!Embedded.on) try dom.window.localStorage.setItem("socless-theme", id) catch { case _: Throwable => () }
     themeVar.set(id)
   }
 
@@ -291,9 +296,10 @@ object App {
             declutterRow("Constants", "const"),
             declutterRow("Memories", "mem"),
             declutterRow("State machines", "fsm"),
-            div(cls := "scl-set-sect", "Theme"),
-            div(cls := "scl-set-gallery",
-              themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) }),
+            // Embedded, the theme follows the host editor: no gallery.
+            Option.when(!Embedded.on)(div(cls := "scl-set-sect", "Theme")),
+            Option.when(!Embedded.on)(div(cls := "scl-set-gallery",
+              themes.map { case (id, label, bg, accent) => themeCard(id, label, bg, accent) })),
           ))
       })
 
@@ -367,6 +373,7 @@ object App {
       hoveredVar  = hoveredSigVar,
       drillInto   = drillInto,
       heightVar   = bottomHeightVar,
+      embedded    = Embedded.on,
     )
     val inspectorEl = Inspector.render(
       designSig          = loader.designSig,
@@ -399,6 +406,7 @@ object App {
             autoOptimizeVar  = autoOptimizeVar,
             designSnapshot   = () => loader.snapshot(),
             focusClassSig    = ide.focusClassSig,
+            showShare        = !Embedded.on,
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
@@ -421,7 +429,14 @@ object App {
       selectedSigVar.signal.changes.debounce(0).distinct --> { sel => sel.foreach(openInstanceSource) },
       // Command palette + keyboard-help overlays (fixed-position modals).
       Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p),
-        actions = Seq(
+        actions = if (Embedded.on) Seq(
+          ("Open settings",          "density, color",            () => settingsOpenVar.set(true)),
+          ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
+          ("Toggle hierarchy panel", "left pane",                 () => leftOpenVar.update(!_)),
+          ("Toggle bottom panel",    "ports",                     () => bottomOpenVar.update(!_)),
+          ("Toggle inspector panel", "right pane",                () => rightOpenVar.update(!_)),
+          ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
+        ) else Seq(
           ("Toggle theme",           "dark / light",              () => toggleTheme()),
           ("Open settings",          "density, theme, color",     () => settingsOpenVar.set(true)),
           ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
@@ -432,7 +447,8 @@ object App {
         )),
       Chrome.helpOverlay(helpOpenVar),
       // Design-input chrome (#194): drag-drop overlay + transient toasts.
-      dropOverlay(),
+      // Embedded, designs come from the editor's runs only: no drop zone.
+      Option.when(!Embedded.on)(dropOverlay()),
       toastEl(),
     )
   }
@@ -507,7 +523,8 @@ object App {
   private def topBar(): Element =
     div(
       cls := "scl-topbar", dataAttr("topbar") := "1",
-      span(cls := "scl-logo", "SoCLess"),
+      // Embedded, the editor tab names the panel: no logo, picker or theme toggle.
+      Option.when(!Embedded.on)(span(cls := "scl-logo", "SoCLess")),
       // Breadcrumb: clickable segments navigate up the hierarchy.
       div(cls := "scl-crumbs",
         children <-- pathVar.signal.map { p =>
@@ -542,7 +559,7 @@ object App {
       // Multi-top design picker (#197): switch between elaborated tops in place.
       // Hidden for a single-top build (designs.json absent -> designsSig empty).
       child.maybe <-- loader.designsSig.map { ds =>
-        if (ds.isEmpty) None
+        if (ds.isEmpty || Embedded.on) None
         else Some(
           select(
             cls := "scl-design-picker", dataAttr("design-picker") := "1",
@@ -579,11 +596,11 @@ object App {
       // View settings (#198): density + accent presets.
       settingsControl(),
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.
-      button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
+      Option.when(!Embedded.on)(button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
         dataAttr("theme") <-- themeVar.signal,
         title <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
         onClick --> { _ => toggleTheme() },
-        child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon)),
+        child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon))),
       // Help affordance.
       button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),

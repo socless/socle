@@ -57,10 +57,77 @@ object Logic {
 
   private val OriginRe = """^([A-Za-z][A-Za-z0-9+.-]*://[^/?#\s"'<>;]+)""".r
 
-  /** The webview page: a CSP allowing only `frameUrl`'s origin as a frame, and one full-size iframe on it. */
-  def webviewHtml(frameUrl: String, cspSource: String): String = {
-    val origin = OriginRe.findFirstMatchIn(frameUrl).map(_.group(1)).getOrElse("'none'")
-    val csp    = s"default-src 'none'; frame-src $origin; style-src $cspSource 'unsafe-inline';"
+  /** The UI's theme kind for a `vscode.ColorThemeKind` (1 Light, 2 Dark, 3 HighContrast,
+    * 4 HighContrastLight): `light`, `dark` or `hc`. High contrast light falls back to `light`.
+    */
+  def themeKind(kind: Int): String = kind match {
+    case 1 | 4 => "light"
+    case 3     => "hc"
+    case _     => "dark"
+  }
+
+  /** The server's UI URL with the embedded-mode query: `host=vscode` and the initial theme kind. */
+  def panelUrl(url: String, theme: String): String = {
+    val (base, frag) = url.indexOf('#') match {
+      case -1 => (url, "")
+      case i  => (url.substring(0, i), url.substring(i))
+    }
+    val sep = if (base.contains("?")) "&" else "?"
+    s"$base${sep}host=vscode&theme=$theme$frag"
+  }
+
+  private val TitleMax = 60
+
+  /** The panel's tab title: `SoCLess: <test>`, the test name cut to 60 characters (the last one "…"). */
+  def panelTitle(test: Option[String]): String = nonBlank(test) match {
+    case None => "SoCLess design"
+    case Some(t) =>
+      val short =
+        if (t.length <= TitleMax) t
+        else {
+          val cut = t.substring(0, TitleMax - 1)
+          (if (Character.isHighSurrogate(cut.last)) cut.init else cut) + "…"
+        }
+      s"SoCLess: $short"
+  }
+
+  /** The hex form of random bytes, for a CSP nonce. */
+  def hex(bytes: Seq[Int]): String = bytes.map(b => f"${b & 0xff}%02x").mkString
+
+  /** The webview page: a CSP allowing only `frameUrl`'s origin as a frame and only the `nonce` script,
+    * one full-size iframe on it, and a script that forwards VS Code's theme kind (the `vscode-*` body
+    * classes) to the iframe as `{type: "socless-theme", kind}`, on load and on every theme change.
+    * Without a frame origin there is no script.
+    */
+  def webviewHtml(frameUrl: String, cspSource: String, nonce: String): String = {
+    val origin = OriginRe.findFirstMatchIn(frameUrl).map(_.group(1))
+    val csp = s"default-src 'none'; frame-src ${origin.getOrElse("'none'")}; style-src $cspSource 'unsafe-inline';" +
+      origin.fold("")(_ => s" script-src 'nonce-$nonce';")
+    // OriginRe excludes quotes, backslashes and angle brackets, so the origin is a safe JS string literal.
+    val script = origin.fold("") { o =>
+      s"""<script nonce="${escapeHtml(nonce)}">
+         |(function () {
+         |  var frame = document.querySelector('iframe');
+         |  function kind() {
+         |    var c = document.body.classList;
+         |    if (c.contains('vscode-high-contrast-light')) return 'light';
+         |    if (c.contains('vscode-high-contrast')) return 'hc';
+         |    if (c.contains('vscode-dark')) return 'dark';
+         |    return 'light';
+         |  }
+         |  var last = null;
+         |  function post(force) {
+         |    var k = kind();
+         |    if (!force && k === last) return;
+         |    last = k;
+         |    if (frame.contentWindow) frame.contentWindow.postMessage({ type: 'socless-theme', kind: k }, "$o");
+         |  }
+         |  new MutationObserver(function () { post(false); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+         |  frame.addEventListener('load', function () { post(true); });
+         |})();
+         |</script>
+         |""".stripMargin
+    }
     s"""<!DOCTYPE html>
        |<html>
        |<head>
@@ -70,10 +137,20 @@ object Logic {
        |</head>
        |<body>
        |<iframe src="${escapeHtml(frameUrl)}"></iframe>
-       |</body>
+       |$script</body>
        |</html>
        |""".stripMargin
   }
+}
+
+/** One panel's webview page. The nonce and the initial theme kind are fixed when the panel is made, so
+  * the html changes only with the server URL: setting the same html again does not reload the iframe,
+  * and the UI keeps its state (drill path, zoom, open panels). The page script posts the current theme
+  * kind on every iframe load anyway.
+  */
+final class PanelPage(nonce: String, themeKind: String) {
+  def html(serverUrl: String, cspSource: String): String =
+    Logic.webviewHtml(Logic.panelUrl(serverUrl, themeKind), cspSource, nonce)
 }
 
 /** Runs only the last `apply` of a burst, `delayMs` after it. `schedule`/`cancel` are

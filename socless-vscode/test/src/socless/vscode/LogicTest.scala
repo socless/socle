@@ -84,19 +84,75 @@ object LogicTest extends TestSuite {
 
     test("webviewHtml") {
       test("csp and iframe") {
-        val h = Logic.webviewHtml("http://127.0.0.1:41234/", "vscode-webview://abc")
+        val h = Logic.webviewHtml("http://127.0.0.1:41234/", "vscode-webview://abc", "N0nce")
         assert(h.startsWith("<!DOCTYPE html>"))
         assert(h.contains("default-src 'none'"))
         assert(h.contains("frame-src http://127.0.0.1:41234;"))
         assert(h.contains("style-src vscode-webview://abc 'unsafe-inline';"))
+        assert(h.contains("script-src 'nonce-N0nce';"))
         assert(h.contains("""<iframe src="http://127.0.0.1:41234/""""))
       }
       test("escapes the url") {
-        val h = Logic.webviewHtml("""http://127.0.0.1:41234/?a="b"&c<d>""", "vscode-webview://abc")
+        val h = Logic.webviewHtml("""http://127.0.0.1:41234/?a="b"&c<d>""", "vscode-webview://abc", "N0nce")
         assert(h.contains("""src="http://127.0.0.1:41234/?a=&quot;b&quot;&amp;c&lt;d&gt;""""))
         assert(!h.contains(""""b""""))
         assert(h.contains("frame-src http://127.0.0.1:41234;"))
       }
+      test("theme script: nonce, body classes, posts to the frame origin only") {
+        val h = Logic.webviewHtml("http://127.0.0.1:41234/?host=vscode", "vscode-webview://abc", "N0nce")
+        val scripts = "<script".r.findAllMatchIn(h).size
+        assert(scripts == 1, h.contains("""<script nonce="N0nce">"""))
+        assert(h.contains("MutationObserver"), h.contains("vscode-high-contrast"), h.contains("vscode-dark"))
+        assert(h.contains("socless-theme"))
+        assert(h.contains("""postMessage({ type: 'socless-theme', kind: k }, "http://127.0.0.1:41234")"""))
+      }
+      test("no script without a frame origin") {
+        val h = Logic.webviewHtml("not a url", "vscode-webview://abc", "N0nce")
+        assert(!h.contains("<script"), h.contains("frame-src 'none';"))
+      }
+    }
+
+    test("PanelPage") {
+      val page = new PanelPage("N0nce", "dark")
+      test("same url, identical html (no iframe reload)") {
+        assert(page.html("http://127.0.0.1:41234/", "csp") == page.html("http://127.0.0.1:41234/", "csp"))
+      }
+      test("embedded url with the panel's theme and nonce") {
+        val h = page.html("http://127.0.0.1:41234/", "csp")
+        assert(h.contains("""src="http://127.0.0.1:41234/?host=vscode&amp;theme=dark""""), h.contains("'nonce-N0nce'"))
+      }
+      test("a new server url changes the html") {
+        assert(page.html("http://127.0.0.1:41234/", "csp") != page.html("http://127.0.0.1:5000/", "csp"))
+      }
+    }
+
+    test("hex") {
+      assert(Logic.hex(Seq(0, 15, 16, 255, -1)) == "000f10ffff")
+    }
+
+    test("themeKind") {
+      // vscode.ColorThemeKind: 1 Light, 2 Dark, 3 HighContrast, 4 HighContrastLight
+      assert(Logic.themeKind(1) == "light", Logic.themeKind(2) == "dark")
+      assert(Logic.themeKind(3) == "hc", Logic.themeKind(4) == "light")
+      assert(Logic.themeKind(99) == "dark")
+    }
+
+    test("panelUrl") {
+      test("plain") {
+        assert(Logic.panelUrl("http://127.0.0.1:41234/", "dark") == "http://127.0.0.1:41234/?host=vscode&theme=dark")
+      }
+      test("existing query and fragment") {
+        assert(Logic.panelUrl("http://127.0.0.1:1/?a=1#x", "hc") == "http://127.0.0.1:1/?a=1&host=vscode&theme=hc#x")
+      }
+    }
+
+    test("panelTitle") {
+      assert(Logic.panelTitle(None) == "SoCLess design")
+      assert(Logic.panelTitle(Some("  ")) == "SoCLess design")
+      assert(Logic.panelTitle(Some("GCD computes gcd(48, 18)")) == "SoCLess: GCD computes gcd(48, 18)")
+      val long = "a" * 100
+      val t = Logic.panelTitle(Some(long))
+      assert(t == "SoCLess: " + "a" * 59 + "…")
     }
 
     test("Debouncer") {

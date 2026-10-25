@@ -449,6 +449,7 @@ object LanguageServerTest extends TestSuite {
         f.view(gcdArgs: _*)
         val ps = eventually("two openPanel")(Some(f.client.panels.asScala.toSeq).filter(_.size == 2))
         assert(ps.map(_.getUrl).distinct.size == 1, ps.head.getUrl.matches("http://127\\.0\\.0\\.1:\\d+/"))
+        assert(ps.forall(_.getTest == "GCD computes gcd(48, 18)"))
         Thread.sleep(300)
         assert(f.client.panels.size == 2)
         assert(f.client.documents.asScala.count(_.getExternal == true) == 0)

@@ -60,6 +60,8 @@ object Schematic {
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
     // Generator class under the editor cursor (plan 2, language server); "" = none.
     focusClassSig: Signal[String] = Signal.fromValue(""),
+    // The HTML snapshot ("share") button; off when embedded in an editor.
+    showShare: Boolean = true,
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -594,7 +596,7 @@ object Schematic {
       onResetView   = () => { zoomVar.set(1.0); panVar.set((40.0, 40.0)) },
       onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
       onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
-      onShare       = () => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) },
+      onShare       = Option.when(showShare)(() => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) }),
     )
 
     // ── pane root ──

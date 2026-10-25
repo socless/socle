@@ -6,9 +6,15 @@
 // ({url, inst}), then works on VS Code's CDP targets: the workbench page, the webview iframe
 // (vscode-webview://, holding VS Code's active-frame and our iframe) and our iframe on the loopback
 // server, which is out of process and so its own target. It waits until the UI in our iframe has
-// fetched ide.json (200) and drawn the box of `inst`, takes a screenshot, clicks the box header with
+// fetched ide.json (200) and drawn the box of `inst`, checks the UI is in embedded mode with VS Code's
+// theme (request `theme`: the expected data-theme), takes a screenshot, clicks the box header with
 // a real mouse event on the workbench page, records the UI's `POST open` and writes
 // <runDir>/click-result.json: {ok, stage, message, ...}. index.js then checks the editor moved.
+// Next it drills into `inst`, opens the bottom panel and marks the window, writes state-ready.json;
+// index.js views the design again and runs Show design panel, writes state-request.json, and the
+// driver checks all three survived (no iframe reload) in state-result.json.
+// Then index.js switches the VS Code theme and writes <runDir>/theme-request.json ({theme}); the driver
+// waits for the UI's data-theme to follow and writes <runDir>/theme-result.json.
 //
 // Raw CDP over Node's built-in WebSocket, no npm package: Playwright's connectOverCDP (the one in
 // tools/ui-smoke) attached to VS Code's Electron sees only the workbench frame, not the webview's
@@ -26,15 +32,23 @@ const t0 = Date.now();
 const log = (m) => console.log(`[click +${((Date.now() - t0) / 1000).toFixed(1)}s] ${m}`);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-let stage = 'start';
-const result = { ok: false };
+const stateReadyFile = join(runDir, 'state-ready.json');
+const stateRequestFile = join(runDir, 'state-request.json');
+const stateResultFile = join(runDir, 'state-result.json');
+const themeRequestFile = join(runDir, 'theme-request.json');
+const themeResultFile = join(runDir, 'theme-result.json');
 
+let stage = 'start';
+let result = { ok: false };
+let out = resultFile; // the click phase, then the theme phase
+
+/** Writes the current phase's result; a failure ends the driver. */
 function finish(extra) {
   Object.assign(result, extra, { stage });
-  writeFileSync(resultFile + '.tmp', JSON.stringify(result, null, 2));
-  renameSync(resultFile + '.tmp', resultFile); // index.js never sees a half-written file
+  writeFileSync(out + '.tmp', JSON.stringify(result, null, 2));
+  renameSync(out + '.tmp', out); // index.js never sees a half-written file
   log(`${result.ok ? 'OK' : 'FAIL'} at stage "${stage}": ${result.message}`);
-  process.exit(0);
+  if (!result.ok) process.exit(0);
 }
 
 async function until(what, timeoutMs, probe, everyMs = 250) {
@@ -165,6 +179,22 @@ async function main() {
   result.seen = await boxes();
   log(`boxes ${JSON.stringify(result.seen)}; ${req.inst} at ${JSON.stringify(box)}`);
 
+  stage = 'embedded UI';
+  // The panel loads the UI in embedded mode: no Source tab, logo or theme toggle, the bottom panel
+  // closed, and the theme of VS Code (req.theme: the expected data-theme, null for light).
+  const ui0 = await evaluate(uiConn, `({
+    href: location.href,
+    sourceTab: !!document.querySelector('[data-bottom-tab="source"]'),
+    logo: !!document.querySelector('.scl-logo'),
+    themeToggle: !!document.querySelector('[data-theme-toggle]'),
+    bottomPanel: !!document.querySelector('[data-bottom-panel]'),
+    theme: document.documentElement.getAttribute('data-theme'),
+  })`);
+  result.embedded = ui0;
+  if (!new URL(ui0.href).searchParams.get('host')) throw new Error(`UI loaded without host=vscode: ${ui0.href}`);
+  for (const k of ['sourceTab', 'logo', 'themeToggle', 'bottomPanel']) if (ui0[k]) throw new Error(`embedded UI shows ${k}`);
+  if (ui0.theme !== req.theme) throw new Error(`UI data-theme ${ui0.theme}, expected ${req.theme} (VS Code's theme)`);
+
   stage = 'screenshot';
   await screenshot();
 
@@ -216,6 +246,56 @@ async function main() {
   if (headers.origin !== origin) throw new Error(`POST open sent Origin ${headers.origin}, expected ${origin}`);
 
   finish({ ok: true, message: `clicked ${req.inst} at (${x}, ${y}), POST open (Origin ${headers.origin}, Host ${headers.host}) -> ${post.status}` });
+
+  // State phase: drill into a module, open the bottom panel and mark the window, then index.js views
+  // the design again and runs Show design panel; the iframe must not have reloaded (all three kept).
+  out = stateResultFile;
+  result = { ok: false };
+  stage = 'prepare the UI state';
+  const drill = JSON.stringify(`[data-hier-path="${req.top}/${req.inst}"]`);
+  await evaluate(uiConn, `(() => {
+    window.__soclessKeep = 1;
+    document.querySelector(${drill}).click();
+    document.querySelector('[data-toggle-pane="bottom"]').click();
+    return true;
+  })()`);
+  const state = () => evaluate(uiConn, `({
+    marker: window.__soclessKeep === 1,
+    bottomPanel: !!document.querySelector('[data-bottom-panel]'),
+    drilled: !!document.querySelector(${drill} + '.active'),
+  })`);
+  await until('the UI drilled with the bottom panel open', 5000, async () => {
+    const s = await state();
+    return s.bottomPanel && s.drilled;
+  });
+  writeFileSync(stateReadyFile, '{}');
+  stage = 'wait for the state request';
+  await until(`${stateRequestFile} from index.js`, 5 * 60 * 1000, () => existsSync(stateRequestFile), 250);
+  stage = 'UI state survives';
+  const after = await state().catch((e) => ({ error: e.message }));
+  result.state = after;
+  if (!after.marker || !after.bottomPanel || !after.drilled) throw new Error(`UI state lost (iframe reloaded?): ${JSON.stringify(after)}`);
+  finish({ ok: true, message: `UI state kept: ${JSON.stringify(after)}` });
+
+  // Theme phase: index.js switches the VS Code theme and says which data-theme the UI must reach.
+  out = themeResultFile;
+  result = { ok: false };
+  stage = 'wait for the theme request';
+  const treq = await until(`${themeRequestFile} from index.js`, 5 * 60 * 1000, () =>
+    existsSync(themeRequestFile) && JSON.parse(readFileSync(themeRequestFile, 'utf8')), 250);
+  stage = 'UI follows the VS Code theme';
+  const theme = () => evaluate(uiConn, `document.documentElement.getAttribute('data-theme')`);
+  await until(`UI data-theme ${treq.theme}`, 15000, async () => (await theme()) === treq.theme).catch(async (e) => {
+    result.theme = await theme().catch(String);
+    // The webview page side: its theme class and whether its forwarding script is there.
+    result.page = await evaluate(wvConn, `(() => {
+      const d = document.getElementById('active-frame').contentDocument;
+      return { bodyClass: d.body.className, scripts: [...d.querySelectorAll('script')].map((s) => s.outerHTML.slice(0, 120)) };
+    })()`).catch(String);
+    throw e;
+  });
+  finish({ ok: true, message: `UI data-theme is now ${treq.theme}` });
+  process.exit(0);
 }
 
 main().catch((e) => finish({ ok: false, message: e.message }));

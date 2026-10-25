@@ -32,7 +32,7 @@ private[schematic] object SchematicChrome {
     onResetView:   () => Unit,
     onExportSvg:   () => Unit,
     onExportPng:   () => Unit,
-    onShare:       () => Unit,
+    onShare:       Option[() => Unit], // None: no share button
   )
 
   // ── chrome (top-left chips) ──
@@ -105,8 +105,9 @@ private[schematic] object SchematicChrome {
         onClick --> { _ => c.onExportSvg() }, "svg"),
       button(styleAttr := zbtn, dataAttr("export-png") := "1", title := "Export schematic as PNG (2x)",
         onClick --> { _ => c.onExportPng() }, "png"),
-      button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
-        onClick --> { _ => c.onShare() }, "share"),
+      c.onShare.map(share =>
+        button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
+          onClick --> { _ => share() }, "share")),
     )
 
   // ── minimap (issue #5) ──

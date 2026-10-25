@@ -58,8 +58,11 @@ object BottomPanel {
     hoveredVar: Var[Option[String]],
     drillInto: String => Unit,
     heightVar: Var[Double],
+    // Embedded in an editor (VS Code): the editor shows the source and runs
+    // the simulations, so only the Ports tab is left.
+    embedded: Boolean = false,
   ): Element = {
-    val tabVar = Var("source")
+    val tabVar = Var(if (embedded) "ports" else "source")
     def setSel(p: String): Unit = selectedVar.set(Some(p))
 
     // Drag the top edge to resize the panel (#206). Document-level listeners so
@@ -111,8 +114,8 @@ object BottomPanel {
       div(cls := "scl-bottom-resize", dataAttr("bottom-resize") := "1",
         onMouseDown --> { (e: dom.MouseEvent) => onResizeDown(e) }),
       div(cls := "scl-bottom-tabs",
-        tabButton("source", "⌥", "Source"),
-        tabButton("wave", "∿", "Waveform"),
+        Option.when(!embedded)(tabButton("source", "⌥", "Source")),
+        Option.when(!embedded)(tabButton("wave", "∿", "Waveform")),
         tabButton("ports", "⊕", "Ports"),
         div(styleAttr := "flex:1"),
         div(styleAttr := s"display:flex;align-items:center;gap:6px;padding:0 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink4};overflow:hidden;white-space:nowrap;max-width:50%",

@@ -46,6 +46,31 @@ with Node.
 4. Close the panel and run the lens again to get it back, or run the command
    `SoCLess: Show design panel` to reveal the current design.
 
+## What the panel shows
+
+The panel is the SoCLess UI in embedded mode (the extension loads it with
+`?host=vscode`), trimmed to what VS Code does not already do:
+
+- the tab is titled `SoCLess: <test name>`, so the UI has no logo of its own;
+- no Source tab (the editor shows the code, and a click on a box opens it
+  there) and no Waveform tab (`Simulate` opens the trace in Surfer). The bottom
+  panel keeps Ports and starts closed; its toolbar button opens it;
+- no theme toggle or theme gallery: the panel follows the VS Code theme, light
+  to the light theme, dark to the dark one, high contrast to the high-contrast
+  one and high contrast light to the light one, and switches live when you change the VS Code theme. This is not saved
+  as your theme in the browser UI;
+- no multi-top design picker, no drop zone for `design.json` / `.fir` files and
+  no `share` (HTML snapshot) button: the design always comes from the test you
+  viewed. The `svg` and `png` exports stay.
+
+Viewing a test again, or another one, or running `SoCLess: Show design panel`
+does not reload the panel: the new design loads in place, and the open panels
+and the drill path (while it exists in the new design) are kept.
+
+Breadcrumbs, search, the run status, the panel toggles, the view settings and
+the keyboard help work as in the browser. Opened in a browser or from Neovim,
+the UI is unchanged.
+
 ## Simulate
 
 Next to each `View design` lens, a `Simulate` lens runs the test for real with
@@ -112,8 +137,8 @@ calls on the `out/` lock. For the same reason, do not run it while another
 and extensions dir) on this repository with the staged extension and checks:
 
 1. the `View design` lens appears on `GcdSpec.scala`;
-2. running it opens a SoCLess webview tab and `/design.json` serves the GCD
-   design;
+2. running it opens a SoCLess webview tab titled after the test and
+   `/design.json` serves the GCD design;
 3. the cursor in `GCD.scala` makes `/ide.json` report `gcd.GCD`;
 4. `POST /open` (what a click in the panel sends) moves the editor to
    `GCD.scala:24`;
@@ -121,10 +146,17 @@ and extensions dir) on this repository with the staged extension and checks:
 6. inside the webview, the UI loads `DeepSoc` from the server, and a real mouse
    click on the `cluster0` box makes the UI send `POST /open` (with the
    iframe's `Origin`, accepted by the server), which moves the editor to the
-   `Cluster` class in `DeepSoc.scala`.
+   `Cluster` class in `DeepSoc.scala`. Before the click it checks the UI is in
+   embedded mode (no Source tab, logo or theme toggle, bottom panel closed)
+   with the data theme of the VS Code theme;
+7. after drilling into `cluster0` and opening the bottom panel, viewing the
+   design again and running `SoCLess: Show design panel` do not reload the UI
+   (both are kept);
+8. after switching the VS Code theme (dark to light), the UI in the webview
+   follows it.
 
-The last check (step 7 in the log, which also counts the webview tab check)
-drives the webview over the Chrome DevTools Protocol: `run.sh` starts VS Code
+The last three checks (steps 7 to 9 in the log, which also counts the webview
+tab check) drive the webview over the Chrome DevTools Protocol: `run.sh` starts VS Code
 with a free `--remote-debugging-port` and runs
 `socless-vscode/e2e/webview-click.mjs` (plain Node, no npm package) next to it.
 The screenshot it takes before the click and its result are kept in
