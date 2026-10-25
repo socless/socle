@@ -99,6 +99,21 @@ async function viewDesignLens(specUri, rel = SPEC_FILE, accept = () => true) {
   });
 }
 
+/** The rows of the side panel's three trees (`socless._views`): {tests, hierarchy, details}. */
+async function views() {
+  return (await vscode.commands.executeCommand('socless._views')) || { tests: [], hierarchy: [], details: [] };
+}
+
+/** The Tests view row of `test` (depth 1) under the suite labelled `suite`. */
+function testRow(rows, suite, test) {
+  let inSuite = false;
+  for (const r of rows) {
+    if (r.depth === 0) inSuite = r.label === suite;
+    else if (inSuite && r.label === test) return r;
+  }
+  return undefined;
+}
+
 async function step(name, f) {
   const start = Date.now();
   log(`START ${name}`);
@@ -116,6 +131,17 @@ async function run() {
   log(`workspace ${root()}`);
   const specUri = vscode.Uri.file(path.join(root(), SPEC_FILE));
 
+  await step('0. SoCLess side panel lists the tests', async () => {
+    const cmds = await vscode.commands.getCommands(true);
+    if (!cmds.includes('workbench.view.extension.socless')) throw new Error('no SoCLess view container (workbench.view.extension.socless)');
+    await vscode.commands.executeCommand('workbench.view.extension.socless');
+    const row = await poll('the Tests view row of gcd.GcdSpec / GCD computes gcd(48, 18)', 120000, async () =>
+      testRow((await views()).tests, 'GcdSpec', 'GCD computes gcd(48, 18)'));
+    log(`      Tests view: ${row.label} (${row.id}), icon ${row.icon}`);
+    const suite = (await views()).tests.find((r) => r.depth === 0 && r.label === 'GcdSpec');
+    if (!suite.description.endsWith('gcd/GcdSpec.scala')) throw new Error(`suite description "${suite.description}"`);
+  });
+
   const lens = await step('1. View design lens on GcdSpec.scala', async () => {
     const editor = await openEditor(SPEC_FILE);
     if (editor.document.languageId !== 'scala') {
@@ -126,11 +152,18 @@ async function run() {
     return l;
   });
 
-  const url = await step('2. View design shows the GCD design', async () => {
-    await vscode.commands.executeCommand(lens.command.command, ...(lens.command.arguments || []));
+  // From the Tests view item's inline action (the lens runs the same server command, see step 6).
+  const url = await step('2. View design from the Tests view shows the GCD design', async () => {
+    const row = testRow((await views()).tests, 'GcdSpec', 'GCD computes gcd(48, 18)');
+    if (lens.command.arguments[1] !== row.element.suite || lens.command.arguments[2] !== row.element.test) {
+      throw new Error(`Tests view item ${row.element.suite} / ${row.element.test} differs from the lens ${lens.command.arguments}`);
+    }
+    await vscode.commands.executeCommand('socless.viewDesignItem', row.element);
     const u = await poll('socless._panelUrl', 180000, () => vscode.commands.executeCommand('socless._panelUrl'));
     log(`      panel url ${u}`);
     await poll(`design.json with top GCD at ${u}`, 180000, async () => (await getJson(u + 'design.json')).top === 'GCD', 1000);
+    await poll('the GCD test row marked "shown"', 30000, async () =>
+      testRow((await views()).tests, 'GcdSpec', 'GCD computes gcd(48, 18)').description === 'shown');
     return u;
   });
 
@@ -204,6 +237,12 @@ async function run() {
       return j.top === 'DeepSoc' && j;
     }, 1000);
     await poll(`the SoCLess tab titled "${DEEP_TITLE}"`, 10000, () => soclessTabs().some((t) => t.label === DEEP_TITLE));
+    // The Hierarchy view gets the design from the UI in the panel.
+    const hier = await poll('the Hierarchy view showing DeepSoc > cluster0', 60000, async () => {
+      const h = (await views()).hierarchy;
+      return h.length > 0 && h[0].label === 'DeepSoc' && h.some((r) => r.depth === 1 && r.label === CLICK_INST) && h;
+    });
+    log(`      Hierarchy: ${hier.map((r) => '  '.repeat(r.depth) + r.label + ' (' + r.description + ')').join(', ')}`);
 
     // Where a click on CLICK_INST must lead, from the design itself, and the UI's precondition for
     // sending POST open: the module source is absolute or one of the embedded sources.
@@ -245,13 +284,37 @@ async function run() {
       const e = vscode.window.activeTextEditor;
       return e && e.document.uri.fsPath === file && e.selection.active.line === src.line - 1;
     });
+
+    // The box click selected CLICK_INST: the Details view shows it.
+    const det = await poll(`the Details view on ${CLICK_INST}`, 15000, async () => {
+      const r = (await views()).details;
+      return r.length > 0 && r[0].label === CLICK_INST && r;
+    });
+    log(`      Details: ${det.map((r) => '  '.repeat(r.depth) + r.label + (r.description ? ' (' + r.description + ')' : '')).join(', ')}`);
+    if (det[0].description !== child.type) throw new Error(`Details names module ${det[0].description}, expected ${child.type}`);
+    if (!det.some((r) => r.label === 'Ports')) throw new Error('no Ports in the Details view');
+  });
+
+  // A click on cluster0 in the Hierarchy view drills the schematic there (checked by the driver in the
+  // webview: the breadcrumb ends in cluster0).
+  await step('7b. Hierarchy click drills the schematic', async () => {
+    const runDir = process.env.SOCLESS_E2E_DIR;
+    await poll('state-ready.json from webview-click.mjs', 30000, () => fs.existsSync(path.join(runDir, 'state-ready.json')));
+    const row = (await views()).hierarchy.find((r) => r.depth === 1 && r.label === CLICK_INST);
+    if (!row || !row.command) throw new Error(`no Hierarchy row with a command for ${CLICK_INST}`);
+    await vscode.commands.executeCommand(row.command.command, ...(row.command.arguments || []));
+    fs.writeFileSync(path.join(runDir, 'drill-request.json'), '{}');
+    const resultFile = path.join(runDir, 'drill-result.json');
+    const res = await poll(`${resultFile} from webview-click.mjs`, 30000, () =>
+      fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
+    if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
+    log(`      ${res.message}`);
   });
 
   // The panel's page is set once per server URL: a second View design or Show design panel must not
-  // reload the iframe. The driver drilled into cluster0 and opened the bottom panel after step 7.
+  // reload the iframe. The driver opened the bottom panel after step 7, step 7b drilled into cluster0.
   await step('8. UI state survives View design and Show design panel', async () => {
     const runDir = process.env.SOCLESS_E2E_DIR;
-    await poll('state-ready.json from webview-click.mjs', 30000, () => fs.existsSync(path.join(runDir, 'state-ready.json')));
     const deepUri = vscode.Uri.file(path.join(root(), DEEP_SPEC_FILE));
     await openEditor(DEEP_SPEC_FILE);
     const lens = await viewDesignLens(deepUri, DEEP_SPEC_FILE, (l) => l.range.start.line === DEEP_TEST_LINE);

@@ -700,6 +700,8 @@ object `socless-vscode` extends ScalaJSModule {
 
   def readme  = Task.Source("README.md")
   def license = Task.Source(mill.api.BuildCtx.workspaceRoot / "LICENSE")
+  /** Static files the manifest names (the activity bar icon), staged as `media/`. */
+  def media   = Task.Source("media")
 
   private def extVersion = V.publishVer.replace("-SNAPSHOT", "-snapshot")
 
@@ -710,7 +712,7 @@ object `socless-vscode` extends ScalaJSModule {
       sys.error(s"${cmd.mkString(" ")} failed (exit ${r.exitCode})\n${r.out.text()}\n${r.err.text()}")
   }
 
-  /** The extension directory: `out/extension.js`, `server/socless-lsp.jar`, `package.json`, README, LICENSE, `node_modules`.
+  /** The extension directory: `out/extension.js`, `server/socless-lsp.jar`, `package.json`, `media/`, README, LICENSE, `node_modules`.
     *
     * Copies the linked JS and the server assembly, then runs `npm install --omit=dev` for
     * `vscode-languageclient`. This directory is what the E2E loads as `--extensionDevelopmentPath`.
@@ -723,6 +725,7 @@ object `socless-vscode` extends ScalaJSModule {
     os.copy(packageJson().path, d / "package.json")
     os.copy(readme().path, d / "README.md")
     os.copy(license().path, d / "LICENSE")
+    os.copy(media().path, d / "media")
     // Package only the runtime files, whatever else lands in the stage.
     os.write(d / ".vscodeignore", ".vscodeignore\npackage-lock.json\n")
     runTool(d, "npm", "install", "--omit=dev", "--no-audit", "--no-fund")

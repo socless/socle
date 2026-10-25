@@ -106,6 +106,55 @@ object LogicTest extends TestSuite {
         assert(h.contains("socless-theme"))
         assert(h.contains("""postMessage({ type: 'socless-theme', kind: k }, "http://127.0.0.1:41234")"""))
       }
+      test("side panel relay: state up from the frame, navigate down to it") {
+        val h      = Logic.webviewHtml("http://127.0.0.1:41234/?host=vscode", "vscode-webview://abc", "N0nce")
+        val body   = h.substring(h.indexOf("""<script nonce="N0nce">""") + 22, h.indexOf("</script>"))
+        val toFrame = js.Array[js.Any]() // (message, targetOrigin) the page posts to the iframe
+        val toHost  = js.Array[js.Any]() // what the page sends to the extension
+        val frameWin = js.Dynamic.literal(postMessage = (m: js.Any, o: js.Any) => { toFrame.push(js.Array(m, o)); () })
+        val frame = js.Dynamic.literal(contentWindow = frameWin, addEventListener = (_: js.Any, _: js.Any) => ())
+        var onMessage: js.Function1[js.Any, Unit] = null
+        val host = js.Dynamic.literal(name = "webview host") // a window of the webview origin, which relays the extension
+        val window = js.Dynamic.literal(parent = host, origin = "vscode-webview://abc",
+          addEventListener = (t: String, f: js.Function1[js.Any, Unit]) => if (t == "message") onMessage = f)
+        val document = js.Dynamic.literal(
+          querySelector = (_: String) => frame,
+          body = js.Dynamic.literal(classList = js.Dynamic.literal(contains = (_: String) => false)))
+        val observer = js.eval("(function () { this.observe = function () {}; })").asInstanceOf[js.Any]
+        val vscodeApi = js.Dynamic.literal(postMessage = (m: js.Any) => { toHost.push(m); () })
+        val run = js.Dynamic.newInstance(js.Dynamic.global.Function)("window", "document", "MutationObserver", "acquireVsCodeApi", body)
+        run(window, document, observer, (() => vscodeApi): js.Function0[js.Any])
+        assert(onMessage != null)
+        def event(source: js.Any, origin: String, data: js.Any): Unit =
+          onMessage(js.Dynamic.literal(source = source, origin = origin, data = data))
+        val state = js.Dynamic.literal(`type` = "socless-state", path = js.Array("Top"))
+        event(frameWin, "http://127.0.0.1:41234", state)
+        assert(toHost.length == 1, toHost(0) eq state.asInstanceOf[js.Any])
+        // from the frame but another origin, or not a state: dropped
+        event(frameWin, "http://evil.example", state)
+        event(frameWin, "http://127.0.0.1:41234", js.Dynamic.literal(`type` = "socless-navigate", path = js.Array("Top")))
+        event(frameWin, "http://127.0.0.1:41234", "socless-state")
+        assert(toHost.length == 1)
+        // from the extension: a navigate goes to the frame origin, rebuilt with only its fields
+        event(host, "vscode-webview://abc", js.Dynamic.literal(`type` = "socless-navigate", path = js.Array("Top", "a"), select = "b", extra = 1))
+        assert(toFrame.length == 1)
+        val sent = toFrame(0).asInstanceOf[js.Array[js.Dynamic]]
+        assert(sent(1).asInstanceOf[String] == "http://127.0.0.1:41234")
+        assert(js.JSON.stringify(sent(0)) == """{"type":"socless-navigate","path":["Top","a"],"select":"b"}""")
+        event(host, "vscode-webview://abc", js.Dynamic.literal(`type` = "socless-navigate", path = js.Array("Top")))
+        assert(js.JSON.stringify(toFrame(1).asInstanceOf[js.Array[js.Any]](0)) == """{"type":"socless-navigate","path":["Top"],"select":null}""")
+        // anything else from the extension is not relayed
+        event(host, "vscode-webview://abc", js.Dynamic.literal(`type` = "socless-theme", kind = "dark"))
+        assert(toFrame.length == 2, toHost.length == 1)
+        // a navigate from a window of another origin (a third page, or the frame posting as itself),
+        // or a synthetic event without a source window: not relayed
+        val nav = js.Dynamic.literal(`type` = "socless-navigate", path = js.Array("Top", "x"))
+        event(js.Dynamic.literal(name = "third window"), "http://127.0.0.1:41234", nav)
+        event(host, "http://evil.example", nav)
+        event(null, "vscode-webview://abc", nav)
+        event(frameWin, "http://127.0.0.1:41234", nav) // the frame itself
+        assert(toFrame.length == 2, toHost.length == 1)
+      }
       test("no script without a frame origin") {
         val h = Logic.webviewHtml("not a url", "vscode-webview://abc", "N0nce")
         assert(!h.contains("<script"), h.contains("frame-src 'none';"))

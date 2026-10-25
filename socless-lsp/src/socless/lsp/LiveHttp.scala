@@ -16,7 +16,9 @@ case class IdeState(
     message: String = "",
     focusClass: String = "",
     test: String = "",
-    stamp: Long = 0L
+    stamp: Long = 0L,
+    // FQCN of `test`'s suite: for the editor (`socless/status`), not in /ide.json.
+    suite: String = ""
 )
 object IdeState { implicit val rw: ReadWriter[IdeState] = macroRW }
 
@@ -71,8 +73,11 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
     }
   }
 
-  def update(f: IdeState => IdeState): Unit = lock.synchronized {
+  /** Applies `f` to the state; returns the state before and after, atomically. */
+  def update(f: IdeState => IdeState): (IdeState, IdeState) = lock.synchronized {
+    val before = ide
     ide = f(ide).copy(stamp = clock())
+    (before, ide)
   }
 
   private[lsp] def state: IdeState = lock.synchronized(ide)
@@ -101,7 +106,11 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
       else (method, path) match {
         case (_, "/") | (_, "/SoCLess.html") if read =>
           Serve.readResource("/SoCLess.html") match {
-            case Some(html) => Serve.send(ex, 200, "text/html; charset=utf-8", html.getBytes(UTF_8))
+            case Some(html) =>
+              // Framing: the page itself, or VS Code's webview (whose own ancestor is the
+              // workbench, vscode-file:); no other site may embed the UI.
+              ex.getResponseHeaders.set("Content-Security-Policy", LiveHttp.FrameAncestors)
+              Serve.send(ex, 200, "text/html; charset=utf-8", html.getBytes(UTF_8))
             case None       => err(500, ex, "SoCLess.html not found on the classpath")
           }
         case (_, "/design.json") if read =>
@@ -155,4 +164,9 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
         }
     }
   }
+}
+
+/** The CSP of the UI page: who may frame it. */
+object LiveHttp {
+  val FrameAncestors = "frame-ancestors 'self' vscode-webview: vscode-file:"
 }

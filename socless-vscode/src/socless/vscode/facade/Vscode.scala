@@ -21,12 +21,43 @@ trait ExtensionContext extends js.Object {
 @JSImport("vscode", "Uri")
 object Uri extends js.Object {
   def parse(value: String): Uri = js.native
+  def file(path: String): Uri = js.native
 }
 
 @js.native
 trait Uri extends js.Object {
   val scheme: String = js.native
+  val fsPath: String = js.native
   override def toString(): String = js.native
+}
+
+@js.native
+@JSImport("vscode", "ThemeIcon")
+class ThemeIcon(val id: String) extends js.Object
+
+@js.native
+@JSImport("vscode", "Range")
+class Range(startLine: Int, startCharacter: Int, endLine: Int, endCharacter: Int) extends js.Object
+
+/** `vscode.EventEmitter`: `event` is what a TreeDataProvider exposes as `onDidChangeTreeData`. */
+@js.native
+@JSImport("vscode", "EventEmitter")
+class EventEmitter() extends Disposable {
+  val event: js.Any = js.native
+  def fire(data: js.Any): Unit = js.native
+}
+
+@js.native
+trait TreeView extends Disposable {
+  def visible: Boolean = js.native
+  var message: js.UndefOr[String] = js.native
+  def reveal(element: js.Any, options: js.Object): js.Promise[Unit] = js.native
+  def onDidChangeVisibility(listener: js.Function1[js.Any, Unit]): Disposable = js.native
+}
+
+@js.native
+trait WorkspaceFolder extends js.Object {
+  val uri: Uri = js.native
 }
 
 @js.native
@@ -67,12 +98,15 @@ trait TextEditorSelectionChangeEvent extends js.Object {
 trait Webview extends js.Object {
   var html: String = js.native
   val cspSource: String = js.native
+  def postMessage(message: js.Any): js.Promise[Boolean] = js.native
+  def onDidReceiveMessage(listener: js.Function1[js.Any, Unit]): Disposable = js.native
 }
 
 @js.native
 trait WebviewPanel extends Disposable {
   val webview: Webview = js.native
   var title: String = js.native
+  def viewColumn: js.UndefOr[Int] = js.native
   def reveal(viewColumn: js.UndefOr[Int] = js.undefined, preserveFocus: js.UndefOr[Boolean] = js.undefined): Unit = js.native
   def onDidDispose(listener: js.Function0[Unit]): Disposable = js.native
 }
@@ -96,6 +130,10 @@ object window extends js.Object {
   def showInformationMessage(message: String): js.Promise[js.UndefOr[String]] = js.native
   def onDidChangeTextEditorSelection(listener: js.Function1[TextEditorSelectionChangeEvent, Unit]): Disposable = js.native
   def activeColorTheme: ColorTheme = js.native
+  /** `options`: `{treeDataProvider, showCollapseAll?}`. */
+  def createTreeView(viewId: String, options: js.Object): TreeView = js.native
+  /** `options`: `{selection?, preserveFocus?, preview?, viewColumn?}`. */
+  def showTextDocument(uri: Uri, options: js.Object): js.Promise[js.Any] = js.native
 }
 
 @js.native
@@ -108,12 +146,14 @@ trait ColorTheme extends js.Object {
 @JSImport("vscode", "workspace")
 object workspace extends js.Object {
   def getConfiguration(section: String): WorkspaceConfiguration = js.native
+  def workspaceFolders: js.UndefOr[js.Array[WorkspaceFolder]] = js.native
 }
 
 @js.native
 @JSImport("vscode", "commands")
 object commands extends js.Object {
   def registerCommand(command: String, callback: js.Function): Disposable = js.native
+  def executeCommand(command: String, args: js.Any*): js.Promise[js.Any] = js.native
 }
 
 @js.native

@@ -46,6 +46,47 @@ with Node.
 4. Close the panel and run the lens again to get it back, or run the command
    `SoCLess: Show design panel` to reveal the current design.
 
+## The SoCLess side panel
+
+The SoCLess icon in the activity bar opens a side panel with three native
+views. The webview beside the editor keeps only the schematic.
+
+- **Tests**: every ChiselSim suite of the workspace (the simple class name,
+  with its file as the description) and its tests, found with the same rules
+  as the lenses (no Mill call). Clicking a test opens its source line. Each
+  test has two inline actions: `View design` (eye) and `Simulate` (play),
+  the same commands as the lenses. The test whose design the panel shows is
+  marked `shown` (eye icon); a test being viewed reads `running…`, one being
+  simulated `simulating…` (as the panel's run status: not when the simulation
+  starts while a view runs or has failed); a test whose last view failed shows an error
+  icon until a view of it succeeds. The list follows your saves: adding,
+  renaming or removing a test updates it.
+- **Hierarchy**: the instance tree of the design in the panel (instance name,
+  then its module, or the simple name of its Scala class for a captured
+  design). Clicking a module drills the schematic into it; clicking a leaf (or
+  a blackbox) shows its parent with the leaf selected. Either way its source
+  opens beside, and the focus stays in the tree. The drill path of the
+  schematic is selected in the tree as you navigate.
+- **Details**: what is selected in the schematic, or the module in view when
+  nothing is: the instance and its module, the full Scala class, the
+  parameters (`name: type = value`, in declaration order) and the ports
+  (name, direction, type).
+
+The Tests title bar has three buttons: refresh the tests, show the design
+panel (`SoCLess: Show design panel`) and open the settings filtered to
+SoCLess. Hierarchy and Details are empty until a design is shown, and are
+cleared when the panel closes (no test is marked `shown` then).
+
+When the language server cannot start (Java missing or too old) or has
+stopped, the Tests view says so instead of staying blank, and its inline
+actions report it instead of marking a test running. When the server
+restarts (after a crash), the run states are reset and the tests are fetched
+again.
+
+The views come with the extension's activation: opening a Scala file or the
+SoCLess side panel starts it (VS Code activates an extension on its views by
+itself since 1.74, so no `onView` event is declared).
+
 ## What the panel shows
 
 The panel is the SoCLess UI in embedded mode (the extension loads it with
@@ -61,15 +102,32 @@ The panel is the SoCLess UI in embedded mode (the extension loads it with
   as your theme in the browser UI;
 - no multi-top design picker, no drop zone for `design.json` / `.fir` files and
   no `share` (HTML snapshot) button: the design always comes from the test you
-  viewed. The `svg` and `png` exports stay.
+  viewed. The `svg` and `png` exports stay;
+- no hierarchy pane and no inspector pane, nor their toggle buttons and
+  commands: the [side panel](#the-socless-side-panel) shows them, and the
+  schematic takes the whole width.
 
 Viewing a test again, or another one, or running `SoCLess: Show design panel`
 does not reload the panel: the new design loads in place, and the open panels
 and the drill path (while it exists in the new design) are kept.
 
-Breadcrumbs, search, the run status, the panel toggles, the view settings and
-the keyboard help work as in the browser. Opened in a browser or from Neovim,
-the UI is unchanged.
+Breadcrumbs, search, the run status, the bottom panel toggle, the view settings
+and the keyboard help work as in the browser. Opened in a browser or from
+Neovim, the UI is unchanged.
+
+The UI and the side panel talk through the webview page: the UI posts its drill
+path, selection and details (`socless-state`, once per change), with the design
+hierarchy only when the design changed, to the page that frames it, only when
+that page is a VS Code webview or a loopback page and only to its exact origin.
+The page forwards it (from the UI's window and origin only) to the extension,
+and forwards the extension's `socless-navigate` (from a window of the webview's
+own origin only) to the UI's origin. The server sends the UI page with
+`Content-Security-Policy: frame-ancestors 'self' vscode-webview: vscode-file:`,
+so no other site can frame it (`vscode-file:` is the workbench, which the
+check covers as an ancestor too). The
+language server adds the `socless/tests` request and the
+`socless/testsChanged` and `socless/status` notifications, sent only to a
+client that hosts the panel (VS Code), so Neovim sees no change.
 
 ## Simulate
 
@@ -136,27 +194,32 @@ calls on the `out/` lock. For the same reason, do not run it while another
 `./mill` command runs. It starts a headless VS Code (xvfb, a throwaway profile
 and extensions dir) on this repository with the staged extension and checks:
 
-1. the `View design` lens appears on `GcdSpec.scala`;
-2. running it opens a SoCLess webview tab titled after the test and
-   `/design.json` serves the GCD design;
-3. the cursor in `GCD.scala` makes `/ide.json` report `gcd.GCD`;
-4. `POST /open` (what a click in the panel sends) moves the editor to
+1. the SoCLess view container exists and its Tests view lists `GcdSpec`
+   with `GCD computes gcd(48, 18)`;
+2. the `View design` lens appears on `GcdSpec.scala`;
+3. `View design` on that Tests view item opens a SoCLess webview tab titled
+   after the test, `/design.json` serves the GCD design, and the test is
+   marked `shown`;
+4. the cursor in `GCD.scala` makes `/ide.json` report `gcd.GCD`;
+5. `POST /open` (what a click in the panel sends) moves the editor to
    `GCD.scala:24`;
-5. closing the panel and running the lens again opens exactly one new panel;
-6. inside the webview, the UI loads `DeepSoc` from the server, and a real mouse
+6. closing the panel and running the lens again opens exactly one new panel;
+7. viewing `DeepSoc` fills the Hierarchy view (`DeepSoc` > `cluster0`, ...);
+   inside the webview, the UI loads `DeepSoc` from the server, and a real mouse
    click on the `cluster0` box makes the UI send `POST /open` (with the
    iframe's `Origin`, accepted by the server), which moves the editor to the
-   `Cluster` class in `DeepSoc.scala`. Before the click it checks the UI is in
-   embedded mode (no Source tab, logo or theme toggle, bottom panel closed)
-   with the data theme of the VS Code theme;
-7. after drilling into `cluster0` and opening the bottom panel, viewing the
-   design again and running `SoCLess: Show design panel` do not reload the UI
-   (both are kept);
-8. after switching the VS Code theme (dark to light), the UI in the webview
-   follows it.
+   `Cluster` class in `DeepSoc.scala`, and the Details view shows `cluster0`
+   (module, ports). Before the click it checks the UI is in embedded mode (no
+   Source tab, logo, theme toggle, hierarchy or inspector pane, bottom panel
+   closed) with the data theme of the VS Code theme;
+8. clicking `cluster0` in the Hierarchy view drills the schematic into it;
+9. with the bottom panel open, viewing the design again and running
+   `SoCLess: Show design panel` do not reload the UI (drill path and panel
+   are kept);
+10. after switching the VS Code theme (dark to light), the UI in the webview
+    follows it.
 
-The last three checks (steps 7 to 9 in the log, which also counts the webview
-tab check) drive the webview over the Chrome DevTools Protocol: `run.sh` starts VS Code
+The webview checks (from step 7 on) drive the webview over the Chrome DevTools Protocol: `run.sh` starts VS Code
 with a free `--remote-debugging-port` and runs
 `socless-vscode/e2e/webview-click.mjs` (plain Node, no npm package) next to it.
 The screenshot it takes before the click and its result are kept in

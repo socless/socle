@@ -22,6 +22,8 @@ object Extension {
     ctx.subscriptions.push(
       commands.registerCommand("socless._panelUrl", (() => Panel.lastUrl.orUndefined): js.Function0[js.UndefOr[String]])
     )
+    // The side panel's views exist at once; their tests come with the language server.
+    Sidebar.register(ctx)
 
     val config  = workspace.getConfiguration("socless")
     val javaCmd = Logic.javaCommand(
@@ -35,6 +37,7 @@ object Extension {
       if (!deactivated) Logic.javaProblem(javaCmd, major) match {
         case Some(problem) =>
           javaProblem = Some(problem)
+          Sidebar.unavailable(problem)
           window.showErrorMessage(problem)
         case None =>
           val init = Logic.initializationOptions(config.get[String]("waveFlag").toOption,
@@ -98,6 +101,7 @@ object Extension {
     }
     val c = new LanguageClient("socless", "SoCLess", new ServerOptions { val run = exe; val debug = exe }, options)
     client = Some(c)
+    Sidebar.attach(c, ctx)
 
     ctx.subscriptions.push(
       c.onNotification("socless/openPanel", (params: js.Dynamic) =>

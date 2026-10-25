@@ -78,6 +78,7 @@ object App {
     if (Embedded.on) {
       Embedded.initialTheme.foreach(applyTheme)
       Embedded.onThemeMessage(applyTheme)
+      Embedded.onNavigateMessage(navigate)
     }
     densityVar.set(currentDensity()); labelSizeVar.set(currentLabelSize())
     try autoOptimizeVar.set(dom.window.localStorage.getItem("socless-autoopt") != "off") catch { case _: Throwable => () }
@@ -336,6 +337,73 @@ object App {
       if childMod.kind != ModuleKind.External && childMod.kind != ModuleKind.Intrinsic
     } pathVar.update(_ :+ inst) // selectedSig / expandedPorts cleared by the path-change binder
 
+  /** The selection a `socless-navigate` made: the editor already opens its
+    * source, so the open-on-select binder skips it once. */
+  private var navSelect = Option.empty[String]
+
+  /** `socless-navigate` from the editor's side panel: show `path` (when it
+    * resolves) and select `select` when it is an instance there (else clear). */
+  private def navigate(path: List[String], select: Option[String]): Unit =
+    for {
+      d   <- loader.currentDesign
+      mod <- currentModule(d, path)
+    } {
+      pathVar.set(path) // its binder clears the selection first
+      val sel = select.filter(n => mod.children.exists(_.name == n))
+      navSelect = sel
+      selectedSigVar.set(sel)
+    }
+
+  /** The `socless-state` message for the editor's side panel: the drill path,
+    * the selection and the details of the selected instance, else of the current
+    * module; plus, only when the design changed since the last message, the
+    * design's hierarchy (`design`: each module's Scala class, kind, children
+    * and, when the editor can open it, its source; null without a design). */
+  private def sideState(d: Option[Design], path: List[String], sel: Option[String]): js.Any = {
+    def design(d: Design) = ujson.Obj(
+      "top" -> topOf(d),
+      "modules" -> d.modules.map { m =>
+        ujson.Obj(
+          "name" -> m.name, "scalaClass" -> m.scalaClass, "kind" -> m.kind,
+          "source" -> (if (openableSource(d, m.source.file)) ujson.Obj("file" -> m.source.file, "line" -> m.source.line) else ujson.Null),
+          "children" -> m.children.map(c => ujson.Obj("name" -> c.name, "type" -> c.`type`)))
+      })
+    def details(d: Design): ujson.Value = currentModule(d, path).fold[ujson.Value](ujson.Null) { mod =>
+      val inst = sel.flatMap(s => mod.children.find(_.name == s))
+      val (name, target) = inst match {
+        case Some(i) => (i.name, d.modules.find(_.name == i.`type`))
+        case None    => (path.lastOption.getOrElse(mod.name), Some(mod))
+      }
+      target.fold[ujson.Value](ujson.Null) { m =>
+        val params =
+          if (m.parameterDecls.nonEmpty) m.parameterDecls.map(p => (p.name, p.tpe, p.value))
+          else inst.map(_.params).filter(_.nonEmpty).getOrElse(m.parameters).toSeq.sortBy(_._1).map { case (k, v) => (k, "", v) }
+        ujson.Obj(
+          "name" -> name, "module" -> m.name, "scalaClass" -> m.scalaClass, "kind" -> m.kind,
+          "params" -> params.map { case (n, t, v) => ujson.Obj("name" -> n, "type" -> t, "value" -> v) },
+          "ports"  -> m.ports.map(p => ujson.Obj("name" -> p.name, "dir" -> p.dir, "type" -> p.bundle)))
+      }
+    }
+    val msg = ujson.Obj(
+      "type"      -> "socless-state",
+      "path"      -> path,
+      "selection" -> sel.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
+      "details"   -> d.fold[ujson.Value](ujson.Null)(details))
+    // The hierarchy (about 200 bytes a module) only when the design changed since the last post.
+    val first = !postedDesign.exists {
+      case Some(x) => d.exists(_ eq x)
+      case None    => d.isEmpty
+    }
+    if (first) {
+      msg("design") = d.fold[ujson.Value](ujson.Null)(design)
+      postedDesign = Some(d)
+    }
+    js.JSON.parse(ujson.write(msg))
+  }
+
+  /** The design whose hierarchy was last posted to the side panel (compared by identity). */
+  private var postedDesign = Option.empty[Option[Design]]
+
   /** Navigate up to the breadcrumb segment at `idx`. */
   private def navTo(idx: Int): Unit = pathVar.update(_.take(idx + 1))
 
@@ -389,7 +457,8 @@ object App {
       Chrome.warningsBanner(loader.designSig),
       div(
         cls := "scl-panes",
-        child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None),
+        // Embedded, VS Code's side panel shows the hierarchy and the details: no side panes.
+        Option.when(!Embedded.on)(child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None)),
         // Center column: schematic above, the Source/Waveform/Ports panel below.
         div(cls := "scl-center",
           Schematic.render(
@@ -410,7 +479,7 @@ object App {
           ),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
-        child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None),
+        Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None)),
       ),
       // Expansion paths are instance-relative, not scoped to the current module:
       // clear them (and the selection) on navigation so expanding a port in one
@@ -426,15 +495,24 @@ object App {
       // withCleared clears and restores the selection synchronously, which
       // coalesces to the unchanged value and is dropped; a user deselect (None)
       // lands as its own event, so selecting the same box again re-opens.
-      selectedSigVar.signal.changes.debounce(0).distinct --> { sel => sel.foreach(openInstanceSource) },
+      // A selection made by the side panel's socless-navigate is not opened again.
+      selectedSigVar.signal.changes.debounce(0).distinct --> { sel =>
+        val fromNav = sel.isDefined && sel == navSelect
+        navSelect = None
+        if (!fromNav) sel.foreach(openInstanceSource)
+      },
+      // The editor's side panel follows the design, the drill path and the selection.
+      // One post per burst (a navigate sets the path, then the selection).
+      Option.when(Embedded.parentOrigin.isDefined)(
+        Signal.combine(loader.designSig, pathVar.signal, selectedSigVar.signal).changes.debounce(0) --> {
+          case (d, p, sel) => Embedded.postToParent(sideState(d, p, sel))
+        }),
       // Command palette + keyboard-help overlays (fixed-position modals).
       Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p),
         actions = if (Embedded.on) Seq(
           ("Open settings",          "density, color",            () => settingsOpenVar.set(true)),
           ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
-          ("Toggle hierarchy panel", "left pane",                 () => leftOpenVar.update(!_)),
           ("Toggle bottom panel",    "ports",                     () => bottomOpenVar.update(!_)),
-          ("Toggle inspector panel", "right pane",                () => rightOpenVar.update(!_)),
           ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
         ) else Seq(
           ("Toggle theme",           "dark / light",              () => toggleTheme()),
@@ -501,8 +579,14 @@ object App {
       child <- mod.children.find(_.name == sel)
       cm    <- d.modules.find(_.name == child.`type`)
       src    = cm.source
-      if src.file.startsWith("/") || src.file.matches("^[A-Za-z]:[\\\\/].*") || d.sources.contains(src.file)
+      if openableSource(d, src.file)
     } ide.open(src.file, src.line)
+
+  /** Whether the editor can open a module source: an absolute file, or a
+    * repo-relative one embedded in design.sources (the language server resolves
+    * it against the workspace). Library modules (e.g. chisel3.util.Queue) are neither. */
+  private def openableSource(d: Design, file: String): Boolean =
+    file.startsWith("/") || file.matches("^[A-Za-z]:[\\\\/].*") || d.sources.contains(file)
 
   /** Full-window drop-zone overlay, shown while a file is dragged over the page. */
   private def dropOverlay(): Element =
@@ -581,18 +665,18 @@ object App {
       child.maybe <-- ide.stateSig.map(_.flatMap(ideStatus)),
       // Panel toggles (#206): hide the hierarchy / bottom / inspector panel to
       // focus on the schematic. The `off` class dims a button when its pane is hidden.
-      button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
+      Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
         cls.toggle("off") <-- leftOpenVar.signal.map(!_),
         title := "Toggle the hierarchy panel",
-        onClick --> { _ => leftOpenVar.update(!_) }, iconPanelLeft),
+        onClick --> { _ => leftOpenVar.update(!_) }, iconPanelLeft)),
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "bottom",
         cls.toggle("off") <-- bottomOpenVar.signal.map(!_),
         title := "Toggle the bottom panel",
         onClick --> { _ => bottomOpenVar.update(!_) }, iconPanelBottom),
-      button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
+      Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
         cls.toggle("off") <-- rightOpenVar.signal.map(!_),
         title := "Toggle the inspector panel",
-        onClick --> { _ => rightOpenVar.update(!_) }, iconPanelRight),
+        onClick --> { _ => rightOpenVar.update(!_) }, iconPanelRight)),
       // View settings (#198): density + accent presets.
       settingsControl(),
       // Theme toggle (issue #2): sun while dark (click -> light), moon while light.

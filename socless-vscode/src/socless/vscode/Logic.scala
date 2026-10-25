@@ -97,6 +97,8 @@ object Logic {
   /** The webview page: a CSP allowing only `frameUrl`'s origin as a frame and only the `nonce` script,
     * one full-size iframe on it, and a script that forwards VS Code's theme kind (the `vscode-*` body
     * classes) to the iframe as `{type: "socless-theme", kind}`, on load and on every theme change.
+    * The script also relays the side panel channel: a `socless-state` from the iframe (its window
+    * and origin) to the extension, and a `socless-navigate` from the extension to the iframe origin.
     * Without a frame origin there is no script.
     */
   def webviewHtml(frameUrl: String, cspSource: String, nonce: String): String = {
@@ -124,6 +126,23 @@ object Logic {
          |  }
          |  new MutationObserver(function () { post(false); }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
          |  frame.addEventListener('load', function () { post(true); });
+         |  // The side panel channel: the UI's socless-state goes up to the extension, the
+         |  // extension's socless-navigate goes down to the UI (its origin only).
+         |  var host = acquireVsCodeApi();
+         |  window.addEventListener('message', function (e) {
+         |    var d = e.data;
+         |    if (!d || typeof d !== 'object') return;
+         |    if (e.source === frame.contentWindow) {
+         |      if (e.origin === "$o" && d.type === 'socless-state') host.postMessage(d);
+         |    } else if (e.source && e.origin === window.origin &&
+         |        d.type === 'socless-navigate' && frame.contentWindow) {
+         |      // From VS Code's webview host, which delivers the extension's messages: a window of this
+         |      // page's own origin (the webview's). Not window.parent: VS Code 1.143 posts from a window
+         |      // that is neither the parent, the top nor one of the parent's frames (seen in the e2e).
+         |      frame.contentWindow.postMessage({ type: 'socless-navigate', path: d.path,
+         |        select: d.select === undefined ? null : d.select }, "$o");
+         |    }
+         |  });
          |})();
          |</script>
          |""".stripMargin

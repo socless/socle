@@ -11,9 +11,28 @@ final class OpenPanelParams(var url: String, var test: String) {
   def getTest: String = test
 }
 
+/** `socless/status` params: the panel's run state ([[IdeState]]) whenever its
+  * status, test or message changes. `suite` is the FQCN of the test's suite
+  * (empty when unknown), so a client can tell same-named tests apart. */
+final class StatusParams(var status: String, var suite: String, var test: String, var message: String) {
+  def this() = this(null, null, null, null)
+  def getStatus: String  = status
+  def getSuite: String   = suite
+  def getTest: String    = test
+  def getMessage: String = message
+}
+
 /** The client side of the server's custom notifications. Sent only when the
   * client opted in with `initializationOptions = {"panel": "client"}`. */
 trait SoclessClient extends LanguageClient {
   @JsonNotification("socless/openPanel")
   def openPanel(params: OpenPanelParams): Unit
+
+  /** The run state changed (see [[StatusParams]]). */
+  @JsonNotification("socless/status")
+  def status(params: StatusParams): Unit
+
+  /** The workspace's ChiselSim tests (`socless/tests`) changed after a save. */
+  @JsonNotification("socless/testsChanged")
+  def testsChanged(): Unit
 }

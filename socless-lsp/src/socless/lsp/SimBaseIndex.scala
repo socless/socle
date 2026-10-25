@@ -69,7 +69,7 @@ object SimBaseIndex {
     * whether its body sets a FlatSpec subject. */
   private final case class Def(simple: String, fq: String, parents: Seq[String], setsSubject: Boolean)
 
-  private def scalaFiles(dir: os.Path): Seq[os.Path] =
+  private[lsp] def scalaFiles(dir: os.Path): Seq[os.Path] =
     Try(os.list(dir)).getOrElse(Nil).flatMap { p =>
       if (os.isDir(p, followLinks = false)) {
         if (SkipDirs(p.last) || p.last.startsWith(".")) Nil else scalaFiles(p)

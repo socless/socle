@@ -13,6 +13,12 @@ object Panel {
   /** The test of the last view, for the panel title. */
   private var lastTest: Option[String] = None
 
+  /** Whether the UI in the current page has posted its state (it listens for navigate messages). */
+  private var uiReady = false
+
+  /** A navigate message waiting for the UI to be ready (the last one wins). */
+  private var pendingNavigate: Option[js.Any] = None
+
   /** Creates the panel beside the editor (or reveals the existing one), points it at `url` in embedded
     * mode with VS Code's current theme kind, and titles it after `test` (None keeps the last one).
     */
@@ -25,7 +31,7 @@ object Panel {
       panel.reveal(ViewColumn.Beside, preserveFocus = true)
       // Same URL, same html: leave it alone so the iframe (and the UI state in it) is not reloaded.
       val html = page.html(external.toString(), panel.webview.cspSource)
-      if (panel.webview.html != html) panel.webview.html = html
+      if (panel.webview.html != html) { panel.webview.html = html; uiReady = false }
     }
   }
 
@@ -44,16 +50,39 @@ object Panel {
       js.Dynamic.literal(viewColumn = ViewColumn.Beside, preserveFocus = true),
       js.Dynamic.literal(enableScripts = true, retainContextWhenHidden = true),
     )
-    // The listener lives and dies with this panel, not in ctx.subscriptions (one per panel ever made).
+    // The listeners live and die with this panel, not in ctx.subscriptions (one per panel ever made).
+    val messages = panel.webview.onDidReceiveMessage { (msg: js.Any) =>
+      // The page relays only socless-state messages from the UI, which listens from then on.
+      uiReady = true
+      pendingNavigate.foreach(m => panel.webview.postMessage(m))
+      pendingNavigate = None
+      Sidebar.onUiState(msg)
+    }
     var listener: Option[Disposable] = None
     listener = Some(panel.onDidDispose { () =>
       current = None
+      uiReady = false
+      pendingNavigate = None
+      messages.dispose()
       listener.foreach(_.dispose())
+      Sidebar.onPanelClosed()
     })
+    uiReady = false
     val made = (panel, new PanelPage(nonce(), Logic.themeKind(window.activeColorTheme.kind)))
     current = Some(made)
     made
   }
+
+  /** Sends a socless-navigate message to the UI (once it is ready) and reveals the panel. */
+  def navigate(msg: js.Any): Unit = current.foreach { case (panel, _) =>
+    panel.reveal(js.undefined, preserveFocus = true) // where it is
+    if (uiReady) panel.webview.postMessage(msg) else pendingNavigate = Some(msg)
+  }
+
+  /** The editor column for a source opened from the side panel: the first one, or the one
+    * beside when the panel is there (so the source never covers the panel). */
+  def sourceColumn: Int =
+    if (current.exists(_._1.viewColumn.toOption.contains(1))) ViewColumn.Beside else 1
 
   /** Closes the panel, if any (extension deactivation); its dispose listener cleans up after it. */
   def dispose(): Unit = current.foreach(_._1.dispose())

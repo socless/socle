@@ -66,5 +66,9 @@ class LanguageClient(
   def stop(): js.Promise[Unit] = js.native
   def isRunning(): Boolean = js.native
   def sendNotification(method: String, params: js.Any): js.Promise[Unit] = js.native
+  /** A request without params (v9 `sendRequest(method)`). */
+  def sendRequest(method: String): js.Promise[js.Any] = js.native
   def onNotification(method: String, handler: js.Function1[js.Dynamic, Unit]): Disposable = js.native
+  /** `{oldState, newState}`, v9 `State`: 1 Stopped, 2 Running, 3 Starting. */
+  def onDidChangeState(listener: js.Function1[js.Dynamic, Unit]): Disposable = js.native
 }

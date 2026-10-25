@@ -1,11 +1,11 @@
 package socless.lsp
 
-import com.google.gson.{JsonObject, JsonPrimitive}
+import com.google.gson.{JsonArray, JsonObject, JsonPrimitive}
 import java.net.URI
 import java.util.concurrent.{CompletableFuture, ConcurrentHashMap, Executors, RejectedExecutionException, ScheduledFuture, ThreadFactory, TimeUnit}
 import org.eclipse.lsp4j._
 import org.eclipse.lsp4j.jsonrpc.messages.{Either => LspEither}
-import org.eclipse.lsp4j.jsonrpc.services.JsonNotification
+import org.eclipse.lsp4j.jsonrpc.services.{JsonNotification, JsonRequest}
 import org.eclipse.lsp4j.services._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
@@ -15,6 +15,10 @@ import scala.util.control.NonFatal
   * ChiselSim tests, the `socless.viewDesign` and `socless.simulate` commands
   * (simulation: [[SimRunner]], independent of view runs), save-triggered refresh, `socless/cursor`
   * (cursor to focused class) and box-to-source via `window/showDocument`.
+  * For a client-hosted panel (VS Code) it also answers `socless/tests` (the
+  * workspace's ChiselSim tests, [[WorkspaceTests]]) and sends
+  * `socless/testsChanged` when a save changes them and `socless/status` when
+  * the run state changes.
   * It never duplicates Metals: no diagnostics, completion, hover or definition.
   *
   * Threading: lsp4j's reader thread only records text, hands parse work to a
@@ -48,6 +52,7 @@ final class SoclessLanguageServer(
     val queue = new RunQueue(req => exec(this, req), onResult)
     val index = new SimBaseIndex(root) // base traits reaching ChiselSim, used by lenses
     val sim   = simFor(root)
+    val tests = new WorkspaceTests(root, index)
   }
 
   @volatile private var client: LanguageClient = null
@@ -64,6 +69,8 @@ final class SoclessLanguageServer(
   private val texts  = new ConcurrentHashMap[String, String] // open documents, full sync
   private val parser = Executors.newSingleThreadExecutor(daemon("socless-lsp-parse"))
   private val timer  = Executors.newSingleThreadScheduledExecutor(daemon("socless-lsp-debounce"))
+  // Custom notifications to the client, in order, never sent under `lock`.
+  private val notifier = Executors.newSingleThreadExecutor(daemon("socless-lsp-notify"))
 
   // Guarded by lock.
   private val lock          = new Object
@@ -71,6 +78,8 @@ final class SoclessLanguageServer(
   private var port          = Option.empty[Int]
   private var browserOpened = false
   private var pendingSave   = Option.empty[ScheduledFuture[_]]
+  private var pendingTests  = Option.empty[ScheduledFuture[_]]
+  @volatile private var lastTests = Option.empty[JsonObject] // last `socless/tests` result computed
   @volatile private var publishedSources = Set.empty[String] // keys of the published design's `sources`
 
   def connect(c: LanguageClient): Unit = client = c
@@ -111,6 +120,7 @@ final class SoclessLanguageServer(
     ws.foreach { w => w.queue.close(); w.sim.close() }
     parser.shutdownNow()
     timer.shutdownNow()
+    notifier.shutdownNow()
     http.stop()
   }
 
@@ -134,8 +144,11 @@ final class SoclessLanguageServer(
         w.index.invalidate() // a base trait may have changed: the next lens re-stats
         warmIndex()
         pendingSave.foreach(_.cancel(false))
-        try pendingSave = Some(timer.schedule((() => rerun()): Runnable, debounceMs, TimeUnit.MILLISECONDS))
-        catch { case _: RejectedExecutionException => () } // shut down meanwhile
+        pendingTests.foreach(_.cancel(false))
+        try {
+          pendingSave = Some(timer.schedule((() => rerun()): Runnable, debounceMs, TimeUnit.MILLISECONDS))
+          if (clientPanel) pendingTests = Some(timer.schedule((() => checkTests(w)): Runnable, debounceMs, TimeUnit.MILLISECONDS))
+        } catch { case _: RejectedExecutionException => () } // shut down meanwhile
       }
 
     override def codeLens(p: CodeLensParams): CompletableFuture[java.util.List[_ <: CodeLens]] = {
@@ -186,6 +199,68 @@ final class SoclessLanguageServer(
     }
   }
 
+  // ── workspace tests (client-hosted panel) ─────────────────────────────
+
+  /** `socless/tests`: `{suites: [{suite, file (uri), tests: [{name, line}]}]}`,
+    * `line` 0-based as in lenses. Computed on the parser thread. */
+  @JsonRequest("socless/tests")
+  def tests(): CompletableFuture[JsonObject] = {
+    val none = CompletableFuture.completedFuture(testsJson(Nil))
+    ws match {
+      case Some(w) if !stopped =>
+        try CompletableFuture.supplyAsync(() => { val j = testsJson(w.tests.suites()); lastTests = Some(j); j }, parser)
+        catch { case _: RejectedExecutionException => none }
+      case _ => none
+    }
+  }
+
+  /** After a save (debounced): `socless/testsChanged` when the tests differ from the last computed. */
+  private def checkTests(w: Workspace): Unit =
+    try parser.execute { () =>
+      val j       = testsJson(w.tests.suites())
+      val changed = lastTests.exists(_ != j)
+      lastTests = Some(j)
+      if (changed) toClient(_.testsChanged())
+    } catch { case _: RejectedExecutionException => () } // shut down meanwhile
+
+  private def testsJson(suites: Seq[(String, os.Path, Seq[TestCase])]): JsonObject = {
+    val arr = new JsonArray
+    for ((suite, file, cases) <- suites) {
+      val o = new JsonObject
+      o.addProperty("suite", suite)
+      o.addProperty("file", file.toNIO.toUri.toString)
+      val ts = new JsonArray
+      for (c <- cases) {
+        val t = new JsonObject
+        t.addProperty("name", c.name)
+        t.addProperty("line", c.line)
+        ts.add(t)
+      }
+      o.add("tests", ts)
+      arr.add(o)
+    }
+    val out = new JsonObject
+    out.add("suites", arr)
+    out
+  }
+
+  /** Updates the panel state; a client-hosted panel gets `socless/status` when
+    * the status, suite, test or message changed (not the cursor focus). */
+  private def ideUpdate(f: IdeState => IdeState): Unit = {
+    val (b, a) = http.update(f)
+    if (clientPanel && (b.status, b.suite, b.test, b.message) != (a.status, a.suite, a.test, a.message))
+      toClient(_.status(new StatusParams(a.status, a.suite, a.test, a.message)))
+  }
+
+  /** Sends a custom notification on the notifier thread (in call order); nothing for a plain client. */
+  private def toClient(send: SoclessClient => Unit): Unit = client match {
+    case c: SoclessClient =>
+      try notifier.execute { () =>
+        try send(c) catch { case NonFatal(e) => log(s"cannot notify the client: $e") }
+      } catch { case _: RejectedExecutionException => () } // shut down meanwhile
+    case _ => ()
+  }
+
   // ── commands and runs ──────────────────────────────────────────────────
 
   object workspaceService extends WorkspaceService {
@@ -216,8 +291,8 @@ final class SoclessLanguageServer(
     case (_, None) => fail("SoCLess: no workspace root (the editor sent neither workspaceFolders nor rootUri)")
     case (Seq(uri, suite, test), Some(w)) =>
       (w.runner, uriToPath(uri)) match {
-        case (Left(msg), _) => fail(msg)
-        case (_, None)      => fail(s"SoCLess: not a file URI: $uri")
+        case (Left(msg), _) => fail(msg, Some((suite, test)))
+        case (_, None)      => fail(s"SoCLess: not a file URI: $uri", Some((suite, test)))
         case (Right(_), Some(file)) =>
           openPanel(test)
           submit(w, ViewRequest(file, suite, test))
@@ -239,9 +314,9 @@ final class SoclessLanguageServer(
         case None => showError(s"SoCLess: not a file URI: $uri")
         case Some(file) =>
           val before = new java.util.concurrent.atomic.AtomicReference[Option[IdeState]](None)
-          val started = () => lock.synchronized(http.update { s =>
+          val started = () => lock.synchronized(ideUpdate { s =>
             if (s.status == "error" || s.status == "running") s
-            else { before.set(Some(s)); s.copy(status = "simulating", message = "", test = test) }
+            else { before.set(Some(s)); s.copy(status = "simulating", message = "", test = test, suite = suite) }
           })
           w.sim.start(SimRequest(file, suite, test), simSettings, () => w.cp.testFork(file), started,
             o => simDone(o, before.get))
@@ -252,8 +327,8 @@ final class SoclessLanguageServer(
 
   private def simDone(o: SimOutcome, before: Option[IdeState]): Unit = {
     for (b <- before) lock.synchronized {
-      http.update { s =>
-        if (s.status == "simulating") s.copy(status = b.status, test = b.test, message = o.message) else s
+      ideUpdate { s =>
+        if (s.status == "simulating") s.copy(status = b.status, test = b.test, suite = b.suite, message = o.message) else s
       }
     }
     show(if (o.passed) MessageType.Info else MessageType.Warning, o.message)
@@ -304,7 +379,7 @@ final class SoclessLanguageServer(
 
   private def submit(w: Workspace, req: ViewRequest): Unit = lock.synchronized {
     latest = Some(req)
-    http.update(_.copy(status = "running", message = "", test = req.test))
+    ideUpdate(_.copy(status = "running", message = "", test = req.test, suite = req.suite))
     w.queue.submit(req)
   }
 
@@ -328,21 +403,24 @@ final class SoclessLanguageServer(
         case Viewed(d) =>
           http.publishJson(json)
           publishedSources = d.sources.keySet
-          http.update(_.copy(status = "ok", message = ""))
+          ideUpdate(_.copy(status = "ok", message = ""))
           None
         case Failed(_, msg) =>
-          http.update(_.copy(status = "error", message = msg))
+          ideUpdate(_.copy(status = "error", message = msg))
           Some(msg)
       }
     }
     error.foreach(showError)
   }
 
-  /** A command-level failure: panel state plus an editor message; the design stays. */
-  private def fail(msg: String): Unit = {
+  /** A command-level failure: panel state plus an editor message; the design
+    * stays. `key` (suite, test) names the test it was for, when known. */
+  private def fail(msg: String, key: Option[(String, String)] = None): Unit = {
     lock.synchronized {
       latest = None // a run still in flight must not overwrite this error
-      http.update(_.copy(status = "error", message = msg))
+      ideUpdate { s =>
+        key.fold(s) { case (suite, test) => s.copy(suite = suite, test = test) }.copy(status = "error", message = msg)
+      }
     }
     showError(msg)
   }

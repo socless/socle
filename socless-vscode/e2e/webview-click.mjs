@@ -10,9 +10,10 @@
 // theme (request `theme`: the expected data-theme), takes a screenshot, clicks the box header with
 // a real mouse event on the workbench page, records the UI's `POST open` and writes
 // <runDir>/click-result.json: {ok, stage, message, ...}. index.js then checks the editor moved.
-// Next it drills into `inst`, opens the bottom panel and marks the window, writes state-ready.json;
-// index.js views the design again and runs Show design panel, writes state-request.json, and the
-// driver checks all three survived (no iframe reload) in state-result.json.
+// Next it opens the bottom panel and marks the window, writes state-ready.json; index.js clicks `inst` in
+// the Hierarchy view and writes drill-request.json, the driver checks the UI drilled (breadcrumb) in
+// drill-result.json; index.js views the design again and runs Show design panel, writes
+// state-request.json, and the driver checks all three survived (no iframe reload) in state-result.json.
 // Then index.js switches the VS Code theme and writes <runDir>/theme-request.json ({theme}); the driver
 // waits for the UI's data-theme to follow and writes <runDir>/theme-result.json.
 //
@@ -33,6 +34,8 @@ const log = (m) => console.log(`[click +${((Date.now() - t0) / 1000).toFixed(1)}
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const stateReadyFile = join(runDir, 'state-ready.json');
+const drillRequestFile = join(runDir, 'drill-request.json');
+const drillResultFile = join(runDir, 'drill-result.json');
 const stateRequestFile = join(runDir, 'state-request.json');
 const stateResultFile = join(runDir, 'state-result.json');
 const themeRequestFile = join(runDir, 'theme-request.json');
@@ -188,11 +191,13 @@ async function main() {
     logo: !!document.querySelector('.scl-logo'),
     themeToggle: !!document.querySelector('[data-theme-toggle]'),
     bottomPanel: !!document.querySelector('[data-bottom-panel]'),
+    hierarchyPane: !!document.querySelector('[data-pane="hierarchy"]'),
+    inspectorPane: !!document.querySelector('[data-pane="inspector"]'),
     theme: document.documentElement.getAttribute('data-theme'),
   })`);
   result.embedded = ui0;
   if (!new URL(ui0.href).searchParams.get('host')) throw new Error(`UI loaded without host=vscode: ${ui0.href}`);
-  for (const k of ['sourceTab', 'logo', 'themeToggle', 'bottomPanel']) if (ui0[k]) throw new Error(`embedded UI shows ${k}`);
+  for (const k of ['sourceTab', 'logo', 'themeToggle', 'bottomPanel', 'hierarchyPane', 'inspectorPane']) if (ui0[k]) throw new Error(`embedded UI shows ${k}`);
   if (ui0.theme !== req.theme) throw new Error(`UI data-theme ${ui0.theme}, expected ${req.theme} (VS Code's theme)`);
 
   stage = 'screenshot';
@@ -247,28 +252,40 @@ async function main() {
 
   finish({ ok: true, message: `clicked ${req.inst} at (${x}, ${y}), POST open (Origin ${headers.origin}, Host ${headers.host}) -> ${post.status}` });
 
-  // State phase: drill into a module, open the bottom panel and mark the window, then index.js views
-  // the design again and runs Show design panel; the iframe must not have reloaded (all three kept).
+  // State phase: open the bottom panel and mark the window; index.js clicks `inst` in the Hierarchy view
+  // (drill phase), then views the design again and runs Show design panel; the iframe must not have
+  // reloaded (all three kept).
   out = stateResultFile;
   result = { ok: false };
   stage = 'prepare the UI state';
-  const drill = JSON.stringify(`[data-hier-path="${req.top}/${req.inst}"]`);
   await evaluate(uiConn, `(() => {
     window.__soclessKeep = 1;
-    document.querySelector(${drill}).click();
     document.querySelector('[data-toggle-pane="bottom"]').click();
     return true;
   })()`);
-  const state = () => evaluate(uiConn, `({
-    marker: window.__soclessKeep === 1,
-    bottomPanel: !!document.querySelector('[data-bottom-panel]'),
-    drilled: !!document.querySelector(${drill} + '.active'),
-  })`);
-  await until('the UI drilled with the bottom panel open', 5000, async () => {
-    const s = await state();
-    return s.bottomPanel && s.drilled;
+  const crumb = () => evaluate(uiConn, `(() => { const a = document.querySelector('.scl-crumb.active'); return a && a.textContent; })()`);
+  const state = async () => ({
+    ...(await evaluate(uiConn, `({
+      marker: window.__soclessKeep === 1,
+      bottomPanel: !!document.querySelector('[data-bottom-panel]'),
+    })`)),
+    drilled: (await crumb()) === req.inst,
   });
+  await until('the UI with the bottom panel open', 5000, async () => (await state()).bottomPanel);
   writeFileSync(stateReadyFile, '{}');
+
+  stage = 'wait for the drill request';
+  const stateOut = out;
+  out = drillResultFile;
+  await until(`${drillRequestFile} from index.js`, 5 * 60 * 1000, () => existsSync(drillRequestFile), 250);
+  stage = 'UI drills on the Hierarchy click';
+  await until(`the breadcrumb to end in ${req.inst}`, 15000, async () => (await crumb()) === req.inst).catch(async (e) => {
+    result.crumb = await crumb().catch(String);
+    throw e;
+  });
+  finish({ ok: true, message: `the schematic drilled into ${req.inst} (breadcrumb)` });
+  out = stateOut;
+  result = { ok: false };
   stage = 'wait for the state request';
   await until(`${stateRequestFile} from index.js`, 5 * 60 * 1000, () => existsSync(stateRequestFile), 250);
   stage = 'UI state survives';

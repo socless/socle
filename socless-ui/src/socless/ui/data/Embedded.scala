@@ -33,6 +33,50 @@ object Embedded {
     if (on) for (t <- Seq("dragover", "drop"))
       dom.window.addEventListener(t, (e: dom.DragEvent) => e.preventDefault())
 
+  private val TrustedParent = """^(vscode-webview://[^/]+|https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?)$""".r
+
+  /** The origin of the page framing this one, when it is a VS Code webview
+    * (`vscode-webview:`) or a loopback page; None at the top level, without
+    * `location.ancestorOrigins` (Chromium has it, VS Code is Chromium), or for
+    * any other parent: the side panel channel then stays closed. */
+  lazy val parentOrigin: Option[String] =
+    if (!on || js.special.strictEquals(dom.window.parent, dom.window)) None
+    else {
+      val ao = dom.window.location.asInstanceOf[js.Dynamic].ancestorOrigins
+      if (js.isUndefined(ao) || ao == null || ao.length.asInstanceOf[Int] < 1) None
+      else Option(ao.item(0).asInstanceOf[String]).filter(o => TrustedParent.pattern.matcher(o).matches())
+    }
+
+  /** Posts `msg` to the parent page (the side panel channel), to its exact origin only. */
+  def postToParent(msg: js.Any): Unit =
+    parentOrigin.foreach(o => dom.window.parent.postMessage(msg, o))
+
+  /** A `{type: "socless-navigate", path, select}` message: `path` a non-empty
+    * array of strings, `select` absent, null or a string. None otherwise. */
+  def parseNavigate(data: js.Any): Option[(List[String], Option[String])] =
+    if (data == null || js.typeOf(data) != "object") None
+    else {
+      val d = data.asInstanceOf[js.Dynamic]
+      val path = d.selectDynamic("path")
+      val sel  = d.selectDynamic("select")
+      val okType = d.selectDynamic("type").asInstanceOf[Any] == "socless-navigate"
+      val okPath = js.Array.isArray(path) && path.asInstanceOf[js.Array[Any]].nonEmpty &&
+        path.asInstanceOf[js.Array[Any]].forall(p => js.typeOf(p) == "string")
+      val okSel = js.isUndefined(sel) || sel == null || js.typeOf(sel) == "string"
+      if (!(okType && okPath && okSel)) None
+      else Some((path.asInstanceOf[js.Array[String]].toList,
+        if (js.isUndefined(sel) || sel == null) None else Some(sel.asInstanceOf[String])))
+    }
+
+  /** Calls `apply` with every valid `socless-navigate` message from the parent
+    * page (same window and origin rules as [[postToParent]]). */
+  def onNavigateMessage(apply: (List[String], Option[String]) => Unit): Unit =
+    parentOrigin.foreach { origin =>
+      dom.window.addEventListener("message", (e: dom.MessageEvent) =>
+        if (js.special.strictEquals(e.source, dom.window.parent) && e.origin == origin)
+          parseNavigate(e.data.asInstanceOf[js.Any]).foreach { case (p, s) => apply(p, s) })
+    }
+
   /** Calls `apply` with the theme of every `{type: "socless-theme", kind}`
     * message posted by the parent page (the editor's webview). Messages from
     * any other window, or any message to a top-level page (it has no parent),

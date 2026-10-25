@@ -58,22 +58,82 @@
         }
       }
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "socless",
+          "title": "SoCLess",
+          "icon": "media/socless.svg"
+        }
+      ]
+    },
+    "views": {
+      "socless": [
+        { "id": "socless.tests", "name": "Tests" },
+        { "id": "socless.hierarchy", "name": "Hierarchy" },
+        { "id": "socless.details", "name": "Details" }
+      ]
+    },
     "commands": [
       {
         "command": "socless.showPanel",
-        "title": "SoCLess: Show design panel"
+        "title": "SoCLess: Show design panel",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "socless.refreshTests",
+        "title": "SoCLess: Refresh tests",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "socless.openSettings",
+        "title": "SoCLess: Open settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "socless.viewDesignItem",
+        "title": "View design",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "socless.simulateItem",
+        "title": "Simulate",
+        "icon": "$(play)"
       },
       {
         "command": "socless._panelUrl",
         "title": "SoCLess: Panel URL (test only)"
+      },
+      {
+        "command": "socless._views",
+        "title": "SoCLess: Side panel rows (test only)"
+      },
+      {
+        "command": "socless._openTest",
+        "title": "SoCLess: Open test"
+      },
+      {
+        "command": "socless._openHierarchy",
+        "title": "SoCLess: Show in the schematic"
       }
     ],
     "menus": {
       "commandPalette": [
-        {
-          "command": "socless._panelUrl",
-          "when": "false"
-        }
+        { "command": "socless._panelUrl", "when": "false" },
+        { "command": "socless._views", "when": "false" },
+        { "command": "socless._openTest", "when": "false" },
+        { "command": "socless._openHierarchy", "when": "false" },
+        { "command": "socless.viewDesignItem", "when": "false" },
+        { "command": "socless.simulateItem", "when": "false" }
+      ],
+      "view/title": [
+        { "command": "socless.refreshTests", "when": "view == socless.tests", "group": "navigation@1" },
+        { "command": "socless.showPanel", "when": "view == socless.tests", "group": "navigation@2" },
+        { "command": "socless.openSettings", "when": "view == socless.tests", "group": "navigation@3" }
+      ],
+      "view/item/context": [
+        { "command": "socless.viewDesignItem", "when": "view == socless.tests && viewItem == test", "group": "inline@1" },
+        { "command": "socless.simulateItem", "when": "view == socless.tests && viewItem == test", "group": "inline@2" }
       ]
     }
   },

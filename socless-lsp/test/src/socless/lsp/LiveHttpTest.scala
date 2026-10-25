@@ -44,6 +44,9 @@ object LiveHttpTest extends TestSuite {
       withServer() { (_, port) =>
         val r = get(port, "/")
         assert(r.statusCode == 200, r.body.contains("<html"))
+        // only the page itself or VS Code's webview may frame the UI
+        assert(r.headers.firstValue("Content-Security-Policy").orElse("") == LiveHttp.FrameAncestors)
+        assert(LiveHttp.FrameAncestors.startsWith("frame-ancestors 'self' vscode-webview:"))
       }
     }
     test("design") {

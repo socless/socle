@@ -51,11 +51,16 @@ removes the Source / Waveform tabs, logo, design picker, theme toggle and
 gallery, share button and drop zone, starts with the bottom panel closed,
 takes its theme from `&theme=light|dark|hc`, and follows `socless-theme`
 messages from its parent frame only; and that without the parameter all of it
-is still there:
+is still there. Embedded, the hierarchy and inspector panes and their toggles
+are gone too (VS Code's side panel shows them): on the DeepSoc design, framed by
+a cross-origin loopback page, the UI posts `socless-state` (hierarchy, drill
+path, selection, details) on load, drill and select, follows `socless-navigate`
+from the parent, and ignores self-posted or malformed messages:
 
 ```bash
-./mill socless-ui.dist && ./mill example.soclessRunGcd
-node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json
+./mill socless-ui.dist && ./mill example.soclessRunGcd && ./mill example.soclessRunDeepSoc
+node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
+  --deep out/example/soclessRunDeepSoc.dest/design.json
 ```
 
 ## Run

@@ -27,10 +27,21 @@ object LanguageServerTest extends TestSuite {
   private val deepSoc = root / "example" / "src" / "deephier" / "DeepSoc.scala"
   private def uri(p: os.Path) = p.toNIO.toUri.toString
 
+  /** The server as the editor sees it, with the custom request (lsp4j drops
+    * the result of a request its remote interface does not declare). */
+  trait SoclessServer extends LanguageServer {
+    @org.eclipse.lsp4j.jsonrpc.services.JsonRequest("socless/tests")
+    def tests(): CompletableFuture[JsonObject]
+  }
+
   /** Records what the server sends to the editor. */
   final class RecordingClient(showDocumentOk: Boolean) extends SoclessClient {
     val panels    = new ConcurrentLinkedQueue[OpenPanelParams]
     override def openPanel(p: OpenPanelParams): Unit = panels.add(p)
+    val statuses     = new ConcurrentLinkedQueue[StatusParams]
+    override def status(p: StatusParams): Unit = statuses.add(p)
+    val testsChangedCount = new java.util.concurrent.atomic.AtomicInteger
+    override def testsChanged(): Unit = { testsChangedCount.incrementAndGet(); () }
     val documents = new ConcurrentLinkedQueue[ShowDocumentParams]
     val messages  = new ConcurrentLinkedQueue[MessageParams]
     def telemetryEvent(o: Object): Unit = ()
@@ -73,10 +84,11 @@ object LanguageServerTest extends TestSuite {
       .setInput(Channels.newInputStream(toServer.source)).setOutput(Channels.newOutputStream(toClient.sink)).create()
     server.connect(serverLauncher.getRemoteProxy)
     serverLauncher.startListening()
-    private val clientLauncher = LSPLauncher.createClientLauncher(
-      client, Channels.newInputStream(toClient.source), Channels.newOutputStream(toServer.sink))
+    private val clientLauncher = new Launcher.Builder[SoclessServer]()
+      .setLocalService(client).setRemoteInterface(classOf[SoclessServer])
+      .setInput(Channels.newInputStream(toClient.source)).setOutput(Channels.newOutputStream(toServer.sink)).create()
     clientLauncher.startListening()
-    val remote: LanguageServer = clientLauncher.getRemoteProxy
+    val remote: SoclessServer = clientLauncher.getRemoteProxy
 
     val init = new InitializeParams
     init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(ws), "socless")))
@@ -109,6 +121,9 @@ object LanguageServerTest extends TestSuite {
       o.addProperty("line", line)
       clientLauncher.getRemoteEndpoint.notify("socless/cursor", o)
     }
+
+    /** `socless/tests`, as JSON. */
+    def tests(): ujson.Value = ujson.read(remote.tests().get().toString)
 
     def close(): Unit = { server.stopAll(); toServer.sink.close(); toClient.sink.close() }
   }
@@ -208,6 +223,44 @@ object LanguageServerTest extends TestSuite {
       fx.remote.getTextDocumentService.didChange(new DidChangeTextDocumentParams(
         new VersionedTextDocumentIdentifier(u, 2), java.util.List.of(change)))
       assert(fx.lenses(f).size == 2)
+    }
+    test("socless/tests lists the example suites") {
+      val suites = fx.tests()("suites").arr.toSeq
+      val names  = suites.map(_("suite").str)
+      assert(names == names.sorted, names.distinct == names)
+      val gcd = suites.find(_("suite").str == "gcd.GcdSpec").getOrElse(sys.error(s"no gcd.GcdSpec in $names"))
+      assert(gcd("file").str == uri(gcdSpec))
+      assert(gcd("tests").arr.map(t => (t("name").str, t("line").num.toInt)).toSeq == Seq(("GCD computes gcd(48, 18)", 8)))
+      val deep = suites.find(_("suite").str == "deephier.DeepSocSpec").getOrElse(sys.error(s"no DeepSocSpec in $names"))
+      assert(deep("tests").arr.map(_("name").str).contains("DeepSoc elaborates and steps"))
+      // no suite from a non-test file, no suite without tests
+      assert(!names.contains("gcd.GCD"), suites.forall(_("tests").arr.nonEmpty))
+    }
+    test("socless/tests on a base-trait workspace; socless/testsChanged after a save") {
+      val dir  = os.temp.dir(prefix = "socless-tests-ws-")
+      val base = dir / "src" / "SimBase.scala"
+      val spec = dir / "test" / "S.scala"
+      os.write(dir / "build.mill", "")
+      os.write(base, "package p\ntrait SimBase extends AnyFlatSpec with ChiselSim", createFolders = true)
+      val one = "package q\nclass S extends p.SimBase {\n  behavior of \"A\"\n  it should \"x\" in { }\n"
+      os.write(spec, one + "}", createFolders = true)
+      val f = new Fixture(ws = dir, panel = Some("client"))
+      try {
+        def tests(r: ujson.Value) = r("suites").arr.toSeq.map(s =>
+          (s("suite").str, s("file").str, s("tests").arr.toSeq.map(t => (t("name").str, t("line").num.toInt))))
+        assert(tests(f.tests()) == Seq(("q.S", uri(spec), Seq(("A should x", 3)))))
+        // a save that changes no test sends nothing
+        f.save(base)
+        Thread.sleep(1500)
+        assert(f.client.testsChangedCount.get == 0)
+        os.write.over(spec, one + "  it should \"y\" in { }\n}")
+        os.mtime.set(spec, os.mtime(spec) + 5000)
+        f.save(spec)
+        eventually("testsChanged")(Some(f.client.testsChangedCount.get).filter(_ == 1))
+        assert(tests(f.tests()) == Seq(("q.S", uri(spec), Seq(("A should x", 3), ("A should y", 4)))))
+        Thread.sleep(1000)
+        assert(f.client.testsChangedCount.get == 1) // one burst, one notification
+      } finally { f.close(); os.remove.all(dir) }
     }
     test("view") {
       val t0 = System.nanoTime()
@@ -454,6 +507,18 @@ object LanguageServerTest extends TestSuite {
         assert(f.client.panels.size == 2)
         assert(f.client.documents.asScala.count(_.getExternal == true) == 0)
         assert(f.browser.isEmpty)
+        // socless/status: each change of status, test or message, with the suite
+        def statuses = f.client.statuses.asScala.toSeq.map(s => (s.getStatus, s.getSuite, s.getTest))
+        val key = ("gcd.GcdSpec", "GCD computes gcd(48, 18)")
+        eventually("status ok")(Some(statuses).filter(_.lastOption.contains(("ok", key._1, key._2))))
+        assert(statuses.take(2) == Seq(("running", key._1, key._2), ("ok", key._1, key._2)))
+        f.client.statuses.clear()
+        f.cursor(deepSoc, 0) // focus changes only: no status
+        f.cp = Left("broken build")
+        f.view(gcdArgs: _*)
+        val err = eventually("status error")(f.client.statuses.asScala.find(_.getStatus == "error"))
+        assert(err.getSuite == key._1, err.getTest == key._2, err.getMessage == "broken build")
+        assert(f.client.statuses.asScala.map(_.getStatus).toSeq == Seq("running", "error"))
       } finally f.close()
     }
     test("panel option absent or not client keeps the default") {
@@ -462,6 +527,9 @@ object LanguageServerTest extends TestSuite {
         f.view(gcdArgs: _*)
         eventually("browser doc")(f.client.documents.asScala.find(_.getExternal == true))
         assert(f.client.panels.isEmpty)
+        f.save(gcdSpec)
+        Thread.sleep(1500)
+        assert(f.client.statuses.isEmpty, f.client.testsChangedCount.get == 0) // client-hosted panel only
       } finally f.close()
     }
     test("simulate: status, refusal while running, settings, completion message") {
