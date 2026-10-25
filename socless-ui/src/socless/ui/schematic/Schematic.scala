@@ -10,9 +10,9 @@ import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Success, Failure}
 import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind}
-import socless.layout.LayoutCore
+import socless.layout.{InstanceFold, LayoutCore}
 import socless.js.BrowserLayout
-import socless.js.BrowserLayout.{LaidOut, LaidNodeR, BoxOverride}
+import socless.js.BrowserLayout.{LaidOut, LaidNodeR, LaidPortR, BoxOverride}
 
 /** The schematic (center) pane: a block diagram of the current module's children
   * and their wires (epic #172 Phase 2). Behavioral port of the JS `BenchSchematic`
@@ -47,6 +47,8 @@ object Schematic {
     hoveredVar: Var[Option[String]],
     expandedPortsVar: Var[Set[String]],
     drillInto: String => Unit,
+    // Fold or unfold a generator-copy group of the module in view (App owns the state).
+    toggleFold: String => Unit,
     // Colorize toggles live in the settings panel (#274), so App owns them and
     // passes them in; the schematic reads them per-render (#266).
     colorBoxesVar: Var[Boolean],
@@ -67,11 +69,12 @@ object Schematic {
     // Schematic-internal state (persists for the life of the pane).
     val zoomVar     = Var(1.0)
     val panVar      = Var((40.0, 40.0))
-    // The in-process engine (elkjs) layout, TAGGED with the module name it was
-    // computed for. The tag is essential: `geomSig` and the re-layout trigger
-    // both fire on a module change, and an engine result for the PREVIOUS module
-    // must never be used to place the new module's wires (it would leave every
-    // wire unanchored until the async relayout lands, issue #258 follow-up).
+    // The in-process engine (elkjs) layout, TAGGED with the module (name and
+    // unfolded copies, `viewTag`) it was computed for. The tag is essential:
+    // `geomSig` and the re-layout trigger both fire on a module change, and an
+    // engine result for the PREVIOUS module must never be used to place the new
+    // module's wires (it would leave every wire unanchored until the async
+    // relayout lands, issue #258 follow-up).
     val engineVar   = Var[Option[(String, LaidOut)]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
@@ -100,12 +103,27 @@ object Schematic {
     // toggling cannot grow it without limit.
     val engineCache    = scala.collection.mutable.LinkedHashMap.empty[String, LaidOut]
     val engineCacheCap = 96
-    def engineKey(modName: String, mode: String, expanded: Set[String], overrides: Map[String, BoxOverride], hidden: Set[String]): String = {
+    def engineKey(modTag: String, mode: String, expanded: Set[String], overrides: Map[String, BoxOverride], hidden: Set[String]): String = {
       val exp = expanded.toList.sorted.mkString(",")
       val ovr = overrides.toList.sortBy(_._1).map { case (k, o) => s"$k=${o.height.getOrElse(0.0)}" }.mkString(",")
       val hid = hidden.toList.sorted.mkString(",")
-      s"$modName|$mode|$exp|$ovr|$hid"
+      s"$modTag|$mode|$exp|$ovr|$hid"
     }
+    // A module as shown: its name plus the generator copies unfolded in it, so an
+    // engine layout (and its cache entry) never serves another fold state.
+    def unfoldedMembers(mod: ModuleDef): List[String] = mod.children.filter(_.foldGroup.nonEmpty).map(_.name).toList.sorted
+    def viewTag(mod: ModuleDef): String = (mod.name :: unfoldedMembers(mod)).mkString("|")
+    // The pre-engine geometry the rows and box overrides are measured against:
+    // the baked layout, or, with copies unfolded (absent from the all-folded
+    // baked layout), the prepared boxes and pins the engine starts from.
+    def baseOf(d: Design, mod: ModuleDef): Option[LaidOut] =
+      bakedOf(d, mod).map { bl =>
+        if (unfoldedMembers(mod).isEmpty) bl
+        else LaidOut(LayoutCore.prepare(mod, d).nodes.map { n =>
+          LaidNodeR(n.id, n.kind, 0, 0, n.width.toInt, n.height.toInt,
+            n.pins.map(p => LaidPortR(p.path, p.x.toInt, p.y.toInt, p.side, p.interface, p.label, p.bundle, p.expandable)))
+        }, Nil, bl.w, bl.h)
+      }
     def engineCachePut(key: String, v: LaidOut): Unit = {
       engineCache(key) = v
       if (engineCache.size > engineCacheCap) engineCache.remove(engineCache.head._1)
@@ -136,10 +154,10 @@ object Schematic {
     }
 
     // Paths that are expanded unconditionally: scattered-bundle groups and any
-    // locked sub-group headers. Derived from the baked rows so it matches RowModel.
+    // locked sub-group headers. Derived from the base rows (baseOf) so it matches RowModel.
     // The header/spacing constants are irrelevant to which paths are locked, so 0 is fine.
     def lockedExpansions(d: Design, mod: ModuleDef): Set[String] = {
-      val baked = bakedOf(d, mod).getOrElse(LaidOut(Nil, Nil, 1, 1))
+      val baked = baseOf(d, mod).getOrElse(LaidOut(Nil, Nil, 1, 1))
       RowModel.build(baked, mod, d, Set.empty, 0, 0, 0)
         .values.flatMap(br => (br.westRows ++ br.eastRows).filter(_.locked).map(_.path)).toSet
     }
@@ -150,8 +168,11 @@ object Schematic {
           // Use the engine layout only when it was computed for THIS module;
           // otherwise fall back to the baked layout for the current module so a
           // stale engine result never mis-anchors the wires.
-          val forThis = engine.collect { case (m, l) if m == mod.name => l }
-          Some(computeGeom(d, mod, forThis, expanded ++ lockedExpansions(d, mod)))
+          val forThis = engine.collect { case (m, l) if m == viewTag(mod) => l }
+          // The baked layout is the all-folded module: until the engine lays out
+          // an unfolded group, show the module folded rather than unanchored copies.
+          val shown = if (forThis.isEmpty && unfoldedMembers(mod).nonEmpty) InstanceFold.fold(mod, Set.empty) else mod
+          Some(computeGeom(d, shown, forThis, expanded ++ lockedExpansions(d, shown)))
         case _                                      => None
       }
 
@@ -160,10 +181,13 @@ object Schematic {
       (dO, mO) match {
         case (Some(d), Some(mod)) =>
           val hasExpansion = expanded.nonEmpty
+          // An unfolded group of generator copies is absent from the (all-folded)
+          // baked layout, so it needs the engine too.
+          val hasUnfolded = mod.children.exists(_.foldGroup.nonEmpty)
           // Declutter (#223) forces the engine too: the baked layout has every
           // node, so hiding kinds needs a re-layout over the visible subset.
-          if (!hasExpansion && !optimize && hidden.isEmpty) { engineVar.set(None); return }
-          bakedOf(d, mod) match {
+          if (!hasExpansion && !hasUnfolded && !optimize && hidden.isEmpty) { engineVar.set(None); return }
+          baseOf(d, mod) match {
             case None => engineVar.set(None)
             case Some(bl) =>
               val c    = Tokens.consts(d)
@@ -175,17 +199,18 @@ object Schematic {
                 else None
               }
               val mode = if (optimize) "optimize" else "reroute"
-              val key  = engineKey(mod.name, mode, expanded, overrides, hidden)
+              val tag  = viewTag(mod)
+              val key  = engineKey(tag, mode, expanded, overrides, hidden)
               engineGen += 1
               val myGen = engineGen
               engineCache.get(key) match {
                 case Some(cached) =>
                   // Cache hit: place synchronously, no engine run, no spinner.
-                  engineVar.set(Some((mod.name, cached))); pendingVar.set(false)
+                  engineVar.set(Some((tag, cached))); pendingVar.set(false)
                 case None =>
                   pendingVar.set(true)
                   BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden).onComplete {
-                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((mod.name, res))); pendingVar.set(false) }
+                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((tag, res))); pendingVar.set(false) }
                     case Failure(e)   => if (myGen == engineGen) {
                       engineVar.set(None); pendingVar.set(false)
                       dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
@@ -391,7 +416,10 @@ object Schematic {
           val childMod   = g.design.modules.find(_.name == ch.`type`)
           val isBlackbox = childMod.exists(m => m.kind == ModuleKind.External || m.kind == ModuleKind.Intrinsic)
           val extLabel: String = childMod.map(m => if (m.kind == ModuleKind.Intrinsic) "intrinsic" else "ext").getOrElse("ext")
-          val drillable  = childMod.exists(m => !isBlackbox && m.children.nonEmpty)
+          // A folded group of generator copies (foldCount > 0) stands for several
+          // instances: not drillable, its double-click unfolds it instead.
+          val isFolded   = ch.foldCount > 0
+          val drillable  = !isFolded && childMod.exists(m => !isBlackbox && m.children.nonEmpty)
           // Generator signature of a captured module; empty from CHIRRTL.
           val sigFull    = childMod.filter(_.scalaClass.nonEmpty).map(ScalaClassLabel.signature).getOrElse("")
           // Clock/reset are filtered from the wire graph (no laid pin, see
@@ -404,26 +432,46 @@ object Schematic {
           val isClockPeer  = selClock.nonEmpty && n.id != selInst && child.exists(_.clock == selClock)
           val boxInfo    = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
           val borderCol  = if (selectedHere) Tokens.accent else if (isClockPeer) Tokens.accentLine else Tokens.border
-          val boxShadow  = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}"
+          val boxShadow0 = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}"
                            else if (isClockPeer) s"0 0 0 2px ${Tokens.accentLine}" else "0 1px 2px rgba(0,0,0,.04)"
+          // Stacked edge: a folded box reads as several copies.
+          val boxShadow  = if (isFolded) s"$boxShadow0, 4px 4px 0 ${Tokens.borderSoft}" else boxShadow0
+          // `+` on a folded box unfolds its group, `−` on a copy folds it back.
+          val foldGroup  = if (isFolded) n.id else ch.foldGroup
+          def foldToggle(glyph: String, tip: String) =
+            span(dataAttr("fold-toggle") := foldGroup, title := tip,
+              styleAttr := s"font-family:${Tokens.mono};font-size:11px;font-weight:700;line-height:13px;color:${Tokens.ink2};" +
+                s"border:1px solid ${Tokens.border};border-radius:3px;padding:0 4px;background:${Tokens.panel};cursor:pointer;flex-shrink:0",
+              onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); toggleFold(foldGroup) },
+              onDblClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
+              glyph)
           div(
             dataAttr("box-inst") := n.id,
             dataAttr("box-drillable") := (if (drillable) "1" else "0"),
             dataAttr("box-focus") := (if (focusActive.exists(_.contains(n.id))) "1" else "0"),
+            Option.when(isFolded)(dataAttr("fold-group") := n.id),
+            Option.when(ch.foldGroup.nonEmpty)(dataAttr("fold-member") := ch.foldGroup),
+            // Test hook: how far the renderer pushed this box down to make room
+            // for a grown box above that the layout did not size (0 once laid out).
+            dataAttr("box-shift") := shift.toString,
             dataAttr("pan-block") := "1",
             styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
               s"opacity:${if (boxActive(n.id)) "1" else "0.18"};" +
               s"background:${if (colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panel};border:1px ${if (isBlackbox) "dashed" else "solid"} $borderCol;border-radius:6px;" +
               s"box-shadow:$boxShadow;cursor:${if (drillable) "pointer" else "default"};overflow:visible;" +
               "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
-            onDblClick --> { (_: dom.MouseEvent) => if (drillable) drillInto(n.id) },
+            onDblClick --> { (_: dom.MouseEvent) => if (isFolded) toggleFold(n.id) else if (drillable) drillInto(n.id) },
             // header
             div(
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
               onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
               span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", Glyphs.of(g.design, ch.`type`)),
-              span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
+              // A fold box's name (and count) never shrinks: only the signature ellipsizes.
+              span(dataAttr("box-name") := n.id,
+                styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" +
+                  (if (isFolded || ch.foldGroup.nonEmpty) ";flex-shrink:0" else ""),
+                if (isFolded) s"${n.id} × ${ch.foldCount}" else n.id),
               // A captured design names the Scala generator and its parameter
               // values instead of the module name; the right group then shrinks
               // (ellipsis) far ahead of the instance name, which stays readable.
@@ -440,6 +488,9 @@ object Schematic {
                     ScalaClassLabel.truncate(sigFull, ScalaClassLabel.HeaderMax)),
                 opt(drillable)(span(styleAttr := s"font-family:${Tokens.mono};font-size:9px;color:${Tokens.accent}", "↵")),
               ),
+              // Outside the shrinking group, so the toggle is never clipped.
+              opt(isFolded)(foldToggle("+", s"Unfold the ${ch.foldCount} copies")),
+              opt(ch.foldGroup.nonEmpty)(foldToggle("−", "Fold the copies back")),
             ),
             // port rows
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West, sel, hov),

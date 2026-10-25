@@ -111,6 +111,13 @@ Viewing a test again, or another one, or running `SoCLess: Show design panel`
 does not reload the panel: the new design loads in place, and the open panels
 and the drill path (while it exists in the new design) are kept.
 
+Generator copies (`Seq.fill(n)(Module(...))`) show folded:
+one box titled `<name> × <n>` stands for the n copies, and the wires into and
+out of them merge with their counts. The `+` on the box, or a double-click on
+it, unfolds the copies; the `−` on any copy folds them back. The choice is kept
+while you navigate. The side panel's Hierarchy tree still lists every copy;
+selecting a copy there unfolds its group.
+
 Breadcrumbs, search, the run status, the bottom panel toggle, the view settings
 and the keyboard help work as in the browser. Opened in a browser or from
 Neovim, the UI is unchanged.

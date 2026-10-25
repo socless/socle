@@ -197,6 +197,7 @@ object `socless-js` extends ScalaJSModule {
   def sharedSources = Task.Sources(
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "Schema.scala",
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "LayoutCore.scala",
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "InstanceFold.scala",
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "BundleTree.scala",
     // LayoutCore now consumes the synthetic-pin protocol (issue #212 layer wires).
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "ir" / "Synthetic.scala",
@@ -451,6 +452,27 @@ object example extends ChiselToolchain {
     // design.json needs to live in the --dir so the UI auto-loads it.
     os.copy.over(json, uiDir / "design.json")
     serve(uiDir, runClasspath(), port, Task.log)
+  }
+
+  // The committed capture, a Source so a fixture change reruns the conversion.
+  def capturedDeepSocFixture = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "deepsoc.json")
+
+  /** Convert the committed DeepSoc capture to a laid-out design.json.
+    *
+    * Gives the ui-smoke site a captured (view mode) design whose generator
+    * copies are tagged with a fold group. Caches on the fixture and classpath.
+    */
+  def soclessCapturedDeepSoc: T[PathRef] = Task {
+    val out = Task.dest / "design.json"
+    val rc = os.proc(
+      "java", "-cp", runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
+      "socless.cli.Launcher", "from-capture", capturedDeepSocFixture().path.toString,
+      "--output", out.toString,
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the DeepSoc capture (exit ${rc.exitCode})")
+    PathRef(out)
   }
 
   /** View the design a ChiselSim test elaborates, in the UI, without simulating.

@@ -214,6 +214,12 @@ case class InstanceDef(
   // "<unreadable>"), from a probe capture; empty from the CHIRRTL path.
   // Additive, last.
   params: Map[String, String] = Map.empty,
+  // Generator-copy fold group id (Seq.fill(n)(Module(...))), set only by
+  // ModelToDesign on each member of a group; empty otherwise. Additive, last.
+  foldGroup: String = "",
+  // > 0 only on the synthetic instance standing for a folded group: the number
+  // of copies it replaces. Additive, last.
+  foldCount: Int = 0,
 )
 object InstanceDef { implicit val rw: ReadWriter[InstanceDef] = macroRW }
 

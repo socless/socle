@@ -6,6 +6,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import socless.schema.{Design, ModuleDef, ModuleKind}
+import socless.layout.InstanceFold
 import socless.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socless.ui.theme._
 import socless.ui.model._
@@ -29,6 +30,8 @@ object App {
   private val hoveredSigVar    = Var[Option[String]](None)
   private val expandedPortsVar = Var[Set[String]](Set.empty) // in-box expanded bundle pin paths
   private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
+  // Unfolded generator-copy groups per module name; session-long, groups start folded.
+  private val unfoldedVar = Var(Map.empty[String, Set[String]])
   private val paletteOpenVar = Var(false)                       // command palette (Ctrl/Cmd+K)
   private val helpOpenVar    = Var(false)                       // keyboard-help overlay (?)
   private val themeVar       = Var[String]("light")             // active theme id (#2 / #275)
@@ -320,11 +323,43 @@ object App {
       }
     }
 
+  /** `mod` as shown: its generator copies folded, but the groups unfolded in it. */
+  private def folded(mod: ModuleDef, unfolded: Map[String, Set[String]]): ModuleDef =
+    InstanceFold.fold(mod, unfolded.getOrElse(mod.name, Set.empty))
+
+  /** The module in view, folded as shown (for lookups outside the signals). */
+  private def shownModule(d: Design, path: List[String]): Option[ModuleDef] =
+    currentModule(d, path).map(folded(_, unfoldedVar.now()))
+
   private val currentModuleSig: Signal[Option[ModuleDef]] =
-    Signal.combine(loader.designSig, pathVar.signal).map {
-      case (Some(d), p) => currentModule(d, p)
-      case _            => None
+    Signal.combine(loader.designSig, pathVar.signal, unfoldedVar.signal).map {
+      case (Some(d), p, u) => currentModule(d, p).map(folded(_, u))
+      case _               => None
     }
+
+  /** Fold or unfold group `id` of the module in view. A selection and expanded
+    * bundle pins under a box the change removes (a folded box when unfolding, a
+    * copy when folding) are cleared, so the folded view returns to the baked layout. */
+  private def toggleFold(module: String, id: String): Unit = {
+    val wasUnfolded = unfoldedVar.now().getOrElse(module, Set.empty).contains(id)
+    val gone: Set[String] =
+      if (!wasUnfolded) Set(id)
+      else (for {
+        d   <- loader.currentDesign
+        mod <- d.modules.find(_.name == module)
+        ms  <- InstanceFold.groups(mod).collectFirst { case (`id`, ms) => ms }
+      } yield ms.toSet).getOrElse(Set.empty)
+    def under(path: String): Boolean = gone(path.takeWhile(_ != '.'))
+    // One transaction, so the schematic lays out the new fold state once.
+    Var.update(
+      unfoldedVar -> { (u: Map[String, Set[String]]) =>
+        val s = u.getOrElse(module, Set.empty)
+        u.updated(module, if (wasUnfolded) s - id else s + id)
+      },
+      expandedPortsVar -> { (e: Set[String]) => e.filterNot(under) },
+    )
+    if (selectedSigVar.now().exists(under)) selectedSigVar.set(None)
+  }
 
   /** Drill into a child instance: append it to the path (mirrors the JS
     * drillInto). Leaves and blackboxes have no internals and are not drilled. */
@@ -349,6 +384,12 @@ object App {
       mod <- currentModule(d, path)
     } {
       pathVar.set(path) // its binder clears the selection first
+      // A copy folded away in the schematic is unfolded so it can be shown selected.
+      select.foreach { n =>
+        InstanceFold.groups(mod).collectFirst { case (g, ms) if ms.contains(n) => g }
+          .filterNot(g => unfoldedVar.now().getOrElse(mod.name, Set.empty).contains(g))
+          .foreach(g => toggleFold(mod.name, g))
+      }
       val sel = select.filter(n => mod.children.exists(_.name == n))
       navSelect = sel
       selectedSigVar.set(sel)
@@ -368,7 +409,7 @@ object App {
           "source" -> (if (openableSource(d, m.source.file)) ujson.Obj("file" -> m.source.file, "line" -> m.source.line) else ujson.Null),
           "children" -> m.children.map(c => ujson.Obj("name" -> c.name, "type" -> c.`type`)))
       })
-    def details(d: Design): ujson.Value = currentModule(d, path).fold[ujson.Value](ujson.Null) { mod =>
+    def details(d: Design): ujson.Value = shownModule(d, path).fold[ujson.Value](ujson.Null) { mod =>
       val inst = sel.flatMap(s => mod.children.find(_.name == s))
       val (name, target) = inst match {
         case Some(i) => (i.name, d.modules.find(_.name == i.`type`))
@@ -469,6 +510,7 @@ object App {
             hoveredVar       = hoveredSigVar,
             expandedPortsVar = expandedPortsVar,
             drillInto        = drillInto,
+            toggleFold       = id => for { d <- loader.currentDesign; m <- currentModule(d, pathVar.now()) } toggleFold(m.name, id),
             colorBoxesVar    = colorBoxesVar,
             colorWiresVar    = colorWiresVar,
             hiddenKindsVar   = hiddenKindsVar,
@@ -575,7 +617,7 @@ object App {
   private def openInstanceSource(sel: String): Unit =
     for {
       d     <- loader.currentDesign
-      mod   <- currentModule(d, pathVar.now())
+      mod   <- shownModule(d, pathVar.now())
       child <- mod.children.find(_.name == sel)
       cm    <- d.modules.find(_.name == child.`type`)
       src    = cm.source

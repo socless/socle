@@ -554,7 +554,12 @@ object LayoutCore {
         val westMaxPx = pins.values.filter(_.side == PinSide.West).map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         val eastMaxPx = pins.values.filter(_.side == PinSide.East).map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         // Also ensure header text (instance id) fits: id.length * 6.5 + 24 (glyph + padding)
-        val headerTextPx = id.length * 6.5 + 24.0
+        // A folded box shows `<id> × <n>` and a copy its group's toggle (about
+        // 30px with its gap); both must fit. No fold field is set on a CHIRRTL design.
+        val fold         = module.children.find(_.name == id)
+        val headerText   = fold.filter(_.foldCount > 0).fold(id)(c => s"$id × ${c.foldCount}")
+        val toggleW      = if (fold.exists(c => c.foldCount > 0 || c.foldGroup.nonEmpty)) 30.0 else 0.0
+        val headerTextPx = headerText.length * 6.5 + 24.0 + toggleW
         // Op/reg logic nodes render as a compact symbol (no header, short or no
         // pin labels), so they use a small fixed width; real instances size to
         // their header + label columns (issue #203).

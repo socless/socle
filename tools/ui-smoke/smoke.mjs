@@ -194,6 +194,124 @@ for (const design of designs) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
   }
 
+  // Generator copies fold into one box: in the captured DeepSoc, `cluster0`
+  // holds group `cores` (cores_0, cores_1). Unfold with `+`, fold back with a
+  // copy's `-`, unfold again with a double-click on the folded box.
+  if (design === 'deepsoc-view') {
+    const where = 'fold cores';
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    };
+    const count = (sel) => page.locator(sel).count();
+    // The header's name (and count) is never clipped and its fold toggle sits
+    // fully inside the box. innerText cannot see a CSS ellipsis, and
+    // scrollWidth rounds to whole pixels, so the text's own width is compared.
+    const expectHeader = async (step, box) => {
+      const r = await page.evaluate((id) => {
+        const b = document.querySelector(`[data-box-inst="${id}"]`);
+        const name = b?.querySelector(`[data-box-name="${id}"]`);
+        const t = b?.querySelector('[data-fold-toggle]');
+        if (!name || !t) return { missing: !name ? 'name' : 'toggle' };
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        const tw = range.getBoundingClientRect().width, nw = name.getBoundingClientRect().width;
+        const br = b.getBoundingClientRect(), hr = b.firstElementChild.getBoundingClientRect(), tr = t.getBoundingClientRect();
+        return {
+          clipped: name.scrollWidth > name.clientWidth || tw > nw + 0.01 ? `text ${tw}px in ${nw}px` : '',
+          outside: tr.width > 0 && tr.left >= Math.max(br.left, hr.left) && tr.right <= Math.min(br.right, hr.right) ? ''
+            : `toggle [${tr.left}, ${tr.right}] box [${br.left}, ${br.right}] header [${hr.left}, ${hr.right}]`,
+        };
+      }, box);
+      if (r.missing) note(design, where, `${step}: ${box} header has no ${r.missing}`);
+      if (r.clipped) note(design, where, `${step}: ${box} name clipped (${r.clipped})`);
+      if (r.outside) note(design, where, `${step}: ${box} fold toggle clipped (${r.outside})`);
+    };
+    const expectFolded = async (step) => {
+      const n = await count('[data-fold-group="cores"]');
+      const head = n ? await page.locator('[data-fold-group="cores"]').first().innerText() : '';
+      if (n !== 1) note(design, where, `${step}: expected one [data-fold-group="cores"] box, got ${n}`);
+      else if (!head.includes('cores × 2')) note(design, where, `${step}: folded header lacks "cores × 2": ${JSON.stringify(head)}`);
+      else await expectHeader(step, 'cores');
+      if (await count('[data-box-inst="cores_0"]')) note(design, where, `${step}: cores_0 shown while folded`);
+    };
+    const expectUnfolded = async (step) => {
+      for (const m of ['cores_0', 'cores_1'])
+        if (!(await count(`[data-box-inst="${m}"]`))) note(design, where, `${step}: no [data-box-inst="${m}"]`);
+        else await expectHeader(step, m);
+      if (await count('[data-fold-group]')) note(design, where, `${step}: a [data-fold-group] box remains`);
+    };
+    await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, e.message));
+    await settle();
+    await expectFolded('initial');
+    await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `unfold: ${e.message}`));
+    await settle();
+    await expectUnfolded('after +');
+    // Expanding a bundle on an unfolded copy grows that box: the engine must
+    // lay it out at its grown height, so the copies never overlap and the gap
+    // between them (the engine's node spacing) does not shrink by the growth.
+    const rects = () => page.evaluate(() => ['cores_0', 'cores_1'].map((m) => {
+      const b = document.querySelector(`[data-box-inst="${m}"]`)?.getBoundingClientRect();
+      return b && { l: b.left, t: b.top, r: b.right, b: b.bottom };
+    }));
+    const gapOf = ([a, b]) => Math.max(b.t - a.b, a.t - b.b, b.l - a.r, a.l - b.r);
+    const before = await rects();
+    const bt = page.locator('[data-box-inst="cores_0"] [data-bundle-toggle]');
+    if (!(await bt.count())) note(design, where, 'no [data-bundle-toggle] on cores_0');
+    else if (!before[0] || !before[1]) note(design, where, 'before expand: a copy box is missing');
+    else {
+      // Expand every bundle on cores_0 (nested ones appear as parents open).
+      const opened = new Set();
+      for (let round = 0; round < 6; round++) {
+        const ids = await bt.evaluateAll((els) => els.map((e) => e.getAttribute('data-bundle-toggle')));
+        const fresh = ids.filter((id) => !opened.has(id));
+        if (!fresh.length) break;
+        for (const id of fresh) {
+          opened.add(id);
+          await page.locator(`[data-box-inst="cores_0"] [data-bundle-toggle="${id}"]`).first().dispatchEvent('click')
+            .catch((e) => note(design, where, `expand ${id} on cores_0: ${e.message}`));
+          await settle();
+        }
+      }
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__fold-expand.png` }).catch(() => {});
+      const after = await rects();
+      if (!after[0] || !after[1]) note(design, where, 'after expand: a copy box is missing');
+      else {
+        const grew = (after[0].b - after[0].t) - (before[0].b - before[0].t);
+        const g0 = gapOf(before), g1 = gapOf(after);
+        if (grew <= 0) note(design, where, `after expand: cores_0 did not grow (${grew}px)`);
+        if (g1 <= 0) note(design, where, `after expand: cores_0 overlaps cores_1 ${JSON.stringify(after)}`);
+        else if (g1 < g0 - 2) note(design, where, `after expand: gap between copies shrank ${g0.toFixed(1)} -> ${g1.toFixed(1)}px`);
+      }
+      // The renderer pushes boxes down (data-box-shift) only to make room for a
+      // grown box the engine did not size: once laid out, no copy is shifted.
+      const shifts = await page.$$eval('[data-fold-member="cores"]', (els) =>
+        els.map((e) => `${e.getAttribute('data-box-inst')}=${e.getAttribute('data-box-shift')}`));
+      if (shifts.some((s) => !/=0(\.0)?$/.test(s)))
+        note(design, where, `after expand: copies laid out at their old height, renderer shifted ${shifts.join(', ')}`);
+    }
+    drain(`${where} (expand)`);
+    // Select a copy (its header, left of the toggle), then fold its group back:
+    // the fold removes the selected box, so the selection (and cores_0's expanded
+    // bundles) are cleared; both are checked once the copies are back.
+    await page.locator('[data-box-inst="cores_1"] > div').first().click({ position: { x: 20, y: 8 }, timeout: 3000 })
+      .catch((e) => note(design, where, `select cores_1: ${e.message}`));
+    if (!(await count('[data-inst-inspect="cores_1"]'))) note(design, where, 'cores_1 not selected (no inspector entry)');
+    await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `fold back: ${e.message}`));
+    await settle();
+    await expectFolded('after -');
+    await page.locator('[data-fold-group="cores"]').first().dblclick({ timeout: 3000 }).catch((e) => note(design, where, `dblclick: ${e.message}`));
+    await settle();
+    await expectUnfolded('after double-click');
+    // A stale selection would show cores_1 selected again once it is back.
+    if (await count('[data-inst-inspect="cores_1"]')) note(design, where, 'after double-click: cores_1 selected again (selection not cleared on fold)');
+    const back = await rects();
+    if (before[0] && back[0] && Math.abs((back[0].b - back[0].t) - (before[0].b - before[0].t)) > 1)
+      note(design, where, 'after double-click: cores_0 still expanded (expansions not cleared on fold)');
+    drain(where);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__fold.png` }).catch(() => {});
+  }
+
   // Back to the top module (richest view: instances, wires, interface pins).
   if (paths.length) {
     await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});

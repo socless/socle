@@ -157,6 +157,9 @@ jobs:
       - name: Elaborate Scatter example (#237 bundle direction split)
         run: ./mill example.soclessRunScatter
 
+      - name: Convert captured DeepSoc (instance fold)
+        run: ./mill example.soclessCapturedDeepSoc
+
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
       # (no Mill daemon) so it can be backgrounded and killed safely.

@@ -2,6 +2,7 @@ package socless.capture
 
 import scala.collection.mutable
 
+import socless.parse.ChirrtlParser
 import socless.schema._
 
 /** Adapts a [[CapturedModel]] (the probe's view of an elaborated design) to the
@@ -34,6 +35,10 @@ object ModelToDesign {
       }
     }.toMap
     lazy val chirrtlWires = WiresFromChirrtl.wireDefs(m.chirrtl)
+    lazy val chirrtlInsts: Map[String, Map[String, ChirrtlParser.SrcInfo]] =
+      ChirrtlParser.parse(m.chirrtl).modules.map { cm =>
+        cm.name -> cm.insts.flatMap(i => i.src.map(i.name -> _)).toMap
+      }.toMap
     def params(module: String): Map[String, String] =
       byName.get(module).map(_.params.map(p => p.name -> p.value).toMap).getOrElse(Map.empty)
 
@@ -63,13 +68,17 @@ object ModelToDesign {
           w.copy(bundle = bundle)
         }
       }
+      val foldGroups =
+        if (m.chirrtl.nonEmpty) foldGroupsOf(c, chirrtlInsts.getOrElse(c.name, Map.empty), byName)
+        else Map.empty[String, String]
       ModuleDef(
         name       = c.name,
         `type`     = c.name,
         doc        = "",
         source     = c.source.map(s => SourceRef(s.file, s.line, s.col)).getOrElse(SourceRef.unknown),
         ports      = ports(c.name).map { case (n, d, k) => PortDef(n, d, k.key, "", SourceRef.unknown) },
-        children   = c.instances.map(i => InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module))),
+        children   = c.instances.map(i => InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module),
+          foldGroup = foldGroups.getOrElse(i.name, ""))),
         wires      = wires,
         metrics    = Metrics(0, 0, 0),
         parameters = params(c.name),
@@ -88,6 +97,30 @@ object ModelToDesign {
       // Wires through internal logic are dropped, so draw unwired ports too.
       showUnwiredPorts = true,
     )
+  }
+
+  private val CopySuffix = """(_\d+)+$""".r
+
+  /** Instance name -> fold group id for the generator copies of `c`
+    * (Seq.fill(n)(Module(...))): instances sharing a source marker, a Scala
+    * class and a name without trailing indices, at least two of them. Copies
+    * do not share a module name, so the marker plus the class is the key; the
+    * base name keeps apart distinct instances a helper makes on one line
+    * (`inQ`, `outQ`). The id is that base name, made unique against the
+    * module's other children (the group's own members aside) and the earlier
+    * ids with `_g2`... */
+  private def foldGroupsOf(c: CModule, markers: Map[String, ChirrtlParser.SrcInfo],
+                           byName: Map[String, CModule]): Map[String, String] = {
+    val keyed = c.instances.flatMap(i => markers.get(i.name).map(src =>
+      (src, byName.get(i.module).map(_.scalaClass), CopySuffix.replaceFirstIn(i.name, "")) -> i.name))
+    val groups = keyed.map(_._1).distinct.map(k => k._3 -> keyed.filter(_._1 == k).map(_._2)).filter(_._2.size >= 2)
+    val taken  = mutable.Set.empty[String] ++ c.instances.map(_.name)
+    groups.flatMap { case (base, members) =>
+      val others = taken -- members
+      val id     = (base #:: LazyList.from(2).map(n => s"${base}_g$n")).find(!others(_)).get
+      taken += id
+      members.map(_ -> id)
+    }.toMap
   }
 
   private val ClockResetTypes = Set("Clock", "Reset", "AsyncReset")

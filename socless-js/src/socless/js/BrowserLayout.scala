@@ -281,7 +281,9 @@ object BrowserLayout {
 
   /** Lay out one module with elkjs, returning a [[LaidOut]] (the in-process
     * seam for the Scala.js + Laminar UI, epic #172). The engine runs off the
-    * main thread when available (see [[engine]]). */
+    * main thread when available (see [[engine]]). Callers pass the module
+    * already folded (App's `currentModuleSig`), while the JVM `Layout.layout`
+    * folds internally, so both engines get the same input. */
   def runTyped(module: ModuleDef, design: Design, mode: String,
                overrides: Map[String, BoxOverride], expanded: Set[String],
                hidden: Set[String] = Set.empty): Future[LaidOut] = {

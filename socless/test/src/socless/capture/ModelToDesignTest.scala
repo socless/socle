@@ -63,6 +63,21 @@ object ModelToDesignTest extends TestSuite {
     case _                             => d.bundles.contains(k)
   }
 
+  /** Module X instantiating `insts` (name -> module, all of class x.P) from
+    * one source line, as a helper or Seq.fill does. */
+  private def oneLine(insts: Seq[(String, String)]): ModuleDef = {
+    val mods = insts.map(_._2)
+    val chirrtl = (Seq("FIRRTL version 3.3.0", "circuit X :") ++
+      mods.flatMap(n => Seq(s"  module $n :", "    input clock : Clock")) ++
+      Seq("  module X :", "    input clock : Clock") ++
+      insts.map { case (i, n) => s"    inst $i of $n @[X.scala 3:10]" }).mkString("\n") + "\n"
+    def cm(n: String) = CModule(n, "x.P", Nil, None, Nil, Nil)
+    val model = CapturedModel("ok", "X",
+      cm("X").copy(scalaClass = "x.X", instances = insts.map { case (i, n) => CInstance(i, n) }) +: mods.map(cm),
+      chirrtl = chirrtl)
+    ModelToDesign.design(model).modules.find(_.name == "X").get
+  }
+
   val tests = Tests {
     test("gcd structure") {
       val d      = ModelToDesign.design(gcd)
@@ -92,6 +107,71 @@ object ModelToDesignTest extends TestSuite {
       val q = d.modules.find(_.name == "Queue4_Token").get
       assert(q.parameterDecls.map(_.name) == Seq("gen", "entries", "pipe", "flow", "useSyncReadMem", "hasFlush"))
       assert(q.parameterDecls(1) == ParamDef("entries", "Int", "4"))
+    }
+
+    test("seq.fill copies share a fold group") {
+      val d = ModelToDesign.design(deepsoc)
+      val cluster = d.modules.find(_.name == "Cluster").get
+      val cores = cluster.children.filter(_.name.startsWith("cores_"))
+      assert(cores.size >= 2)
+      cores.foreach(c => check(c.foldGroup == "cores", s"${c.name} foldGroup '${c.foldGroup}'"))
+      val top = d.modules.find(_.name == "DeepSoc").get
+      val clusters = top.children.filter(_.name.startsWith("cluster"))
+      assert(clusters.size >= 2)
+      clusters.foreach(c => check(c.foldGroup.isEmpty, s"${c.name} foldGroup '${c.foldGroup}'"))
+    }
+
+    test("the baked layout folds groups") {
+      val laid = Layout.withLayouts(ModelToDesign.design(deepsoc))
+      val l = laid.layouts(laid.layoutOf("Cluster"))
+      val ids = l.nodes.map(_.id)
+      check(ids.contains("cores"), s"no cores node in $ids")
+      check(!ids.contains("cores_0") && !ids.contains("cores_1"), s"copies still laid out: $ids")
+    }
+
+    test("two fill calls give two groups") {
+      val chirrtl =
+        """FIRRTL version 3.3.0
+          |circuit X :
+          |  module P :
+          |    input clock : Clock
+          |  module P_1 :
+          |    input clock : Clock
+          |  module P_2 :
+          |    input clock : Clock
+          |  module P_3 :
+          |    input clock : Clock
+          |  module X :
+          |    input clock : Clock
+          |    inst a_0 of P @[X.scala 3:10]
+          |    inst a_1 of P_1 @[X.scala 3:10]
+          |    inst b_0 of P_2 @[X.scala 4:10]
+          |    inst b_1 of P_3 @[X.scala 4:10]
+          |""".stripMargin
+      def cm(n: String) = CModule(n, "x.P", Nil, None, Nil, Nil)
+      val model = CapturedModel("ok", "X",
+        Seq(cm("X").copy(scalaClass = "x.X", instances = Seq(CInstance("a_0", "P"), CInstance("a_1", "P_1"),
+          CInstance("b_0", "P_2"), CInstance("b_1", "P_3"))), cm("P"), cm("P_1"), cm("P_2"), cm("P_3")),
+        chirrtl = chirrtl)
+      val x = ModelToDesign.design(model).modules.find(_.name == "X").get
+      val groups = x.children.groupBy(_.foldGroup).filter(_._1.nonEmpty).map { case (g, cs) => g -> cs.map(_.name) }
+      check(groups == Map("a" -> Seq("a_0", "a_1"), "b" -> Seq("b_0", "b_1")), s"groups $groups")
+    }
+
+    test("a group's own members never push its id to _g2") {
+      val x = oneLine(Seq("m" -> "P", "m_1" -> "P_1", "m_2" -> "P_2"))
+      val groups = x.children.groupBy(_.foldGroup).filter(_._1.nonEmpty).map { case (g, cs) => g -> cs.map(_.name) }
+      check(groups == Map("m" -> Seq("m", "m_1", "m_2")), s"groups $groups")
+    }
+
+    test("distinct names made on one line never fold") {
+      val x = oneLine(Seq("inQ" -> "P", "outQ" -> "P_1"))
+      check(x.children.forall(_.foldGroup.isEmpty), s"folded: ${x.children.map(c => c.name -> c.foldGroup)}")
+    }
+
+    test("the CHIRRTL view has no fold groups") {
+      val d = SoclessExporter.designFromChirrtl(deepsoc.chirrtl)
+      check(d.modules.flatMap(_.children).forall(_.foldGroup.isEmpty), "CHIRRTL view has a fold group")
     }
 
     test("layouts bake") {

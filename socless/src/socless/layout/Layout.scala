@@ -126,7 +126,7 @@ object Layout {
   def layout(module: ModuleDef, design: Design): ModuleLayout = elkLock.synchronized {
     // All engine-independent prep (resolve, vote, geometry, anti-parallel
     // collapse) is shared with the browser engine (issue #167).
-    val prep = LayoutCore.prepare(module, design, Set.empty)
+    val prep = LayoutCore.prepare(InstanceFold.fold(module, Set.empty), design, Set.empty)
     val root = newGraph()
 
     // Build ELK nodes + ports from the prepared geometry. Track handles by path.
@@ -262,7 +262,7 @@ object Layout {
     // layout is computed once and every copy points at it (issue #31).
     val portsByModule = design.modules.iterator.map(m => m.name -> m.ports.map(p => (p.name, p.dir, p.bundle))).toMap
     def fingerprint(m: ModuleDef): String = {
-      val children = m.children.map(c => (c.name, portsByModule.getOrElse(c.`type`, Nil)))
+      val children = m.children.map(c => (c.name, c.foldGroup, portsByModule.getOrElse(c.`type`, Nil)))
       val ports    = m.ports.map(p => (p.name, p.dir, p.bundle))
       val wires    = m.wires.map(w => (w.from, w.to, w.bundle))
       (ports, children, wires).toString
