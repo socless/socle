@@ -34,7 +34,7 @@ jobs:
           java-version: "21"
 
       - name: Cache Mill / Coursier / Ivy caches
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/coursier
