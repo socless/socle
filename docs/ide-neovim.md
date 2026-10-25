@@ -14,7 +14,8 @@ Using VS Code? See [SoCLess in VS Code](ide-vscode.md).
 
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath and fork
-settings of the file the lens is in). Your tests and build are never modified.
+settings of the file the lens is in); [Simulate](#simulate) also needs
+Verilator and Surfer. Your tests and build are never modified.
 
 ## Build the server
 
@@ -91,6 +92,53 @@ vim.api.nvim_create_autocmd('CursorHold', {
 
 The panel listens on `127.0.0.1` only, on a new port for each server. Quitting
 Neovim stops the server and the panel.
+
+## Simulate
+
+Each test with a `View design` lens also gets a `Simulate` lens. It runs that
+test for real, with waveforms on, and opens the trace in
+[Surfer](https://surfer-project.org/). View design needs no simulator;
+Simulate needs Verilator on the `PATH` the test sees (the server's, with
+Mill's `allForkEnv` `PATH` on top), as `./mill <module>.test` does.
+
+- The test JVM is forked with the same settings as a view run (see
+  [How a view run is forked](#how-a-view-run-is-forked)), without the probe,
+  plus the wave option as a ScalaTest config-map entry: `-D<waveFlag>=1` after
+  `org.scalatest.tools.Runner`, which is where ChiselSim reads its options.
+  `emitVcd` (the default) comes with ChiselSim; a project can define its own,
+  such as `emitFst`. A suite that does not know the option fails with
+  "illegal ChiselSim ScalaTest option".
+- The run's working directory, and ChiselSim's `build/chiselsim` (through
+  `-Dchisel.project.root`, which wins over the same option in `forkArgs`), is
+  `out/socless/sim/<suite>/<test>/` under the workspace root. It is emptied at
+  the start of each run, so the last run of each test is kept; `sim.log` there
+  holds the test's output, `surfer.log` the viewer's. `./mill clean` (which
+  empties `out/`) removes the kept waves too.
+- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there is
+  opened with `surfer <trace>`, detached. Neovim then shows
+  `Simulation passed: <suite> <test>. Waves: <path>` (a warning when it failed),
+  or `No waveform found` with the flag to check. A test name that matches no
+  test is a failure (`No test named "<test>" ran in <suite>.`), and a build or
+  Mill problem is reported as `Simulation not run`.
+- One simulation at a time: a second `Simulate` while one runs is refused with
+  a message, and the first goes on. View design keeps working meanwhile. A
+  simulation is stopped after 30 minutes. The panel shows `simulating…` while
+  one runs, unless it shows a view run or a view error: a simulation never
+  hides those.
+- An invalid `waveFlag` (not letters, digits, `_`, `.` or `-`) is reported once
+  as a warning, and `emitVcd` is used.
+
+Both settings go in `init_options` (defaults: `waveFlag = "emitVcd"`,
+`surferCommand = "surfer"`, an executable run as `<command> <trace>`):
+
+```lua
+vim.lsp.config('socless', {
+  cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socless/socless-lsp.jar') },
+  filetypes = { 'scala' },
+  root_markers = { 'build.mill' },
+  init_options = { waveFlag = "emitFst" },
+})
+```
 
 ## How a view run is forked
 

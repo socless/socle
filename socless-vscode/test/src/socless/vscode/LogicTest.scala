@@ -67,6 +67,21 @@ object LogicTest extends TestSuite {
       assert(js.Object.keys(p.asInstanceOf[js.Object]).toSeq == Seq("uri", "line"))
     }
 
+    test("initializationOptions") {
+      def keys(o: js.Object) = js.Object.keys(o).toSeq
+      test("panel only when the settings are unset or blank") {
+        val o = Logic.initializationOptions(None, Some(null))
+        assert(keys(o) == Seq("panel"), o.asInstanceOf[js.Dynamic].panel.asInstanceOf[String] == "client")
+        assert(keys(Logic.initializationOptions(Some(" "), Some(""))) == Seq("panel"))
+      }
+      test("non-blank settings are passed, trimmed") {
+        val o = Logic.initializationOptions(Some(" emitFst "), Some("/opt/surfer"))
+        val d = o.asInstanceOf[js.Dynamic]
+        assert(keys(o) == Seq("panel", "waveFlag", "surferCommand"))
+        assert(d.waveFlag.asInstanceOf[String] == "emitFst", d.surferCommand.asInstanceOf[String] == "/opt/surfer")
+      }
+    }
+
     test("webviewHtml") {
       test("csp and iframe") {
         val h = Logic.webviewHtml("http://127.0.0.1:41234/", "vscode-webview://abc")

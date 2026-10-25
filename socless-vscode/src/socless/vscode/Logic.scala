@@ -38,6 +38,16 @@ object Logic {
       Some(s"SoCLess needs Java $MinJava or newer, but '$javaCmd' could not be run. Set the socless.javaPath setting to a Java $MinJava+ executable, then reload the window.")
   }
 
+  /** The language server's `initializationOptions`: the client-hosted panel, plus the Simulate
+    * settings `waveFlag` and `surferCommand` when set (else the server's defaults apply).
+    */
+  def initializationOptions(waveFlag: Option[String], surferCommand: Option[String]): js.Object = {
+    val o = js.Dynamic.literal(panel = "client")
+    nonBlank(waveFlag).foreach(o.updateDynamic("waveFlag")(_))
+    nonBlank(surferCommand).foreach(o.updateDynamic("surferCommand")(_))
+    o
+  }
+
   /** The `socless/cursor` notification params. */
   def cursorParams(uri: String, line: Int): js.Object =
     js.Dynamic.literal(uri = uri, line = line)

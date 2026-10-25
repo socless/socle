@@ -12,7 +12,7 @@ import upickle.default.{ReadWriter, macroRW}
 
 /** The UI mirror of the language server's `IdeState` (socless-lsp
   * `LiveHttp`): same field names, parsed from `/ide.json`. `status` is
-  * "idle" | "running" | "ok" | "error". `stamp` is a Double because the server
+  * "idle" | "running" | "simulating" | "ok" | "error". `stamp` is a Double because the server
   * writes it as a JSON number. */
 case class IdeState(
   status:     String = "idle",

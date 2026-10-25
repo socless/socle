@@ -102,7 +102,7 @@ object StdioSmokeTest extends TestSuite {
     def initialize(): Unit = {
       request(1, "initialize", ujson.Obj("processId" -> ujson.Null, "rootUri" -> uri(root), "capabilities" -> ujson.Obj()))
       val caps = response(1)("result")("capabilities")
-      assert(caps("executeCommandProvider")("commands").arr.map(_.str) == Seq("socless.viewDesign"))
+      assert(caps("executeCommandProvider")("commands").arr.map(_.str) == Seq("socless.viewDesign", "socless.simulate"))
       notify("initialized", ujson.Obj())
     }
 
@@ -129,9 +129,10 @@ object StdioSmokeTest extends TestSuite {
           "uri" -> uri(gcdSpec), "languageId" -> "scala", "version" -> 1, "text" -> os.read(gcdSpec))))
         s.request(2, "textDocument/codeLens", ujson.Obj("textDocument" -> ujson.Obj("uri" -> uri(gcdSpec))))
         val lenses = s.response(2)("result").arr
-        assert(lenses.size == 1)
+        assert(lenses.size == 2)
         assert(lenses.head("command")("title").str == "View design")
         assert(lenses.head("command")("command").str == "socless.viewDesign")
+        assert(lenses(1)("command")("title").str == "Simulate", lenses(1)("command")("command").str == "socless.simulate")
 
         s.request(3, "shutdown", ujson.Null)
         s.response(3)

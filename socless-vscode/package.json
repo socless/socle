@@ -43,6 +43,18 @@
           "default": "",
           "scope": "machine-overridable",
           "description": "SoCLess language server jar. Empty: the one bundled with the extension."
+        },
+        "socless.waveFlag": {
+          "type": "string",
+          "default": "emitVcd",
+          "scope": "machine-overridable",
+          "description": "ChiselSim option that turns waveforms on for Simulate, passed to ScalaTest as -D<flag>=1 (emitVcd is ChiselSim's; a project may define its own, such as emitFst)."
+        },
+        "socless.surferCommand": {
+          "type": "string",
+          "default": "surfer",
+          "scope": "machine-overridable",
+          "description": "Waveform viewer that Simulate starts on the trace (an executable, run as <command> <trace>)."
         }
       }
     },

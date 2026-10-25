@@ -11,15 +11,19 @@ import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
 
-/** The SoCLess language server: "View design" code lenses on ChiselSim tests,
-  * the `socless.viewDesign` command, save-triggered refresh, `socless/cursor`
+/** The SoCLess language server: "View design" and "Simulate" code lenses on
+  * ChiselSim tests, the `socless.viewDesign` and `socless.simulate` commands
+  * (simulation: [[SimRunner]], independent of view runs), save-triggered refresh, `socless/cursor`
   * (cursor to focused class) and box-to-source via `window/showDocument`.
   * It never duplicates Metals: no diagnostics, completion, hover or definition.
   *
   * Threading: lsp4j's reader thread only records text, hands parse work to a
-  * single parser thread (lenses, cursor) and queues view runs; it never waits
-  * on the client. Mill and the probe run only on the [[RunQueue]] worker,
-  * because [[MillBridge]] holds a lock across multi-second Mill calls.
+  * single parser thread (lenses, cursor), queues view runs and starts
+  * simulations; it never waits on the client. Mill runs only on the
+  * [[RunQueue]] worker (view runs, with the probe) and on the
+  * [[SimRunner]]'s `socless-sim-runner` thread, never on the reader thread,
+  * because [[MillBridge]] holds a lock across multi-second Mill calls (which
+  * also serializes those two).
   *
   * `runnerFor` and `cpFor` get the workspace root from `initialize`.
   * `runnerFor` is called once, on the first view (it extracts the probe jar);
@@ -35,6 +39,7 @@ final class SoclessLanguageServer(
     log: String => Unit = m => Console.err.println(s"[socless-lsp] $m"),
     debounceMs: Long = 500,
     onExit: () => Unit = () => (),
+    simFor: os.Path => SimRunner = root => new SimRunner(root),
 ) extends LanguageServer with LanguageClientAware {
   import SoclessLanguageServer._
 
@@ -42,6 +47,7 @@ final class SoclessLanguageServer(
     lazy val runner: Either[String, ViewRunner] = runnerFor(root) // first view
     val queue = new RunQueue(req => exec(this, req), onResult)
     val index = new SimBaseIndex(root) // base traits reaching ChiselSim, used by lenses
+    val sim   = simFor(root)
   }
 
   @volatile private var client: LanguageClient = null
@@ -49,6 +55,8 @@ final class SoclessLanguageServer(
   @volatile private var ws: Option[Workspace]  = None
   @volatile private var stopped                = false // after shutdown/exit every request is a no-op
   @volatile private var shutdownRequested      = false
+  @volatile private var simSettings            = SimSettings() // initializationOptions, then didChangeConfiguration
+  @volatile private var warnedFlag             = Option.empty[String] // last invalid waveFlag shown
 
   /** Whether `shutdown` came before `exit`/EOF (LSP: exit code 0, else 1). */
   def shutdownWasRequested: Boolean = shutdownRequested
@@ -74,12 +82,13 @@ final class SoclessLanguageServer(
     val root   = folder.orElse(Option(p.getRootUri)).flatMap(uriToPath)
     if (root.isEmpty) log("no workspace root in initialize: views are disabled")
     clientPanel = panelIsClient(p.getInitializationOptions)
+    configureSim(p.getInitializationOptions)
     ws = root.map(r => new Workspace(r, cpFor(r)))
     warmIndex() // the first lens should not pay the cold parse of the workspace
 
     val caps = new ServerCapabilities
     caps.setCodeLensProvider(new CodeLensOptions(false))
-    caps.setExecuteCommandProvider(new ExecuteCommandOptions(java.util.List.of(ViewCommand)))
+    caps.setExecuteCommandProvider(new ExecuteCommandOptions(java.util.List.of(ViewCommand, SimulateCommand)))
     val sync = new TextDocumentSyncOptions
     sync.setOpenClose(true)
     sync.setChange(TextDocumentSyncKind.Full)
@@ -99,7 +108,7 @@ final class SoclessLanguageServer(
   /** Stops the run queue, the helper threads and the HTTP endpoint. */
   def stopAll(): Unit = {
     stopped = true
-    ws.foreach(_.queue.close())
+    ws.foreach { w => w.queue.close(); w.sim.close() }
     parser.shutdownNow()
     timer.shutdownNow()
     http.stop()
@@ -160,8 +169,9 @@ final class SoclessLanguageServer(
       }.map { t =>
       val at = new Position(t.line, 0)
       val args = java.util.List.of[Object](uri, t.suite, t.name)
-      new CodeLens(new Range(at, at), new Command("View design", ViewCommand, args), null)
-    }.asJava
+      Seq(new CodeLens(new Range(at, at), new Command("View design", ViewCommand, args), null),
+        new CodeLens(new Range(at, at), new Command("Simulate", SimulateCommand, args), null))
+    }.flatten.asJava
 
   /** `socless/cursor`: the class around the editor's cursor becomes the panel's focus. */
   @JsonNotification("socless/cursor")
@@ -179,18 +189,22 @@ final class SoclessLanguageServer(
   // ── commands and runs ──────────────────────────────────────────────────
 
   object workspaceService extends WorkspaceService {
-    def didChangeConfiguration(p: DidChangeConfigurationParams): Unit = ()
+    def didChangeConfiguration(p: DidChangeConfigurationParams): Unit =
+      SimSettings.section(p.getSettings).foreach(configureSim)
     def didChangeWatchedFiles(p: DidChangeWatchedFilesParams): Unit = ()
 
     override def executeCommand(p: ExecuteCommandParams): CompletableFuture[Object] = {
+      lazy val args = Option(p.getArguments).map(_.asScala.toSeq).getOrElse(Nil).map {
+        case j: JsonPrimitive => j.getAsString
+        case o                => String.valueOf(o)
+      }
       if (stopped) ()
       else if (p.getCommand == ViewCommand) {
-        val args = Option(p.getArguments).map(_.asScala.toSeq).getOrElse(Nil).map {
-          case j: JsonPrimitive => j.getAsString
-          case o                => String.valueOf(o)
-        }
         try view(args)
         catch { case NonFatal(e) => log(s"view command failed: $e"); fail(String.valueOf(e.getMessage)) }
+      } else if (p.getCommand == SimulateCommand) {
+        try simulate(args)
+        catch { case NonFatal(e) => log(s"simulate command failed: $e"); showError(String.valueOf(e.getMessage)) }
       } else log(s"unknown command ${p.getCommand}")
       CompletableFuture.completedFuture(null)
     }
@@ -209,6 +223,52 @@ final class SoclessLanguageServer(
           submit(w, ViewRequest(file, suite, test))
       }
     case _ => fail(s"$ViewCommand expects [uri, suite, test], got ${args.mkString("[", ", ", "]")}")
+  }
+
+  /** One simulation at a time, beside view runs: a second one is refused
+    * (Info), the running one goes on. The editor gets the outcome (Info on
+    * pass, Warning otherwise). The panel never hides a view's status: a
+    * simulation started while it shows `error` or `running` leaves it alone;
+    * otherwise it shows `simulating`, and at the end the state captured at the
+    * start comes back with the outcome as message, unless a view run changed
+    * the status meanwhile (then the view's status stays). The design is never touched. */
+  private def simulate(args: Seq[String]): Unit = (args, ws) match {
+    case (_, None) => showError("SoCLess: no workspace root (the editor sent neither workspaceFolders nor rootUri)")
+    case (Seq(uri, suite, test), Some(w)) =>
+      uriToPath(uri) match {
+        case None => showError(s"SoCLess: not a file URI: $uri")
+        case Some(file) =>
+          val before = new java.util.concurrent.atomic.AtomicReference[Option[IdeState]](None)
+          val started = () => lock.synchronized(http.update { s =>
+            if (s.status == "error" || s.status == "running") s
+            else { before.set(Some(s)); s.copy(status = "simulating", message = "", test = test) }
+          })
+          w.sim.start(SimRequest(file, suite, test), simSettings, () => w.cp.testFork(file), started,
+            o => simDone(o, before.get))
+            .foreach(r => show(MessageType.Info, s"a simulation is already running: ${r.suite} ${r.test}"))
+      }
+    case _ => showError(s"$SimulateCommand expects [uri, suite, test], got ${args.mkString("[", ", ", "]")}")
+  }
+
+  private def simDone(o: SimOutcome, before: Option[IdeState]): Unit = {
+    for (b <- before) lock.synchronized {
+      http.update { s =>
+        if (s.status == "simulating") s.copy(status = b.status, test = b.test, message = o.message) else s
+      }
+    }
+    show(if (o.passed) MessageType.Info else MessageType.Warning, o.message)
+  }
+
+  /** Simulate settings from a flat settings object; an invalid `waveFlag` is
+    * logged and shown once (Warning), and the default is used. */
+  private def configureSim(opts: Any): Unit = {
+    simSettings = SimSettings.fromInit(opts)
+    SimSettings.invalidFlag(opts).filterNot(warnedFlag.contains).foreach { bad =>
+      warnedFlag = Some(bad)
+      val msg = s"""SoCLess: invalid waveFlag "$bad" (expected an option name such as emitFst); using ${SimSettings.DefaultWaveFlag}"""
+      log(msg)
+      show(MessageType.Warning, msg)
+    }
   }
 
   /** Starts the HTTP endpoint on first use and opens the panel once. */
@@ -287,9 +347,11 @@ final class SoclessLanguageServer(
     showError(msg)
   }
 
-  private def showError(msg: String): Unit = {
+  private def showError(msg: String): Unit = show(MessageType.Error, msg)
+
+  private def show(kind: MessageType, msg: String): Unit = {
     val c = client
-    if (c != null) c.showMessage(new MessageParams(MessageType.Error, msg)) else log(msg)
+    if (c != null) c.showMessage(new MessageParams(kind, msg)) else log(msg)
   }
 
   // ── panel to editor ────────────────────────────────────────────────────
@@ -317,7 +379,8 @@ final class SoclessLanguageServer(
 }
 
 object SoclessLanguageServer {
-  val ViewCommand = "socless.viewDesign"
+  val ViewCommand     = "socless.viewDesign"
+  val SimulateCommand = "socless.simulate"
 
   private def daemon(name: String): ThreadFactory = (r: Runnable) => {
     val t = new Thread(r, name); t.setDaemon(true); t

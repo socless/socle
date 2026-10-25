@@ -28,6 +28,8 @@ trait LanguageClientOptions extends js.Object {
   val documentSelector: js.UndefOr[js.Array[DocumentFilter]] = js.undefined
   val initializationOptions: js.UndefOr[js.Any] = js.undefined
   val errorHandler: js.UndefOr[ErrorHandler] = js.undefined
+  /** `{ configurationSection }`: the client sends that settings section in `workspace/didChangeConfiguration`. */
+  val synchronize: js.UndefOr[js.Object] = js.undefined
 }
 
 /** v9 `ErrorHandler`: each method returns `{ action, message?, handled? }`. */

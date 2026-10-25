@@ -36,7 +36,10 @@ object Extension {
         case Some(problem) =>
           javaProblem = Some(problem)
           window.showErrorMessage(problem)
-        case None => start(ctx, javaCmd, jar)
+        case None =>
+          val init = Logic.initializationOptions(config.get[String]("waveFlag").toOption,
+            config.get[String]("surferCommand").toOption)
+          start(ctx, javaCmd, jar, init)
       }
     }
   }
@@ -65,7 +68,7 @@ object Extension {
     ()
   }
 
-  private def start(ctx: ExtensionContext, javaCmd: String, jar: String): Unit = {
+  private def start(ctx: ExtensionContext, javaCmd: String, jar: String, init: js.Object): Unit = {
     val exe = new Executable {
       val command       = javaCmd
       override val args = js.defined(js.Array("-jar", jar))
@@ -88,8 +91,10 @@ object Extension {
         override val scheme   = js.defined("file")
         override val language = js.defined("scala")
       }))
-      override val initializationOptions = js.defined(js.Dynamic.literal(panel = "client"): js.Any)
+      override val initializationOptions = js.defined(init: js.Any)
       override val errorHandler          = js.defined(handler)
+      // later changes of the socless.* settings reach the server (waveFlag, surferCommand)
+      override val synchronize = js.defined(js.Dynamic.literal(configurationSection = "socless"))
     }
     val c = new LanguageClient("socless", "SoCLess", new ServerOptions { val run = exe; val debug = exe }, options)
     client = Some(c)

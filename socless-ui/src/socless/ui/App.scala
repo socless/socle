@@ -458,13 +458,16 @@ object App {
   }
 
   /** Top-bar run status from the language server: `running…` while a view run
-    * is in flight, the summary line of the error while the last one failed
+    * is in flight, `simulating…` while a Simulate run is, the summary line of the error while the last one failed
     * ([[IdeState.errorSummary]]), with the full text in the tooltip. None for
     * idle / ok. */
   private def ideStatus(s: IdeState): Option[Element] = s.status match {
     case "running" =>
       Some(span(cls := "scl-ide-status scl-ide-running", dataAttr("ide-status") := "running",
         title := (if (s.test.nonEmpty) s"running ${s.test}" else "running"), "running…"))
+    case "simulating" =>
+      Some(span(cls := "scl-ide-status scl-ide-running", dataAttr("ide-status") := "simulating",
+        title := (if (s.test.nonEmpty) s"simulating ${s.test}" else "simulating"), "simulating…"))
     case "error" =>
       val short = IdeState.errorSummary(s.message)
       Some(span(cls := "scl-ide-status scl-ide-error", dataAttr("ide-status") := "error",

@@ -44,6 +44,7 @@ object Main {
       openBrowser,
       log = log,
       onExit = () => exited.countDown(),
+      simFor = root => new SimRunner(root, log = log),
     )
     val launcher = new org.eclipse.lsp4j.jsonrpc.Launcher.Builder[SoclessClient]()
       .setLocalService(server).setRemoteInterface(classOf[SoclessClient])

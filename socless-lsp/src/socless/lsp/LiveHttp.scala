@@ -12,7 +12,7 @@ import upickle.default.{ReadWriter, macroRW}
   * contract with the Scala.js UI (it mirrors this case class).
   */
 case class IdeState(
-    status: String = "idle", // "idle" | "running" | "ok" | "error"
+    status: String = "idle", // "idle" | "running" | "simulating" | "ok" | "error"
     message: String = "",
     focusClass: String = "",
     test: String = "",
@@ -74,6 +74,8 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
   def update(f: IdeState => IdeState): Unit = lock.synchronized {
     ide = f(ide).copy(stamp = clock())
   }
+
+  private[lsp] def state: IdeState = lock.synchronized(ide)
 
   def stop(): Unit = lock.synchronized {
     if (server != null) { server.stop(0); server = null }

@@ -2,7 +2,8 @@
 
 The `socless-vscode` extension wraps the same language server as the
 [Neovim guide](ide-neovim.md): a **View design** code lens above every
-ChiselSim scalatest test, a live design panel that opens beside the editor, a
+ChiselSim scalatest test (and a [Simulate](#simulate) lens that opens its
+waveforms in Surfer), a live design panel that opens beside the editor, a
 refresh on save, a panel that follows your cursor, and a click in the panel that
 jumps to the source line. The panel is the regular SoCLess UI inside a VS Code
 webview, served by the server on `127.0.0.1`.
@@ -45,12 +46,46 @@ with Node.
 4. Close the panel and run the lens again to get it back, or run the command
    `SoCLess: Show design panel` to reveal the current design.
 
+## Simulate
+
+Next to each `View design` lens, a `Simulate` lens runs the test for real with
+waveforms on and opens the trace in [Surfer](https://surfer-project.org/).
+View design needs no simulator; Simulate needs Verilator (on the `PATH` the
+test sees, as for `./mill <module>.test`) and Surfer.
+
+- The test runs with the module's fork settings, without the probe, with
+  `-D<socless.waveFlag>=1` passed to ScalaTest (ChiselSim reads its options
+  there). The default `emitVcd` comes with ChiselSim; set `emitFst` or another
+  option your project defines. A suite that does not know the option fails
+  with "illegal ChiselSim ScalaTest option".
+- Waves are kept in `out/socless/sim/<suite>/<test>/` under the workspace root
+  (ChiselSim's `build/chiselsim` goes there), emptied at the start of each run
+  of that test, with `sim.log` (the test's output) and `surfer.log`.
+  `./mill clean` (which empties `out/`) removes them too.
+- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there opens
+  in Surfer, and VS Code shows `Simulation passed: <suite> <test>. Waves:
+  <path>` (a warning when it failed), or `No waveform found` with the flag to
+  check. A test name that matches no test is a failure, and a build or Mill
+  problem is reported as `Simulation not run`.
+- One simulation at a time: a second one is refused with a message and the
+  first goes on; View design keeps working. A simulation is stopped after 30
+  minutes. The panel shows `simulating…` while one runs, unless it shows a
+  view run or a view error: a simulation never hides those.
+
+See [Simulate in the Neovim guide](ide-neovim.md#simulate) for the exact
+command line.
+
 ## Settings
 
 | Setting | Default | Meaning |
 |---------|---------|---------|
 | `socless.javaPath` | empty | Java 21+ executable that runs the server. Empty: `$JAVA_HOME/bin/java`, else `java` on the `PATH`. |
 | `socless.serverJar` | empty | Server jar to use instead of the bundled one. |
+| `socless.waveFlag` | `emitVcd` | ChiselSim option that turns waves on for [Simulate](#simulate), passed as `-D<flag>=1`. |
+| `socless.surferCommand` | `surfer` | Viewer Simulate starts, as `<command> <trace>` (an executable). |
+
+`socless.waveFlag` and `socless.surferCommand` apply to the next simulation
+without a reload; the other two need one.
 
 If Java is missing or older than 21, the extension shows one error message
 naming the setting and does not start the server. If the server crashes it is
@@ -108,6 +143,8 @@ about 18 seconds. The pure logic is covered by `./mill socless-vscode.test`
   language contribution merges with Metals' own. The end-to-end test runs with
   `--disable-extensions`, so no automated check has Metals installed.
 - The vsix and the end-to-end test are not run in CI.
+- The end-to-end test does not run Simulate; the server's tests cover it (a
+  real Verilator run of the GCD test when `verilator` is on the `PATH`).
 - Remote workspaces (Remote-SSH, WSL, Codespaces) are not supported for the
   panel: port forwarding changes the `Host` (its port) that reaches the
   server, and the loopback server only accepts `127.0.0.1` or `localhost` on

@@ -46,7 +46,8 @@ object LanguageServerTest extends TestSuite {
   }
 
   /** A server wired to a recording client; `cp` is what the stub classpath returns. */
-  final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None, ws: os.Path = root) {
+  final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None, ws: os.Path = root,
+      simJava: String = javaBin, initOpts: Seq[(String, String)] = Nil) {
     @volatile var cp: Either[String, Seq[os.Path]] = Right(exampleCp)
     @volatile var cpFn: () => Either[String, Seq[os.Path]] = () => cp
     val browser = new ConcurrentLinkedQueue[String]
@@ -54,13 +55,14 @@ object LanguageServerTest extends TestSuite {
     private val stub = new ClasspathProvider {
       def testClasspath(file: os.Path) = cpFn()
     }
-    private lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l))
+    lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l))
     lazy val server: SoclessLanguageServer = new SoclessLanguageServer(
       _ => stub,
       r => Right(new ViewRunner(ViewRunner.extractProbeJar(), r, javaBin)),
       http,
       u => { browser.add(u); () },
       log = m => { log.add(m); () },
+      simFor = r => new SimRunner(r, simJava, log = m => { log.add(m); () }),
     )
     val client = new RecordingClient(showDocumentOk)
 
@@ -78,7 +80,12 @@ object LanguageServerTest extends TestSuite {
 
     val init = new InitializeParams
     init.setWorkspaceFolders(java.util.List.of(new WorkspaceFolder(uri(ws), "socless")))
-    panel.foreach { m => val o = new JsonObject; o.addProperty("panel", m); init.setInitializationOptions(o) }
+    private val opts = panel.map("panel" -> _).toSeq ++ initOpts
+    if (opts.nonEmpty) {
+      val o = new JsonObject
+      opts.foreach { case (k, v) => o.addProperty(k, v) }
+      init.setInitializationOptions(o)
+    }
     val capabilities = remote.initialize(init).get()
     remote.initialized(new InitializedParams)
 
@@ -139,21 +146,22 @@ object LanguageServerTest extends TestSuite {
     test("capabilities") {
       val c = fx.capabilities.getCapabilities
       assert(c.getCodeLensProvider != null)
-      assert(c.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign"))
+      assert(c.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign", "socless.simulate"))
       val sync = c.getTextDocumentSync.getRight
       assert(sync.getChange == TextDocumentSyncKind.Full, sync.getOpenClose == true, sync.getSave != null)
     }
     test("lenses") {
       fx.open(gcdSpec)
       val ls = fx.lenses(gcdSpec)
-      assert(ls.size == 1)
-      val cmd  = ls.head.getCommand
-      val args = cmd.getArguments.asScala.map {
+      assert(ls.size == 2)
+      def args(l: CodeLens) = l.getCommand.getArguments.asScala.map {
         case p: JsonPrimitive => p.getAsString
         case o                => String.valueOf(o)
       }
-      assert(cmd.getTitle == "View design", cmd.getCommand == "socless.viewDesign", args == gcdArgs)
-      assert(ls.head.getRange.getStart.getLine == 8)
+      assert(ls.map(l => (l.getCommand.getTitle, l.getCommand.getCommand)) ==
+        Seq(("View design", "socless.viewDesign"), ("Simulate", "socless.simulate")))
+      assert(ls.forall(args(_) == gcdArgs))
+      assert(ls.forall(_.getRange.getStart.getLine == 8))
       fx.open(gcdSrc)
       assert(fx.lenses(gcdSrc).isEmpty)
     }
@@ -182,7 +190,7 @@ object LanguageServerTest extends TestSuite {
         assert(ls.map(_.getCommand.getArguments.asScala.map {
           case p: JsonPrimitive => p.getAsString
           case o                => String.valueOf(o)
-        }.toSeq) == Seq(Seq(uri(spec), "q.S", "A should x")))
+        }.toSeq) == Seq.fill(2)(Seq(uri(spec), "q.S", "A should x")))
         assert(ls.head.getRange.getStart.getLine == 3)
         os.write.over(base, "package p\ntrait SimBase extends AnyFlatSpec")
         os.mtime.set(base, os.mtime(base) + 5000)
@@ -199,7 +207,7 @@ object LanguageServerTest extends TestSuite {
       val change = new TextDocumentContentChangeEvent(os.read(gcdSpec))
       fx.remote.getTextDocumentService.didChange(new DidChangeTextDocumentParams(
         new VersionedTextDocumentIdentifier(u, 2), java.util.List.of(change)))
-      assert(fx.lenses(f).size == 1)
+      assert(fx.lenses(f).size == 2)
     }
     test("view") {
       val t0 = System.nanoTime()
@@ -343,7 +351,7 @@ object LanguageServerTest extends TestSuite {
         val init = new InitializeParams
         init.setRootUri(uri(root))
         val caps = cl.getRemoteProxy.initialize(init).get().getCapabilities
-        assert(caps.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign"))
+        assert(caps.getExecuteCommandProvider.getCommands.asScala == Seq("socless.viewDesign", "socless.simulate"))
         try {
           drive(cl.getRemoteProxy, () => toServer.sink.close())
           done.get(10, java.util.concurrent.TimeUnit.SECONDS)
@@ -454,6 +462,132 @@ object LanguageServerTest extends TestSuite {
         eventually("browser doc")(f.client.documents.asScala.find(_.getExternal == true))
         assert(f.client.panels.isEmpty)
       } finally f.close()
+    }
+    test("simulate: status, refusal while running, settings, completion message") {
+      val ws = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val (release, argv, surferArgv) = (bin / "release", bin / "argv", bin / "surfer-argv")
+      // a "java" that waits for `release`, records its argv and writes a trace in its cwd
+      val java = bin / "java.sh"
+      os.write(java, s"""#!/bin/sh
+        |printf '%s\\n' "$$@" >> $argv
+        |echo --- >> $argv
+        |while [ ! -e $release ]; do sleep 0.05; done
+        |mkdir -p build/chiselsim/gcd
+        |echo '$$timescale 1ns $$end' > build/chiselsim/gcd/trace.vcd
+        |""".stripMargin, perms = os.PermSet.fromString("rwx------"))
+      val surfer = bin / "surfer.sh"
+      os.write(surfer, s"""#!/bin/sh\nprintf '%s\\n' "$$@" >> $surferArgv\n""", perms = os.PermSet.fromString("rwx------"))
+      val f = new Fixture(ws = ws, simJava = java.toString,
+        initOpts = Seq("waveFlag" -> "emitFst", "surferCommand" -> surfer.toString))
+      def simulate(): Unit = f.remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+      def messages = f.client.messages.asScala.toSeq
+      try {
+        simulate()
+        eventually("simulating")(Some(f.http.state).filter(_.status == "simulating"))
+        eventually("java started")(Some(argv).filter(os.exists))
+        simulate()
+        val refused = eventually("refusal")(messages.find(_.getMessage.startsWith("a simulation is already running")))
+        assert(refused.getType == MessageType.Info)
+        assert(refused.getMessage == "a simulation is already running: gcd.GcdSpec GCD computes gcd(48, 18)")
+        assert(f.http.state.status == "simulating") // the running one goes on
+        os.write(release, "")
+        val done = eventually("completion")(messages.find(_.getMessage.startsWith("Simulation")))
+        val dir  = ws / "out" / "socless" / "sim"
+        val vcd  = os.walk(dir).filter(_.last == "trace.vcd")
+        assert(vcd.size == 1)
+        assert(done.getType == MessageType.Info)
+        assert(done.getMessage == s"Simulation passed: gcd.GcdSpec GCD computes gcd(48, 18). Waves: ${vcd.head}")
+        val st = eventually("status restored")(Some(f.http.state).filter(_.status != "simulating"))
+        assert(st.status == "idle", st.message == done.getMessage) // no design was ever viewed
+        assert(os.read.lines(argv).contains("-DemitFst=1"))
+        eventually("surfer argv")(Some(surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.nonEmpty)) ==>
+          Seq(vcd.head.toString)
+        assert(f.log.asScala.exists(m => m.contains("org.scalatest.tools.Runner") && m.contains(java.toString)))
+
+        def configure(flag: String): Unit = {
+          val cfg = new JsonObject
+          val sec = new JsonObject
+          sec.addProperty("waveFlag", flag)
+          sec.addProperty("surferCommand", surfer.toString)
+          cfg.add("socless", sec)
+          f.remote.getWorkspaceService.didChangeConfiguration(new DidChangeConfigurationParams(cfg))
+        }
+        def run(n: Int): Seq[String] = {
+          simulate()
+          eventually(s"completion $n")(Some(messages.count(_.getMessage.startsWith("Simulation"))).filter(_ == n))
+          os.read(argv).split("---\n").toSeq(n - 1).linesIterator.toSeq
+        }
+        // didChangeConfiguration under "socless" changes the next run's flag (neither
+        // the init value emitFst nor the default emitVcd), and settings without a
+        // "socless" section (Neovim sends {}) change nothing
+        configure("emitWaves")
+        f.remote.getWorkspaceService.didChangeConfiguration(new DidChangeConfigurationParams(new JsonObject))
+        assert(run(2).contains("-DemitWaves=1"))
+
+        // an invalid flag: one Warning (even when sent twice), a log line, the default flag
+        configure("emit Fst=2")
+        configure("emit Fst=2")
+        assert(run(3).contains("-DemitVcd=1"))
+        val warned = messages.filter(_.getMessage.contains("invalid waveFlag"))
+        assert(warned.size == 1, warned.head.getType == MessageType.Warning)
+        assert(warned.head.getMessage.contains("\"emit Fst=2\""), warned.head.getMessage.contains("emitVcd"))
+        assert(f.log.asScala.exists(_.contains("invalid waveFlag")))
+      } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
+    }
+    test("simulate never hides a view's status") {
+      val ws  = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val (release, started) = (bin / "release", bin / "started")
+      // a "java" that says it started, waits for `release` and consumes it, then writes a trace
+      val java = bin / "java.sh"
+      os.write(java, s"""#!/bin/sh
+        |touch $started
+        |while [ ! -e $release ]; do sleep 0.05; done
+        |rm -f $release $started
+        |echo x > trace.vcd
+        |""".stripMargin, perms = os.PermSet.fromString("rwx------"))
+      val surfer = bin / "surfer.sh"
+      os.write(surfer, "#!/bin/sh\n", perms = os.PermSet.fromString("rwx------"))
+      val f = new Fixture(ws = ws, simJava = java.toString, initOpts = Seq("surferCommand" -> surfer.toString))
+      def simulate(): Unit = f.remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+      def done = f.client.messages.asScala.count(_.getMessage.startsWith("Simulation"))
+      try {
+        // 1. a view error stays on the panel through a simulation
+        f.cp = Left("view broke")
+        f.view(gcdArgs: _*)
+        eventually("view error")(Some(f.http.state).filter(_.status == "error"))
+        f.cp = Right(exampleCp)
+        simulate()
+        eventually("java started")(Some(started).filter(os.exists))
+        assert(f.http.state.status == "error", f.http.state.message == "view broke")
+        os.write(release, "")
+        eventually("first completion")(Some(done).filter(_ == 1))
+        assert(f.http.state.status == "error", f.http.state.message == "view broke")
+
+        // 2. a view during a simulation keeps its own status after the simulation ends
+        f.view(gcdArgs: _*)
+        eventually("view ok")(Some(f.http.state).filter(_.status == "ok"))
+        simulate()
+        eventually("simulating")(Some(f.http.state).filter(_.status == "simulating"))
+        eventually("java started")(Some(started).filter(os.exists))
+        f.view(gcdArgs: _*)
+        eventually("view ok again")(Some(f.http.state).filter(s => s.status == "ok" && s.message.isEmpty))
+        os.write(release, "")
+        eventually("second completion")(Some(done).filter(_ == 2))
+        Thread.sleep(200)
+        assert(f.http.state.status == "ok", f.http.state.message.isEmpty)
+
+        // 3. otherwise the status captured at the start comes back, with the outcome as message
+        simulate()
+        eventually("simulating")(Some(f.http.state).filter(_.status == "simulating"))
+        os.write(release, "")
+        eventually("third completion")(Some(done).filter(_ == 3))
+        val st = eventually("restored")(Some(f.http.state).filter(_.status != "simulating"))
+        assert(st.status == "ok", st.message.startsWith("Simulation passed"))
+      } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
     }
   }
 }
