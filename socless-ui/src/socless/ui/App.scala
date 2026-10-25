@@ -5,7 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
-import socless.schema.{Design, ModuleDef, ModuleKind}
+import socless.schema.{Design, ModuleDef, ModuleKind, NodeKind}
 import socless.layout.InstanceFold
 import socless.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socless.ui.theme._
@@ -63,10 +63,27 @@ object App {
     val top = topOf(d)
     pathVar.set(if (top.nonEmpty) List(top) else Nil)
     expandedVar.set(if (top.nonEmpty) Set(top) else Set.empty) // top expanded -> shows its children
+    reconcileSelection(d)
   }
   // Live reload keeps the drill path/expansion when it still resolves (#120).
   private def navReconcile(d: Design): Unit =
-    if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d)
+    if (currentModule(d, pathVar.now()).isEmpty) navResetToTop(d) else reconcileSelection(d)
+
+  /** On a design change, keep the selection only while it still names
+    * something in the shown (folded) module: a stale one blanks the Inspector. */
+  private def reconcileSelection(d: Design): Unit =
+    if (!selectedSigVar.now().forall(s => shownModule(d, pathVar.now()).exists(selectionIn(_, s))))
+      selectedSigVar.set(None)
+
+  /** Whether selection `s` names something in `mod`, resolved like the
+    * Inspector does: a logic node, a wire end (or a path under one), or an
+    * instance (or one of its pins). */
+  private def selectionIn(mod: ModuleDef, s: String): Boolean = {
+    val head = s.takeWhile(_ != '.')
+    mod.logic.exists(_.id == s) ||
+    mod.wires.exists(w => w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")) ||
+    mod.children.exists(_.name == head)
+  }
 
   private val loader = new DesignLoader(topOf = topOf, onFresh = navResetToTop, onLive = navReconcile)
   // Language-server link (plan 2): run status, editor cursor focus, open on
@@ -300,6 +317,7 @@ object App {
             declutterRow("Constants", "const"),
             declutterRow("Memories", "mem"),
             declutterRow("State machines", "fsm"),
+            declutterRow("Logic blocks", "block"),
             // Embedded, the theme follows the host editor: no gallery.
             Option.when(!Embedded.on)(div(cls := "scl-set-sect", "Theme")),
             Option.when(!Embedded.on)(div(cls := "scl-set-gallery",
@@ -613,14 +631,14 @@ object App {
 
   /** `POST /open` for a selected instance of the current module whose module
     * source file is absolute or a key of `design.sources` (a user file read
-    * from the source root). Wire / port selections are ignored. */
+    * from the source root), or for a selected logic block whose own source is.
+    * Wire / port selections are ignored. */
   private def openInstanceSource(sel: String): Unit =
     for {
-      d     <- loader.currentDesign
-      mod   <- shownModule(d, pathVar.now())
-      child <- mod.children.find(_.name == sel)
-      cm    <- d.modules.find(_.name == child.`type`)
-      src    = cm.source
+      d   <- loader.currentDesign
+      mod <- shownModule(d, pathVar.now())
+      src <- mod.children.find(_.name == sel).flatMap(c => d.modules.find(_.name == c.`type`)).map(_.source)
+               .orElse(mod.logic.find(n => n.id == sel && NodeKind.isBox(n.kind)).map(_.source))
       if openableSource(d, src.file)
     } ide.open(src.file, src.line)
 

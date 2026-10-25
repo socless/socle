@@ -31,6 +31,9 @@ final case class Failed(status: String, message: String) extends RunResult
   */
 final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = ViewRunner.defaultJava, timeoutMs: Long = 120000) {
 
+  /** Kept across views: unchanged files are not re-parsed. */
+  private val sourceIndex = new ScalaSourceIndex(sourceRoot)
+
   def run(fork: TestFork, suite: String, test: String): RunResult = {
     val tmp = os.temp.dir(prefix = "socless-view-") // probe output and log, and the cwd unless the fork has one
     try {
@@ -58,7 +61,8 @@ final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = Vi
       case Left(e) => Failed("probe-failure", s"unreadable probe output: ${e.getMessage}\n${tail(log)}")
       case Right(m) => m.status match {
         case "ok" =>
-          val d = SoclessExporter.designFromCaptured(m, Some(sourceRoot))
+          sourceIndex.refresh() // pick up files added or removed since the last view
+          val d = SoclessExporter.designFromCaptured(m, Some(sourceRoot), Some(sourceIndex))
           if (d.modules.isEmpty)
             Failed("probe-failure", ("the probe captured no modules" +: m.problems).mkString("\n"))
           else Viewed(d) // m.problems are already in d.warnings (kind "probe-problem")

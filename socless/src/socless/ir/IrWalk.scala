@@ -316,14 +316,14 @@ object IrWalk {
   // Head of a wire endpoint, reduced to the underlying node base id. Mirrors
   // coalesceWires: strip a vec index, then the `~q` (reg Q) / `~in<i>` (op input
   // pin) IrWalk-synthetic suffix off the head segment.
-  private def fsmHeadBase(endpoint: String): String =
+  private[socless] def fsmHeadBase(endpoint: String): String =
     Synthetic.baseOf(stripIdx(endpoint.split('.').headOption.getOrElse("")))
   // Sanitize the FULL external endpoint into a stable, distinct pin name. Strip
   // only a trailing vec index `[i]`, but KEEP the `~q` reg-Q suffix and any
   // `.field` structure so distinct external signals (and the reg Q-read `state~q`
   // vs the D-write `state`) get distinct pins. Then map every non-`[A-Za-z0-9_]`
   // char to `_` (so `io.go` -> `io_go`, `state~q` -> `state_q`, `state` -> `state`).
-  private def fsmPinName(endpoint: String): String =
+  private[socless] def fsmPinName(endpoint: String): String =
     endpoint.replaceAll("""\[[^\]]*\]$""", "").replaceAll("[^A-Za-z0-9_]", "_")
   // Normalize a wire's SINK endpoint to a full path matching FsmDetect's
   // `memberSinkPaths`: strip only a trailing vec index, keep bundle FIELDS

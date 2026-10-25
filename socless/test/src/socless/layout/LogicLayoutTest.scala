@@ -122,6 +122,28 @@ object LogicLayoutTest extends TestSuite {
       assert(box.ports.nonEmpty)
     }
 
+    test("block box pins resolve like fsm pins") {
+      val id = "blk$M$logic"
+      def port(n: String, d: String) = PortDef(n, d, "UInt<8>", "", SourceRef.unknown)
+      val body = ModuleDef(id, "logic", "", SourceRef.unknown,
+        Seq(port("io_a", PortDir.In), port("io_b", PortDir.Out)), Nil, Nil, Metrics(0, 0, 0))
+      val m = ModuleDef("M", "M", "", SourceRef.unknown,
+        Seq(port("io_a", PortDir.In), port("io_b", PortDir.Out)), Nil,
+        // WireDef(from = sink, to = source), like CHIRRTL `lhs <= rhs`.
+        Seq(WireDef(s"$id.io_a", "io_a", "UInt<8>", "", SourceRef.unknown),
+            WireDef("io_b", s"$id.io_b", "UInt<8>", "", SourceRef.unknown)),
+        Metrics(0, 0, 0),
+        logic = Seq(LogicNodeDef(id, NodeKind.Block, "logic", "", SourceRef.unknown)))
+      val d = Design("M", Map.empty, Seq(m), regions = Map(id -> body))
+      val L = Layout.layout(m, d)
+      val blocks = L.nodes.filter(_.id == id)
+      assert(blocks.size == 1)
+      val box = blocks.head
+      assert(box.kind == "block")
+      assert(box.ports.exists(p => p.path == s"$id.io_a" && p.side == "WEST"))
+      assert(box.ports.exists(p => p.path == s"$id.io_b" && p.side == "EAST"))
+    }
+
     test("mux select in0 is laid as the topmost west pin") {
       val src =
         """circuit M :

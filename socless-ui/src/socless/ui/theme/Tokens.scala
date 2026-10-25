@@ -46,6 +46,7 @@ object Tokens {
     "op"       -> "var(--node-op)",
     "fsm"      -> "var(--node-fsm)",
     "mem"      -> "var(--node-mem)",
+    "block"    -> "var(--node-block)",
   )
   // Scala source syntax palette (BottomPanel).
   val syntaxKw  = "var(--syntax-kw)"

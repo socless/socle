@@ -111,7 +111,7 @@ object LayoutCore {
     // rightward (EAST), everything else receives (WEST) (issue #210). `dir` is the
     // canonical schema PortDir vocabulary (in/out/master/slave/inout).
     case (NodeKind.Inst, PortDir.Out) | (NodeKind.Inst, PortDir.Master) => PinSide.East
-    case (NodeKind.Fsm, PortDir.Out)  | (NodeKind.Fsm, PortDir.Master)  => PinSide.East
+    case (k, PortDir.Out | PortDir.Master) if NodeKind.isBox(k)         => PinSide.East
     // A boundary slave comes from `input io` (AXI-aware portRole), which maps to
     // PortDir.In, so by this file's own convention it drives rightward like any
     // boundary input. Without this case AXI slave boundary stubs fell through to
@@ -211,7 +211,7 @@ object LayoutCore {
       // like an instance: the head segment is the box id. Resolve it before the
       // boundary-port fallthrough so the pins are never mistaken for ports or
       // dropped (issue #210).
-      val fsmIds   = module.logic.iterator.filter(_.kind == NodeKind.Fsm).map(_.id).toSet
+      val fsmIds   = module.logic.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
       def regIface(id: String): Boolean =
         module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).exists(n => isInterfaceBundle(n.bundle, design))
       def regBundle(id: String): String =
@@ -245,7 +245,8 @@ object LayoutCore {
         // FSM box pins carry no bundle: the synthesized region ports store no
         // bundle key, so a pin reflects its own (bundleless) port rather than
         // the wire's aggregate type (#237).
-        return Some(Endpoint(rawHead, NodeKind.Fsm, path, sideFor(NodeKind.Fsm, dir), false, ""))
+        val boxKind = module.logic.find(_.id == rawHead).map(_.kind).getOrElse(NodeKind.Fsm)
+        return Some(Endpoint(rawHead, boxKind, path, sideFor(boxKind, dir), false, ""))
       }
       module.ports.find(_.name == head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not

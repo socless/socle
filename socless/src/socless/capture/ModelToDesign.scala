@@ -6,8 +6,8 @@ import socless.parse.ChirrtlParser
 import socless.schema._
 
 /** Adapts a [[CapturedModel]] (the probe's view of an elaborated design) to the
-  * design.json schema the UI renders: ports and submodules only, no internal
-  * logic. No layouts: callers bake them (`Layout.withLayouts`).
+  * design.json schema the UI renders: ports, submodules, and internal logic
+  * collapsed into blocks. No layouts: callers bake them (`Layout.withLayouts`).
   *
   * Port types follow exactly how Chisel emits them to CHIRRTL
   * (`chisel3.internal.firrtl.Converter`): the captured `CType.dir` is each
@@ -15,13 +15,18 @@ import socless.schema._
   * composed down the tree here, which makes the result line up with what the
   * CHIRRTL pipeline shows for the same design.
   *
-  * Wiring keeps only wires between this module's ports and its child
-  * instances' ports; a wire touching internal logic (register, constant, mux,
-  * op, memory pins) is dropped, never bridged.
+  * Logic and wiring come from the CHIRRTL pipeline (`IrWalk`) of the captured
+  * circuit: each module's logic nodes are grouped (`LogicGroups`, with the
+  * optional source `index`) and collapsed (`LogicBlocks`) into FSM, generator
+  * and logic blocks, whose bodies go to `Design.regions`. A module keeps only
+  * blocks and the consts that feed a block; a const that only ties off ports
+  * or instance pins is dropped with its wires, so a tied port shows unwired.
+  * A wire is kept when both ends resolve to a port, an instance pin, a block
+  * pin or a const.
   */
 object ModelToDesign {
 
-  def design(m: CapturedModel): Design = {
+  def design(m: CapturedModel, index: Option[SourceIndex] = None): Design = {
     require(m.status == "ok",
       s"cannot adapt a capture with status '${m.status}'" + (if (m.error.nonEmpty) s": ${m.error}" else ""))
     val reg      = new Registry
@@ -34,14 +39,18 @@ object ModelToDesign {
         (p.name, dir, reg.keyed(p.tpe, clear = user == In || user == Out, s"${c.name}.${p.name}"))
       }
     }.toMap
-    lazy val chirrtlWires = WiresFromChirrtl.wireDefs(m.chirrtl)
+    lazy val circ      = ChirrtlParser.parse(m.chirrtl)
+    lazy val ir        = WiresFromChirrtl.design(circ)
+    lazy val irModules = ir.modules.map(im => im.name -> im).toMap
     lazy val chirrtlInsts: Map[String, Map[String, ChirrtlParser.SrcInfo]] =
-      ChirrtlParser.parse(m.chirrtl).modules.map { cm =>
+      circ.modules.map { cm =>
         cm.name -> cm.insts.flatMap(i => i.src.map(i.name -> _)).toMap
       }.toMap
     def params(module: String): Map[String, String] =
       byName.get(module).map(_.params.map(p => p.name -> p.value).toMap).getOrElse(Map.empty)
 
+    // Block bodies and the IrWalk FSM bodies they hold, by box id.
+    val regions = mutable.LinkedHashMap.empty[String, ModuleDef]
     val modules = m.modules.map { c =>
       val own       = ports(c.name).map { case (n, _, k) => n -> k }.toMap
       val instances = c.instances.map(i => i.name -> i.module).toMap
@@ -55,22 +64,62 @@ object ModelToDesign {
           Some(descend(own(stripIdx(h)), h :: rest).key)
         case _ => None
       }
-      val raw =
-        if (c.wires.nonEmpty) c.wires.map(w => WireDef(w.from, w.to, "", "", SourceRef.unknown))
-        else if (m.chirrtl.nonEmpty) chirrtlWires.getOrElse(c.name, Nil)
-        else Nil
-      // The bundle is the source's sub-type, except for clock/reset: IrWalk
-      // labels those wires Clock/Reset/AsyncReset (a top-level reset is a Bool,
-      // a child's is Reset), and the layout hides wires by that label.
-      val wires = raw.flatMap { w =>
-        for (src <- resolve(w.to); snk <- resolve(w.from)) yield {
-          val bundle = Seq(w.bundle, snk, src).find(ClockResetTypes).getOrElse(src)
-          w.copy(bundle = bundle)
-        }
-      }
       val foldGroups =
         if (m.chirrtl.nonEmpty) foldGroupsOf(c, chirrtlInsts.getOrElse(c.name, Map.empty), byName)
         else Map.empty[String, String]
+      // A block pin whose external end is a port or an instance pin is named
+      // after that endpoint with every Vec index removed, so the lanes of
+      // `io.out.data.bits[0][i]` share `io_out_data_bits`; a generator copy
+      // takes its fold group's id (`acc_io_deq_bits`, not `acc_0_0_io_deq_bits`).
+      // The wire keeps the real path, so folding merges the copies' wires and
+      // unfolding splits them. Any other pin is named after its wire's driver.
+      def foldHead(h: String): String = foldGroups.getOrElse(stripIdx(h), h)
+      def pinName(driver: String, external: String, boxes: Set[String]): (String, String) =
+        if (resolve(external).isDefined)
+          LogicBlocks.driverPin(external.replaceAll("""\[[^\]]*\]""", ""), boxes, foldHead)
+        else LogicBlocks.driverPin(driver, boxes, foldHead)
+      // Logic and wires from IrWalk, collapsed into blocks; probe-supplied
+      // wires (no logic) when the capture carries them.
+      val irModule = if (c.wires.isEmpty && m.chirrtl.nonEmpty) irModules.get(c.name) else None
+      val (collapsed, collapsedWires) = irModule match {
+        case Some(im) =>
+          val named            = im.copy(scalaClass = c.scalaClass)
+          val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName)
+          regions ++= bodies
+          regions ++= im.logic.filter(_.kind == NodeKind.Fsm).flatMap(n => ir.regions.get(n.id).map(n.id -> _))
+          (folded.logic, folded.wires)
+        case None =>
+          (Nil, c.wires.map(w => WireDef(w.from, w.to, "", "", SourceRef.unknown)))
+      }
+      // Constant tie-offs: a const with no wire, or whose every wire ends on a
+      // port or an instance pin, is not drawn (TensorGemm ties off hundreds).
+      val tieOffs = collapsed.filter(_.kind == NodeKind.Const).map(_.id).filter { id =>
+        collapsedWires.filter(w => w.to == id || w.from == id)
+          .forall(w => resolve(if (w.to == id) w.from else w.to).isDefined)
+      }.toSet
+      val logic = collapsed.filterNot(n => tieOffs(n.id))
+      val raw   = collapsedWires.filterNot(w => tieOffs(w.to) || tieOffs(w.from))
+      val boxes  = logic.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
+      val consts = logic.filter(_.kind == NodeKind.Const).map(_.id).toSet
+      def onLogic(e: String): Boolean = consts.contains(stripIdx(e)) || {
+        val parts = e.split('.')
+        parts.length >= 2 && boxes.contains(stripIdx(parts.head))
+      }
+      // Port to port: the bundle is the source's sub-type, except for
+      // clock/reset: IrWalk labels those wires Clock/Reset/AsyncReset (a
+      // top-level reset is a Bool, a child's is Reset), and the layout hides
+      // wires by that label. A block pin or const to a port: IrWalk's bundle
+      // when this design knows the key, else the port side's.
+      val wires = raw.flatMap { w =>
+        (resolve(w.from), resolve(w.to)) match {
+          case (Some(snk), Some(src)) =>
+            Some(w.copy(bundle = Seq(w.bundle, snk, src).find(ClockResetTypes).getOrElse(src)))
+          case (snk, src) if (snk.isDefined || onLogic(w.from)) && (src.isDefined || onLogic(w.to)) =>
+            val side = snk.orElse(src)
+            Some(if (side.isEmpty || known(w.bundle, reg)) w else w.copy(bundle = side.get))
+          case _ => None
+        }
+      }
       ModuleDef(
         name       = c.name,
         `type`     = c.name,
@@ -84,6 +133,7 @@ object ModelToDesign {
         parameters = params(c.name),
         scalaClass = c.scalaClass,
         parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),
+        logic      = logic,
       )
     }
     Design(
@@ -94,9 +144,20 @@ object ModelToDesign {
         reg.unknown.map { case (cls, n) =>
           Warning("probe-unknown-type", n, s"$n port leaf(s) of type $cls shown by class name: no schema type for it")
         },
-      // Wires through internal logic are dropped, so draw unwired ports too.
+      regions  = regions.toMap,
+      // A port no wire reaches (probe-supplied wiring, an unused input) still shows.
       showUnwiredPorts = true,
     )
+  }
+
+  private val GroundKey = """(UInt|SInt)(<\d+>)?|Clock|Reset|AsyncReset|Analog""".r
+  private val VecKey    = """Vec\[(.+), (\d+)\]""".r
+
+  /** A type key this design resolves: a bundle it defines, a ground type, or a Vec of one. */
+  private def known(key: String, reg: Registry): Boolean = key match {
+    case VecKey(inner, _)            => known(inner, reg)
+    case _ if GroundKey.matches(key) => true
+    case _                           => reg.defs.contains(key)
   }
 
   private val CopySuffix = """(_\d+)+$""".r

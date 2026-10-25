@@ -1,6 +1,7 @@
 package socless.capture
 
 import socless.SoclessExporter
+import socless.ir.IrWalk
 import socless.layout.{Layout, LayoutCore}
 import socless.schema._
 import utest._
@@ -78,6 +79,10 @@ object ModelToDesignTest extends TestSuite {
     ModelToDesign.design(model).modules.find(_.name == "X").get
   }
 
+  private val ClockReset = Set("Clock", "Reset", "AsyncReset")
+  /** Endpoint kinds a captured module's wires may end on. */
+  private val Kept = Set(NodeKind.Inst, NodeKind.Boundary, NodeKind.Const, NodeKind.Block, NodeKind.Fsm)
+
   val tests = Tests {
     test("gcd structure") {
       val d      = ModelToDesign.design(gcd)
@@ -119,6 +124,47 @@ object ModelToDesignTest extends TestSuite {
       val clusters = top.children.filter(_.name.startsWith("cluster"))
       assert(clusters.size >= 2)
       clusters.foreach(c => check(c.foldGroup.isEmpty, s"${c.name} foldGroup '${c.foldGroup}'"))
+    }
+
+    test("block pins fed by generator copies take the fold group's name") {
+      val d       = ModelToDesign.design(deepsoc)
+      val cluster = d.modules.find(_.name == "Cluster").get
+      val B       = "blk$Cluster$logic"
+      val pins    = d.regions(B).ports.map(_.name)
+      check(!pins.exists(_.matches("_?cores_\\d.*")), s"per-copy pins on $B: $pins")
+      // In pins driven by a copy: one pin per group signal, the wires keep
+      // each copy's real path.
+      val fed = cluster.wires.filter(w => w.from.startsWith(s"$B.") && w.to.startsWith("cores_"))
+      check(fed.map(_.to.takeWhile(_ != '.')).toSet == Set("cores_0", "cores_1"), s"copy-fed block wires $fed")
+      for ((pin, ws) <- fed.groupBy(_.from)) {
+        val tail = ws.map(_.to.dropWhile(_ != '.')).distinct
+        check(tail.size == 1 && pin == s"$B.cores" + tail.head.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_"),
+          s"$pin <- ${ws.map(_.to)}")
+        check(ws.size == 2, s"$pin is fed by ${ws.map(_.to)}, not by both copies")
+      }
+      // Out pins feeding a copy: named after the copy's signal on the group,
+      // whatever op drives each lane, so both copies hang off one pin.
+      val feeding = cluster.wires.filter(w => w.from.startsWith("cores_") && w.to.startsWith(s"$B."))
+      check(feeding.map(_.from.takeWhile(_ != '.')).toSet == Set("cores_0", "cores_1"), s"block wires to copies $feeding")
+      for ((pin, ws) <- feeding.groupBy(_.to)) {
+        val tail = ws.map(_.from.dropWhile(_ != '.')).distinct
+        check(tail.size == 1 && pin == s"$B.cores" + tail.head.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_"),
+          s"${ws.map(_.from)} <- $pin")
+        check(ws.size == 2, s"$pin feeds ${ws.map(_.from)}, not both copies")
+      }
+      // Folding retargets them to the group and merges the copies' wires.
+      val folded = socless.layout.InstanceFold.fold(cluster, Set.empty)
+      val after  = folded.wires.filter(w => (w.from.startsWith(s"$B.") && w.to.startsWith("cores")) ||
+        (w.to.startsWith(s"$B.") && w.from.startsWith("cores")))
+      check(after.forall(w => w.from.startsWith("cores.") || w.to.startsWith("cores.")), s"unfolded copy wires: $after")
+      check(after.size * 2 == fed.size + feeding.size, s"folding did not merge ${fed.size + feeding.size} copy wires: $after")
+    }
+
+    test("a port the block reads back and writes is one inout pin") {
+      val d = ModelToDesign.design(deepsoc)
+      val ports = d.regions("blk$Cluster$logic").ports.map(p => p.name -> p.dir).toMap
+      check(ports.get("io_in_ready").contains(PortDir.Inout), s"Cluster block pins $ports")
+      check(ports.get("io_out_valid").contains(PortDir.Inout), s"Cluster block pins $ports")
     }
 
     test("the baked layout folds groups") {
@@ -186,17 +232,16 @@ object ModelToDesignTest extends TestSuite {
       }
     }
 
-    test("unwired ports show as boundary pins") {
-      // Every GCD wire touches internal logic, so none is kept; the ports
-      // must still be drawn (captured designs only, the flag is off elsewhere).
+    test("ports show as per-leaf boundary pins") {
+      // Every port is drawn, wired or not (captured designs only, the flag is
+      // off elsewhere).
       val d = ModelToDesign.design(gcd)
       assert(d.showUnwiredPorts)
-      assert(d.modules.head.wires.isEmpty)
       val laid  = Layout.withLayouts(d)
       val nodes = laid.layouts(laid.layoutOf("GCD")).nodes
       val pins  = nodes.filter(_.kind == NodeKind.Boundary).flatMap(_.ports).map(p => p.path -> p.side).toMap
-      assert(pins.get("io.in") == Some(PinSide.East))
-      assert(pins.get("io.out") == Some(PinSide.West))
+      assert(pins.get("io.in.valid") == Some(PinSide.East))
+      assert(pins.get("io.out.valid") == Some(PinSide.West))
       assert(!pins.contains("clock"))
       assert(!pins.contains("reset"))
       // The CHIRRTL path never sets the flag: no boundary stub without a wire.
@@ -210,17 +255,17 @@ object ModelToDesignTest extends TestSuite {
         LayoutCore.prepare(d.modules.find(_.name == module).get, d).nodes
           .map(n => n.id -> n.pins.map(p => p.path -> p.side).toMap).toMap
       val core = pinsOf("Core")
-      // alu wires only io.b and io.out; every other port still shows.
+      // alu leaves io.cout unwired; it still shows.
       check(Seq("a", "b", "op", "out", "cout").forall(n => core("alu").contains(s"alu.io.$n")), s"alu pins: ${core("alu").keys}")
       assert(core("alu")("alu.io.a") == PinSide.West)
       assert(core("alu")("alu.io.cout") == PinSide.East)
       check(Seq("raddr", "waddr", "wen", "wdata", "rdata").forall(n => core("rf").contains(s"rf.io.$n")), s"rf pins: ${core("rf").keys}")
-      // Cluster: cores_* wire io.in.bits only, so the uncovered Decoupled
-      // leaves (valid, ready) and the unwired io.out channel show.
+      // Cluster: cores_* io.in wires only bits, so the uncovered Decoupled
+      // leaves (valid, ready) show beside it.
       val cluster = pinsOf("Cluster")
       for (c <- Seq("cores_0", "cores_1")) {
         val pins = cluster(c)
-        check(Seq("io.in.valid", "io.in.ready", "io.out").forall(p => pins.contains(s"$c.$p")), s"$c pins: ${pins.keys}")
+        check(Seq("io.in.valid", "io.in.ready").forall(p => pins.contains(s"$c.$p")), s"$c pins: ${pins.keys}")
         assert(pins(s"$c.io.in.valid") == PinSide.West)
         assert(pins(s"$c.io.in.ready") == PinSide.East)
         assert(!pins.contains(s"$c.io.in"))
@@ -228,10 +273,11 @@ object ModelToDesignTest extends TestSuite {
       // The same refinement on the boundary: Cluster's io.in is partly wired.
       assert(cluster.get("io.in.valid").flatMap(_.get("io.in.valid")) == Some(PinSide.East))
       assert(cluster.get("io.in.ready").flatMap(_.get("io.in.ready")) == Some(PinSide.West))
-      // With the flag off, instance boxes show only their wired pins.
+      // With the flag off, instance boxes show only their wired pins
+      // (`alu.io.op := 0.U` is a constant tie-off: not drawn, so unwired).
       val off  = d.copy(showUnwiredPorts = false)
       val alu  = LayoutCore.prepare(off.modules.find(_.name == "Core").get, off).nodes.find(_.id == "alu").get
-      assert(alu.pins.map(_.path).toSet == Set("alu.io.b", "alu.io.out"))
+      assert(alu.pins.map(_.path).toSet == Set("alu.io.a", "alu.io.b", "alu.io.out"))
     }
 
     test("clock and reset stay hidden") {
@@ -285,21 +331,236 @@ object ModelToDesignTest extends TestSuite {
         // Port types: every leaf has the same path, direction and width.
         val (mine, theirs) = (leaves(d), leaves(oracle))
         check(mine == theirs, s"[$label] leaves differ: only adapted ${mine -- theirs}, only oracle ${theirs -- mine}")
-        // Wiring: a subset of the oracle's, between ports and instance ports only.
+        // Wiring between ports and instance ports: a subset of the oracle's.
+        // Every wire touching a port or an instance pin has a known type key.
         for (m <- d.modules) {
           val om = oracle.modules.find(_.name == m.name).get
-          check(m.wires.map(w => (w.from, w.to)).toSet.subsetOf(om.wires.map(w => (w.from, w.to)).toSet),
+          def portOrInst(e: String) =
+            LayoutCore.classify(e, m, d).exists(x => x.kind == NodeKind.Inst || x.kind == NodeKind.Boundary)
+          val direct = m.wires.filter(w => portOrInst(w.from) && portOrInst(w.to))
+          check(direct.map(w => (w.from, w.to)).toSet.subsetOf(om.wires.map(w => (w.from, w.to)).toSet),
             s"[$label] ${m.name} has wires the CHIRRTL lacks")
-          for (w <- m.wires; e <- Seq(w.from, w.to)) {
-            val kind = LayoutCore.classify(e, m, d).map(_.kind)
-            check(kind.contains(NodeKind.Inst) || kind.contains(NodeKind.Boundary), s"[$label] ${m.name}: endpoint $e is $kind")
-          }
-          for (k <- m.wires.map(_.bundle) ++ m.ports.map(_.bundle))
+          for (k <- m.wires.filter(w => portOrInst(w.from) || portOrInst(w.to)).map(_.bundle) ++ m.ports.map(_.bundle))
             check(known(k, d), s"[$label] ${m.name}: type key $k is not in bundles")
         }
       }
       // Not vacuous: DeepSoc wires its clusters port to port.
       assert(ModelToDesign.design(deepsoc).modules.find(_.name == "DeepSoc").get.wires.nonEmpty)
+    }
+
+    // ── Logic blocks (slice 2) ──────────────────────────────────────────────
+    test("no connection is dropped") {
+      var exempt = 0
+      for ((label, cm) <- Seq("gcd" -> gcd, "rvpipeline" -> rvpipeline, "deepsoc" -> deepsoc)) {
+        val d      = ModelToDesign.design(cm)
+        val oracle = SoclessExporter.designFromChirrtl(cm.chirrtl)
+        for (om <- oracle.modules) {
+          val m     = d.modules.find(_.name == om.name).get
+          val boxes = m.logic.filter(n => n.kind == NodeKind.Block || n.kind == NodeKind.Fsm).map(_.id)
+          // The box whose body holds the logic node an IrWalk endpoint names.
+          def boxOf(e: String): Option[String] = boxes.find { b =>
+            d.regions.get(b).exists(_.logic.exists(n => n.id == e || n.id == IrWalk.fsmHeadBase(e)))
+          }
+          // The pin a box end must use: named after `src` (a register read
+          // without `~q`, an IrWalk fsm pin by its pin name, a generator copy
+          // by its fold group), cleaned; `_<n>` only when another driver holds
+          // the plain name.
+          val fsmNodes = om.logic.filter(_.kind == NodeKind.Fsm).map(_.id).toSet
+          def expectedPin(src: String): String = {
+            val parts = src.replaceAll("""\[[^\]]*\]$""", "").split('.').toList
+            val shown =
+              if (parts.size >= 2 && fsmNodes(LayoutCore.stripIdx(parts.head))) parts.tail.mkString(".")
+              else {
+                val h = parts.head.stripSuffix("~q")
+                (m.children.find(_.name == LayoutCore.stripIdx(h)).map(_.foldGroup).filter(_.nonEmpty).getOrElse(h) :: parts.tail).mkString(".")
+              }
+            shown.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_").replaceAll("_+$", "")
+          }
+          def pinOk(b: String, now: String, src: String): Boolean = now.startsWith(s"$b.") && {
+            val pin = LayoutCore.stripIdx(now.drop(b.length + 1))
+            val exp = expectedPin(src)
+            pin == exp || (pin.matches(java.util.regex.Pattern.quote(exp) + "_\\d+") && d.regions(b).ports.exists(_.name == exp))
+          }
+          def endOk(orig: String, now: String, src: String) = now == orig || boxOf(orig).exists(b => pinOk(b, now, src))
+          // A const tie-off (every wire it drives ends on a port or an instance
+          // pin) is dropped on purpose, with its wires, when no block holds it.
+          val oracleConsts = om.logic.filter(_.kind == NodeKind.Const).map(_.id).toSet
+          def portOrInst(e: String) =
+            LayoutCore.classify(e, om, oracle).exists(x => x.kind == NodeKind.Inst || x.kind == NodeKind.Boundary)
+          def tieOff(w: WireDef) = oracleConsts(w.to) && om.wires.filter(_.to == w.to).forall(x => portOrInst(x.from)) &&
+            !m.logic.exists(_.id == w.to) && boxOf(w.to).isEmpty
+          exempt += om.wires.count(tieOff)
+          for (w <- om.wires if !ClockReset(w.bundle) && !tieOff(w)) {
+            val internal = (boxOf(w.from), boxOf(w.to)) match {
+              case (Some(a), Some(b)) if a == b => d.regions(a).wires.exists(x => x.from == w.from && x.to == w.to)
+              case _                            => false
+            }
+            // The pin's name source: the external end without any Vec index
+            // when it is a port or an instance pin, else the driver.
+            val external = if (boxOf(w.to).isDefined) w.from else w.to
+            val src      = if (boxOf(external).isEmpty && portOrInst(external)) external.replaceAll("""\[[^\]]*\]""", "") else w.to
+            check(internal || m.wires.exists(x => endOk(w.from, x.from, src) && endOk(w.to, x.to, src)),
+              s"[$label] ${om.name}: dropped ${w.from} <- ${w.to}")
+          }
+          // Every box end names an existing pin used along its declared
+          // direction: a sink-side (`from`) pin is in/inout, a source-side
+          // (`to`) pin is out/inout.
+          for (w <- m.wires; (e, allowed) <- Seq(w.from -> Set(PortDir.In, PortDir.Inout), w.to -> Set(PortDir.Out, PortDir.Inout))) {
+            val ep = LayoutCore.classify(e, m, d)
+            check(ep.exists(x => Kept(x.kind)), s"[$label] ${m.name}: endpoint $e is ${ep.map(_.kind)}")
+            ep.filter(x => x.kind == NodeKind.Block || x.kind == NodeKind.Fsm).foreach { x =>
+              val pin = LayoutCore.stripIdx(e.split('.')(1))
+              val dir = d.regions(x.nodeId).ports.find(_.name == pin).map(_.dir)
+              check(dir.isDefined, s"[$label] ${m.name}: no pin $pin on ${x.nodeId}")
+              check(dir.exists(allowed), s"[$label] ${m.name}: ${w.from} <- ${w.to} uses $pin (${dir.get}) against its direction")
+            }
+          }
+        }
+      }
+      // Not vacuous: the fixtures tie ports off (rvpipeline, deepsoc's alu.io.op).
+      check(exempt > 0, "no tie-off exempted")
+    }
+
+    test("logic kinds after collapse") {
+      for ((label, cm) <- Seq("gcd" -> gcd, "rvpipeline" -> rvpipeline, "deepsoc" -> deepsoc)) {
+        val d = ModelToDesign.design(cm)
+        for (m <- d.modules; n <- m.logic) {
+          check(Set(NodeKind.Fsm, NodeKind.Block, NodeKind.Const)(n.kind), s"[$label] ${m.name}: ${n.id} is ${n.kind}")
+          if (n.kind != NodeKind.Const) check(d.regions.contains(n.id), s"[$label] ${m.name}: no body for ${n.id}")
+        }
+      }
+    }
+
+    test("gcd gets a logic block and stays readable") {
+      val d = ModelToDesign.design(gcd)
+      val m = d.modules.find(_.name == "GCD").get
+      check(m.logic.forall(n => n.kind == NodeKind.Block || n.kind == NodeKind.Const), s"GCD logic ${m.logic.map(n => n.id -> n.kind)}")
+      assert(m.logic.filter(_.kind == NodeKind.Block).map(_.id) == Seq("blk$GCD$logic"))
+      // The io outputs (io.in.ready, io.out.valid, io.out.bits.result) are driven from the block.
+      val outs = m.wires.filter(w => Seq("io.in.ready", "io.out.valid", "io.out.bits").exists(w.from.startsWith))
+      check(outs.map(_.from).toSet == Set("io.in.ready", "io.out.valid", "io.out.bits.result"), s"io output wires $outs")
+      check(outs.forall(_.to.startsWith("blk$GCD$logic.")), s"io outputs not from the block: $outs")
+      // Wire bundles resolve against this design's own bundle keys.
+      for (w <- m.wires) check(known(w.bundle, d), s"GCD wire bundle ${w.bundle} is not in bundles")
+    }
+
+    test("pure wiring modules get no block") {
+      val top = ModelToDesign.design(deepsoc).modules.find(_.name == "DeepSoc").get
+      check(top.logic.isEmpty, s"DeepSoc logic ${top.logic.map(_.id)}")
+    }
+
+    test("the CHIRRTL view is untouched") {
+      val kinds = SoclessExporter.designFromChirrtl(deepsoc.chirrtl).modules.flatMap(_.logic).map(_.kind).toSet
+      check(kinds.contains(NodeKind.Op) && kinds.contains(NodeKind.Reg), s"classic kinds $kinds")
+    }
+
+    test("collapse keeps const, instance-pin and vec-indexed endpoints") {
+      val chirrtl =
+        """FIRRTL version 3.3.0
+          |circuit X :
+          |  module C :
+          |    input clock : Clock
+          |    output io : { y : UInt<8>}
+          |    connect io.y, UInt<8>(5)
+          |  module X :
+          |    input clock : Clock
+          |    input a : UInt<8>
+          |    output v : UInt<8>[2]
+          |    inst c of C @[X.scala 2:3]
+          |    node _T = and(c.io.y, UInt<8>(3)) @[X.scala 4:5]
+          |    connect v[0], _T
+          |    connect v[1], a
+          |""".stripMargin
+      val u8    = CType("chisel3.UInt", "UInt", "unspecified", 8)
+      val clock = CPort("clock", CType("chisel3.Clock", "Clock", "in", -1))
+      val model = CapturedModel("ok", "X", Seq(
+        CModule("X", "x.X", Nil, None, Seq(clock, CPort("a", u8.copy(dir = "in")),
+          CPort("v", CType("chisel3.Vec", "Vec", "out", -1, Seq("0" -> u8), vecLen = 2))), Seq(CInstance("c", "C"))),
+        CModule("C", "x.C", Nil, None, Seq(clock, CPort("io", CType("", "io", "out", -1, Seq("y" -> u8)))), Nil)),
+        chirrtl = chirrtl)
+      val d = ModelToDesign.design(model)
+      val x = d.modules.find(_.name == "X").get
+      val B = "blk$X$logic"
+      assert(x.logic.map(n => n.id -> n.kind) == Seq(B -> NodeKind.Block))
+      val body = d.regions(B)
+      // The const's id carries the op input pin it feeds; it joins its consumer's block.
+      val const = body.logic.find(_.kind == NodeKind.Const).get
+      check(const.id.contains("~in"), s"const id ${const.id}")
+      check(body.wires.exists(_.to == const.id), s"body wires ${body.wires}")
+      val pairs = x.wires.map(w => (w.from, w.to, w.bundle))
+      // IrWalk coalesces c.io.y into c.io; the pin is named after that endpoint.
+      check(pairs.contains((s"$B.c_io", "c.io", "C.io")), s"instance-pin wire missing: $pairs")
+      // The out pin is named after the port it drives, without the Vec index.
+      check(pairs.contains(("v[0]", s"$B.v", "UInt<8>")), s"vec-indexed wire missing: $pairs")
+      assert(body.ports.map(p => (p.name, p.dir)).toSet == Set(("c_io", PortDir.In), ("v", PortDir.Out)))
+      check(pairs.contains(("v[1]", "a", "UInt<8>")), s"port wire missing: $pairs")
+      // A const that only ties off a port is dropped with its wire: the port
+      // shows as an unwired boundary stub.
+      val c = d.modules.find(_.name == "C").get
+      check(c.logic.isEmpty, s"C logic ${c.logic}")
+      check(c.wires.isEmpty, s"C wires ${c.wires}")
+      val laid = Layout.withLayouts(d)
+      val stub = laid.layouts(laid.layoutOf("C")).nodes.filter(_.kind == NodeKind.Boundary).flatMap(_.ports).map(_.path)
+      check(stub.exists(_.startsWith("io")), s"C boundary pins $stub")
+    }
+
+    test("the lanes of a Vec port share one block pin") {
+      val chirrtl =
+        """FIRRTL version 3.3.0
+          |circuit X :
+          |  module X :
+          |    input clock : Clock
+          |    input w : UInt<8>[2]
+          |    output v : UInt<8>[2][1]
+          |    output y : UInt<8>
+          |    node _T = and(w[0], w[1]) @[X.scala 4:5]
+          |    node _T_1 = or(w[0], w[1]) @[X.scala 5:5]
+          |    node _T_2 = xor(_T, _T_1) @[X.scala 6:5]
+          |    connect v[0][0], _T
+          |    connect v[0][1], _T_1
+          |    connect y, _T_2
+          |""".stripMargin
+      val u8   = CType("chisel3.UInt", "UInt", "unspecified", 8)
+      def vec(e: CType, n: Int, dir: String) = CType("chisel3.Vec", "Vec", dir, -1, Seq("0" -> e), vecLen = n)
+      val model = CapturedModel("ok", "X", Seq(CModule("X", "x.X", Nil, None, Seq(
+        CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)), CPort("w", vec(u8, 2, "in")),
+        CPort("v", vec(vec(u8, 2, "unspecified"), 1, "out")), CPort("y", u8.copy(dir = "out"))), Nil)), chirrtl = chirrtl)
+      val d = ModelToDesign.design(model)
+      val x = d.modules.head
+      val B = "blk$X$logic"
+      assert(d.regions(B).ports.map(p => (p.name, p.dir)).toSet == Set(("w", PortDir.In), ("v", PortDir.Out), ("y", PortDir.Out)))
+      val pairs = x.wires.map(w => (w.from, w.to)).toSet
+      check(Set((s"$B.w", "w[0]"), (s"$B.w", "w[1]"), ("v[0][0]", s"$B.v"), ("v[0][1]", s"$B.v"), ("y", s"$B.y")).subsetOf(pairs),
+        s"wires $pairs")
+    }
+
+    test("a block's own source file is embedded") {
+      val dir = os.temp.dir()
+      os.write(dir / "Top.scala", "class Top\n")
+      os.write(dir / "Gen.scala", "object Gen\n")
+      val chirrtl =
+        """FIRRTL version 3.3.0
+          |circuit Top :
+          |  module Top : @[Top.scala 1:1]
+          |    input clock : Clock @[Top.scala 1:1]
+          |    input a : UInt<8> @[Top.scala 1:1]
+          |    input b : UInt<8> @[Top.scala 1:1]
+          |    output y : UInt<8> @[Top.scala 1:1]
+          |    node _T = and(a, b) @[Gen.scala 1:1]
+          |    connect y, _T @[Top.scala 1:1]
+          |""".stripMargin
+      val u8 = CType("chisel3.UInt", "UInt", "in", 8)
+      val model = CapturedModel("ok", "Top", Seq(CModule("Top", "x.Top", Nil, Some(CSource("Top.scala", 1, 1)),
+        Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)), CPort("a", u8), CPort("b", u8),
+          CPort("y", u8.copy(dir = "out"))), Nil)), chirrtl = chirrtl)
+      val index = new SourceIndex {
+        def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] =
+          if (file == "Gen.scala") Some(Construct("g", "for (i <- 0 until 2)", SourceRef("Gen.scala", 1, 1))) else None
+      }
+      val d = SoclessExporter.designFromCaptured(model, Some(dir), Some(index))
+      val top = d.modules.find(_.name == "Top").get
+      check(top.logic.exists(n => n.source.file == "Gen.scala"), s"Top logic ${top.logic}")
+      check(d.sources.contains("Gen.scala"), s"sources ${d.sources.keySet}")
     }
   }
 }

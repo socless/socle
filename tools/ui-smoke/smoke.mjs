@@ -91,6 +91,17 @@ for (const design of designs) {
 
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
+  // The captured view stands in for the language server: `/ide.json` enables
+  // the editor link and `POST /open` records what selecting asks to open.
+  const opened = [];
+  if (design === 'deepsoc-view') {
+    await page.route('**/ide.json', (r) => r.fulfill({ contentType: 'application/json', body: '{"status":"idle"}' }));
+    await page.route('**/open', (r) => {
+      try { opened.push(JSON.parse(r.request().postData() || '{}')); } catch { opened.push({}); }
+      return r.fulfill({ status: 204 });
+    });
+  }
+
   await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
   // A design that renders zero hierarchy nodes is a failure, not a skip:
   // every fixture has at least a top module (issue #103 - the blank-canvas
@@ -257,7 +268,23 @@ for (const design of designs) {
     const gapOf = ([a, b]) => Math.max(b.t - a.b, a.t - b.b, b.l - a.r, a.l - b.r);
     const before = await rects();
     const bt = page.locator('[data-box-inst="cores_0"] [data-bundle-toggle]');
-    if (!(await bt.count())) note(design, where, 'no [data-bundle-toggle] on cores_0');
+    // The renderer pushes boxes down (data-box-shift) only to make room for a
+    // grown box the engine did not size: once laid out, no copy is shifted.
+    const expectUnshifted = async (step) => {
+      const shifts = await page.$$eval('[data-fold-member="cores"]', (els) =>
+        els.map((e) => `${e.getAttribute('data-box-inst')}=${e.getAttribute('data-box-shift')}`));
+      if (!shifts.length) note(design, where, `${step}: no [data-fold-member="cores"] box`);
+      if (shifts.some((s) => !/=0(\.0)?$/.test(s)))
+        note(design, where, `${step}: copies laid out at their old height, renderer shifted ${shifts.join(', ')}`);
+    };
+    if (!(await bt.count())) {
+      // Locked scattered groups (cores_0.io feeds both the logic block and the
+      // io port): nothing to expand, but the copy's locked group rows must
+      // still be sized by the engine, so no copy is shifted.
+      if (!(await count('[data-box-inst="cores_0"] [data-bundle-group]')))
+        note(design, where, 'cores_0 has neither a [data-bundle-toggle] nor a locked [data-bundle-group] row');
+      await expectUnshifted('locked groups');
+    }
     else if (!before[0] || !before[1]) note(design, where, 'before expand: a copy box is missing');
     else {
       // Expand every bundle on cores_0 (nested ones appear as parents open).
@@ -283,12 +310,7 @@ for (const design of designs) {
         if (g1 <= 0) note(design, where, `after expand: cores_0 overlaps cores_1 ${JSON.stringify(after)}`);
         else if (g1 < g0 - 2) note(design, where, `after expand: gap between copies shrank ${g0.toFixed(1)} -> ${g1.toFixed(1)}px`);
       }
-      // The renderer pushes boxes down (data-box-shift) only to make room for a
-      // grown box the engine did not size: once laid out, no copy is shifted.
-      const shifts = await page.$$eval('[data-fold-member="cores"]', (els) =>
-        els.map((e) => `${e.getAttribute('data-box-inst')}=${e.getAttribute('data-box-shift')}`));
-      if (shifts.some((s) => !/=0(\.0)?$/.test(s)))
-        note(design, where, `after expand: copies laid out at their old height, renderer shifted ${shifts.join(', ')}`);
+      await expectUnshifted('after expand');
     }
     drain(`${where} (expand)`);
     // Select a copy (its header, left of the toggle), then fold its group back:
@@ -310,6 +332,102 @@ for (const design of designs) {
       note(design, where, 'after double-click: cores_0 still expanded (expansions not cleared on fold)');
     drain(where);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__fold.png` }).catch(() => {});
+  }
+
+  // Logic blocks (slice 2): the captured view groups a module's logic into
+  // `block` boxes (`data-block`) instead of op/reg nodes. Every non-top module
+  // of the captured DeepSoc has one `logic` block (`pipe` is a Queue).
+  // Selecting a block opens its source in the editor (`POST /open`, routed above).
+  if (design === 'deepsoc-view') {
+    const where = 'logic blocks';
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    };
+    for (const m of ['cluster0', 'pipe']) {
+      await page.locator(`[data-hier-path$="/${m}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `drill ${m}: ${e.message}`));
+      await settle();
+      const r = await page.evaluate(() => ({
+        blocks: Array.from(document.querySelectorAll('[data-block]')).map((b) => ({
+          id: b.getAttribute('data-block'),
+          label: (b.querySelector('[data-block-label]')?.textContent || '').trim(),
+        })),
+        logicNodes: document.querySelectorAll('[data-logic-node]').length,
+      }));
+      if (!r.blocks.length) note(design, where, `${m}: no [data-block] box`);
+      for (const b of r.blocks) if (!b.label) note(design, where, `${m}: block ${b.id} has no header label`);
+      if (r.logicNodes) note(design, where, `${m}: ${r.logicNodes} op/reg [data-logic-node] box(es) next to the blocks`);
+      if (m === 'cluster0') {
+        const id = 'blk$Cluster$logic';
+        opened.length = 0;
+        await page.locator(`[data-block="${id}"] [data-block-label]`).first().click({ timeout: 3000 })
+          .catch((e) => note(design, where, `select ${id}: ${e.message}`));
+        await page.waitForTimeout(250);
+        const insp = page.locator(`[data-logic-inspect="${id}"]`);
+        if (!(await insp.count())) note(design, where, `${id} not selected (no inspector entry)`);
+        else {
+          const text = await insp.first().innerText();
+          if (!text.includes('logic block') || text.includes('constant'))
+            note(design, where, `${id} inspector does not read "logic block": ${JSON.stringify(text)}`);
+        }
+        if (!opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119))
+          note(design, where, `selecting ${id} did not open its source: ${JSON.stringify(opened)}`);
+        // A live reload that drops the selected block (here: renames it) clears
+        // the selection instead of leaving the Inspector blank on a stale id.
+        const fresh = (await (await page.request.get(`${BASE}/${design}/design.json`)).text())
+          .split('blk$Cluster$logic').join('blk$Cluster$logic2');
+        await page.route('**/design.json', (rt) => rt.fulfill({
+          contentType: 'application/json', body: fresh,
+          headers: { 'Last-Modified': 'Wed, 01 Jan 2031 00:00:00 GMT' },
+        }));
+        const reloaded = await page.waitForSelector('[data-block="blk$Cluster$logic2"]', { timeout: 10000 })
+          .then(() => true).catch(() => false);
+        if (!reloaded) note(design, where, 'live reload: the renamed block never showed');
+        else {
+          await page.waitForTimeout(150);
+          if (await page.locator('[data-logic-inspect]').count()) note(design, where, 'live reload: a stale [data-logic-inspect] remains');
+          if (await page.locator('.scl-insp-clear').count()) note(design, where, `live reload: the selection of the dropped ${id} survived`);
+        }
+        drain(`${where} (live reload)`);
+        // An FSM block opens its source too. No captured fixture holds an FSM,
+        // so the same block is served again as an `fsm` box.
+        const fsmId = 'blk$Cluster$fsm$state';
+        const asFsm = JSON.parse(fresh.split('blk$Cluster$logic2').join(fsmId));
+        for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) n.kind = 'fsm';
+        await page.unroute('**/design.json');
+        await page.route('**/design.json', (rt) => rt.fulfill({
+          contentType: 'application/json', body: JSON.stringify(asFsm),
+          headers: { 'Last-Modified': 'Thu, 02 Jan 2031 00:00:00 GMT' },
+        }));
+        const fsmShown = await page.waitForSelector(`[data-fsm="${fsmId}"]`, { timeout: 10000 })
+          .then(() => true).catch(() => false);
+        if (!fsmShown) note(design, where, 'live reload: the fsm block never showed');
+        else {
+          await page.waitForTimeout(150);
+          opened.length = 0;
+          await page.locator(`[data-fsm="${fsmId}"]`).first().click({ timeout: 3000, position: { x: 8, y: 8 } })
+            .catch((e) => note(design, where, `select ${fsmId}: ${e.message}`));
+          await page.waitForTimeout(250);
+          if (!opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119))
+            note(design, where, `selecting ${fsmId} did not open its source: ${JSON.stringify(opened)}`);
+        }
+        drain(`${where} (fsm block)`);
+      }
+      // A design with debug-layer blocks hides them until "show layers" is on.
+      const toggle = page.locator('[data-toggle-layers]');
+      if (await toggle.count()) {
+        const before = await page.locator('[data-block]').count();
+        await toggle.click().catch((e) => note(design, where, `layers toggle: ${e.message}`));
+        await settle();
+        const shown = await page.locator('[data-block]').count();
+        await toggle.click().catch(() => {});
+        await settle();
+        const hidden = await page.locator('[data-block]').count();
+        if (shown <= before || hidden !== before) note(design, where, `${m}: layer blocks ${before} -> ${shown} -> ${hidden}`);
+      }
+      drain(`${where} (${m})`);
+    }
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__blocks.png` }).catch(() => {});
   }
 
   // Back to the top module (richest view: instances, wires, interface pins).

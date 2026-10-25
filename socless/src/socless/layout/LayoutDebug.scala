@@ -46,6 +46,7 @@ object LayoutDebug {
     "op"       -> "#ffd6d6",
     "fsm"      -> "#d0eef5",
     "mem"      -> "#f0d9a8",
+    "block"    -> "#e2e4ea",
   )
   private val NodeStroke = "#333333"
   private val WestColor  = "#11aa66"
@@ -94,7 +95,7 @@ object LayoutDebug {
       .append(esc(s"$name  ${layout.w}x${layout.h}  nodes=${layout.nodes.size} edges=${layout.edges.size}"))
       .append("</text>").append('\n')
     var lx = w - 6
-    for (k <- Seq("mem", "fsm", "op", "const", "reg", "boundary", "inst").iterator) {
+    for (k <- Seq("block", "mem", "fsm", "op", "const", "reg", "boundary", "inst").iterator) {
       lx -= (k.length * 6 + 16)
       sb.append(s"""<rect x="$lx" y="6" width="9" height="9" fill="${Palette(k)}" stroke="$NodeStroke"/>""").append('\n')
       sb.append(s"""<text x="${lx + 12}" y="14" fill="$TextColor">$k</text>""").append('\n')

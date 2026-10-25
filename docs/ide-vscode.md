@@ -118,6 +118,24 @@ it, unfolds the copies; the `−` on any copy folds them back. The choice is kep
 while you navigate. The side panel's Hierarchy tree still lists every copy;
 selecting a copy there unfolds its group.
 
+Inside a module, the logic that is not an instance collapses into blocks: an
+`FSM: <reg>` box for each state machine, a box labelled with its loop head for
+each generator loop (`for (b <- 0 until batch)`), and a `logic` box for the
+rest. A block's pins are the signals that cross its edge. A pin wired to a port
+or an instance is named after that signal without its Vec indices, so the lanes
+of `io.out.data.bits` share one pin, and a folded copy's pin takes the group's
+name (`acc_io_deq_bits`); a pin between two blocks is named after the signal
+that drives it. Selecting a block opens its
+code: the loop, the module, or for an FSM the line of its state register (the
+`switch` comes with the FSM diagram, later). Blocks that only carry debug logic
+(`printf`, `assert`) are labelled `debug logic` and stay hidden until you turn
+on `layers`. A port or an instance pin tied to a constant (`io.op := 0.U`) is
+not drawn as a constant node: it shows unconnected.
+
+`mill soclessView` (and the `Launcher` path behind it) has no source index: it
+shows the FSM and `logic` blocks, but no generator blocks; their logic stays in
+the `logic` block.
+
 Breadcrumbs, search, the run status, the bottom panel toggle, the view settings
 and the keyboard help work as in the browser. Opened in a browser or from
 Neovim, the UI is unchanged.

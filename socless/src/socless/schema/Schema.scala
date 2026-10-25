@@ -21,8 +21,13 @@ object NodeKind {
   val Op       = "op"
   /** Collapsed FSM region box (issue #210). */
   val Fsm      = "fsm"
+  /** Generator or logic block: a collapsed group of logic, laid out like an FSM box. */
+  val Block    = "block"
   /** Memory node: a cmem/smem with read/write access ports (issue #205). */
   val Mem      = "mem"
+
+  /** A box with named pins and a body in `Design.regions`: an FSM or a block. */
+  def isBox(kind: String): Boolean = kind == Fsm || kind == Block
 }
 
 /** Schematic pin side (`LaidPort.side` / the layout engine's pin placement). */

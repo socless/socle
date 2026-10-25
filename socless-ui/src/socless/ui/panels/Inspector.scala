@@ -172,6 +172,8 @@ object Inspector {
     val isReg = ln.kind == NodeKind.Reg
     val isOp  = ln.kind == NodeKind.Op
     val isMem = ln.kind == NodeKind.Mem
+    // FSM and logic/generator blocks: a grouped body, no value of their own.
+    val isBlock = NodeKind.isBox(ln.kind)
     def sourceRow: Element =
       if (ln.source.file.nonEmpty)
         div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
@@ -191,7 +193,13 @@ object Inspector {
           case _                                        => None
         }
       }.sortBy(_._1)
-    val kindLabel = if (isReg) "register" else if (isOp) "operation" else if (isMem) "memory" else "constant"
+    val kindLabel =
+      if (isReg) "register" else if (isOp) "operation" else if (isMem) "memory"
+      else if (ln.kind == NodeKind.Fsm) "state machine"
+      else if (ln.kind != NodeKind.Block) "constant"
+      else if (ln.layer) "debug block"
+      else if (ln.id.contains("$gen$")) "generator block"
+      else "logic block"
     div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
@@ -239,7 +247,8 @@ object Inspector {
             else div(styleAttr := s"margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink4}", "-"),
           )
         }.getOrElse(emptyNode)
-      } else {
+      } else if (isBlock) emptyNode
+      else {
         div(sectionTitle("Value"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))
       },

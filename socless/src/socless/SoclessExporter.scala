@@ -123,15 +123,20 @@ object SoclessExporter {
   }
 
   /** Adapt a socless-probe capture (`CapturedModel` JSON) to a laid-out
-    * [[Design]] with no file I/O: ports and submodules only (`ModelToDesign`),
-    * sources embedded, layouts baked. Throws IllegalArgumentException when the
-    * capture's status is not "ok". */
-  def designFromCaptured(capturedJson: String, sourceRoot: Option[Path] = None): Design =
+    * [[Design]] with no file I/O: ports, submodules and logic blocks
+    * (`ModelToDesign`), sources embedded, layouts baked. Throws
+    * IllegalArgumentException when the capture's status is not "ok". */
+  def designFromCaptured(capturedJson: String, sourceRoot: Option[Path]): Design =
     designFromCaptured(socless.capture.CapturedModel.fromJson(capturedJson), sourceRoot)
 
-  /** [[designFromCaptured]] of an already parsed capture. */
-  def designFromCaptured(captured: socless.capture.CapturedModel, sourceRoot: Option[Path]): Design = {
-    val core    = socless.capture.ModelToDesign.design(captured)
+  /** [[designFromCaptured]] of an already parsed capture; `index` maps logic
+    * to the source constructs that become generator blocks. */
+  def designFromCaptured(
+    captured:   socless.capture.CapturedModel,
+    sourceRoot: Option[Path],
+    index:      Option[socless.capture.SourceIndex] = None,
+  ): Design = {
+    val core    = socless.capture.ModelToDesign.design(captured, index)
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     Layout.withLayouts(core.copy(sources = sources, sourceRoot = sourceRoot.map(_.toString).getOrElse("")))
   }
@@ -180,6 +185,7 @@ object SoclessExporter {
       m.ports.foreach(p => add(p.source))
       m.children.foreach(c => add(c.source))
       m.wires.foreach(w => add(w.source))
+      m.logic.foreach(n => add(n.source))
     }
 
     val out = mutable.LinkedHashMap.empty[String, String]

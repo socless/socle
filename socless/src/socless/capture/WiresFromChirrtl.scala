@@ -2,7 +2,7 @@ package socless.capture
 
 import socless.ir.IrWalk
 import socless.parse.ChirrtlParser
-import socless.schema.WireDef
+import socless.schema.{Design, WireDef}
 
 /** Consumer-side wiring for a [[CapturedModel]]: the probe leaves
   * `CModule.wires` empty (Chisel's public `Select.connectionsTo` throws on
@@ -15,7 +15,11 @@ object WiresFromChirrtl {
 
   /** Module name -> its full wire definitions, as the CHIRRTL pipeline emits them. */
   def wireDefs(chirrtl: String): Map[String, Seq[WireDef]] =
-    IrWalk.design(ChirrtlParser.parse(chirrtl)).modules.map(m => m.name -> m.wires).toMap
+    design(ChirrtlParser.parse(chirrtl)).modules.map(m => m.name -> m.wires).toMap
+
+  /** The full CHIRRTL-pipeline design (logic, wires, FSM regions) of an
+    * already parsed circuit, so a caller parses the CHIRRTL once. */
+  def design(circ: ChirrtlParser.Circ): Design = IrWalk.design(circ)
 
   /** Module name -> its wires, endpoints verbatim from `WireDef` (from = sink, to = source). */
   def wires(chirrtl: String): Map[String, Seq[CWire]] =

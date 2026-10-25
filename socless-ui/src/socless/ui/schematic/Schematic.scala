@@ -74,8 +74,9 @@ object Schematic {
     // `geomSig` and the re-layout trigger both fire on a module change, and an
     // engine result for the PREVIOUS module must never be used to place the new
     // module's wires (it would leave every wire unanchored until the async
-    // relayout lands, issue #258 follow-up).
-    val engineVar   = Var[Option[(String, LaidOut)]](None)
+    // relayout lands, issue #258 follow-up). The same holds across a design
+    // change (live reload): the result also records the design it was laid out for.
+    val engineVar   = Var[Option[(String, Design, LaidOut)]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
     val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
@@ -165,10 +166,10 @@ object Schematic {
     val geomSig: Signal[Option[Geom]] =
       Signal.combine(designSig, moduleSig, engineVar.signal, expandedPortsVar.signal).map {
         case (Some(d), Some(mod), engine, expanded) =>
-          // Use the engine layout only when it was computed for THIS module;
-          // otherwise fall back to the baked layout for the current module so a
-          // stale engine result never mis-anchors the wires.
-          val forThis = engine.collect { case (m, l) if m == viewTag(mod) => l }
+          // Use the engine layout only when it was computed for THIS module of
+          // THIS design; otherwise fall back to the baked layout for the current
+          // module so a stale engine result never mis-anchors the wires.
+          val forThis = engine.collect { case (m, ed, l) if m == viewTag(mod) && (ed eq d) => l }
           // The baked layout is the all-folded module: until the engine lays out
           // an unfolded group, show the module folded rather than unanchored copies.
           val shown = if (forThis.isEmpty && unfoldedMembers(mod).nonEmpty) InstanceFold.fold(mod, Set.empty) else mod
@@ -206,11 +207,11 @@ object Schematic {
               engineCache.get(key) match {
                 case Some(cached) =>
                   // Cache hit: place synchronously, no engine run, no spinner.
-                  engineVar.set(Some((tag, cached))); pendingVar.set(false)
+                  engineVar.set(Some((tag, d, cached))); pendingVar.set(false)
                 case None =>
                   pendingVar.set(true)
                   BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden).onComplete {
-                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((tag, res))); pendingVar.set(false) }
+                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((tag, d, res))); pendingVar.set(false) }
                     case Failure(e)   => if (myGen == engineGen) {
                       engineVar.set(None); pendingVar.set(false)
                       dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
@@ -403,6 +404,8 @@ object Schematic {
         // but non-drillable and tinted to read as a state machine. Intercepted
         // before the childless-boundary arm since it has no `children` entry.
         else if (n.kind == NodeKind.Fsm) SchematicBoxes.fsmBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        // A logic or generator block (captured view): FSM-shaped, no `children` entry.
+        else if (n.kind == NodeKind.Block) SchematicBoxes.blockBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
         // A memory node (issue #205): instance-style box with a memory glyph and a
         // RAM/SRAM depth×elem tag. Has no `children` entry, so it must be
         // intercepted before the childless-boundary arm like reg/op/fsm.
@@ -637,7 +640,7 @@ object Schematic {
     // wiring here in render scope; [[SchematicChrome.controls]] only invokes them.
     val ctrlCtx = SchematicChrome.ControlsCtx(
       pendingSig    = pendingVar.signal,
-      engineSig     = engineVar.signal.map(_.map(_._2)),
+      engineSig     = engineVar.signal.map(_.map(_._3)),
       layerHasSig   = geomSig.map(_.exists(_.mod.logic.exists(_.layer))),
       showLayersVar = showLayersVar,
       zoomSig       = zoomVar.signal,
