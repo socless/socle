@@ -504,6 +504,145 @@ object ModelToDesignTest extends TestSuite {
       val laid = Layout.withLayouts(d)
       val stub = laid.layouts(laid.layoutOf("C")).nodes.filter(_.kind == NodeKind.Boundary).flatMap(_.ports).map(_.path)
       check(stub.exists(_.startsWith("io")), s"C boundary pins $stub")
+      // The dropped tie-off is recorded so the UI can mark the port tied; its
+      // sink is the wire's (IrWalk coalesces the one-leaf `io.y` into `io`).
+      assert(c.tieOffs == Seq(TieOff("io", "5")))
+      assert(x.tieOffs.isEmpty)
+    }
+
+    test("a captured tie-off is recorded with its sink and value") {
+      val core = ModelToDesign.design(deepsoc).modules.find(_.name == "Core").get
+      // Only a pin whose sole driver is one constant is tied (`alu.io.op` is 0
+      // in both `when` branches). A `when` default next to another driver is
+      // not: `alu.io.b` (0 or io.in.bits.data), `rf.io.wdata` (0 or alu.io.out)
+      // and `rf.io.wen` (true or false).
+      assert(core.tieOffs == Seq(
+        TieOff("alu.io.op", "0"), TieOff("rf.io.raddr", "0"),
+        TieOff("rf.io.waddr", "0"), TieOff("io.out.bits.valid", "1")))
+    }
+
+    test("a constant that another driver may override is no tie") {
+      val u1 = CType("chisel3.UInt", "UInt", "in", 1)
+      val u8 = CType("chisel3.UInt", "UInt", "out", 8)
+      val clock = CPort("clock", CType("chisel3.Clock", "Clock", "in", -1))
+      val bundle = CType("x.B", "B", "out", -1, Seq("v" -> CType("chisel3.UInt", "UInt", "unspecified", 1),
+        "d" -> CType("chisel3.UInt", "UInt", "unspecified", 8)))
+      def tieOffs(body: String, ports: Seq[CPort]): Seq[TieOff] = {
+        val chirrtl = "FIRRTL version 3.3.0\ncircuit X :\n  module X :\n" + body.stripMargin
+        ModelToDesign.design(CapturedModel("ok", "X", Seq(CModule("X", "x.X", Nil, None, clock +: ports, Nil)),
+          chirrtl = chirrtl)).modules.head.tieOffs
+      }
+      // A dynamic index may write any lane.
+      val vec = CType("chisel3.Vec", "Vec", "out", -1, Seq("0" -> CType("chisel3.UInt", "UInt", "unspecified", 8)), vecLen = 2)
+      val dyn = tieOffs(
+        """    input clock : Clock
+          |    input i : UInt<1>
+          |    input s : UInt<8>
+          |    output o : UInt<8>[2]
+          |    connect o[0], UInt<8>(0h0)
+          |    connect o[1], UInt<8>(0h0)
+          |    connect o[i], s
+          |""", Seq(CPort("i", u1), CPort("s", u8.copy(dir = "in")), CPort("o", vec)))
+      assert(dyn.isEmpty)
+      // A bulk connect of the parent drives the field too.
+      val bulk = tieOffs(
+        """    input clock : Clock
+          |    input c : UInt<1>
+          |    input i : { v : UInt<1>, d : UInt<8>}
+          |    output o : { v : UInt<1>, d : UInt<8>}
+          |    connect o, i
+          |    when c :
+          |      connect o.v, UInt<1>(0h0)
+          |""", Seq(CPort("c", u1), CPort("i", bundle.copy(dir = "in")), CPort("o", bundle)))
+      assert(bulk.isEmpty)
+      // Through a wire whose nested `when`s give it other values.
+      val alias = tieOffs(
+        """    input clock : Clock
+          |    input c : UInt<1>
+          |    input d : UInt<1>
+          |    output a : UInt<8>
+          |    wire w : UInt<8>
+          |    connect w, UInt<8>(0h0)
+          |    when c :
+          |      connect w, UInt<8>(0h1)
+          |    else :
+          |      when d :
+          |        connect w, UInt<8>(0h2)
+          |    connect a, w
+          |""", Seq(CPort("c", u1), CPort("d", u1), CPort("a", u8)))
+      assert(alias.isEmpty)
+      // A default a nested `when` overrides with a signal.
+      val nested = tieOffs(
+        """    input clock : Clock
+          |    input c : UInt<1>
+          |    input d : UInt<1>
+          |    input s : UInt<8>
+          |    output a : UInt<8>
+          |    connect a, UInt<8>(0h0)
+          |    when c :
+          |      when d :
+          |        connect a, s
+          |""", Seq(CPort("c", u1), CPort("d", u1), CPort("s", u8.copy(dir = "in")), CPort("a", u8)))
+      assert(nested.isEmpty)
+      // A flipped field is driven through the right side of a bulk connect
+      // (`io.out <> io.in; when(stall) { io.in.ready := false.B }`).
+      val flipT = CType("x.D", "D", "out", -1, Seq("v" -> CType("chisel3.UInt", "UInt", "unspecified", 1),
+        "r" -> CType("chisel3.UInt", "UInt", "flip", 1)))
+      val flip = tieOffs(
+        """    input clock : Clock
+          |    input c : UInt<1>
+          |    input i : { v : UInt<1>, flip r : UInt<1>}
+          |    output o : { v : UInt<1>, flip r : UInt<1>}
+          |    connect o, i
+          |    when c :
+          |      connect i.r, UInt<1>(0h0)
+          |""", Seq(CPort("c", u1), CPort("i", flipT.copy(dir = "flip")), CPort("o", flipT)))
+      assert(flip.isEmpty)
+      // A sole constant is a tie, a lane too (Core's `alu.io.op`, 0 in both
+      // `when` branches, is the captured case).
+      val same = tieOffs(
+        """    input clock : Clock
+          |    output a : UInt<8>
+          |    output o : UInt<8>[2]
+          |    connect a, UInt<8>(0h3)
+          |    connect o[1], UInt<8>(0h0)
+          |""", Seq(CPort("a", u8), CPort("o", vec)))
+      assert(same.toSet == Set(TieOff("a", "3"), TieOff("o[1]", "0")))
+    }
+
+    test("tie-off values read as numbers") {
+      val chirrtl =
+        """FIRRTL version 3.3.0
+          |circuit X :
+          |  module X :
+          |    input clock : Clock
+          |    output a : UInt<8>
+          |    output b : UInt<8>
+          |    output c : SInt<8>
+          |    output d : UInt<8>
+          |    connect a, UInt<8>(0h2A)
+          |    connect b, UInt<8>(0h9)
+          |    connect c, SInt<8>(-0h14)
+          |    connect d, UInt<8>(0b1010)
+          |""".stripMargin
+      val u8 = CType("chisel3.UInt", "UInt", "out", 8)
+      val model = CapturedModel("ok", "X", Seq(CModule("X", "x.X", Nil, None,
+        Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)), CPort("a", u8), CPort("b", u8),
+          CPort("c", CType("chisel3.SInt", "SInt", "out", 8)), CPort("d", u8)), Nil)), chirrtl = chirrtl)
+      val x = ModelToDesign.design(model).modules.head
+      assert(x.tieOffs.toSet == Set(TieOff("a", "0x2a"), TieOff("b", "9"), TieOff("c", "-0x14"), TieOff("d", "0xa")))
+    }
+
+    test("old json without tie-offs parses") {
+      val d = upickle.default.read[Design](resource("/golden/gcd.json"))
+      assert(d.modules.forall(_.tieOffs.isEmpty))
+    }
+
+    test("the CHIRRTL view records no tie-offs") {
+      for (cap <- Seq(gcd, rvpipeline, deepsoc, fsm)) {
+        val d = SoclessExporter.designFromChirrtl(cap.chirrtl)
+        check(d.modules.forall(_.tieOffs.isEmpty), s"${d.top}: CHIRRTL module carries tie-offs")
+      }
     }
 
     test("the lanes of a Vec port share one block pin") {

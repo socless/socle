@@ -281,6 +281,28 @@ object Schematic {
     // ── content (boxes + wires), rebuilt on geom / selection / hover ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
+    // A value stub at a pin: a short wire out of the port ending in a
+    // perpendicular bar (|-), on the pin's outer side, with the value label
+    // past it. Shared by constant annotations and tied ports.
+    def pinStub(p: LaidPortR, py: Double, label: String, tip: String, tag: Modifier[HtmlElement]): HtmlElement = {
+      val isWest = p.side == PinSide.West
+      val px     = p.x.toDouble
+      val len    = 10.0
+      val d = if (isWest) s"M $px $py L ${px - len} $py M ${px - len} ${py - 5} L ${px - len} ${py + 5}"
+              else        s"M $px $py L ${px + len} $py M ${px + len} ${py - 5} L ${px + len} ${py + 5}"
+      val labelStyle =
+        if (isWest) s"position:absolute;left:${px - len - 4}px;top:${py - 7}px;transform:translateX(-100%);text-align:right"
+        else        s"position:absolute;left:${px + len + 4}px;top:${py - 7}px;text-align:left"
+      val lblBase = s"font-family:${Tokens.mono};font-size:9px;font-weight:600;color:${Tokens.ink2};white-space:nowrap"
+      div(
+        tag, dataAttr("pan-block") := "1",
+        title := tip,
+        svg.svg(sa("style") := "position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none",
+          svg.path(sa("d") := d, sa("style") := s"stroke:${Tokens.ink3};stroke-width:1.2;fill:none")),
+        span(styleAttr := s"$labelStyle;$lblBase;background:${Tokens.panel};padding:0 3px;border-radius:2px", label),
+      )
+    }
+
     def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String,
                       showLayers: Boolean, colorBoxes: Boolean, colorWires: Boolean,
                       focusClass: String): Seq[ReactiveElement.Base] = {
@@ -380,26 +402,42 @@ object Schematic {
               title := s"register init $value",
               span(styleAttr := s"position:absolute;left:${cx}px;top:${symTop - 13}px;transform:translateX(-50%);text-align:center;$lblBase", value),
             )
-          } else {
-            val isWest = p.side == PinSide.West
-            val px     = p.x.toDouble
-            val len    = 10.0
-            // Stub: a short wire out of the port ending in a perpendicular bar (|-).
-            val d = if (isWest) s"M $px $py L ${px - len} $py M ${px - len} ${py - 5} L ${px - len} ${py + 5}"
-                    else        s"M $px $py L ${px + len} $py M ${px + len} ${py - 5} L ${px + len} ${py + 5}"
-            val labelStyle =
-              if (isWest) s"position:absolute;left:${px - len - 4}px;top:${py - 7}px;transform:translateX(-100%);text-align:right"
-              else        s"position:absolute;left:${px + len + 4}px;top:${py - 7}px;text-align:left"
-            div(
-              dataAttr("const-stub") := cn.id, dataAttr("pan-block") := "1",
-              title := s"constant $value",
-              svg.svg(sa("style") := "position:absolute;left:0;top:0;width:0;height:0;overflow:visible;pointer-events:none",
-                svg.path(sa("d") := d, sa("style") := s"stroke:${Tokens.ink3};stroke-width:1.2;fill:none")),
-              span(styleAttr := s"$labelStyle;$lblBase;background:${Tokens.panel};padding:0 3px;border-radius:2px", value),
-            )
-          }
+          } else pinStub(p, py, value, s"constant $value", dataAttr("const-stub") := cn.id)
         }
       }.toSeq
+
+      // ── tied ports (captured view) ──
+      // A constant tie-off is dropped from the layout and recorded in
+      // `tieOffs`; it shows as the same `|-` value stub at the pin it lands on:
+      // the pin whose path is the sink, else the nearest laid pin covering it
+      // (a folded bundle row, a Vec group, a boundary stub). One stub per pin.
+      val tiedEls: Seq[ReactiveElement.Base] = if (g.mod.tieOffs.isEmpty) Nil else {
+        val pins = g.layout.nodes.iterator
+          .filterNot(b => b.kind == NodeKind.Const || (hideLayer && layerIds.contains(b.id)))
+          .flatMap(b => b.ports.map(p => (b, p))).toSeq.groupBy(_._2.path)
+          // Two pins may share a path (a direction-split bundle, #237): keep the
+          // driven one, which faces WEST (an instance input, or the boundary pin
+          // of this module's output port).
+          .map { case (path, bps) => path -> bps.find(_._2.side == PinSide.West).getOrElse(bps.head) }
+        // The sink itself, then each prefix ending at a `.` or `[`, longest first.
+        def pinOf(sink: String): Option[(LaidNodeR, LaidPortR)] =
+          (sink.length +: (sink.length - 1 to 1 by -1).filter(i => sink(i) == '.' || sink(i) == '['))
+            .iterator.flatMap(i => pins.get(sink.take(i))).nextOption()
+        g.mod.tieOffs.flatMap(t => pinOf(t.sink).map(_ -> t)).groupBy(_._1._2.path).values.toSeq
+          .sortBy(_.head._1._2.path).map { group =>
+            val (b, p) = group.head._1
+            val ties   = group.map(_._2)
+            val values = ties.map(_.value).distinct
+            // At most 10 listed lines, then `… and N more`.
+            def capped(lines: Seq[String]): Seq[String] =
+              if (lines.size <= 10) lines else lines.take(10) :+ s"… and ${lines.size - 10} more"
+            val (label, tip) =
+              if (values.size == 1)
+                (values.head, (s"tied to ${values.head}" +: (if (ties.size > 1) capped(ties.map(_.sink)) else Nil)).mkString("\n"))
+              else (s"${ties.size} tied", capped(ties.map(t => s"${t.sink} = ${t.value}")).mkString("\n"))
+            pinStub(p, p.y + g.boxShift.shift.getOrElse(b.id, 0.0), label, tip, dataAttr("tied") := p.path)
+          }
+      }
 
       // ── boxes ──
       val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(n => n.kind == NodeKind.Const || (hideLayer && layerIds.contains(n.id))).map { n =>
@@ -593,7 +631,7 @@ object Schematic {
 
       // Constant annotations render after the wire layer so their labels sit on
       // top of crossing wires instead of being covered (#229).
-      ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls
+      ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls ++ tiedEls
     }
 
 

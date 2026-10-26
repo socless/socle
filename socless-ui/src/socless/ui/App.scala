@@ -79,11 +79,13 @@ object App {
         fsmOpenVar.set(None)
     }
 
-  /** On a design change, keep the selection only while it still names
-    * something in the shown (folded) module: a stale one blanks the Inspector. */
+  /** On a design change, keep the selection and the hover only while they
+    * still name something in the shown (folded) module: a stale one blanks the
+    * Inspector, which shows the selection, else the hover. A hovered box the
+    * reload replaces never fires its mouseleave, so the hover is checked too. */
   private def reconcileSelection(d: Design): Unit =
-    if (!selectedSigVar.now().forall(s => shownModule(d, pathVar.now()).exists(selectionIn(_, s))))
-      selectedSigVar.set(None)
+    for (v <- Seq(selectedSigVar, hoveredSigVar))
+      if (!v.now().forall(s => shownModule(d, pathVar.now()).exists(selectionIn(_, s)))) v.set(None)
 
   /** Whether selection `s` names something in `mod`, resolved like the
     * Inspector does: a logic node, a wire end (or a path under one), or an

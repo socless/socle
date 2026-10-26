@@ -179,8 +179,17 @@ case class ModuleDef(
   // keeps no type). From a probe capture; empty from the CHIRRTL path.
   // Additive, last.
   parameterDecls: Seq[ParamDef] = Seq.empty,
+  // Constant tie-offs dropped from `logic` and `wires` (probe capture only:
+  // a const whose every wire ends on a port or an instance pin). The UI marks
+  // each tied pin with a value stub. Empty from the CHIRRTL path. Additive, last.
+  tieOffs: Seq[TieOff] = Seq.empty,
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
+
+/** A port or instance pin tied to a constant: `sink` is the tied endpoint path
+  * (a wire's `from`, e.g. "alu.io.op"), `value` the constant as displayed ("0"). */
+case class TieOff(sink: String, value: String)
+object TieOff { implicit val rw: ReadWriter[TieOff] = macroRW }
 
 /** One constructor parameter of a captured generator: its name, its declared
   * Scala type ("Int", "T") and its value as read at elaboration ("4",

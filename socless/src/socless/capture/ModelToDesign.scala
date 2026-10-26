@@ -21,7 +21,8 @@ import socless.schema._
   * optional source `index`) and collapsed (`LogicBlocks`) into FSM, generator
   * and logic blocks, whose bodies go to `Design.regions`. A module keeps only
   * blocks and the consts that feed a block; a const that only ties off ports
-  * or instance pins is dropped with its wires, so a tied port shows unwired.
+  * or instance pins is dropped with its wires and recorded in `tieOffs`, which
+  * the UI draws as a value stub at the tied pin (no layout node).
   * A wire is kept when both ends resolve to a port, an instance pin, a block
   * pin or a const.
   *
@@ -116,6 +117,39 @@ object ModelToDesign {
         collapsedWires.filter(w => w.to == id || w.from == id)
           .forall(w => resolve(if (w.to == id) w.from else w.to).isDefined)
       }.toSet
+      // A dropped tie-off wire is recorded (sink, value as a number) so the UI
+      // marks the tied pin without a layout node, but only when that constant
+      // is the pin's sole driver. Every CHIRRTL connect whose target overlaps
+      // the sink (an ancestor, the sink or a field under it; a dynamic index
+      // overlaps every lane) must be a literal of that value, which also
+      // rejects one through a wire (`connect a, w`), and no other IrWalk wire
+      // may drive an overlapping endpoint. A connect or wire reading a strict
+      // ancestor of the sink (`connect o, i` for `i.r`) may drive it too, through
+      // a flipped field, so it rejects the tie. A missed tie only loses a stub.
+      val constNum = collapsed.iterator.filter(n => tieOffs(n.id)).map { n =>
+        val raw = if (n.label.nonEmpty) n.label else n.id
+        n.id -> (raw.indexOf(": ") match { case i if i > 0 => raw.take(i); case _ => raw })
+      }.toMap
+      lazy val modConns = circ.modules.find(_.name == c.name).toSeq.flatMap(_.conns)
+      lazy val connsByRoot: Map[String, Seq[ChirrtlParser.Conn]] = modConns.groupBy(cn => pathSegs(cn.lhs).head)
+      lazy val connsByRhsRoot: Map[String, Seq[ChirrtlParser.Conn]] =
+        modConns.filter(cn => litText(cn.rhs).isEmpty).groupBy(cn => pathSegs(cn.rhs).head)
+      lazy val wiresByRoot: Map[String, Seq[WireDef]]   = collapsedWires.groupBy(w => pathSegs(w.from).head)
+      lazy val wiresByToRoot: Map[String, Seq[WireDef]] = collapsedWires.groupBy(w => pathSegs(w.to).head)
+      def soleDriver(w: WireDef): Boolean = {
+        val sink  = w.from
+        val root  = pathSegs(sink).head
+        val num   = litNumber(constNum(w.to))
+        val conns = connsByRoot.getOrElse(root, Nil).filter(cn => overlaps(cn.lhs, sink))
+        num.isDefined && conns.nonEmpty &&
+          conns.forall(cn => litText(cn.rhs).flatMap(litNumber) == num) &&
+          !connsByRhsRoot.getOrElse(root, Nil).exists(cn => strictAncestor(cn.rhs, sink)) &&
+          !wiresByRoot.getOrElse(root, Nil).exists(o => o.to != w.to && overlaps(o.from, sink)) &&
+          !wiresByToRoot.getOrElse(root, Nil).exists(o => strictAncestor(o.to, sink))
+      }
+      val tied = collapsedWires.collect {
+        case w if tieOffs(w.to) && soleDriver(w) => TieOff(w.from, tieValue(constNum(w.to)))
+      }
       val logic = collapsed.filterNot(n => tieOffs(n.id))
       val raw   = collapsedWires.filterNot(w => tieOffs(w.to) || tieOffs(w.from))
       val boxes  = logic.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
@@ -153,6 +187,7 @@ object ModelToDesign {
         scalaClass = c.scalaClass,
         parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),
         logic      = logic,
+        tieOffs    = tied,
       )
     }
     Design(
@@ -179,19 +214,55 @@ object ModelToDesign {
 
   /** A CHIRRTL literal's value in decimal: `UInt<2>(0h1)` gives `1`. */
   private def litValue(lit: String): String = lit.trim match {
-    case LitValue(v) =>
-      val digits = v.trim.stripPrefix("\"").stripSuffix("\"")
-      val neg    = digits.startsWith("-")
-      val body   = digits.stripPrefix("-").stripPrefix("0")
-      val radix  = body.headOption match {
-        case Some('h') => 16
-        case Some('b') => 2
-        case Some('o') => 8
-        case _         => 10
-      }
-      val num = if (radix == 10) digits.stripPrefix("-") else body.drop(1)
-      scala.util.Try(BigInt(num, radix)).map(b => (if (neg) -b else b).toString).getOrElse(v)
+    case LitValue(v) => litNumber(v).map(_.toString).getOrElse(v)
     case other => other
+  }
+
+  /** The digits of a CHIRRTL literal (`UInt<8>(0h2A)` gives `0h2A`), if it is one. */
+  private def litText(expr: String): Option[String] = expr.trim match {
+    case LitValue(v) => Some(v)
+    case _           => None
+  }
+
+  private val Seg = """[^.\[\]]+|\[[^\]]*\]""".r
+  /** A path's segments: its root, then `.field` names and `[index]` selectors. */
+  private def pathSegs(path: String): Vector[String] = {
+    val v = Seg.findAllIn(path.trim).toVector
+    if (v.isEmpty) Vector(path) else v
+  }
+
+  /** Whether two paths may name a common leaf: one is an ancestor of (or
+    * equal to) the other, an index that is not a number matching any lane. */
+  private def overlaps(a: String, b: String): Boolean =
+    pathSegs(a).zip(pathSegs(b)).forall { case (x, y) =>
+      x == y || (x.startsWith("[") && y.startsWith("[") && !(isLane(x) && isLane(y)))
+    }
+  /** Whether `a` overlaps `b` as a strict ancestor (fewer segments). */
+  private def strictAncestor(a: String, b: String): Boolean =
+    pathSegs(a).length < pathSegs(b).length && overlaps(a, b)
+  private def isLane(sel: String): Boolean = sel.length > 2 && sel.drop(1).dropRight(1).forall(_.isDigit)
+
+  /** The number a literal's digits spell (`0h2A`, `-0b101`, `0o7`, `12`), if any. */
+  private def litNumber(v: String): Option[BigInt] = {
+    val digits = v.trim.stripPrefix("\"").stripSuffix("\"")
+    val neg    = digits.startsWith("-")
+    val body   = digits.stripPrefix("-").stripPrefix("0")
+    val radix  = body.headOption match {
+      case Some('h') => 16
+      case Some('b') => 2
+      case Some('o') => 8
+      case _         => 10
+    }
+    val num = if (radix == 10) digits.stripPrefix("-") else body.drop(1)
+    scala.util.Try(BigInt(num, radix)).toOption.map(b => if (neg) -b else b)
+  }
+
+  /** A tie-off's value as shown: decimal below 10, else lowercase `0x` hex
+    * (`0h0` gives `0`, `0h2A` gives `0x2a`); the text itself when it is no number. */
+  private def tieValue(v: String): String = litNumber(v) match {
+    case Some(n) if n.abs < 10 => n.toString
+    case Some(n)               => (if (n < 0) "-" else "") + "0x" + n.abs.toString(16)
+    case None                  => v
   }
 
   private val GroundKey = """(UInt|SInt)(<\d+>)?|Clock|Reset|AsyncReset|Analog""".r

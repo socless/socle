@@ -129,7 +129,11 @@ that drives it. Selecting a block opens its
 code: the loop, the module, or for an FSM its `switch` line. Blocks that only carry debug logic
 (`printf`, `assert`) are labelled `debug logic` and stay hidden until you turn
 on `layers`. A port or an instance pin tied to a constant (`io.op := 0.U`) is
-not drawn as a constant node: it shows unconnected.
+not drawn as a constant node: the pin carries a short `|-` stub with the
+value (`0`; `0x2a` from 10 up). When several tie-offs land on one pin (a folded
+bundle row, a Vec group) with different values, the stub reads `<n> tied` and its
+tooltip lists `signal = value` (the first 10). A constant that is only a `when`
+default next to another driver is not a tie and gets no stub.
 
 Double-click an `FSM: <reg>` box (or click the `↵` at the right of its header,
 or focus it and press Enter) to open

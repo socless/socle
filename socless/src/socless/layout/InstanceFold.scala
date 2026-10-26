@@ -51,7 +51,10 @@ object InstanceFold {
           w.copy(label = (s"$sum× " + CountRe.replaceFirstIn(w.label, "")).trim)
         }
       }
-      module.copy(children = children, wires = wires)
+      // A tie on a folded copy's pin lands on the group's pin; the copies'
+      // identical ties merge.
+      val tieOffs = module.tieOffs.map(t => t.copy(sink = retarget(t.sink))).distinct
+      module.copy(children = children, wires = wires, tieOffs = tieOffs)
     }
   }
 }

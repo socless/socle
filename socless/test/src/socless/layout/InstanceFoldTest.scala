@@ -69,6 +69,16 @@ object InstanceFoldTest extends TestSuite {
       assert(InstanceFold.fold(plain, Set.empty) == plain)
     }
 
+    test("tie-offs on a folded copy land on the group") {
+      val ties = Seq(TieOff("cores_0.io.op", "0"), TieOff("cores_1.io.op", "0"), TieOff("cores_1.io.en[1]", "1"), TieOff("q.x", "2"))
+      val m = module(kids, Nil).copy(tieOffs = ties)
+      // The copies' identical ties merge; another value or pin stays its own.
+      assert(InstanceFold.fold(m, Set.empty).tieOffs ==
+        Seq(TieOff("cores.io.op", "0"), TieOff("cores.io.en[1]", "1"), TieOff("q.x", "2")))
+      // Unfolded members keep their own pins.
+      assert(InstanceFold.fold(m, Set("cores")).tieOffs == ties)
+    }
+
     test("groups lists members in child order") {
       assert(InstanceFold.groups(module(kids, Nil)) == Seq("cores" -> Seq("cores_0", "cores_1")))
     }

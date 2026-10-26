@@ -363,6 +363,110 @@ for (const design of designs) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__fold.png` }).catch(() => {});
   }
 
+  // Tied ports: the captured view drops a constant tie-off from the layout and
+  // records it in `tieOffs`; the tied pin shows a `|-` value stub
+  // (`data-tied`), and the layout is the same with or without the tie-offs.
+  // Core ties `alu.io.op := 0.U` (0 in both `when` branches); `alu.io.b := 0.U`
+  // is only the else branch's default next to a signal, so it is no tie.
+  // A derived design gives one pin two values, covered sinks and long lists.
+  // It runs before the logic-block checks on purpose: their live reload after
+  // this drill into a copy caught a stale hover blanking the Inspector.
+  if (design === 'deepsoc-view') {
+    const where = 'tied ports';
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    };
+    // Core is reached through cluster0's unfolded cores_0 (copies are not in the tree).
+    await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `cluster0: ${e.message}`));
+    await settle();
+    if (await page.locator('[data-fold-group="cores"]').count()) {
+      await page.locator('[data-fold-group="cores"]').first().dblclick({ timeout: 3000 }).catch((e) => note(design, where, `unfold: ${e.message}`));
+      await settle();
+    }
+    // On the body: a click on the header selects, which re-renders the box mid double-click.
+    await page.locator('[data-box-inst="cores_0"]').first().dblclick({ timeout: 3000 })
+      .catch((e) => note(design, where, `drill cores_0: ${e.message}`));
+    await settle();
+    const read = () => page.evaluate(() => ({
+      tied: Array.from(document.querySelectorAll('[data-tied]')).map((e) => ({
+        pin: e.getAttribute('data-tied'), label: e.innerText.trim(), title: e.getAttribute('title') || '',
+        r: e.querySelector('span')?.getBoundingClientRect().toJSON(),
+      })),
+      boxes: Object.fromEntries(['alu', 'rf'].map((id) => [id, document.querySelector(`[data-box-inst="${id}"]`)?.getBoundingClientRect().toJSON()])),
+      ids: Array.from(document.querySelectorAll('[data-box-inst],[data-boundary-stub],[data-block],[data-logic-node]'))
+        .map((e) => e.getAttribute('data-box-inst') || e.getAttribute('data-boundary-stub') || e.getAttribute('data-block') || e.getAttribute('data-logic-node')),
+    }));
+    const r0 = await read();
+    const op = r0.tied.find((t) => t.pin === 'alu.io.op');
+    if (!op) note(design, where, `no [data-tied="alu.io.op"] stub: ${JSON.stringify(r0.tied.map((t) => t.pin))}`);
+    else {
+      if (op.label !== '0') note(design, where, `alu.io.op stub label ${JSON.stringify(op.label)}`);
+      if (op.title !== 'tied to 0') note(design, where, `alu.io.op stub title ${JSON.stringify(op.title)}`);
+      // A WEST pin: the value label sits left of the alu box.
+      const b = r0.boxes.alu;
+      if (!b || !op.r || op.r.right > b.left + 1 || op.r.bottom < b.top || op.r.top > b.bottom)
+        note(design, where, `alu.io.op label ${JSON.stringify(op.r)} not beside alu ${JSON.stringify(b)}`);
+    }
+    for (const [pin, v] of [['rf.io.raddr', '0'], ['rf.io.waddr', '0'], ['io.out.bits.valid', '1']])
+      if (!r0.tied.some((t) => t.pin === pin && t.label === v)) note(design, where, `no [data-tied="${pin}"] stub reading ${v}`);
+    // `when` defaults next to another driver are not ties.
+    for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen'])
+      if (r0.tied.some((t) => t.pin === pin)) note(design, where, `the default at ${pin} shows as tied`);
+    if (r0.ids.some((id) => (id || '').includes('const$'))) note(design, where, `a const node is laid out: ${r0.ids}`);
+    // Derived designs: the same layout without tie-offs; one pin, two values.
+    const base = JSON.parse(await (await page.request.get(`${BASE}/${design}/design.json`)).text());
+    let stamp = 2020;
+    const serve = async (mutate) => {
+      const d = structuredClone(base);
+      for (const m of d.modules) if (m.tieOffs) mutate(m);
+      await page.unroute('**/design.json');
+      await page.route('**/design.json', (rt) => rt.fulfill({
+        contentType: 'application/json', body: JSON.stringify(d),
+        headers: { 'Last-Modified': `Wed, 01 Jan ${stamp++} 00:00:00 GMT` },
+      }));
+    };
+    await serve((m) => { m.tieOffs = []; });
+    const gone = await page.waitForFunction(() => !document.querySelector('[data-tied]'), null, { timeout: 10000 })
+      .then(() => true).catch(() => false);
+    await settle();
+    if (!gone) note(design, where, 'without tie-offs: a [data-tied] stub remains');
+    else {
+      const r1 = await read();
+      if (JSON.stringify(r1.boxes) !== JSON.stringify(r0.boxes) || r1.ids.join() !== r0.ids.join())
+        note(design, where, `the tie-offs changed the layout: ${JSON.stringify(r0.boxes)} vs ${JSON.stringify(r1.boxes)}`);
+    }
+    // Sinks below a laid pin (`rf.io.raddr[3]`) land on the pin covering it; a
+    // tooltip lists at most 10 sinks or `sink = value` lines, then `… and N more`.
+    const many = (pre, n, val) => Array.from({ length: n }, (_, i) => ({ sink: `${pre}${i}`, value: val(i) }));
+    await serve((m) => { m.tieOffs = [...m.tieOffs, { sink: 'alu.io.op', value: '3' }, { sink: 'rf.io.raddr[3]', value: '0' },
+      { sink: 'rf.io.waddr.x', value: '1' }, ...many('rf.io.raddr.g', 11, () => '0'), ...many('io.out.bits.valid.f', 12, (i) => String(i))]; });
+    const two = await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '2 tied', null, { timeout: 10000 })
+      .then(() => true).catch(() => false);
+    await settle();
+    if (!two) note(design, where, `two values: no "2 tied" stub at alu.io.op: ${JSON.stringify((await read()).tied.find((x) => x.pin === 'alu.io.op'))}`);
+    else {
+      const tied = (await read()).tied;
+      const at = (pin) => tied.find((x) => x.pin === pin);
+      const expect = (pin, label, lines) => {
+        const t = at(pin);
+        if (t?.label !== label || t?.title !== lines.join('\n')) note(design, where, `${pin}: expected ${JSON.stringify([label, ...lines])}, got ${JSON.stringify(t)}`);
+      };
+      expect('alu.io.op', '2 tied', ['alu.io.op = 0', 'alu.io.op = 3']);
+      expect('rf.io.waddr', '2 tied', ['rf.io.waddr = 0', 'rf.io.waddr.x = 1']);
+      expect('rf.io.raddr', '0', ['tied to 0', 'rf.io.raddr', 'rf.io.raddr[3]', ...Array.from({ length: 8 }, (_, i) => `rf.io.raddr.g${i}`), '… and 3 more']);
+      expect('io.out.bits.valid', '13 tied', ['io.out.bits.valid = 1', ...Array.from({ length: 9 }, (_, i) => `io.out.bits.valid.f${i} = ${i}`), '… and 3 more']);
+      if (tied.length !== r0.tied.length) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length}`);
+    }
+    // Back to the served design for the checks below.
+    await page.unroute('**/design.json');
+    await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '0', null, { timeout: 10000 })
+      .catch(() => note(design, where, 'restore: alu.io.op stub not back to 0'));
+    await settle();
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__tied.png` }).catch(() => {});
+    drain(where);
+  }
+
   // Logic blocks (slice 2): the captured view groups a module's logic into
   // `block` boxes (`data-block`) instead of op/reg nodes. Every non-top module
   // of the captured DeepSoc has one `logic` block (`pipe` is a Queue).
@@ -415,7 +519,7 @@ for (const design of designs) {
         else {
           await page.waitForTimeout(150);
           if (await page.locator('[data-logic-inspect]').count()) note(design, where, 'live reload: a stale [data-logic-inspect] remains');
-          if (await page.locator('.scl-insp-clear').count()) note(design, where, `live reload: the selection of the dropped ${id} survived`);
+          if (await page.locator('.scl-insp-clear').count()) note(design, where, `live reload: the selection or hover of the dropped ${id} survived (blank Inspector)`);
         }
         drain(`${where} (live reload)`);
         // An FSM block opens its source too. No captured fixture holds an FSM,
