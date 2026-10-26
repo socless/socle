@@ -334,6 +334,10 @@ comes from and how to rebuild it.
 `socless.javaPath` and `socless.serverJar` need a reload. The others apply
 without one; the `socless.waves*` settings are read on the next selection.
 
+The four executable paths (`javaPath`, `serverJar`, `surferCommand`,
+`waveViewerCommand`) are per machine: in a remote window (WSL), set them in the
+Settings editor's **Remote** tab, since the **User** tab does not list them.
+
 If Java is missing or older than 21, the extension shows one error message
 naming the setting and does not start the server. If the server crashes it is
 restarted up to three times in three minutes, then a message says so.
