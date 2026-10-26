@@ -841,5 +841,27 @@ object LanguageServerTest extends TestSuite {
         assert(st.status == "ok", st.message.startsWith("Simulation passed"))
       } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
     }
+    test("simulate: a viewer that cannot start is a Warning, even on a pass, and is logged") {
+      val ws  = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val java = bin / "java.sh"
+      os.write(java, "#!/bin/sh\necho x > trace.vcd\n", perms = os.PermSet.fromString("rwx------"))
+      val missing = bin / "no-such-surfer"
+      def messages(f: Fixture) = f.client.messages.asScala.toSeq
+      // `surfer` (WCP, started by the server) and `custom` (SimRunner's plain launch)
+      for (viewer <- Seq("surfer", "custom")) {
+        val f = new Fixture(ws = ws, simJava = java.toString,
+          initOpts = Seq("surferCommand" -> missing.toString, "waveViewer" -> viewer))
+        try {
+          f.remote.getWorkspaceService.executeCommand(
+            new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+          val done = eventually(s"$viewer completion")(messages(f).find(_.getMessage.startsWith("Simulation")))
+          assert(done.getMessage.startsWith("Simulation passed"), done.getMessage.contains(s"cannot start $missing"))
+          assert(done.getType == MessageType.Warning)
+          assert(f.log.asScala.exists(_.contains(s"cannot start $missing")))
+        } finally f.close()
+      }
+      os.remove.all(ws); os.remove.all(bin)
+    }
   }
 }

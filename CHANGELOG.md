@@ -25,6 +25,9 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Fixed
 
+- Simulate warns when the waveform viewer cannot start (for example `surfer`
+  not on the editor's `PATH`): the outcome is a Warning even when the test
+  passed, and the problem is logged, instead of an easily missed Info.
 - The VS Code panel is no longer empty when VS Code runs on Windows with a WSL
   workspace: the server now binds an IPv4 socket, which WSL relays to Windows
   (Java's default IPv6 socket was relayed to `::1`, where nothing listened).

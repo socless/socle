@@ -177,6 +177,7 @@ object SimRunnerTest extends TestSuite {
         val vcd    = runner.dirFor(suite, name) / "build" / "chiselsim" / "x" / "trace.vcd"
         assert(out.passed, out.waves == Some(vcd))
         assert(out.message.startsWith(s"Simulation passed: $suite $name. Waves: $vcd (cannot start "))
+        assert(out.viewerProblem.exists(_.startsWith(s"cannot start ${e.bin / "no-such-surfer"}")))
       } finally e.close()
     }
     test("a test name matching no test is a failure, not a pass") {

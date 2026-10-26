@@ -416,7 +416,11 @@ final class SoclessLanguageServer(
       try Right(WcpSession.start(command, t.file, Some(dir / "surfer.log"), log, () => surferExited(gen, command, t.file, dir)))
       catch { case NonFatal(e) => Left(s"cannot start $command: ${e.getMessage}") }
     }
-    val message = o.message + surfer.flatMap(_.left.toOption).fold("")(e => s" ($e)")
+    val wcpProblem = surfer.flatMap(_.left.toOption)
+    val message = o.message + wcpProblem.fold("")(e => s" ($e)")
+    // a viewer that cannot start is easy to miss in a pass's Info: a Warning, and logged
+    val viewerProblem = o.viewerProblem.orElse(wcpProblem)
+    viewerProblem.foreach(e => log(s"simulate: $e"))
     val attached = lock.synchronized {
       val fresh = trace.filter(_ => simGen == gen && !stopped) // none when another simulation started meanwhile
       fresh.foreach { case (t, _) => http.serveTrace(Some(t)) }
@@ -435,7 +439,7 @@ final class SoclessLanguageServer(
     }
     if (attached) follower.showTop() // the first plan: the test's top module
     else surfer.flatMap(_.toOption).foreach(_.close()) // stale: a newer simulation started
-    show(if (o.passed) MessageType.Info else MessageType.Warning, message)
+    show(if (o.passed && viewerProblem.isEmpty) MessageType.Info else MessageType.Warning, message)
   }
 
   /** The WCP Surfer of simulation `gen` exited before connecting (one too old

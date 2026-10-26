@@ -84,8 +84,10 @@ object SimSettings {
 }
 
 /** What a simulation ended with: pass or fail (the test JVM's exit code), the
-  * trace found, and the text the editor shows. */
-final case class SimOutcome(passed: Boolean, waves: Option[os.Path], message: String)
+  * trace found, the text the editor shows, and why the viewer this runner
+  * started on the trace could not start (also in `message`). */
+final case class SimOutcome(passed: Boolean, waves: Option[os.Path], message: String,
+    viewerProblem: Option[String] = None)
 
 /** Runs one ChiselSim test with waves on and opens the trace in Surfer
   * (docs/ide-vscode.md, "Simulate").
@@ -200,15 +202,16 @@ final class SimRunner(
       val noTest = waves.isEmpty && !timedOut && SimRunner.ranNoTest(simLog)
       val passed = exit == 0 && !noTest
       val timeout = if (timedOut) s" Timed out after ${timeoutMs / 1000} s." else ""
+      val viewerProblem = waves.filter(_ => !lock.synchronized(closed)) // shut down meanwhile: no viewer
+        .flatMap(openWaves(settings, _, dir))
       val tail = waves match {
         case None if noTest => s"""No test named "${req.test}" ran in ${req.suite}."""
         case None => s"No waveform found (is waves support enabled? flag -D${settings.waveFlag}=1)"
-        case Some(w) if lock.synchronized(closed) => s"Waves: $w" // shut down meanwhile: no viewer
-        case Some(w) => s"Waves: $w" + openWaves(settings, w, dir).fold("")(e => s" ($e)")
+        case Some(w) => s"Waves: $w" + viewerProblem.fold("")(e => s" ($e)")
       }
       // a failing test's waves are the ones to look at; a killed run's trace is cut short
       if (!timedOut) waves.foreach(w => lock.synchronized { if (!closed) trace = Some((SimRunner.newId(), w, s"${req.suite}#${req.test}")) })
-      SimOutcome(passed, waves, s"${SimRunner.head(req, passed)}$timeout $tail")
+      SimOutcome(passed, waves, s"${SimRunner.head(req, passed)}$timeout $tail", viewerProblem)
   }
 
   /** Starts the viewer detached (never waited on, output to a log file, never
