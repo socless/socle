@@ -1,9 +1,8 @@
 name: Build artifacts
 
 # Reusable: builds the distributable files into dist/ and uploads them as the
-# `socless-dist` workflow artifact. Called by ci.yml on every pull request and
-# push to main (a downloadable vsix and jars for each change) and by
-# release.yml, which publishes them on a `v*` tag (see RELEASING.md).
+# `socless-dist` workflow artifact. Called by release.yml, which publishes them
+# on a `v*` tag and only builds them on a manual run (see RELEASING.md).
 on:
   workflow_call:
     inputs:

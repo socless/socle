@@ -36,10 +36,13 @@ artifacts on every push (so publish metadata cannot rot).
 
 ## Automation
 
-- Every CI run (each pull request and push to `main`) builds the distributable
-  files in its `artifacts` job (`.github/workflows/build-artifacts.yml`) and
-  uploads them as the `socless-dist` workflow artifact, kept for a few days:
-  download it from the run's summary page to try a change's vsix or jars.
+- CI (pull requests and pushes to `main`) does not build the distributable
+  files. To try a change's vsix or jars, run the Release workflow by hand on
+  its branch (Actions, Release, Run workflow, or
+  `gh workflow run release.yml --ref <branch>`): it builds them with
+  `.github/workflows/build-artifacts.yml` and uploads them as the
+  `socless-dist` workflow artifact, kept for a few days. Doing this before
+  tagging also catches a packaging break before the release run.
 - Pushing a `v<version>` tag runs `.github/workflows/release.yml`: it checks
   that the tag equals `V.publishVer` and that `CHANGELOG.md` has a section for
   the version, builds the files with the same reusable workflow, and publishes

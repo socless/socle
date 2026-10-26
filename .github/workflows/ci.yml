@@ -10,11 +10,11 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-# Five jobs run in parallel, each compiling only what its own tasks need:
-# `artifacts` (the distributable files), `unit` (the socless, probe and VS Code
-# suites and the fixture checks), `lsp` (the language server suite), `ui`
-# (example elaboration and the browser smokes) and `packaging` (publishLocal
-# and the plugin consumption smoke).
+# Four jobs run in parallel, each compiling only what its own tasks need:
+# `unit` (the socless, probe and VS Code suites and the fixture checks), `lsp`
+# (the language server suite), `ui` (example elaboration and the browser
+# smokes) and `packaging` (publishLocal and the plugin consumption smoke). The
+# distributable files are built by release.yml only (a tag, or a manual run).
 #
 # Pull requests run selectively (tools/ci/selective.sh), except when they
 # change .github/workflows or tools/ci: then `prepare` takes no snapshot and
@@ -25,12 +25,6 @@ concurrency:
 # change is not recompiled (Mill re-checks every input hash, so an out/ from
 # another commit is safe). Pull requests read the caches saved by main.
 jobs:
-  # The distributable files (jars, vsix, single-file UI), built on every pull
-  # request and push to main and uploaded as the `socless-dist` artifact.
-  artifacts:
-    name: Artifacts
-    uses: ./.github/workflows/build-artifacts.yml
-
   unit:
     name: Unit tests
     runs-on: ubuntu-latest
