@@ -24,7 +24,9 @@ There are three ways in, all front doors to the same UI:
   test with waves and opens them in [Surfer](https://surfer-project.org/). Use
   the VS Code extension ([docs/ide-vscode.md](docs/ide-vscode.md)) or the
   language server in Neovim or any LSP editor
-  ([docs/ide-neovim.md](docs/ide-neovim.md)). Your tests are never modified.
+  ([docs/ide-neovim.md](docs/ide-neovim.md); in Neovim, the
+  [socless.nvim](https://github.com/e-ban/socless.nvim) plugin sets it up).
+  Your tests are never modified.
 
 ## Features
 

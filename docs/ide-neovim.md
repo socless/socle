@@ -18,6 +18,28 @@ settings of the file the lens is in); [Simulate](#simulate) also needs
 Verilator, and the Surfer app unless `waveViewer` is `surfer-panel`. Your
 tests and build are never modified.
 
+## Install the plugin
+
+[socless.nvim](https://github.com/e-ban/socless.nvim) sets all of this up from
+your package manager: it downloads the server jar of a pinned SoCLess release
+(checked against the release's `SHA256SUMS`), starts it on Scala files of Mill
+projects, turns the lenses on, follows the cursor, opens the panel and adds
+`:Socless view|simulate|panel|update|log|health` and `:checkhealth socless`.
+With lazy.nvim / LazyVim:
+
+```lua
+{
+  "e-ban/socless.nvim",
+  ft = "scala",
+  opts = {},
+}
+```
+
+Its README has the snippets for `vim.pack`, mini.deps, packer and vim-plug and
+every option (the Java executable, a local `server_jar` or another `version`,
+how the panel opens, and the wave settings below in snake_case). The rest of
+this page sets the server up by hand, without the plugin.
+
 ## Build the server
 
 ```bash

@@ -8,6 +8,13 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+### Added
+
+- Neovim: the [socless.nvim](https://github.com/e-ban/socless.nvim) plugin
+  installs SoCLess from lazy.nvim / LazyVim, `vim.pack`, mini.deps, packer or
+  vim-plug (it fetches the server jar of a pinned release; configurable);
+  docs/ide-neovim.md leads with it and keeps the manual setup.
+
 ## [0.17.0] - 2026-10-26
 
 ### Added
