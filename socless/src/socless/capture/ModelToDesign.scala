@@ -99,7 +99,9 @@ object ModelToDesign {
           val logic = folded.logic.map {
             case n if n.kind == NodeKind.Fsm && n.id.startsWith(fsmPrefix) =>
               val register = n.id.stripPrefix(fsmPrefix)
-              index.flatMap(_.fsm(c.scalaClass, register)) match {
+              val at = circ.modules.find(_.name == c.name).flatMap(_.regs.find(_.name == register))
+                .flatMap(_.src).map(s => SourceRef(s.file, s.line, s.col))
+              index.flatMap(_.fsm(c.scalaClass, register, at)) match {
                 case Some(src) => n.copy(fsm = Some(src.diagram), source = src.switch)
                 case None      =>
                   val note = if (index.isEmpty) NoIndexNote else FallbackNote

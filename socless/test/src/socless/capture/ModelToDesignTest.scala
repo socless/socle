@@ -713,7 +713,7 @@ object ModelToDesignTest extends TestSuite {
       val switch  = SourceRef("example/src/fsm/TrafficFsm.scala", 15, 3)
       val index = new SourceIndex {
         def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
-        override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+        override def fsm(scalaClass: String, register: String, at: Option[SourceRef]): Option[FsmSource] =
           if (scalaClass == "fsm.TrafficFsm" && register == "state") Some(FsmSource(diagram, switch)) else None
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
@@ -749,7 +749,7 @@ object ModelToDesignTest extends TestSuite {
         transitions = Seq(FsmTransition("sRed", "sGreen", "io.tick", SourceRef("Step.scala", 1, 1))))
       val index = new SourceIndex {
         def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
-        override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+        override def fsm(scalaClass: String, register: String, at: Option[SourceRef]): Option[FsmSource] =
           if (register == "state") Some(FsmSource(diagram, SourceRef("Switch.scala", 1, 1))) else None
       }
       val d   = SoclessExporter.designFromCaptured(fsm, Some(dir), Some(index))

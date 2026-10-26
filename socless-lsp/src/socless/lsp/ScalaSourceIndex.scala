@@ -39,9 +39,9 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
     if (scalaClass.isEmpty || line < 1 || col < 1) None
     else safe(lock.synchronized(find(scalaClass, file, line, col))).flatten
 
-  override def fsm(scalaClass: String, register: String): Option[FsmSource] =
+  override def fsm(scalaClass: String, register: String, at: Option[SourceRef]): Option[FsmSource] =
     if (scalaClass.isEmpty || register.isEmpty) None
-    else safe(lock.synchronized(findFsm(scalaClass, register))).flatten
+    else safe(lock.synchronized(findFsm(scalaClass, register).orElse(at.flatMap(fsmAt(register, _))))).flatten
 
   /** Makes the next workspace lookup re-list the files under `root`. */
   def refresh(): Unit = lock.synchronized { byName = None; owners = Map.empty }
@@ -66,10 +66,29 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
     val placed = (simpleName(cls) +: o.ancestors.toSeq).distinct.flatMap(ws.getOrElse(_, Nil)).filter(p => o.counts(p.t))
     val (own, inherited) = placed.sortBy(p => (p.path.toString, p.t.start)).partition(p => o.own(p.t.fq))
     def facts(p: Placed) = p.index.fsm.get(p.t.id).map(p.path.relativeTo(root).toString -> _)
-    def enumValues(obj: String) =
-      ws.getOrElse(obj, Nil).filter(_.t.isObject).flatMap(p => p.index.fsm.get(p.t.id)).flatMap(_.chiselEnum)
-    FsmFacts.source((own ++ inherited).flatMap(facts), register, enumValues)
+    FsmFacts.source((own ++ inherited).flatMap(facts), register, enumValuesOf)
   }
+
+  /** A state machine built outside the class's bodies (a helper method the
+    * module calls): the innermost method, else class body, around the
+    * register's declaration that switches on it. Chisel names such a register
+    * after the val holding the call (`readAddress_readState` for `readState`),
+    * so the switch's subject may be the register's `_` suffix. */
+  private def fsmAt(register: String, at: SourceRef): Option[FsmSource] = {
+    def named(subject: String) = subject.nonEmpty && (register == subject || register.endsWith("_" + subject))
+    for {
+      path    <- SoclessLanguageServer.openTarget(at.file, root, Set.empty)
+      index   <- indexOf(path)
+      off     <- index.offset(at.line, at.col)
+      scope   <- index.scopes.filter(s => s.start <= off && off < s.end && s.facts.switches.exists(w => named(w.subject)))
+                   .minByOption(s => s.end - s.start)
+      subject <- scope.facts.switches.map(_.subject).filter(named).maxByOption(_.length)
+      src     <- FsmFacts.source(Seq(path.relativeTo(root).toString -> scope.facts), subject, enumValuesOf)
+    } yield src
+  }
+
+  private def enumValuesOf(obj: String): Seq[Seq[String]] =
+    workspace.getOrElse(obj, Nil).filter(_.t.isObject).flatMap(p => p.index.fsm.get(p.t.id)).flatMap(_.chiselEnum)
 
   /** The file's index, re-parsed when its modification time changed. */
   private def indexOf(path: os.Path): Option[FileIndex] = safe(os.mtime(path)).flatMap { mtime =>
@@ -150,8 +169,12 @@ object ScalaSourceIndex {
       case NonFatal(_)           => None
     }
 
+  /** A class, trait or object body, or a method body, spanning `start` to `end`, with its facts. */
+  private final case class Scope(start: Int, end: Int, facts: FsmFacts.Facts)
+
   private final case class FileIndex(
-      lineStarts: IndexedSeq[Int], templates: Seq[Template0], loops: Seq[Loop], fsm: Map[Int, FsmFacts.Facts]) {
+      lineStarts: IndexedSeq[Int], templates: Seq[Template0], loops: Seq[Loop], fsm: Map[Int, FsmFacts.Facts],
+      scopes: Seq[Scope]) {
     /** The offset of a 1-based line and column, when both lie in the file. */
     def offset(line: Int, col: Int): Option[Int] =
       Option.when(line <= lineStarts.size - 1 && lineStarts(line - 1) + col - 1 < lineStarts(line))(
@@ -163,6 +186,7 @@ object ScalaSourceIndex {
       val templates = Seq.newBuilder[Template0]
       val loops     = Seq.newBuilder[Loop]
       val fsm       = Map.newBuilder[Int, FsmFacts.Facts]
+      val scopes    = Seq.newBuilder[Scope]
       var nextId    = 0
 
       def define(d: Tree, name: String, isObject: Boolean, templ: Template, pkg: Seq[String], outer: Seq[String]): Unit = {
@@ -171,7 +195,9 @@ object ScalaSourceIndex {
         nextId += 1
         val parents = TestDiscovery.parents(templ)
         templates += Template0(id, name, binary, isObject, parents, d.pos.start, d.pos.end)
-        fsm += id -> FsmFacts.collect(templ.body.stats, isObject && parents.exists(TestDiscovery.simpleName(_) == "ChiselEnum"))
+        val facts = FsmFacts.collect(templ.body.stats, isObject && parents.exists(TestDiscovery.simpleName(_) == "ChiselEnum"))
+        fsm += id -> facts
+        scopes += Scope(d.pos.start, d.pos.end, facts)
         templ.body.stats.foreach(walk(_, pkg, outer :+ name, id, inLoop = false))
       }
 
@@ -180,6 +206,10 @@ object ScalaSourceIndex {
         case c: Defn.Class  => define(c, c.name.value, isObject = false, c.templ, pkg, outer)
         case t: Defn.Trait  => define(t, t.name.value, isObject = false, t.templ, pkg, outer)
         case o: Defn.Object => define(o, o.name.value, isObject = true, o.templ, pkg, outer)
+        case m: Defn.Def if tmpl >= 0 =>
+          // A method body is its own scope too, for a state machine a helper method builds.
+          scopes += Scope(m.pos.start, m.pos.end, FsmFacts.collect(List(m.body), isChiselEnum = false))
+          m.children.foreach(walk(_, pkg, outer, tmpl, inLoop))
         case t: Term if tmpl >= 0 && !inLoop && headEnd(t).isDefined =>
           val pos = t.pos
           loops += Loop(tmpl, pos.start, pos.end, pos.startLine + 1, pos.startColumn + 1, label(t, headEnd(t).get))
@@ -192,7 +222,7 @@ object ScalaSourceIndex {
       val text = source.pos.input.text
       // Line starts, plus one past the end so the last line has a bound.
       val starts = (0 +: text.indices.filter(text(_) == '\n').map(_ + 1)) :+ (text.length + 1)
-      FileIndex(starts.toIndexedSeq, templates.result(), loops.result(), fsm.result())
+      FileIndex(starts.toIndexedSeq, templates.result(), loops.result(), fsm.result(), scopes.result())
     }
 
     /** The loop head's text: from the construct's start to its body (or the

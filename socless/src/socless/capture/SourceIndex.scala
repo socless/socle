@@ -19,6 +19,8 @@ trait SourceIndex {
   def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct]
 
   /** The state machine `scalaClass` builds on `register` with `switch`, or
-    * `None` when the source does not give one. */
-  def fsm(scalaClass: String, register: String): Option[FsmSource] = None
+    * `None` when the source does not give one. `at`, the register's source
+    * position, finds a state machine built outside the class's own bodies (in
+    * a helper method the module calls). */
+  def fsm(scalaClass: String, register: String, at: Option[SourceRef] = None): Option[FsmSource] = None
 }

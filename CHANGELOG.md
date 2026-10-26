@@ -32,6 +32,9 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Fixed
 
+- An FSM built in a helper the module calls (for example an implicit class's
+  method, as in std-vta-dev's `AxiLike` handlers) now gets its state diagram,
+  found from its register's source position, instead of "could not be read".
 - Simulate warns when the waveform viewer cannot start (for example `surfer`
   not on the editor's `PATH`): the outcome is a Warning even when the test
   passed, and the problem is logged, instead of an easily missed Info.

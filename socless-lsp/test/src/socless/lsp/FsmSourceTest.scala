@@ -125,6 +125,67 @@ object FsmSourceTest extends TestSuite {
       |""".stripMargin
 
   val tests = Tests {
+    test("a state machine built in a helper (an implicit class's method) is found by its register's position") {
+      // AxiLike in std-vta-dev: the module calls io.writeHandler / io.readHandler, whose bodies
+      // (outside the module's class) declare and switch their own state registers. Chisel names
+      // each register after the val holding the call: `w_state`, `r_state`.
+      val helper =
+        """package pkg
+          |
+          |import chisel3._
+          |import chisel3.util._
+          |
+          |object Handlers {
+          |  implicit class Port(io: Bundle) {
+          |    def writeHandler(en: Bool): UInt = {
+          |      object WriteState extends ChiselEnum {
+          |        val idle, waddr, wdata = Value
+          |      }
+          |      val state = RegInit(WriteState.idle)
+          |      switch(state) {
+          |        is(WriteState.idle) { when(en) { state := WriteState.waddr } }
+          |        is(WriteState.waddr) { state := WriteState.wdata }
+          |        is(WriteState.wdata) { state := WriteState.idle }
+          |      }
+          |      0.U
+          |    }
+          |    def readHandler(en: Bool): UInt = {
+          |      val idle :: raddr :: Nil = Enum(2)
+          |      val state = RegInit(idle)
+          |      switch(state) {
+          |        is(idle) { when(en) { state := raddr } }
+          |        is(raddr) { state := idle }
+          |      }
+          |      0.U
+          |    }
+          |  }
+          |}
+          |""".stripMargin
+      val user =
+        """package pkg
+          |
+          |import chisel3._
+          |import Handlers._
+          |
+          |class Mock extends Module {
+          |  val io = IO(new Bundle {})
+          |  val r = io.readHandler(true.B)
+          |  val w = io.writeHandler(true.B)
+          |}
+          |""".stripMargin
+      val hFile = "src/main/scala/pkg/Handlers.scala"
+      val idx   = new ScalaSourceIndex(tree(hFile -> helper, "src/test/scala/pkg/Mock.scala" -> user))
+      val regs  = linesOf(helper, "val state = RegInit")
+      def stateAt(line: Int) = Some(SourceRef(hFile, line, 19))
+      // Without a position the module's own body has no switch: no diagram (the old behaviour).
+      assert(idx.fsm("pkg.Mock", "w_state").isEmpty)
+      val w = idx.fsm("pkg.Mock", "w_state", stateAt(regs(0))).get
+      assert(states(w) == Seq("idle" -> true, "waddr" -> false, "wdata" -> false))
+      assert(edges(w).map(e => (e._1, e._2)) == Seq("idle" -> "waddr", "waddr" -> "wdata", "wdata" -> "idle"))
+      val r = idx.fsm("pkg.Mock", "r_state", stateAt(regs(1))).get
+      assert(states(r) == Seq("idle" -> true, "raddr" -> false))
+      assert(r.switch.file == hFile && r.switch.line == linesOf(helper, "switch(state)")(1))
+    }
     test("trafficfsm") {
       val text = os.read(repo / "example/src/fsm/TrafficFsm.scala")
       val file = "src/fsm/TrafficFsm.scala"
