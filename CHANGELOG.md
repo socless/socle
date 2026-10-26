@@ -8,6 +8,8 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-26
+
 ### Added
 
 - Waveforms that follow the schematic: after **Simulate**, the module selected
@@ -41,6 +43,9 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 - The VS Code panel is no longer empty when VS Code runs on Windows with a WSL
   workspace: the server now binds an IPv4 socket, which WSL relays to Windows
   (Java's default IPv6 socket was relayed to `::1`, where nothing listened).
+- VS Code: `socless.waveViewer` and `socless.waveFlag` are ordinary user
+  settings, so a WSL window lists them in the User tab; the executable paths
+  stay per machine (the Remote tab).
 
 ## [0.16.0] - 2026-10-26
 
