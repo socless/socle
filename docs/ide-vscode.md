@@ -405,7 +405,9 @@ about 18 seconds. The pure logic is covered by `./mill socless-vscode.test`
   end-to-end test is not run in CI.
 - The end-to-end test does not run Simulate; the server's tests cover it (a
   real Verilator run of the GCD test when `verilator` is on the `PATH`).
-- Remote workspaces (Remote-SSH, WSL, Codespaces) are not supported for the
+- WSL works: WSL relays the server's loopback port to Windows unchanged (the
+  extension starts the server with an IPv4-only stack, which the relay needs).
+  Other remote workspaces (Remote-SSH, Codespaces) are not supported for the
   panel: port forwarding changes the `Host` (its port) that reaches the
   server, and the loopback server only accepts `127.0.0.1` or `localhost` on
   its own port. A setup that blocks `127.0.0.1` will not show it either.

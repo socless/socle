@@ -23,6 +23,12 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 - The language server ships Surfer v0.7.0 as WebAssembly (EUPL-1.2, with its
   licence and source pointer) for the embedded viewer.
 
+### Fixed
+
+- The VS Code panel is no longer empty when VS Code runs on Windows with a WSL
+  workspace: the server now binds an IPv4 socket, which WSL relays to Windows
+  (Java's default IPv6 socket was relayed to `::1`, where nothing listened).
+
 ## [0.16.0] - 2026-10-26
 
 ### Added

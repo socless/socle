@@ -67,6 +67,11 @@ object LogicTest extends TestSuite {
       assert(js.Object.keys(p.asInstanceOf[js.Object]).toSeq == Seq("uri", "line"))
     }
 
+    test("serverArgs: an IPv4-only stack, so WSL relays the panel's loopback port to Windows") {
+      assert(Logic.serverArgs("/ext/server/socless-lsp.jar") ==
+        Seq("-Djava.net.preferIPv4Stack=true", "-jar", "/ext/server/socless-lsp.jar"))
+    }
+
     test("initializationOptions") {
       def keys(o: js.Object) = js.Object.keys(o).toSeq
       test("panel only when the settings are unset or blank") {

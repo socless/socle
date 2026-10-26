@@ -74,7 +74,7 @@ object Extension {
   private def start(ctx: ExtensionContext, javaCmd: String, jar: String, init: js.Object): Unit = {
     val exe = new Executable {
       val command       = javaCmd
-      override val args = js.defined(js.Array("-jar", jar))
+      override val args = js.defined(js.Array(Logic.serverArgs(jar): _*))
     }
     val restarts = new RestartBudget(3, 3 * 60 * 1000)
     val handler = new ErrorHandler {

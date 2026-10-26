@@ -38,6 +38,13 @@ object Logic {
       Some(s"SoCLess needs Java $MinJava or newer, but '$javaCmd' could not be run. Set the socless.javaPath setting to a Java $MinJava+ executable, then reload the window.")
   }
 
+  /** The language server's JVM arguments. An IPv4-only stack: by default Java binds 127.0.0.1 as an
+    * IPv4-mapped address on an IPv6 socket, which WSL's localhost relay forwards to `::1` in WSL,
+    * where nothing listens, so a Windows VS Code could not load the WSL server's panel (an empty
+    * panel). An IPv4 socket is relayed to 127.0.0.1.
+    */
+  def serverArgs(jar: String): Seq[String] = Seq("-Djava.net.preferIPv4Stack=true", "-jar", jar)
+
   /** The language server's `initializationOptions`: the client-hosted panel, plus the Simulate
     * settings `waveFlag` and `surferCommand` when set (else the server's defaults apply).
     */
