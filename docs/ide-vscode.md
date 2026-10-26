@@ -290,14 +290,14 @@ With the two Surfer viewers:
 
 Known limits:
 
-- Surfer only answers while its window, or the panel's canvas, is drawn.
-  Hidden, minimised or on another workspace, it waits, and the latest
-  selection applies once it shows again. The Surfer app must connect within a
-  minute of starting, or it does not follow for that simulation.
-- Under native Wayland, the Surfer app may never connect; under XWayland it
-  does. If it does not follow, point `socless.surferCommand` at an executable
-  script that starts Surfer under XWayland, calling it by its full path:
-  `#!/bin/sh` then `exec env -u WAYLAND_DISPLAY /path/to/surfer "$@"`.
+- The panel's Surfer only answers while its canvas is drawn: on another tab
+  or with the panel closed, the latest selection applies once it shows again.
+- On a Wayland desktop with XWayland (`DISPLAY` set), the Surfer app is
+  started under XWayland: a native Wayland window gets no frames while it is
+  hidden (another workspace, a locked screen), and Surfer only answers WCP
+  from its frames. Without XWayland it runs natively and follows only while
+  its window is visible. The app must connect within a minute of starting, or
+  it does not follow for that simulation.
 - The Surfer app handles WCP commands from its frame loop (every queued
   command each frame), so the server sends up to 32 at a time instead of
   waiting for each reply: a module of hundreds of signals takes a few frames,

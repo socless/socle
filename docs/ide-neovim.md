@@ -171,7 +171,8 @@ is its path; the command is split on whitespace, with no quoting) and nothing
 follows. The Surfer app needs `--wcp-initiate` (tested with Surfer 0.7.0); one
 that exits without connecting gets a warning pointing at `surfer.log` and is
 started again as `<surferCommand> <trace>`, without following. The behaviour
-and the known limits (Surfer answers only while it is drawn; native Wayland;
+and the known limits (Surfer answers only while it is drawn, so on Wayland the
+app is started under XWayland when available;
 the app cannot scroll to a focused signal) are described in the
 [VS Code guide](ide-vscode.md#waveforms-that-follow-the-schematic).
 

@@ -256,5 +256,11 @@ object WcpSessionTest extends TestSuite {
       val e = intercept[java.io.IOException](WcpSession.start("/no/such/surfer", os.root / "t.vcd", None, _ => ()))
       assert(e.getMessage.contains("/no/such/surfer"))
     }
+    test("Surfer runs under XWayland only when both displays exist") {
+      assert(WcpSession.preferX11(Map("WAYLAND_DISPLAY" -> "wayland-1", "DISPLAY" -> ":0")))
+      assert(!WcpSession.preferX11(Map("WAYLAND_DISPLAY" -> "wayland-1")))
+      assert(!WcpSession.preferX11(Map("DISPLAY" -> ":0")))
+      assert(!WcpSession.preferX11(Map("WAYLAND_DISPLAY" -> "", "DISPLAY" -> ":0")))
+    }
   }
 }

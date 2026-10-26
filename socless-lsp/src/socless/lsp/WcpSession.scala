@@ -286,6 +286,7 @@ object WcpSession {
     val pb = new ProcessBuilder(command, "--wcp-initiate", server.getLocalPort.toString, trace.toString)
       .directory(trace.toNIO.getParent.toFile).redirectErrorStream(true)
     logFile.fold(pb.redirectOutput(ProcessBuilder.Redirect.DISCARD))(f => pb.redirectOutput(f.toIO))
+    if (preferX11(sys.env)) pb.environment().remove("WAYLAND_DISPLAY")
     val p =
       try pb.start()
       catch { case NonFatal(e) => quietly(server.close()); throw e }
@@ -293,6 +294,12 @@ object WcpSession {
     log(s"wcp: started $command --wcp-initiate ${server.getLocalPort} $trace")
     new WcpSession(server, Some(p), log, DefaultAcceptTimeoutMs, DefaultReplyTimeoutMs, DefaultLoadTimeoutMs, onEarlyExit)
   }
+
+  /** Start Surfer under XWayland when both displays exist: a native-Wayland
+    * Surfer 0.7.0 connects but never answers WCP (seen on Hyprland, even with
+    * its window visible), while under XWayland it answers at once. */
+  private[lsp] def preferX11(env: Map[String, String]): Boolean =
+    env.get("WAYLAND_DISPLAY").exists(_.nonEmpty) && env.get("DISPLAY").exists(_.nonEmpty)
 
   /** A session with no process: the test's fake Surfer connects to [[WcpSession.port]]. */
   private[lsp] def listen(log: String => Unit, acceptTimeoutMs: Long = 10000, replyTimeoutMs: Int = 5000,

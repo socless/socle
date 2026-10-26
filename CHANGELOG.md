@@ -16,7 +16,8 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   selection moves Surfer's focus. `socless.waveViewer` picks the Surfer app
   (driven over WCP, the default), Surfer embedded in the panel's Waveform tab
   (`surfer-panel`), or a `custom` command (`socless.waveViewerCommand`); six
-  `socless.waves*` settings tune it.
+  `socless.waves*` settings tune it. On Wayland the Surfer app is started
+  under XWayland when available, so it keeps following while hidden.
 - Simulate first views the test, so the panel shows the design whose waves it
   opens; the trace of a failing test is published too.
 - The language server ships Surfer v0.7.0 as WebAssembly (EUPL-1.2, with its

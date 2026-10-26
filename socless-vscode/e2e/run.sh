@@ -8,7 +8,7 @@
 # on this repo, which would contend with a Mill process running the test.
 # The exit code is VS Code's: 0 when every step of index.js passed.
 # VS Code gets a remote debugging port so webview-click.mjs (run in the background) can drive the
-# webview for step 7; the screenshot and the click result are kept in $SOCLESS_E2E_ARTIFACTS
+# webview for steps 7 to 10; the screenshots and the click result are kept in $SOCLESS_E2E_ARTIFACTS
 # (default ${TMPDIR:-/tmp}/socless-e2e-artifacts).
 set -euo pipefail
 
@@ -52,7 +52,7 @@ echo "e2e: VS Code binary $electron"
 # The screenshot and the driver's result survive the run here (the temp dir is trashed).
 artifacts=${SOCLESS_E2E_ARTIFACTS:-${TMPDIR:-/tmp}/socless-e2e-artifacts}
 mkdir -p "$artifacts"
-trash "$artifacts/webview.png" "$artifacts/click-result.json" "$artifacts/drill-result.json" "$artifacts/state-result.json" "$artifacts/theme-result.json" "$artifacts/click.log" 2>/dev/null || true
+trash "$artifacts/webview.png" "$artifacts/click-result.json" "$artifacts/drill-result.json" "$artifacts/state-result.json" "$artifacts/theme-result.json" "$artifacts/wave.png" "$artifacts/wave-result.json" "$artifacts/click.log" 2>/dev/null || true
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/socless-e2e.XXXXXX")
 mkdir -p "$tmp/user-data/User" "$tmp/extensions"
@@ -61,7 +61,7 @@ echo '{ "window.newWindowDimensions": "fullscreen" }' >"$tmp/user-data/User/sett
 cdp_port=$(node -e 'const s=require("net").createServer();s.listen(0,"127.0.0.1",()=>{console.log(s.address().port);s.close()})')
 
 cleanup() {
-  for f in webview.png click-result.json drill-result.json state-result.json theme-result.json click.log; do
+  for f in webview.png click-result.json drill-result.json state-result.json theme-result.json wave.png wave-result.json click.log; do
     [[ -f "$tmp/$f" ]] && cp "$tmp/$f" "$artifacts/$f"
   done
   echo "e2e: artifacts (screenshot, click result, driver log) in $artifacts"

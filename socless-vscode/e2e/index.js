@@ -353,6 +353,43 @@ async function run() {
     log(`      ${res.message}`);
   });
 
+  // Simulate with the embedded Surfer (socless.waveViewer = surfer-panel): the server captures and
+  // simulates GCD (Verilator), sets the trace in ide.json, and the panel's Waveform tab boots the
+  // vendored Surfer WASM inside the webview's iframe. The driver checks it there (status, GCD's plan
+  // read back over WCP, a selection's focus, no page errors) and takes wave.png.
+  await step('10. Simulate shows the embedded Surfer in the webview', async () => {
+    const runDir = process.env.SOCLESS_E2E_DIR;
+    // A user setting: VS Code's client sends the `socless` section in didChangeConfiguration.
+    await vscode.workspace.getConfiguration('socless').update('waveViewer', 'surfer-panel', vscode.ConfigurationTarget.Global);
+    await poll('ide.json waveViewer == surfer-panel', 30000, async () => (await getJson(url + 'ide.json')).waveViewer === 'surfer-panel');
+    await openEditor(SPEC_FILE);
+    const sim = await poll('a "Simulate" code lens on ' + SPEC_FILE, 60000, async () => {
+      const lenses = (await vscode.commands.executeCommand('vscode.executeCodeLensProvider', specUri, 10)) || [];
+      return lenses.find((l) => l.command && l.command.title === 'Simulate' && l.command.arguments[2] === 'GCD computes gcd(48, 18)');
+    });
+    await vscode.commands.executeCommand(sim.command.command, ...(sim.command.arguments || []));
+    const traceTest = 'gcd.GcdSpec#GCD computes gcd(48, 18)';
+    // A cold Verilator build of the test takes minutes.
+    const ide = await poll(`ide.json with the trace of ${traceTest}`, 600000, async () => {
+      const j = await getJson(url + 'ide.json');
+      return j.trace && j.traceTest === traceTest && j.status !== 'simulating' && j;
+    }, 2000);
+    log(`      trace ${ide.trace} (${ide.status}: ${ide.message})`);
+    await poll(`the SoCLess tab titled "${GCD_TITLE}"`, 10000, () => soclessTabs().some((t) => t.label === GCD_TITLE));
+    const names = await getJson(url + ide.trace.replace(/^\//, '').replace(/\/trace$/, '/names'));
+    log(`      trace prefix ${names.prefix}, ${names.names.length} names`);
+    await vscode.commands.executeCommand('notifications.clearAll'); // the toasts would cover the waves in wave.png
+    const requestFile = path.join(runDir, 'wave-request.json');
+    const resultFile = path.join(runDir, 'wave-result.json');
+    fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ trace: ide.trace, prefix: names.prefix }));
+    fs.renameSync(requestFile + '.tmp', requestFile);
+    const res = await poll(`${resultFile} from webview-click.mjs`, 240000, () =>
+      fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
+    if (res.screenshot) log(`      screenshot ${path.basename(res.screenshot)} taken (run.sh copies it to its artifacts dir)`);
+    if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
+    log(`      ${res.message}`);
+  });
+
   log('ALL PASSED');
 }
 
