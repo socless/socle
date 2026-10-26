@@ -75,8 +75,12 @@ node tools/ui-smoke/assemble.mjs site && (cd site && python3 -m http.server 8765
 # 2. Install deps once and run:
 cd tools/ui-smoke
 npm install
-node smoke.mjs --base http://localhost:8765 [--design deepsoc] [--shots /tmp/shots]
+node smoke.mjs --base http://localhost:8765 [--design deepsoc] [--shots /tmp/shots] [--concurrency 4]
 ```
+
+`--concurrency N` smokes N designs at once, each in its own browser context
+(default 1; CI uses 4). Failures are still attributed per design and the
+summary lists them in manifest order.
 
 Exit code is non-zero if any problem is found; each is printed as
 `[design] where: message`. Uses the system Chromium (`/usr/bin/chromium`);

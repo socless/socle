@@ -3,6 +3,7 @@
 # inputs changed since the PR's base commit.
 #
 #   tools/ci/selective.sh prepare <base-sha>   snapshot the base commit, then return to HEAD
+#                                              (no snapshot when .github/workflows or tools/ci changed)
 #   tools/ci/selective.sh run <selector>       run <selector>, selectively when a snapshot exists
 #   tools/ci/selective.sh selected <selector>  print the tasks of <selector> that would run
 #
@@ -28,6 +29,13 @@ arg=${2:?missing argument}
 
 case "$cmd" in
   prepare)
+    # A change to CI itself must test itself: no snapshot, so every job runs
+    # everything, as on a push to main.
+    if [ -n "$(git diff --name-only "$arg" HEAD -- .github/workflows tools/ci)" ]; then
+      echo "CI itself changed (.github/workflows or tools/ci): no snapshot, running everything"
+      rm -f "$SNAPSHOT"
+      exit 0
+    fi
     # Come back to the branch when on one (a local run), else to the commit
     # (CI checks out a detached merge commit).
     head=$(git symbolic-ref -q --short HEAD || git rev-parse HEAD)

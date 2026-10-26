@@ -8,7 +8,11 @@
 // module blanks the page" are caught automatically.
 //
 // Usage:
-//   node smoke.mjs --base http://localhost:8765 [--design <id>] [--shots <dir>]
+//   node smoke.mjs --base http://localhost:8765 [--design <id>] [--shots <dir>] [--concurrency <n>]
+//
+// --concurrency runs n designs at once, each in its own browser context (CI
+// uses 4); failures are still attributed per design and summarized in manifest
+// order.
 //
 // Requires a running server (see README) and a system Chromium. Override the
 // browser with CHROMIUM=/path/to/chromium.
@@ -27,6 +31,8 @@ const args = Object.fromEntries(
 const BASE = args.base || 'http://localhost:8765';
 const ONLY = args.design || null;            // restrict to one design id
 const SHOTS = args.shots || null;            // screenshot dir (optional)
+// Designs smoked at once, each in its own browser context (default 1).
+const CONCURRENCY = Math.max(1, parseInt(args.concurrency, 10) || 1);
 // Browser: an explicit CHROMIUM path or a system chromium if present; otherwise
 // fall back to Playwright's managed chromium (e.g. `npx playwright install
 // chromium` in CI), which chromium.launch() uses when executablePath is unset.
@@ -58,8 +64,18 @@ let designs = (manifest.designs || []).map((d) => d.id);
 if (ONLY) designs = designs.filter((d) => d === ONLY);
 console.log(`Designs: ${designs.join(', ')}`);
 
-for (const design of designs) {
+// Each design runs in its own browser context (own page, routes and storage),
+// closed whatever happens.
+async function smokeDesign(design) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  try {
+    await smokeDesignIn(design, ctx);
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
+async function smokeDesignIn(design, ctx) {
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
@@ -138,8 +154,7 @@ for (const design of designs) {
   drain('initial load');
   if (!loaded) {
     note(design, 'initial load', 'no hierarchy nodes rendered within 15s');
-    await ctx.close();
-    continue;
+    return;
   }
   await expectFitted('first view fit');
 
@@ -1021,9 +1036,23 @@ for (const design of designs) {
     }
     drain('design picker');
   }
-
-  await ctx.close();
 }
+
+// A pool of CONCURRENCY workers takes the designs in manifest order. A throw
+// inside one design is that design's failure; the others carry on.
+const queue = designs.slice();
+const worker = async () => {
+  for (let design; (design = queue.shift()) !== undefined;) {
+    const t0 = Date.now();
+    try {
+      await smokeDesign(design);
+    } catch (e) {
+      note(design, 'crash', (e && e.message) || String(e));
+    }
+    console.log(`[${design}] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  }
+};
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, designs.length) }, worker));
 
 await browser.close();
 
@@ -1036,6 +1065,11 @@ console.log(`Symbol families seen: ${Array.from(seenSymbolKinds).sort().join(', 
 const need = ['block', 'ff'];
 for (const k of need)
   if (!seenSymbolKinds.has(k)) note('(all)', 'symbol-family', `no node rendered data-symbol="${k}" in any design`);
+
+// Concurrent designs interleave their failures: list them in manifest order
+// (stable, so each design keeps its own order; '(all)' last).
+const rank = (d) => { const i = designs.indexOf(d); return i < 0 ? designs.length : i; };
+failures.sort((a, b) => rank(a.design) - rank(b.design));
 
 console.log('\n=== SMOKE SUMMARY ===');
 if (failures.length === 0) {

@@ -93,14 +93,37 @@ coalescing, etc.).
 
 ## CI
 
-On a pull request, CI (`.github/workflows/ci.yml`) uses Mill selective
-execution through `tools/ci/selective.sh`: it snapshots the base commit, then
-runs only the test suites (`socless`, `socless-probe`, `socless-vscode`,
-`socless-lsp`) whose inputs changed. The browser UI smokes run only when one of
-the Mill tasks they drive (the UI dist, the assembly, an example design) is
-selected, or when a file under `tools/ui-smoke`, `tools/ci`,
-`socless/test/resources/chirrtl` or `.github/workflows` changed. Pushes to
-`main` run everything.
+CI (`.github/workflows/ci.yml`) runs five jobs in parallel, each compiling only
+what its own tasks need:
+
+- **Artifacts** (`build-artifacts.yml`): the jars, the vsix and the single-file
+  UI, uploaded as the `socless-dist` workflow artifact.
+- **Unit tests**: the `socless`, `socless-probe` and `socless-vscode` test
+  suites, the CHIRRTL fixture sync check and the reference JSON check.
+- **Language server tests**: the `socless-lsp` suite, on its own because
+  `MillBridgeTest` drives a real Mill and takes about 3 minutes in CI.
+- **UI smokes and examples**: the UI dist, the example elaborations, the
+  standalone server smoke, and the browser smokes (`smoke.mjs`, four designs at
+  once, and `serve-smoke.mjs`).
+- **Packaging (publish + plugin consumption)**: `publishLocal` of both
+  artifacts and the plugin consumption smoke (`tools/consume-test`).
+
+Each Mill job caches its `out/` directory (keyed on the job, `build.mill` and
+the sources it builds), so a module whose inputs did not change is not
+recompiled; Playwright's Chromium is cached too. Pull requests read the caches
+that pushes to `main` save.
+
+On a pull request, the unit, language server and UI jobs use Mill selective
+execution through `tools/ci/selective.sh`: they snapshot the base commit, then
+the test jobs run only the suites whose inputs changed, and the UI job runs the
+browser smokes only when one of the Mill tasks they drive (the UI dist, the
+assembly, an example design) is selected, or when a file under
+`tools/ui-smoke`, `tools/ci`, `socless/test/resources/chirrtl` or
+`.github/workflows` changed. Pushes to `main` run everything.
+
+A change to CI itself tests itself: when a pull request changes
+`.github/workflows/**` or `tools/ci/**`, `selective.sh prepare` takes no
+snapshot, so every job runs everything, as on a push to `main`.
 
 When you add a test module or a task that drives a smoke, add it to
 `ALL_TASKS` in `tools/ci/selective.sh` (the snapshot only covers those tasks)
