@@ -46,7 +46,13 @@ object ChirrtlParser {
     *   reg <name> : <type>, <clock>                        (plain reg, no reset)
     *   regreset <name> : <type>, <clock>, <reset>, <init>  (reg with synchronous reset)
     */
-  case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo])
+  case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false)
+
+  /** A wire declaration inside a module body: `wire <name> : <type>`. Kept for
+    * the probe view's signal list; the classic IrWalk path does not read it. */
+  case class WireDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false,
+    // Declaration order among the module's wires and nodes (a statement counter).
+    idx: Int = 0)
 
   /** A memory declaration inside a module body.
     *
@@ -73,7 +79,9 @@ object ChirrtlParser {
   case class NodeDecl(name: String, op: String, operands: Seq[String], src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty,
     // True when this node was declared inside a `layerblock` (Chisel verification
     // layer content, issue #212), so it is verification logic, not design dataflow.
-    inLayer: Boolean = false)
+    inLayer: Boolean = false,
+    // Declaration order among the module's wires and nodes (a statement counter).
+    idx: Int = 0)
 
   /** CHIRRTL module-declaration keyword (`Mod.kind`). */
   object ModuleDecl {
@@ -105,6 +113,7 @@ object ChirrtlParser {
     // only consumer is a layer (so it appears here but drives no design sink) is
     // itself verification logic and is collapsed into the layer.
     layerConsumes: Set[String] = Set.empty,
+    wires: Seq[WireDecl] = Seq.empty,
   )
   case class Circ(name: String, modules: Seq[Mod], warnings: Seq[Warning] = Seq.empty)
 
@@ -142,6 +151,8 @@ object ChirrtlParser {
     val curConns                  = mutable.Buffer.empty[Conn]
     val curRegs                   = mutable.Buffer.empty[RegDecl]
     val curMems                   = mutable.Buffer.empty[MemDecl]
+    val curWires                  = mutable.Buffer.empty[WireDecl]
+    var curDeclIdx                = 0
     val curRefs                   = mutable.Set.empty[String]
     val curNodes                  = mutable.Buffer.empty[NodeDecl]
     val curMports                 = mutable.Buffer.empty[MPortDecl]
@@ -162,12 +173,12 @@ object ChirrtlParser {
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
         curRegs.toSeq, curMems.toSeq, curRefs.toSet, curNodes.toSeq,
-        curMports.toSeq, curLayerConsumes.toSet,
+        curMports.toSeq, curLayerConsumes.toSet, curWires.toSeq,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
-      curRegs.clear(); curMems.clear(); curRefs.clear(); curNodes.clear()
-      curMports.clear(); curLayerConsumes.clear()
+      curRegs.clear(); curMems.clear(); curWires.clear(); curRefs.clear(); curNodes.clear()
+      curMports.clear(); curLayerConsumes.clear(); curDeclIdx = 0
       whenStack.clear(); layerStack.clear()
     }
 
@@ -273,10 +284,11 @@ object ChirrtlParser {
               case Some(i: Inst)    => curInsts += i
               // Connects reference exactly their two endpoint expressions.
               case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
-              case Some(r: RegDecl)  => curRegs += r; collectRefs(other)
+              case Some(r: RegDecl)  => curRegs += r.copy(inLayer = inLayer); collectRefs(other)
+              case Some(w: WireDecl)  => curWires += w.copy(inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
               case Some(m: MemDecl)   => curMems += m; collectRefs(other)
               case Some(mp: MPortDecl) => curMports += mp; collectRefs(other)
-              case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, inLayer = inLayer); collectRefs(other)
+              case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
@@ -338,6 +350,10 @@ object ChirrtlParser {
   // consumes exactly the type prefix, leaving the clock/reset operands.
   private val RegRe =
     """^\s+(?:regreset|reg)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
+
+  // Wire declarations: wire <name> : <type>  @[...]
+  private val WireRe =
+    """^\s+wire\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
 
   // Memory access port: <mode> mport <name> = <mem>[<addr>], <clock>.
   // The address may itself be indexed (`vec[i]`), so `[(.+)\]` matches to the
@@ -413,6 +429,9 @@ object ChirrtlParser {
       // Parse just the type prefix; ignore the clock/reset/init operands.
       val (tpe, _) = parseType(typeStr.trim)
       Some(RegDecl(name, tpe, parseSrc(Option(srcOpt))))
+    case WireRe(name, typeStr, srcOpt) =>
+      val (tpe, _) = parseType(typeStr.trim)
+      Some(WireDecl(name, tpe, parseSrc(Option(srcOpt))))
     case MPortRe(mode, name, mem, addr, _clk, srcOpt) =>
       Some(MPortDecl(name, mem, addr.trim, mode, parseSrc(Option(srcOpt))))
     case MemRe(kw, name, typeStr, srcOpt) =>

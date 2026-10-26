@@ -764,6 +764,69 @@ object ModelToDesignTest extends TestSuite {
       assert(n.fsm == None)
     }
 
+    test("gcd signals are its registers in order") {
+      val m = ModelToDesign.design(gcd).modules.find(_.name == "GCD").get
+      assert(m.signals.map(s => (s.name, s.kind, s.width)) == Seq(("x", "reg", 16), ("y", "reg", 16), ("busy", "reg", 1)))
+      assert(m.signals.head.source.line == 30)
+    }
+
+    test("wires and named nodes are signals, compiler temporaries are not") {
+      val chirrtl =
+        """circuit Top :
+          |  public module Top : @[a.scala 1:1]
+          |    input a : UInt<4>
+          |    output o : UInt<4>
+          |    wire w : UInt<4> @[a.scala 5:3]
+          |    wire agg : { p : UInt<2>, flip q : UInt<3>[2] } @[a.scala 6:3]
+          |    connect w, a
+          |    node n = add(w, a) @[a.scala 7:3]
+          |    node _T = add(w, a)
+          |    connect o, n
+          |""".stripMargin
+      val cm = CapturedModel("ok", "Top", Seq(CModule("Top", "mypkg.Top", Nil, None,
+        Seq(CPort("a", CType("chisel3.UInt", "UInt", "in", 4)), CPort("o", CType("chisel3.UInt", "UInt", "out", 4))), Nil)),
+        chirrtl = chirrtl)
+      val sigs = ModelToDesign.design(cm).modules.head.signals
+      assert(sigs.map(s => (s.name, s.kind, s.width)) == Seq(
+        ("w", "wire", 4), ("agg.p", "wire", 2), ("agg.q[0]", "wire", 3), ("agg.q[1]", "wire", 3), ("n", "wire", 0)))
+    }
+
+    test("wires and nodes keep declaration order, layer content and huge aggregates are handled") {
+      val chirrtl =
+        """circuit Top :
+          |  public module Top : @[a.scala 1:1]
+          |    input clock : Clock
+          |    wire a : UInt<1>
+          |    node n = not(a)
+          |    wire b : UInt<1>
+          |    layerblock Verif :
+          |      wire lw : UInt<2>
+          |      reg lr : UInt<2>, clock
+          |    reg r : UInt<2>, clock
+          |    wire big : UInt<1>[300]
+          |""".stripMargin
+      val cm = CapturedModel("ok", "Top", Seq(CModule("Top", "mypkg.Top", Nil, None,
+        Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", 1))), Nil)), chirrtl = chirrtl)
+      val d = ModelToDesign.design(cm)
+      val sigs = d.modules.head.signals.map(_.name)
+      assert(sigs.take(4) == Seq("r", "a", "n", "b"))
+      assert(!sigs.contains("lw") && !sigs.contains("lr"))
+      assert(sigs.drop(4) == (0 until 256).map(i => s"big[$i]"))
+      // the cut leaves are said, not lost silently: a warning of the module
+      val cut = d.warnings.filter(_.kind == "signals-capped")
+      assert(cut.map(w => (w.count, w.module)) == Seq((44, "Top")), cut.head.message.contains("256"))
+    }
+
+    test("the CHIRRTL view has no signals") {
+      val d = SoclessExporter.designFromChirrtl(gcd.chirrtl)
+      check(d.modules.forall(_.signals.isEmpty), "a CHIRRTL module carries signals")
+    }
+
+    test("old json has no signals") {
+      val d = upickle.default.read[Design](resource("/golden/gcd.json"))
+      assert(d.modules.forall(_.signals.isEmpty))
+    }
+
     test("the CHIRRTL view has no fsm diagrams") {
       val d = SoclessExporter.designFromChirrtl(fsm.chirrtl)
       check(!d.modules.flatMap(_.logic).exists(_.fsm.isDefined), "a CHIRRTL logic node carries an fsm diagram")

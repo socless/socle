@@ -201,6 +201,10 @@ object `socless-js` extends ScalaJSModule {
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "BundleTree.scala",
     // LayoutCore now consumes the synthetic-pin protocol (issue #212 layer wires).
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "ir" / "Synthetic.scala",
+    // The wave viewer settings, read by the UI from /ide.json.
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveSettings.scala",
+    // The pure plan of a module's signals for the waveform viewer.
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveLayout.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 }
@@ -501,6 +505,25 @@ object example extends ChiselToolchain {
     PathRef(out)
   }
 
+  def capturedGcdFixture = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "gcd.json")
+
+  /** Convert the committed GCD capture to a laid-out design.json with its
+    * signals (`ModuleDef.signals`): the design the embedded smoke's Waveform
+    * tab follows against a GCD trace. Caches on the fixture and classpath.
+    */
+  def soclessCapturedGcd: T[PathRef] = Task {
+    val out = Task.dest / "design.json"
+    val rc = os.proc(
+      "java", "-cp", runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
+      "socless.cli.Launcher", "from-capture", capturedGcdFixture().path.toString,
+      "--output", out.toString,
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the GCD capture (exit ${rc.exitCode})")
+    PathRef(out)
+  }
+
   /** View the design a ChiselSim test elaborates, in the UI, without simulating.
     *
     * Runs the unmodified test in view mode with the socless-probe agent
@@ -699,7 +722,14 @@ object `socless-lsp` extends ScalaModule {
     os.copy(`socless-probe`.assembly().path, Task.dest / "socless-probe.jar")
     PathRef(Task.dest)
   }
-  def resources = Task { super.resources() :+ probeJarResource() }
+  /** The vendored Surfer WASM build (vendor/surfer, see its SOURCE.md), as `surfer/` resources LiveHttp serves. */
+  def surferVendor = Task.Source("vendor/surfer")
+  def surferResource = Task {
+    // the whole dir: its EUPL-1.2 licence, VERSION and SOURCE.md ship beside the build
+    os.copy(surferVendor().path, Task.dest / "surfer")
+    PathRef(Task.dest)
+  }
+  def resources = Task { super.resources() :+ probeJarResource() :+ surferResource() }
   // `assembly` is what editors launch: `java -jar out.jar` (Main-Class above,
   // the probe jar inside as a resource). No launcher script in front of the zip.
   def prependShellScript = ""

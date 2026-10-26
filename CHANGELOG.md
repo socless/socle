@@ -6,6 +6,22 @@ Notable changes to SoCLess, in the
 the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 [tags](https://github.com/e-ban/SoCless/tags) pages.
 
+## [Unreleased]
+
+### Added
+
+- Waveforms that follow the schematic: after **Simulate**, the module selected
+  in the panel decides which signals Surfer shows (its ports grouped by port,
+  then its registers and wires, coloured by direction), and a smaller
+  selection moves Surfer's focus. `socless.waveViewer` picks the Surfer app
+  (driven over WCP, the default), Surfer embedded in the panel's Waveform tab
+  (`surfer-panel`), or a `custom` command (`socless.waveViewerCommand`); six
+  `socless.waves*` settings tune it.
+- Simulate first views the test, so the panel shows the design whose waves it
+  opens; the trace of a failing test is published too.
+- The language server ships Surfer v0.7.0 as WebAssembly (EUPL-1.2, with its
+  licence and source pointer) for the embedded viewer.
+
 ## [0.16.0] - 2026-10-26
 
 ### Added

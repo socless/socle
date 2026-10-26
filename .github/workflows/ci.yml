@@ -272,10 +272,11 @@ jobs:
       # One Mill call, so the examples elaborate in parallel; a failure names
       # its task. AXISystem, GCD, RVPipeline, DeepSoc, IoBundles, RegHeavy,
       # TrafficFsm, LayeredCounter (verification layers), Scatter (#237 bundle
-      # direction split), and the captured DeepSoc (instance fold) and
-      # TrafficFsm (state diagram) conversions.
+      # direction split), and the captured DeepSoc (instance fold), TrafficFsm
+      # (state diagram) and GCD (internal signals, for the Waveform check)
+      # conversions.
       - name: Elaborate the examples
-        run: ./mill '{example.soclessRun,example.soclessRunGcd,example.soclessRunPipeline,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm}'
+        run: ./mill '{example.soclessRun,example.soclessRunGcd,example.soclessRunPipeline,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd}'
 
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
@@ -306,15 +307,17 @@ jobs:
       # On a pull request the browser smokes below run only when one of their
       # inputs changed: a Mill task they drive (the UI dist, the assembly, an
       # example design) is selected against the base snapshot, or a non-Mill
-      # input changed (the smoke scripts, the CHIRRTL fixtures serve-smoke
-      # uploads, CI itself).
+      # input changed (the smoke scripts and their fixtures, the CHIRRTL
+      # fixtures serve-smoke uploads, the language server the embedded check
+      # stands in for and its vendored Surfer, which that check reads from
+      # disk, CI itself).
       - name: Decide whether the UI smokes run
         id: uismoke
         run: |
-          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm}')
+          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd}')
           changed=""
           if [ "${{ github.event_name }}" = pull_request ]; then
-            changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socless/test/resources/chirrtl .github/workflows)
+            changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socless/test/resources/chirrtl socless-lsp .github/workflows)
           fi
           printf 'selected tasks:\n%s\nchanged non-Mill inputs:\n%s\n' "$sel" "$changed"
           if [ -n "$sel$changed" ]; then echo "run=true" >> "$GITHUB_OUTPUT"
@@ -363,6 +366,15 @@ jobs:
             echo "UI server never came up"; cat /tmp/ui-server.log; exit 1
           fi
           node tools/ui-smoke/smoke.mjs --base http://localhost:8765 --concurrency 4
+
+      # Embedded mode (the VS Code panel): the chrome it drops, the theme and
+      # side-panel channels, and the Waveform tab, which boots the vendored
+      # Surfer (socless-lsp/vendor/surfer) on a GCD trace fixture with
+      # software WebGL and follows the selection. It serves the dist and the
+      # designs elaborated above itself (its default paths).
+      - name: Run embedded-mode smoke (VS Code panel, Waveform tab)
+        if: steps.uismoke.outputs.run == 'true'
+        run: node tools/ui-smoke/embedded.mjs
 
       # The design-INPUT layer (#194): drag-drop a .fir (-> POST /convert), the
       # live poller (#120), the LIVE badge, and the SOURCE indicator. Drives the

@@ -2,8 +2,9 @@
 
 The `socless-vscode` extension wraps the same language server as the
 [Neovim guide](ide-neovim.md): a **View design** code lens above every
-ChiselSim scalatest test (and a [Simulate](#simulate) lens that opens its
-waveforms in Surfer), a live design panel that opens beside the editor, a
+ChiselSim scalatest test (and a [Simulate](#simulate) lens whose waveforms
+[follow the schematic](#waveforms-that-follow-the-schematic) in Surfer), a
+live design panel that opens beside the editor, a
 refresh on save, a panel that follows your cursor, and a click in the panel that
 jumps to the source line. The panel is the regular SoCLess UI inside a VS Code
 webview, served by the server on `127.0.0.1`.
@@ -26,8 +27,8 @@ code --install-extension out/socless-vscode/vsix.dest/socless-*.vsix
 
 The glob matches the one vsix there, whose file name carries the current
 version (`./mill show socless-vscode.vsix` prints its exact path). The vsix is
-about 60 MB because it bundles the language server jar (`socless-lsp`, probe
-agent inside). Building it needs Node and npm (for `npm install
+about 70 MB because it bundles the language server jar (`socless-lsp`, with
+the probe agent and the [embedded Surfer](#the-embedded-surfer) inside). Building it needs Node and npm (for `npm install
 vscode-languageclient` and `npx @vscode/vsce package`), and network access the
 first time, to fetch those packages; nothing else of the extension is built
 with Node.
@@ -97,8 +98,11 @@ The panel is the SoCLess UI in embedded mode (the extension loads it with
 
 - the tab is titled `SoCLess: <test name>`, so the UI has no logo of its own;
 - no Source tab (the editor shows the code, and a click on a box opens it
-  there) and no Waveform tab (`Simulate` opens the trace in Surfer). The bottom
-  panel keeps Ports and starts closed; its toolbar button opens it;
+  there). The Waveform tab is there only when `socless.waveViewer` is
+  `surfer-panel` (see [Waveforms that follow the
+  schematic](#waveforms-that-follow-the-schematic)). The bottom panel keeps
+  Ports and starts closed; its toolbar button opens it, and so does a new
+  trace in `surfer-panel` mode, on the Waveform tab;
 - no theme toggle or theme gallery: the panel follows the VS Code theme, light
   to the light theme, dark to the dark one, high contrast to the high-contrast
   one and high contrast light to the light one, and switches live when you
@@ -197,10 +201,13 @@ Scala source could not be read."
 ## Simulate
 
 Next to each `View design` lens, a `Simulate` lens runs the test for real with
-waveforms on and opens the trace in [Surfer](https://surfer-project.org/).
+waveforms on and shows the trace in [Surfer](https://surfer-project.org/).
 View design needs no simulator; Simulate needs Verilator (on the `PATH` the
-test sees, as for `./mill <module>.test`) and Surfer.
+test sees, as for `./mill <module>.test`), and the Surfer app unless
+`socless.waveViewer` is `surfer-panel`.
 
+- Simulate first views the same test, as `View design` does: the panel opens
+  (or refreshes) on that test's design. Then the simulation runs.
 - The test runs with the module's fork settings, without the probe, with
   `-D<socless.waveFlag>=1` passed to ScalaTest (ChiselSim reads its options
   there). The default `emitVcd` comes with ChiselSim; set `emitFst` or another
@@ -208,13 +215,15 @@ test sees, as for `./mill <module>.test`) and Surfer.
   with "illegal ChiselSim ScalaTest option".
 - Waves are kept in `out/socless/sim/<suite>/<test>/` under the workspace root
   (ChiselSim's `build/chiselsim` goes there), emptied at the start of each run
-  of that test, with `sim.log` (the test's output) and `surfer.log`.
-  `./mill clean` (which empties `out/`) removes them too.
-- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there opens
-  in Surfer, and VS Code shows `Simulation passed: <suite> <test>. Waves:
-  <path>` (a warning when it failed), or `No waveform found` with the flag to
-  check. A test name that matches no test is a failure, and a build or Mill
-  problem is reported as `Simulation not run`.
+  of that test, with `sim.log` (the test's output) and `surfer.log` (the Surfer
+  app's). `./mill clean` (which empties `out/`) removes them too.
+- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there is the
+  trace. VS Code shows `Simulation passed: <suite> <test>. Waves: <path>` (a
+  warning when it failed), or `No waveform found` with the flag to check. A
+  test name that matches no test is a failure, and a build or Mill problem is
+  reported as `Simulation not run`.
+- The trace goes to the viewer `socless.waveViewer` names, which follows the
+  panel's selection (see the next section).
 - One simulation at a time: a second one is refused with a message and the
   first goes on; View design keeps working. A simulation is stopped after 30
   minutes. The panel shows `simulating…` while one runs, unless it shows a
@@ -223,6 +232,88 @@ test sees, as for `./mill <module>.test`) and Surfer.
 See [Simulate in the Neovim guide](ide-neovim.md#simulate) for the exact
 command line.
 
+## Waveforms that follow the schematic
+
+After a simulation, the module you look at in the panel decides which signals
+the waveform viewer shows. `socless.waveViewer` picks the viewer:
+
+- `surfer` (the default): Simulate starts the Surfer app on the trace, as
+  `<socless.surferCommand> --wcp-initiate <port> <trace>`, and drives it over
+  WCP, Surfer's control protocol. Its list is flat (full signal names, no
+  groups, since WCP has no group command) and coloured. Each Simulate replaces
+  the previous Surfer window. This needs a Surfer with `--wcp-initiate`
+  (tested with Surfer 0.7.0). One that exits without connecting (too old for
+  that option) gets a warning pointing at `surfer.log`, and is started again
+  as `<socless.surferCommand> <trace>`, so the waves still show, without
+  following the panel. That fallback window is not replaced by the next
+  Simulate (like a `custom` viewer); close it yourself. A `surferCommand`
+  wrapper must `exec` Surfer: one that forks and exits looks like an old
+  Surfer.
+- `surfer-panel`: Surfer runs inside the panel's Waveform tab. The list is
+  grouped: one group per port, with its bundles nested, then `Registers`, then
+  `Wires`. Signals are coloured and carry short labels (`valid`, `bits`,
+  `data [31:0]` for a multi-bit one) under their group's name.
+- `custom`: `socless.waveViewerCommand` runs on the trace, with `{file}`
+  replaced by its path. It is split on whitespace, with no quoting and no
+  shell, so a path with spaces cannot be passed. Without `{file}`, the path is
+  appended; with an empty command, `socless.surferCommand` is used. Nothing
+  follows the selection.
+
+With the two Surfer viewers:
+
+- Selecting a module (drilling into it in the schematic or the Hierarchy
+  view) replaces the signal list with that module's. The list holds clock and
+  reset when `socless.wavesShowClockReset` is on, then its ports in
+  declaration order, its registers, and its wires and named nodes.
+- Inputs are blue, outputs green, registers orange and wires gray. With
+  `socless.wavesColorByDirection` off, all ports are blue.
+- A smaller selection moves Surfer's focus to one signal:
+  - a port or bundle pin: its first field;
+  - a wire: its end in the module;
+  - a logic block: its first pin;
+  - an FSM block: its state register.
+- Surfer is updated `socless.wavesFollowDelayMs` (150 ms) after the last
+  change, so clicking through the hierarchy sends only the last selection.
+- The trace is stamped with its test (suite and name). While the panel shows
+  another test, following pauses until you simulate that one.
+- Signals the module declares but the trace lacks (optimised away by firtool
+  or Verilator) are left out, and the Waveform tab says `N signals not in the
+  trace`. For an FST trace the server cannot read the names, so Surfer drops
+  them itself; the panel's Surfer counts those too, the app's are only logged.
+- An aggregate register or wire lists its first 256 ground leaves; a design
+  warning counts the others.
+- In the panel's Surfer, a focus scrolls the focused signal to the top of
+  the list, as far as the list allows (when the list is longer than the pane,
+  this happens on every focus, even for a signal already in view).
+- With `socless.wavesFollowSelection` off, Surfer shows the module in view
+  when the trace arrives, and stays there.
+
+Known limits:
+
+- Surfer only answers while its window, or the panel's canvas, is drawn.
+  Hidden, minimised or on another workspace, it waits, and the latest
+  selection applies once it shows again. The Surfer app must connect within a
+  minute of starting, or it does not follow for that simulation.
+- Under native Wayland, the Surfer app may never connect; under XWayland it
+  does. If it does not follow, point `socless.surferCommand` at an executable
+  script that starts Surfer under XWayland, calling it by its full path:
+  `#!/bin/sh` then `exec env -u WAYLAND_DISPLAY /path/to/surfer "$@"`.
+- The Surfer app handles WCP commands from its frame loop (every queued
+  command each frame), so the server sends up to 32 at a time instead of
+  waiting for each reply: a module of hundreds of signals takes a few frames,
+  and a focus waits until it is done. Selecting another module (or changing a
+  wave setting) stops a plan that is still being sent.
+- WCP cannot scroll Surfer's list: in the Surfer app, a focused signal below
+  the visible rows stays out of view until you scroll to it.
+
+### The embedded Surfer
+
+The `surfer-panel` viewer is [Surfer](https://surfer-project.org/) v0.7.0,
+built to WebAssembly from its release tag and shipped inside the language
+server jar. It is a separate component under its own licence, the EUPL-1.2,
+which ships beside it. `socless-lsp/vendor/surfer/SOURCE.md` says where it
+comes from and how to rebuild it.
+
 ## Settings
 
 | Setting | Default | Meaning |
@@ -230,10 +321,18 @@ command line.
 | `socless.javaPath` | empty | Java 21+ executable that runs the server. Empty: `$JAVA_HOME/bin/java`, else `java` on the `PATH`. |
 | `socless.serverJar` | empty | Server jar to use instead of the bundled one. |
 | `socless.waveFlag` | `emitVcd` | ChiselSim option that turns waves on for [Simulate](#simulate), passed as `-D<flag>=1`. |
-| `socless.surferCommand` | `surfer` | Viewer Simulate starts, as `<command> <trace>` (an executable). |
+| `socless.surferCommand` | `surfer` | The Surfer app (an executable): started as `<command> --wcp-initiate <port> <trace>` for `surfer`, and as `<command> <trace>` for an empty `custom` command. |
+| `socless.waveViewer` | `surfer` | `surfer` (external app), `surfer-panel` (embedded in the panel) or `custom`. |
+| `socless.waveViewerCommand` | empty | Command for `custom`, split on whitespace (no quoting); `{file}` is the trace path, e.g. `gtkwave {file}`. |
+| `socless.wavesFollowSelection` | `true` | Surfer viewers only: the selected module decides which signals Surfer shows. |
+| `socless.wavesShowClockReset` | `false` | Surfer viewers only: clock and reset lead the list. |
+| `socless.wavesFoldBundles` | `false` | `surfer-panel` only (the app's list has no groups): bundle sub-groups start folded; a focus unfolds its groups. |
+| `socless.wavesShowWires` | `true` | Surfer viewers only: include the Wires group. |
+| `socless.wavesColorByDirection` | `true` | Surfer viewers only: inputs blue, outputs green (else all ports blue). |
+| `socless.wavesFollowDelayMs` | `150` | Surfer viewers only: delay before Surfer is updated after a selection change. |
 
-`socless.waveFlag` and `socless.surferCommand` apply to the next simulation
-without a reload; the other two need one.
+`socless.javaPath` and `socless.serverJar` need a reload. The others apply
+without one; the `socless.waves*` settings are read on the next selection.
 
 If Java is missing or older than 21, the extension shows one error message
 naming the setting and does not start the server. If the server crashes it is

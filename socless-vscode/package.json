@@ -55,6 +55,50 @@
           "default": "surfer",
           "scope": "machine-overridable",
           "description": "Waveform viewer that Simulate starts on the trace (an executable, run as <command> <trace>)."
+        },
+        "socless.waveViewer": {
+          "type": "string",
+          "enum": ["surfer", "surfer-panel", "custom"],
+          "default": "surfer",
+          "scope": "machine-overridable",
+          "description": "Where Simulate shows the trace: surfer (the external Surfer app), surfer-panel (Surfer embedded in the SoCLess panel), or custom (socless.waveViewerCommand)."
+        },
+        "socless.waveViewerCommand": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Command line for the custom viewer, split on whitespace (no quoting, no shell); {file} is replaced by the trace path, for example: gtkwave {file}."
+        },
+        "socless.wavesFollowSelection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Surfer viewers only: the module selected in the SoCLess panel decides which signals Surfer shows, and a smaller selection moves its focus."
+        },
+        "socless.wavesShowClockReset": {
+          "type": "boolean",
+          "default": false,
+          "description": "Surfer viewers only: list clock and reset first in the signal list."
+        },
+        "socless.wavesFoldBundles": {
+          "type": "boolean",
+          "default": false,
+          "description": "`surfer-panel` only (the Surfer app's list has no groups): start bundle sub-groups folded in the signal list."
+        },
+        "socless.wavesShowWires": {
+          "type": "boolean",
+          "default": true,
+          "description": "Surfer viewers only: include a Wires group (the module's wires and named nodes) in the signal list."
+        },
+        "socless.wavesColorByDirection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Surfer viewers only: colour signals by direction (inputs blue, outputs green); otherwise all ports are blue."
+        },
+        "socless.wavesFollowDelayMs": {
+          "type": "integer",
+          "default": 150,
+          "minimum": 0,
+          "description": "Surfer viewers only: delay in milliseconds after a selection change before Surfer is updated."
         }
       }
     },

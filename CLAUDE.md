@@ -38,6 +38,7 @@ mill example.soclessRunLayers    # LayeredCounter (verification layers)
 mill example.soclessRunScatter   # ScatterDemo (bundle direction split)
 ./mill example.soclessCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
 ./mill example.soclessCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
+./mill example.soclessCapturedGcd      # committed GCD capture -> design.json with its signals (embedded.mjs Waveform check)
 ./mill example.soclessView gcd.GcdSpec "GCD computes gcd(48, 18)"  # view a ChiselSim test's design (probe, no simulation)
 mill show example.soclessRun     # Print path to emitted design.json
 
@@ -137,6 +138,8 @@ socless-ui/                # Scala.js + Laminar frontend - owns all its UI asset
                            # (command palette, keyboard-help overlay, warnings banner)
     model/                 # RowModel (expansion rows, shared BundleTree), Glyphs, LogicLabels, ScalaClassLabel
     data/                  # DesignLoader (load, live poll, drag-drop, picker), Embedded (?host=vscode), IdeLink
+    wave/                  # SurferPane (embedded Surfer WASM over in-page WCP), WaveFollow (the
+                           # waveform viewer follows the selection: panel Surfer or POST /wave/select)
     theme/Tokens.scala     # theme tokens
   html/SoCLess.src.html    # template the `dist` task inlines into the single-file UI
   vendor/                  # elk.bundled.js + elk-worker.min.js (vendored elkjs), inlined offline

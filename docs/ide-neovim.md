@@ -15,7 +15,8 @@ Using VS Code? See [SoCLess in VS Code](ide-vscode.md).
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath and fork
 settings of the file the lens is in); [Simulate](#simulate) also needs
-Verilator and Surfer. Your tests and build are never modified.
+Verilator, and the Surfer app unless `waveViewer` is `surfer-panel`. Your
+tests and build are never modified.
 
 ## Build the server
 
@@ -102,11 +103,16 @@ in the VS Code guide.
 ## Simulate
 
 Each test with a `View design` lens also gets a `Simulate` lens. It runs that
-test for real, with waveforms on, and opens the trace in
-[Surfer](https://surfer-project.org/). View design needs no simulator;
-Simulate needs Verilator on the `PATH` the test sees (the server's, with
-Mill's `allForkEnv` `PATH` on top), as `./mill <module>.test` does.
+test for real, with waveforms on, and shows the trace in
+[Surfer](https://surfer-project.org/), following the panel's selection (see
+[Waveforms that follow the schematic](#waveforms-that-follow-the-schematic)).
+View design needs no simulator; Simulate needs Verilator on the `PATH` the
+test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
+`./mill <module>.test` does.
 
+- Simulate first views the same test, as the `View design` lens does: the
+  panel shows that test's design (the first view opens it in your browser).
+  Then the simulation runs.
 - The test JVM is forked with the same settings as a view run (see
   [How a view run is forked](#how-a-view-run-is-forked)), without the probe,
   plus the wave option as a ScalaTest config-map entry: `-D<waveFlag>=1` after
@@ -120,8 +126,9 @@ Mill's `allForkEnv` `PATH` on top), as `./mill <module>.test` does.
   the start of each run, so the last run of each test is kept; `sim.log` there
   holds the test's output, `surfer.log` the viewer's. `./mill clean` (which
   empties `out/`) removes the kept waves too.
-- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there is
-  opened with `surfer <trace>`, detached. Neovim then shows
+- When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there goes
+  to the viewer `waveViewer` names: by default the Surfer app, started as
+  `<surferCommand> --wcp-initiate <port> <trace>`. Neovim then shows
   `Simulation passed: <suite> <test>. Waves: <path>` (a warning when it failed),
   or `No waveform found` with the flag to check. A test name that matches no
   test is a failure (`No test named "<test>" ran in <suite>.`), and a build or
@@ -134,17 +141,47 @@ Mill's `allForkEnv` `PATH` on top), as `./mill <module>.test` does.
 - An invalid `waveFlag` (not letters, digits, `_`, `.` or `-`) is reported once
   as a warning, and `emitVcd` is used.
 
-Both settings go in `init_options` (defaults: `waveFlag = "emitVcd"`,
-`surferCommand = "surfer"`, an executable run as `<command> <trace>`):
+The settings go in `init_options` (defaults: `waveFlag = "emitVcd"`,
+`surferCommand = "surfer"`, the Surfer app's executable). The wave viewer keys
+use the same names as VS Code without the `socless.` prefix: `waveViewer`
+(`surfer`, `surfer-panel`, `custom`), `waveViewerCommand`,
+`wavesFollowSelection`, `wavesShowClockReset`, `wavesFoldBundles`,
+`wavesShowWires`, `wavesColorByDirection` and `wavesFollowDelayMs`. They have
+the same defaults and meanings as in VS Code (see its
+[settings table](ide-vscode.md#settings)).
 
 ```lua
 vim.lsp.config('socless', {
   cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socless/socless-lsp.jar') },
   filetypes = { 'scala' },
   root_markers = { 'build.mill' },
-  init_options = { waveFlag = "emitFst" },
+  init_options = { waveFlag = "emitFst", waveViewer = "surfer-panel" },
 })
 ```
+
+## Waveforms that follow the schematic
+
+After a simulation, the module you drill into in the browser panel decides
+which signals Surfer shows: its ports in declaration order (grouped by port in
+the embedded viewer), then its registers and wires, coloured by direction. A smaller selection (a port, a wire, a logic or
+FSM block) moves Surfer's focus. With `waveViewer = "surfer"` that is the
+Surfer app; with `"surfer-panel"` it is Surfer embedded in the panel's
+Waveform tab. With `"custom"`, `waveViewerCommand` runs on the trace (`{file}`
+is its path; the command is split on whitespace, with no quoting) and nothing
+follows. The Surfer app needs `--wcp-initiate` (tested with Surfer 0.7.0); one
+that exits without connecting gets a warning pointing at `surfer.log` and is
+started again as `<surferCommand> <trace>`, without following. The behaviour
+and the known limits (Surfer answers only while it is drawn; native Wayland;
+the app cannot scroll to a focused signal) are described in the
+[VS Code guide](ide-vscode.md#waveforms-that-follow-the-schematic).
+
+The embedded viewer is Surfer v0.7.0, shipped in the server jar under its own
+licence, the EUPL-1.2; `socless-lsp/vendor/surfer/SOURCE.md` says where it
+comes from and how to rebuild it.
+
+In the browser panel the Waveform tab is always there. In `surfer` mode it
+says the waveforms are in the Surfer app, and how many of the module's
+signals the trace lacks.
 
 ## How a view run is forked
 

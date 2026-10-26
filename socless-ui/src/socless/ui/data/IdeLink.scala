@@ -20,6 +20,11 @@ case class IdeState(
   focusClass: String = "",
   test:       String = "",
   stamp:      Double = 0d,
+  waveViewer:   String = "",
+  trace:        String = "",
+  traceTest:    String = "",
+  waveSettings: Option[socless.wave.WaveSettings] = None,
+  suite:        String = "", // FQCN of `test`'s suite (older servers: empty)
 )
 object IdeState {
   implicit val rw: ReadWriter[IdeState] = macroRW

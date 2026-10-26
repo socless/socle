@@ -66,7 +66,7 @@ object LanguageServerTest extends TestSuite {
     private val stub = new ClasspathProvider {
       def testClasspath(file: os.Path) = cpFn()
     }
-    lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l))
+    lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l), onSelect = r => server.waveSelect(r))
     lazy val server: SoclessLanguageServer = new SoclessLanguageServer(
       _ => stub,
       r => Right(new ViewRunner(ViewRunner.extractProbeJar(), r, javaBin)),
@@ -569,10 +569,17 @@ object LanguageServerTest extends TestSuite {
         assert(done.getType == MessageType.Info)
         assert(done.getMessage == s"Simulation passed: gcd.GcdSpec GCD computes gcd(48, 18). Waves: ${vcd.head}")
         val st = eventually("status restored")(Some(f.http.state).filter(_.status != "simulating"))
-        assert(st.status == "idle", st.message == done.getMessage) // no design was ever viewed
+        assert(st.status == "ok", st.message == done.getMessage) // Simulate's own capture viewed the design
         assert(os.read.lines(argv).contains("-DemitFst=1"))
-        eventually("surfer argv")(Some(surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.nonEmpty)) ==>
-          Seq(vcd.head.toString)
+        // the `surfer` viewer (the default): started by the server, connecting back over WCP
+        val surferArgs = eventually("surfer argv")(Some(surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.size >= 3))
+        assert(surferArgs(0) == "--wcp-initiate", surferArgs(1).matches("[0-9]+"), surferArgs(2) == vcd.head.toString)
+        // this Surfer exits without connecting (one too old for --wcp-initiate): a
+        // Warning, then the plain `<surferCommand> <trace>` so the waves still show
+        val early = eventually("early exit warning")(messages.find(_.getMessage.startsWith("Surfer exited before connecting")))
+        assert(early.getType == MessageType.Warning, early.getMessage.contains("--wcp-initiate"), early.getMessage.contains("surfer.log"))
+        val fallback = eventually("fallback launch")(Some(surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.size >= 4))
+        assert(fallback(3) == vcd.head.toString)
         assert(f.log.asScala.exists(m => m.contains("org.scalatest.tools.Runner") && m.contains(java.toString)))
 
         def configure(flag: String): Unit = {
@@ -605,6 +612,183 @@ object LanguageServerTest extends TestSuite {
         assert(f.log.asScala.exists(_.contains("invalid waveFlag")))
       } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
     }
+    test("simulate: capture and panel first, then the trace and its names") {
+      val ws  = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val (release, started, failFlag, failTrace, surferArgv) =
+        (bin / "release", bin / "started", bin / "fail", bin / "fail-trace", bin / "surfer-argv")
+      val header = root / "socless-lsp" / "test" / "resources" / "wave" / "gcd-header.vcd"
+      // a "java" that says it started, waits for `release` and consumes it, then
+      // fails without a trace when `fail` exists, else writes the GCD trace (and
+      // then fails when `fail-trace` exists)
+      val java = bin / "java.sh"
+      os.write(java, s"""#!/bin/sh
+        |touch $started
+        |while [ ! -e $release ]; do sleep 0.05; done
+        |rm -f $release $started
+        |if [ -e $failFlag ]; then exit 1; fi
+        |mkdir -p build/chiselsim/gcd
+        |cp $header build/chiselsim/gcd/trace.vcd
+        |if [ -e $failTrace ]; then exit 1; fi
+        |""".stripMargin, perms = os.PermSet.fromString("rwx------"))
+      val surfer = bin / "surfer.sh"
+      os.write(surfer, s"""#!/bin/sh\nprintf '%s\\n' "$$@" >> $surferArgv\n""", perms = os.PermSet.fromString("rwx------"))
+      val f = new Fixture(ws = ws, simJava = java.toString, panel = Some("client"),
+        initOpts = Seq("surferCommand" -> surfer.toString, "waveViewer" -> "surfer-panel"))
+      def simulate(): Unit = f.remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+      def done = f.client.messages.asScala.count(_.getMessage.startsWith("Simulation"))
+      try {
+        simulate()
+        val panel = eventually("openPanel")(f.client.panels.asScala.headOption)
+        assert(panel.getTest == "GCD computes gcd(48, 18)")
+        val base = panel.getUrl
+        eventually("java started")(Some(started).filter(os.exists))
+        // the design of the same test is published before the simulation starts
+        val d = get(base, "/design.json")
+        assert(d.statusCode == 200, upickle.default.read[Design](d.body).top == "GCD")
+        assert(f.server.publishedPorts == Set("clock", "reset", "io")) // what prefix detection matches
+        val during = ide(base)
+        assert(during.status == "simulating", during.trace == "", during.traceTest == "", during.waveViewer == "surfer-panel")
+        os.write(release, "")
+        eventually("first completion")(Some(done).filter(_ == 1))
+        val st = eventually("trace set")(Some(ide(base)).filter(_.trace.nonEmpty))
+        assert(st.trace.matches("/wave/[0-9a-f]+/trace"), st.traceTest == "gcd.GcdSpec#GCD computes gcd(48, 18)")
+        assert(st.status == "ok", st.message.startsWith("Simulation passed"))
+        val vcd = os.walk(ws / "out" / "socless" / "sim").filter(_.last == "trace.vcd").head
+        val t = get(base, st.trace)
+        assert(t.statusCode == 200, t.body == os.read(vcd))
+        val names = ujson.read(get(base, st.trace.stripSuffix("trace") + "names").body)
+        // detected from the trace with the captured top's ports, not assumed
+        assert(names("prefix").str == "TOP.svsimTestbench.dut")
+        assert(names("names").arr.map(_.str).contains("TOP.svsimTestbench.dut.x"))
+        Thread.sleep(300)
+        assert(!os.exists(surferArgv)) // surfer-panel: nothing external
+        assert(f.client.panels.size == 1)
+
+        // a failing run: neither field, and the old trace stops resolving
+        os.write(failFlag, "")
+        simulate()
+        eventually("second java started")(Some(started).filter(os.exists))
+        assert(get(base, st.trace).statusCode == 404, ide(base).trace == "", ide(base).traceTest == "")
+        assert(f.client.panels.size == 2) // the capture opened the panel again
+        os.write(release, "")
+        eventually("second completion")(Some(done).filter(_ == 2))
+        Thread.sleep(200)
+        val after = ide(base)
+        assert(after.trace == "", after.traceTest == "", after.message.startsWith("Simulation failed"))
+
+        // a failing test with a trace: its waves are served all the same
+        os.remove(failFlag)
+        os.write(failTrace, "")
+        simulate()
+        eventually("third java started")(Some(started).filter(os.exists))
+        os.write(release, "")
+        eventually("third completion")(Some(done).filter(_ == 3))
+        val failed = eventually("trace set after a failure")(Some(ide(base)).filter(_.trace.nonEmpty))
+        assert(failed.traceTest == "gcd.GcdSpec#GCD computes gcd(48, 18)", failed.message.startsWith("Simulation failed"))
+        assert(get(base, failed.trace).statusCode == 200)
+      } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
+    }
+    test("simulate with the surfer viewer: a WCP Surfer shows the top, follows selections, a new run replaces it") {
+      val ws  = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val (release, started, surferArgv) = (bin / "release", bin / "started", bin / "surfer-argv")
+      val header = root / "socless-lsp" / "test" / "resources" / "wave" / "gcd-header.vcd"
+      val java = bin / "java.sh"
+      os.write(java, s"""#!/bin/sh
+        |touch $started
+        |while [ ! -e $release ]; do sleep 0.05; done
+        |rm -f $release $started
+        |mkdir -p build/chiselsim/gcd
+        |cp $header build/chiselsim/gcd/trace.vcd
+        |""".stripMargin, perms = os.PermSet.fromString("rwx------"))
+      // a Surfer that records its pid and argv and stays up (the test connects in its place)
+      val surfer = bin / "surfer.sh"
+      os.write(surfer, s"""#!/bin/sh\nprintf '%s %s\\n' "$$$$" "$$*" >> $surferArgv\nexec sleep 600\n""",
+        perms = os.PermSet.fromString("rwx------"))
+      val f = new Fixture(ws = ws, simJava = java.toString, panel = Some("client"),
+        initOpts = Seq("surferCommand" -> surfer.toString))
+      def simulate(): Unit = f.remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+      def run(n: Int): (Long, Int) = {
+        simulate()
+        eventually(s"java $n started")(Some(started).filter(os.exists))
+        os.write(release, "")
+        val line = eventually(s"surfer $n")(Some(surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.size == n)).last
+        val Array(pid, flag, port, trace) = line.split(" ")
+        assert(flag == "--wcp-initiate", trace.endsWith("trace.vcd"))
+        (pid.toLong, port.toInt)
+      }
+      def focusIds(fake: FakeSurfer) = fake.frames.filter(_.value.get("command").exists(_.str == "focus_item")).map(_("id").num.toInt)
+      val fakes = scala.collection.mutable.Buffer.empty[FakeSurfer]
+      try {
+        val (pid1, port1) = run(1)
+        val fake = new FakeSurfer(port1)
+        fakes += fake
+        // the first plan: the test's top module, flat
+        eventually("top plan")(Some(fake.commands).filter(_.count(_ == "set_item_color") == 10))
+        assert(fake.commands.take(4) == Seq("greeting", "get_item_list", "clear", "add_items"))
+        assert(fake.commands.count(_ == "add_items") == 5)
+        val base = f.client.panels.asScala.head.getUrl
+        val traceTest = eventually("trace")(Some(ide(base)).filter(_.trace.nonEmpty)).traceTest
+        assert(traceTest == "gcd.GcdSpec#GCD computes gcd(48, 18)")
+        def select(test: String, sel: String) = post(base, "/wave/select",
+          ujson.write(ujson.Obj("traceTest" -> test, "instPath" -> ujson.Arr("GCD"), "selection" -> sel))).statusCode
+        // a register of the shown module: focus on its id (x, y, busy are 8, 9, 10)
+        assert(select(traceTest, "y") == 204)
+        eventually("focus y")(Some(focusIds(fake)).filter(_ == Seq(9)))
+        // another trace's selection, or another viewer: nothing reaches Surfer
+        assert(select("other.Spec#t", "x") == 204)
+        val cfg = new JsonObject
+        val sec = new JsonObject
+        sec.addProperty("surferCommand", surfer.toString)
+        sec.addProperty("waveViewer", "surfer-panel")
+        cfg.add("socless", sec)
+        f.remote.getWorkspaceService.didChangeConfiguration(new DidChangeConfigurationParams(cfg))
+        eventually("viewer switched")(Some(ide(base)).filter(_.waveViewer == "surfer-panel"))
+        assert(select(traceTest, "busy") == 204)
+        Thread.sleep(600)
+        assert(focusIds(fake) == Seq(9))
+        sec.addProperty("waveViewer", "surfer")
+        f.remote.getWorkspaceService.didChangeConfiguration(new DidChangeConfigurationParams(cfg))
+        eventually("viewer back")(Some(ide(base)).filter(_.waveViewer == "surfer"))
+
+        // a new Simulate: the old Surfer is killed, a new one on a new port gets the top plan
+        val (pid2, port2) = run(2)
+        assert(pid2 != pid1, port2 != port1)
+        eventually("old surfer gone")(Some(ProcessHandle.of(pid1)).filter(h => !h.isPresent || !h.get.isAlive))
+        val fake2 = new FakeSurfer(port2)
+        fakes += fake2
+        eventually("second top plan")(Some(fake2.commands).filter(_.count(_ == "set_item_color") == 10))
+        assert(select(traceTest, "x") == 204)
+        eventually("focus x")(Some(focusIds(fake2)).filter(_ == Seq(8)))
+        f.close()
+        eventually("surfer killed at shutdown")(Some(ProcessHandle.of(pid2)).filter(h => !h.isPresent || !h.get.isAlive))
+        ()
+      } finally { fakes.foreach(_.close()); f.close(); os.remove.all(ws); os.remove.all(bin) }
+    }
+    test("simulate: a second Simulate before the first starts replaces it, and says so") {
+      val ws  = os.temp.dir(prefix = "socless-sim-ws-")
+      val bin = os.temp.dir(prefix = "socless-sim-bin-")
+      val runs = bin / "runs"
+      val java = bin / "java.sh"
+      os.write(java, s"""#!/bin/sh\necho run >> $runs\necho x > trace.vcd\n""", perms = os.PermSet.fromString("rwx------"))
+      val f = new Fixture(ws = ws, simJava = java.toString, initOpts = Seq("waveViewer" -> "surfer-panel"))
+      def simulate(): Unit = f.remote.getWorkspaceService.executeCommand(
+        new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
+      def messages = f.client.messages.asScala.toSeq
+      try {
+        simulate() // waits for its capture (the probe takes seconds)
+        simulate()
+        val replaced = eventually("replaced")(messages.find(_.getMessage.startsWith("replaced the pending simulation")))
+        assert(replaced.getType == MessageType.Info)
+        assert(replaced.getMessage == "replaced the pending simulation of gcd.GcdSpec GCD computes gcd(48, 18)")
+        eventually("completion")(Some(messages.count(_.getMessage.startsWith("Simulation"))).filter(_ == 1))
+        Thread.sleep(500)
+        assert(messages.count(_.getMessage.startsWith("Simulation")) == 1, os.read.lines(runs).size == 1)
+      } finally { f.close(); os.remove.all(ws); os.remove.all(bin) }
+    }
     test("simulate never hides a view's status") {
       val ws  = os.temp.dir(prefix = "socless-sim-ws-")
       val bin = os.temp.dir(prefix = "socless-sim-bin-")
@@ -624,12 +808,11 @@ object LanguageServerTest extends TestSuite {
         new ExecuteCommandParams("socless.simulate", gcdArgs.map(a => a: Object).asJava)).get()
       def done = f.client.messages.asScala.count(_.getMessage.startsWith("Simulation"))
       try {
-        // 1. a view error stays on the panel through a simulation
-        f.cp = Left("view broke")
-        f.view(gcdArgs: _*)
-        eventually("view error")(Some(f.http.state).filter(_.status == "error"))
-        f.cp = Right(exampleCp)
+        // 1. a capture error stays on the panel through the simulation, which still runs
+        val calls = new _root_.java.util.concurrent.atomic.AtomicInteger
+        f.cpFn = () => if (calls.getAndIncrement() == 0) Left("view broke") else Right(exampleCp)
         simulate()
+        eventually("view error")(Some(f.http.state).filter(_.status == "error"))
         eventually("java started")(Some(started).filter(os.exists))
         assert(f.http.state.status == "error", f.http.state.message == "view broke")
         os.write(release, "")

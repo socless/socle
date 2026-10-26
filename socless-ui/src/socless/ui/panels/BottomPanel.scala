@@ -5,6 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import socless.schema.{Design, ModuleDef, PortDir}
 import socless.ui.theme._
+import socless.ui.wave.WaveFollow
 
 /** The bottom panel under the schematic (epic #172 Phase 3 follow-up): a tabbed
   * Source / Waveform / Ports view. Behavioral port of the JS `BenchBottomPanel`
@@ -15,8 +16,11 @@ import socless.ui.theme._
   *                selected-signal highlighting, auto-scroll, and a lightweight
   *                Scala tokenizer whose instance names drill in. Falls back to a
   *                locator notice when no source was embedded.
-  *   - Waveform : a no-data placeholder. The typed [[Design]] carries no wave
-  *                traces, so there is nothing to draw (the JS demo-only path).
+  *   - Waveform : the embedded Surfer ([[socless.ui.wave.SurferPane]]) when the
+  *                language server's viewer is `surfer-panel` and a trace exists,
+  *                following the selection ([[socless.ui.wave.WaveFollow]]);
+  *                otherwise a note on how to get a trace (Simulate). Its canvas is
+  *                mounted once, outside the per-selection body.
   *   - Ports    : a table of this module's ports plus each child instance's. */
 object BottomPanel {
 
@@ -61,9 +65,22 @@ object BottomPanel {
     // Embedded in an editor (VS Code): the editor shows the source and runs
     // the simulations, so only the Ports tab is left.
     embedded: Boolean = false,
+    // The waveform follower (None: no Waveform viewer) and the selected tab,
+    // owned by the caller so a new trace can show the Waveform tab.
+    wave: Option[WaveFollow] = None,
+    tabVar: Var[String] = Var("source"),
   ): Element = {
-    val tabVar = Var(if (embedded) "ports" else "source")
     def setSel(p: String): Unit = selectedVar.set(Some(p))
+    val waveViewSig: Signal[Option[WaveFollow.View]] =
+      wave.fold[Signal[Option[WaveFollow.View]]](Val(None))(_.viewSig.map(Some(_)))
+    // Embedded, the Waveform tab shows only for the panel viewer (the editor runs the app otherwise).
+    val waveTabSig: Signal[Boolean] =
+      if (!embedded) Val(true) else waveViewSig.map(_.exists(_.viewer == WaveFollow.Panel))
+    // The tab shown: a hidden Waveform tab falls back to Ports.
+    val shownTabSig: Signal[String] = Signal.combine(tabVar.signal, waveTabSig).map {
+      case ("wave", false) => "ports"
+      case (t, _)          => t
+    }
 
     // Drag the top edge to resize the panel (#206). Document-level listeners so
     // the drag keeps tracking even if the cursor leaves the thin handle.
@@ -85,7 +102,7 @@ object BottomPanel {
     def tabButton(id: String, icon: String, label: String): Element =
       button(
         dataAttr("bottom-tab") := id,
-        styleAttr <-- tabVar.signal.map(t =>
+        styleAttr <-- shownTabSig.map(t =>
           s"border:none;background:transparent;cursor:pointer;padding:0 14px;font-size:11.5px;font-family:inherit;" +
             s"color:${if (t == id) Tokens.ink else Tokens.ink3};font-weight:${if (t == id) 600 else 500};" +
             s"border-bottom:2px solid ${if (t == id) Tokens.accent else "transparent"};display:flex;align-items:center;gap:6px"),
@@ -93,19 +110,18 @@ object BottomPanel {
         span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink4}", icon), label)
 
     val infoSig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
-      Signal.combine(tabVar.signal, moduleSig, designSig).map {
+      Signal.combine(shownTabSig, moduleSig, designSig).map {
         case ("source", Some(mod), Some(d)) => sourcePathChip(mod.source.file, mod.source.line, d)
-        case ("wave", _, _)                 => span("no waveform data")
+        case ("wave", _, _)                 => span(child.text <-- waveInfo(wave))
         case ("ports", Some(mod), _)        => span(s"${mod.children.length} instances")
         case _                              => emptyNode
       }
 
     val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
-      Signal.combine(tabVar.signal, moduleSig, selectedVar.signal, designSig).map {
+      Signal.combine(shownTabSig, moduleSig, selectedVar.signal, designSig).map {
         case ("source", Some(mod), sel, Some(d)) => sourceView(mod, d, sel, drillInto)
         case ("ports", Some(mod), _, Some(d))    => portsView(mod, d, setSel)
-        case ("wave", _, _, _)                   => waveformPlaceholder
-        case _                                   => emptyNode
+        case _                                   => emptyNode // the Waveform pane is not per selection
       }
 
     div(
@@ -115,13 +131,14 @@ object BottomPanel {
         onMouseDown --> { (e: dom.MouseEvent) => onResizeDown(e) }),
       div(cls := "scl-bottom-tabs",
         Option.when(!embedded)(tabButton("source", "⌥", "Source")),
-        Option.when(!embedded)(tabButton("wave", "∿", "Waveform")),
+        child.maybe <-- waveTabSig.map(on => Option.when(on)(tabButton("wave", "∿", "Waveform"))),
         tabButton("ports", "⊕", "Ports"),
         div(styleAttr := "flex:1"),
         div(styleAttr := s"display:flex;align-items:center;gap:6px;padding:0 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink4};overflow:hidden;white-space:nowrap;max-width:50%",
           child <-- infoSig),
       ),
-      div(cls := "scl-bottom-body", child <-- bodySig),
+      div(cls := "scl-bottom-body", child <-- bodySig,
+        waveformPane(wave, waveViewSig, shownTabSig.map(_ == "wave"))),
     )
   }
 
@@ -253,10 +270,49 @@ object BottomPanel {
       else span(p)
     }
 
-  // ── Waveform (no traces in the schema) ──────────────────────────────────────
-  private def waveformPlaceholder: Element =
-    div(styleAttr := s"display:flex;align-items:center;justify-content:center;height:100%;font-size:12px;color:${Tokens.ink4};padding:24px;text-align:center",
-      "No waveform data - run a simulation to populate this view.")
+  // ── Waveform ────────────────────────────────────────────────────────────────
+  /** The Waveform tab's body, built once: the notes (paused, missing signals),
+    * the hint when there is nothing to show, and the Surfer canvas, which stays
+    * mounted (hidden on other tabs) so it survives selection and tab changes. */
+  private def waveformPane(wave: Option[WaveFollow], viewSig: Signal[Option[WaveFollow.View]], shownSig: Signal[Boolean]): Element = {
+    val surferSig = viewSig.map(_.exists(v => v.viewer == WaveFollow.Panel && v.trace.nonEmpty))
+    val noteStyle = s"padding:4px 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink3};border-bottom:1px solid ${Tokens.borderSoft}"
+    div(dataAttr("wave-pane") := "1",
+      styleAttr <-- shownSig.map(on => s"position:absolute;inset:0;display:${if (on) "flex" else "none"};flex-direction:column"),
+      child.maybe <-- viewSig.map(_.flatMap(_.pausedFor).map(t =>
+        div(dataAttr("wave-paused") := "1", styleAttr := noteStyle,
+          s"Following paused: the trace is of $t, not of the test the panel shows. Simulate this test to follow it."))),
+      child.maybe <-- viewSig.map(_.filter(v => v.missing > 0 && v.pausedFor.isEmpty).map(v =>
+        div(dataAttr("wave-missing") := "1", styleAttr := noteStyle,
+          s"${v.missing} signal${if (v.missing == 1) "" else "s"} not in the trace"))),
+      child.maybe <-- Signal.combine(viewSig, surferSig).map { case (v, surfer) =>
+        Option.when(!surfer)(div(dataAttr("wave-hint") := "1",
+          styleAttr := s"display:flex;align-items:center;justify-content:center;flex:1;font-size:12px;color:${Tokens.ink4};padding:24px;text-align:center",
+          waveHint(v)))
+      },
+      wave.map(w => div(styleAttr <-- surferSig.map(on => s"display:${if (on) "flex" else "none"};flex:1;min-height:0"), w.pane.canvasHost)),
+    )
+  }
+
+  /** The Waveform tab's header text: Surfer's status, or "no trace". */
+  private def waveInfo(wave: Option[WaveFollow]): Signal[String] = wave match {
+    case None => Val("no trace")
+    case Some(w) => Signal.combine(w.viewSig, w.pane.statusVar.signal).map {
+      case (v, st) if v.viewer == WaveFollow.Panel && v.trace.nonEmpty => s"Surfer: $st"
+      case _ => "no trace"
+    }
+  }
+
+  private def waveHint(v: Option[WaveFollow.View]): String = v match {
+    case Some(x) if x.viewer == WaveFollow.App && x.trace.nonEmpty =>
+      "The waveforms are in the Surfer app, which follows the selection."
+    case Some(x) if x.viewer == "custom" && x.trace.nonEmpty =>
+      "The waveforms are in your viewer (socless.waveViewerCommand)."
+    case Some(x) if x.viewer.nonEmpty =>
+      "No trace yet: run Simulate on a ChiselSim test (the Simulate lens above it in the editor) to see its waveforms here."
+    case _ =>
+      "No waveform data: open this design from the editor (the SoCLess language server) and run Simulate on its test to see its waveforms."
+  }
 
   // ── Ports ─────────────────────────────────────────────────────────────────
   private final case class PortRow(inst: String, tpe: String, port: String, dir: String, bundle: String, doc: String, connected: Boolean)

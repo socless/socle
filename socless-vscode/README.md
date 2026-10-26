@@ -18,6 +18,13 @@ hierarchy and the details of the selection.
 
 Check the extension's Settings page for the full list and defaults.
 
+## Third-party software
+
+The bundled language server ships [Surfer](https://surfer-project.org/) v0.7.0,
+built to WebAssembly, for the panel's Waveform tab. Surfer is a separate work
+licensed under the EUPL-1.2; its licence text and source pointer ship beside it
+in the server jar (`surfer/LICENSE-EUPL-1.2.txt`, `surfer/SOURCE.md`).
+
 ## Install the vsix
 
 Build it with `./mill socless-vscode.vsix`, then either run

@@ -36,7 +36,8 @@ object Main {
 
     val exited = new java.util.concurrent.CountDownLatch(1)
     val log: String => Unit = m => Console.err.println(s"[socless-lsp] $m")
-    lazy val http: LiveHttp = new LiveHttp((file, line) => server.openInEditor(file, line))
+    lazy val http: LiveHttp = new LiveHttp((file, line) => server.openInEditor(file, line),
+      onSelect = req => server.waveSelect(req))
     lazy val server: SoclessLanguageServer = new SoclessLanguageServer(
       root => MillBridge.default(root, log),
       root => probe.map(jar => new ViewRunner(jar, root)),

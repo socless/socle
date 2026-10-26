@@ -37,7 +37,8 @@ object SimRunnerTest extends TestSuite {
          |${if (trace) "mkdir -p build/chiselsim/x && echo '$timescale 1ns $end' > build/chiselsim/x/trace.vcd" else ""}
          |exit $exit
          |""".stripMargin)
-    def settings(flag: String = "emitVcd") = SimSettings(flag, surfer.toString)
+    // `custom` with no command: the plain `<surferCommand> <trace>` launch (`surfer` mode is the server's, over WCP)
+    def settings(flag: String = "emitVcd") = SimSettings(flag, surfer.toString, waveViewer = "custom")
     def close(): Unit = { os.remove.all(root); os.remove.all(bin) }
   }
 
@@ -89,6 +90,63 @@ object SimRunnerTest extends TestSuite {
           Seq(vcd.toString)
       } finally e.close()
     }
+    test("a trace id per passing run, gone when the next run starts") {
+      val e = new Env
+      try {
+        val runner = new SimRunner(e.root, e.java(0).toString, log = _ => ())
+        val vcd    = runner.dirFor(suite, name) / "build" / "chiselsim" / "x" / "trace.vcd"
+        assert(runner.currentTrace.isEmpty)
+        runner.run(req, e.settings(), Right(fork))
+        val Some((id1, path1, test1)) = runner.currentTrace
+        assert(id1.matches("[0-9a-f]{32}"), path1 == vcd, test1 == s"$suite#$name")
+        // a failing test with a trace keeps it; any run (even one that cannot start) drops the previous id
+        val failing = new SimRunner(e.root, e.java(1).toString, log = _ => ())
+        failing.run(req, e.settings(), Right(fork))
+        assert(failing.currentTrace.exists(t => t._2 == vcd && t._3 == s"$suite#$name"))
+        val noTrace = new SimRunner(e.root, e.java(1, trace = false).toString, log = _ => ())
+        noTrace.run(req, e.settings(), Right(fork))
+        assert(noTrace.currentTrace.isEmpty)
+        runner.run(req, e.settings(), Left("no Mill test module"))
+        assert(runner.currentTrace.isEmpty)
+        runner.run(req, e.settings(), Right(fork))
+        val Some((id2, _, _)) = runner.currentTrace
+        assert(id2 != id1)
+      } finally e.close()
+    }
+    test("viewer: surfer and surfer-panel start nothing, custom runs its command with {file}") {
+      val e = new Env
+      try {
+        val runner = new SimRunner(e.root, e.java(0).toString, log = _ => ())
+        val dir    = runner.dirFor(suite, name)
+        val vcd    = dir / "build" / "chiselsim" / "x" / "trace.vcd"
+        for (viewer <- Seq("surfer-panel", "surfer")) {
+          val out = runner.run(req, e.settings().copy(waveViewer = viewer), Right(fork))
+          assert(out.passed, out.message == s"Simulation passed: $suite $name. Waves: $vcd")
+        }
+        Thread.sleep(300)
+        assert(!os.exists(e.surferArgv), !os.exists(dir / "surfer.log"))
+        val custom = runner.run(req, e.settings().copy(waveViewer = "custom", waveViewerCommand = "echo {file}"), Right(fork))
+        assert(custom.passed, custom.message == s"Simulation passed: $suite $name. Waves: $vcd")
+        eventually("custom viewer output")(Some(dir / "surfer.log").filter(os.exists).map(os.read(_).trim).filter(_.nonEmpty)) ==>
+          vcd.toString
+        assert(!os.exists(e.surferArgv))
+        // an empty custom command falls back to surferCommand
+        runner.run(req, e.settings().copy(waveViewer = "custom"), Right(fork))
+        eventually("surfer argv")(Some(e.surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.nonEmpty)) ==>
+          Seq(vcd.toString)
+      } finally e.close()
+    }
+    test("custom viewer command: {file} inside a word, extra args kept") {
+      assert(SimRunner.viewerCommand(SimSettings(waveViewer = "custom", waveViewerCommand = "gtkwave  -f {file} --x={file}"),
+        os.Path("/t/a b.vcd")) == Some(Seq("gtkwave", "-f", "/t/a b.vcd", "--x=/t/a b.vcd")))
+      assert(SimRunner.viewerCommand(SimSettings(surferCommand = "/opt/surfer"), os.Path("/t/x.vcd")).isEmpty) // WCP, by the server
+      assert(SimRunner.viewerCommand(SimSettings(surferCommand = "/opt/surfer", waveViewer = "custom"), os.Path("/t/x.vcd")) ==
+        Some(Seq("/opt/surfer", "/t/x.vcd")))
+      assert(SimRunner.viewerCommand(SimSettings(waveViewer = "surfer-panel"), os.Path("/t/x.vcd")).isEmpty)
+      // no {file}: the trace path comes last
+      assert(SimRunner.viewerCommand(SimSettings(waveViewer = "custom", waveViewerCommand = "gtkwave -o"),
+        os.Path("/t/a b.vcd")) == Some(Seq("gtkwave", "-o", "/t/a b.vcd")))
+    }
     test("no trace: the message says how to enable waves, surfer is not started") {
       val e = new Env
       try {
@@ -115,7 +173,7 @@ object SimRunnerTest extends TestSuite {
       val e = new Env
       try {
         val runner = new SimRunner(e.root, e.java(0).toString, log = _ => ())
-        val out    = runner.run(req, SimSettings("emitVcd", (e.bin / "no-such-surfer").toString), Right(fork))
+        val out    = runner.run(req, SimSettings("emitVcd", (e.bin / "no-such-surfer").toString, waveViewer = "custom"), Right(fork))
         val vcd    = runner.dirFor(suite, name) / "build" / "chiselsim" / "x" / "trace.vcd"
         assert(out.passed, out.waves == Some(vcd))
         assert(out.message.startsWith(s"Simulation passed: $suite $name. Waves: $vcd (cannot start "))

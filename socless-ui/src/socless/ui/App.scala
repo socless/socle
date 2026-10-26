@@ -56,6 +56,7 @@ object App {
   private val rightOpenVar     = Var(true)
   private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
   private val bottomHeightVar  = Var(240.0)
+  private val bottomTabVar     = Var(if (Embedded.on) "ports" else "source") // embedded: no Source tab
   // The FSM block (its id) whose state diagram is open in the schematic pane.
   // Cleared when the drill path changes and when a design change drops the block.
   private val fsmOpenVar       = Var[Option[String]](None)
@@ -101,6 +102,17 @@ object App {
   // Language-server link (plan 2): run status, editor cursor focus, open on
   // select. Disables itself when the page is not served by the language server.
   private val ide = new IdeLink
+  // The waveform viewer follows the selection and the drill path (wave sync);
+  // a new trace for the embedded Surfer opens the Waveform tab.
+  // Lazy: it reads currentModuleSig, defined further down.
+  private lazy val wave = new socless.ui.wave.WaveFollow(
+    stateSig    = ide.stateSig,
+    designSig   = loader.designSig,
+    pathSig     = pathVar.signal,
+    selectedVar = selectedSigVar,
+    moduleSig   = currentModuleSig,
+    onTrace     = () => { bottomOpenVar.set(true); bottomTabVar.set("wave") },
+  )
 
   @JSExport
   def main(rootId: String): String = {
@@ -524,6 +536,8 @@ object App {
       drillInto   = drillInto,
       heightVar   = bottomHeightVar,
       embedded    = Embedded.on,
+      wave        = Some(wave),
+      tabVar      = bottomTabVar,
     )
     val inspectorEl = Inspector.render(
       designSig          = loader.designSig,
@@ -597,7 +611,7 @@ object App {
         actions = if (Embedded.on) Seq(
           ("Open settings",          "density, color",            () => settingsOpenVar.set(true)),
           ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
-          ("Toggle bottom panel",    "ports",                     () => bottomOpenVar.update(!_)),
+          ("Toggle bottom panel",    "ports / waveform",          () => bottomOpenVar.update(!_)),
           ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
         ) else Seq(
           ("Toggle theme",           "dark / light",              () => toggleTheme()),
@@ -609,6 +623,7 @@ object App {
           ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
         )),
       Chrome.helpOverlay(helpOpenVar),
+      wave.binders,
       // Design-input chrome (#194): drag-drop overlay + transient toasts.
       // Embedded, designs come from the editor's runs only: no drop zone.
       Option.when(!Embedded.on)(dropOverlay()),

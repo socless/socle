@@ -183,8 +183,18 @@ case class ModuleDef(
   // a const whose every wire ends on a port or an instance pin). The UI marks
   // each tied pin with a value stub. Empty from the CHIRRTL path. Additive, last.
   tieOffs: Seq[TieOff] = Seq.empty,
+  // Named internal signals (registers, wires, named nodes) in declaration
+  // order, aggregates expanded to ground leaves (`name.field`, `name[i]`),
+  // as they appear in the CHIRRTL (probe capture only; empty from the CHIRRTL
+  // path). Lets a waveform follow the schematic. Additive, last.
+  signals: Seq[SignalDef] = Seq.empty,
 )
 object ModuleDef { implicit val rw: ReadWriter[ModuleDef] = macroRW }
+
+/** A named internal signal of a module. `kind` is "reg" or "wire" (a wire or a
+  * named node); `width` is the declared ground width, 0 when not declared (a node). */
+case class SignalDef(name: String, kind: String, width: Int, source: SourceRef)
+object SignalDef { implicit val rw: ReadWriter[SignalDef] = macroRW }
 
 /** A port or instance pin tied to a constant: `sink` is the tied endpoint path
   * (a wire's `from`, e.g. "alu.io.op"), `value` the constant as displayed ("0"). */

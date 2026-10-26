@@ -10,6 +10,7 @@ import org.eclipse.lsp4j.services._
 import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
+import socless.schema.Design
 
 /** The SoCLess language server: "View design" and "Simulate" code lenses on
   * ChiselSim tests, the `socless.viewDesign` and `socless.simulate` commands
@@ -81,6 +82,18 @@ final class SoclessLanguageServer(
   private var pendingTests  = Option.empty[ScheduledFuture[_]]
   @volatile private var lastTests = Option.empty[JsonObject] // last `socless/tests` result computed
   @volatile private var publishedSources = Set.empty[String] // keys of the published design's `sources`
+  @volatile private[lsp] var publishedPorts = Set.empty[String] // the published design's top-level port names
+  // A Simulate waiting for its capture (guarded by lock): started by that
+  // capture's result; when a newer request replaces the capture in the queue
+  // (so it never runs), it waits for the newer one instead.
+  private var pendingSim = Option.empty[(Workspace, SimRequest, ViewRequest)]
+  private var simGen     = 0L // guarded by lock: simulations started so far
+  // The published design and its `<suite>#<test>`, for the wave follower.
+  @volatile private var publishedDesign = Option.empty[(Design, String)]
+  // `surfer` viewer (guarded by lock): the WCP session with the Surfer of the
+  // last simulation, its trace and `<suite>#<test>`; replaced by each Simulate.
+  private var wcp = Option.empty[(WcpSession, LiveHttp.Trace, String)]
+  private val follower = new WaveFollower(() => followContext, log)
 
   def connect(c: LanguageClient): Unit = client = c
 
@@ -118,6 +131,8 @@ final class SoclessLanguageServer(
   def stopAll(): Unit = {
     stopped = true
     ws.foreach { w => w.queue.close(); w.sim.close() }
+    follower.close()
+    lock.synchronized { val s = wcp; wcp = None; s }.foreach(_._1.close())
     parser.shutdownNow()
     timer.shutdownNow()
     notifier.shutdownNow()
@@ -289,55 +304,172 @@ final class SoclessLanguageServer(
 
   private def view(args: Seq[String]): Unit = (args, ws) match {
     case (_, None) => fail("SoCLess: no workspace root (the editor sent neither workspaceFolders nor rootUri)")
-    case (Seq(uri, suite, test), Some(w)) =>
-      (w.runner, uriToPath(uri)) match {
-        case (Left(msg), _) => fail(msg, Some((suite, test)))
-        case (_, None)      => fail(s"SoCLess: not a file URI: $uri", Some((suite, test)))
-        case (Right(_), Some(file)) =>
-          openPanel(test)
-          submit(w, ViewRequest(file, suite, test))
-      }
+    case (Seq(uri, suite, test), Some(w)) => capture(w, uri, suite, test)
     case _ => fail(s"$ViewCommand expects [uri, suite, test], got ${args.mkString("[", ", ", "]")}")
   }
 
-  /** One simulation at a time, beside view runs: a second one is refused
-    * (Info), the running one goes on. The editor gets the outcome (Info on
-    * pass, Warning otherwise). The panel never hides a view's status: a
-    * simulation started while it shows `error` or `running` leaves it alone;
-    * otherwise it shows `simulating`, and at the end the state captured at the
-    * start comes back with the outcome as message, unless a view run changed
-    * the status meanwhile (then the view's status stays). The design is never touched. */
+  /** View design of one test: opens the panel and queues the capture. `then`
+    * (a Simulate) waits for that capture's result; it runs at once when the
+    * capture cannot be queued (the failure is reported). */
+  private def capture(w: Workspace, uri: String, suite: String, test: String,
+      `then`: Option[SimRequest] = None): Unit =
+    (w.runner, uriToPath(uri)) match {
+      case (Left(msg), _) => fail(msg, Some((suite, test))); `then`.foreach(startSim(w, _))
+      case (_, None)      => fail(s"SoCLess: not a file URI: $uri", Some((suite, test))); `then`.foreach(startSim(w, _))
+      case (Right(_), Some(file)) =>
+        openPanel(test)
+        val req = ViewRequest(file, suite, test)
+        val replaced = lock.synchronized {
+          val old = `then`.flatMap(_ => pendingSim.map(_._2))
+          `then`.foreach(s => pendingSim = Some((w, s, req)))
+          submit(w, req)
+          old
+        }
+        replaced.foreach(r => show(MessageType.Info, s"replaced the pending simulation of ${r.suite} ${r.test}"))
+    }
+
+  /** Simulate: first a View design capture of the same test (the same queue:
+    * it publishes the design and opens the panel), then the simulation, whatever
+    * the capture gave (a capture error stays on the panel). One simulation at a
+    * time, beside view runs: a second one is refused (Info), the running one
+    * goes on. The editor gets the outcome (Info on pass, Warning otherwise).
+    * The panel never hides a view's status: a simulation started while it
+    * shows `error` or `running` leaves it alone; otherwise it shows
+    * `simulating`, and at the end the state captured at the start comes back
+    * with the outcome as message, unless a view run changed the status
+    * meanwhile (then the view's status stays). The trace (`trace`,
+    * `traceTest`, `/wave/<id>`) is dropped when the simulation starts and set
+    * after a run that left one (pass or fail). With the `surfer` viewer, the
+    * previous Surfer and its WCP session end when the simulation starts, and a
+    * run that left a trace starts a new one ([[WcpSession]]) showing the top
+    * module's signals; panel selections then drive it ([[waveSelect]]). A
+    * Surfer that exits before connecting gets a Warning and is started again
+    * plainly on the trace ([[surferExited]]). A Simulate that replaces one
+    * still waiting for its capture says so (Info). */
   private def simulate(args: Seq[String]): Unit = (args, ws) match {
     case (_, None) => showError("SoCLess: no workspace root (the editor sent neither workspaceFolders nor rootUri)")
     case (Seq(uri, suite, test), Some(w)) =>
       uriToPath(uri) match {
         case None => showError(s"SoCLess: not a file URI: $uri")
         case Some(file) =>
-          val before = new java.util.concurrent.atomic.AtomicReference[Option[IdeState]](None)
-          val started = () => lock.synchronized(ideUpdate { s =>
-            if (s.status == "error" || s.status == "running") s
-            else { before.set(Some(s)); s.copy(status = "simulating", message = "", test = test, suite = suite) }
-          })
-          w.sim.start(SimRequest(file, suite, test), simSettings, () => w.cp.testFork(file), started,
-            o => simDone(o, before.get))
-            .foreach(r => show(MessageType.Info, s"a simulation is already running: ${r.suite} ${r.test}"))
+          w.sim.busy match {
+            case Some(r) => refused(r)
+            case None => capture(w, uri, suite, test, Some(SimRequest(file, suite, test)))
+          }
       }
     case _ => showError(s"$SimulateCommand expects [uri, suite, test], got ${args.mkString("[", ", ", "]")}")
   }
 
-  private def simDone(o: SimOutcome, before: Option[IdeState]): Unit = {
-    for (b <- before) lock.synchronized {
+  private def refused(r: SimRequest): Unit =
+    show(MessageType.Info, s"a simulation is already running: ${r.suite} ${r.test}")
+
+  /** Starts the pending simulation when `done` is its capture. */
+  private def startPendingSim(done: ViewRequest): Unit = {
+    val next = lock.synchronized {
+      val n = pendingSim.filter(_._3 eq done)
+      if (n.isDefined) pendingSim = None
+      n
+    }
+    next.foreach { case (w, sim, _) => startSim(w, sim) }
+  }
+
+  private def startSim(w: Workspace, req: SimRequest): Unit = {
+    val before = new java.util.concurrent.atomic.AtomicReference[Option[IdeState]](None)
+    val gen    = new java.util.concurrent.atomic.AtomicLong
+    val old    = new java.util.concurrent.atomic.AtomicReference[Option[WcpSession]](None)
+    // runs under the SimRunner's lock: the previous session is only taken here, closed below
+    val started = () => {
+      old.set(lock.synchronized {
+        simGen += 1
+        gen.set(simGen)
+        http.serveTrace(None) // the previous trace stops resolving now
+        ideUpdate { s0 =>
+          val s = s0.copy(trace = "", traceTest = "")
+          if (s.status == "error" || s.status == "running") s
+          else { before.set(Some(s)); s.copy(status = "simulating", message = "", test = req.test, suite = req.suite) }
+        }
+        val o = wcp
+        wcp = None
+        o.map(_._1)
+      })
+    }
+    try w.sim.start(req, simSettings, () => w.cp.testFork(req.file), started, o => simDone(w, req, o, before.get, gen.get))
+      .foreach(refused)
+    // the previous Surfer, outside the SimRunner's lock (killing it may wait); the
+    // run thread asks Mill for the test fork first, so this precedes the run dir's wipe
+    finally old.getAndSet(None).foreach(_.close())
+  }
+
+  /** `gen`: this simulation's [[simGen]]. Never takes the SimRunner's lock
+    * under `lock` (its `start` calls `started` the other way round). */
+  private def simDone(w: Workspace, req: SimRequest, o: SimOutcome, before: Option[IdeState], gen: Long): Unit = {
+    // this run's trace (a passing or failing run's; none when it left none or
+    // timed out), names read from its header
+    val trace = w.sim.currentTrace.map { case (id, file, test) =>
+      (LiveHttp.Trace(id, file, TraceNames.read(file, publishedPorts)), test)
+    }
+    // `surfer` viewer: a new Surfer on the trace, driven over WCP (started outside the lock)
+    val current = lock.synchronized(simGen == gen) // a superseded run starts no Surfer
+    val dir = w.sim.dirFor(req.suite, req.test)
+    val command = simSettings.surferCommand
+    val surfer = trace.filter(_ => current && simSettings.waveViewer == "surfer" && !stopped).map { case (t, _) =>
+      try Right(WcpSession.start(command, t.file, Some(dir / "surfer.log"), log, () => surferExited(gen, command, t.file, dir)))
+      catch { case NonFatal(e) => Left(s"cannot start $command: ${e.getMessage}") }
+    }
+    val message = o.message + surfer.flatMap(_.left.toOption).fold("")(e => s" ($e)")
+    val attached = lock.synchronized {
+      val fresh = trace.filter(_ => simGen == gen && !stopped) // none when another simulation started meanwhile
+      fresh.foreach { case (t, _) => http.serveTrace(Some(t)) }
       ideUpdate { s =>
-        if (s.status == "simulating") s.copy(status = b.status, test = b.test, suite = b.suite, message = o.message) else s
+        val restored = before match {
+          case Some(b) if s.status == "simulating" && simGen == gen => // not a newer simulation's status
+            s.copy(status = b.status, test = b.test, suite = b.suite, message = message)
+          case _ => s
+        }
+        fresh.fold(restored) { case (t, test) => restored.copy(trace = s"/wave/${t.id}/trace", traceTest = test) }
+      }
+      (fresh, surfer.flatMap(_.toOption)) match {
+        case (Some((t, test)), Some(session)) => wcp = Some((session, t, test)); true
+        case _ => false
       }
     }
-    show(if (o.passed) MessageType.Info else MessageType.Warning, o.message)
+    if (attached) follower.showTop() // the first plan: the test's top module
+    else surfer.flatMap(_.toOption).foreach(_.close()) // stale: a newer simulation started
+    show(if (o.passed) MessageType.Info else MessageType.Warning, message)
   }
+
+  /** The WCP Surfer of simulation `gen` exited before connecting (one too old
+    * for `--wcp-initiate`): unless a newer simulation started, a Warning, and
+    * the plain `<command> <trace>` so the waves still show (its output appended
+    * to surfer.log, after the first one's error). */
+  private def surferExited(gen: Long, command: String, trace: os.Path, dir: os.Path): Unit =
+    if (!stopped && lock.synchronized(simGen == gen)) {
+      val problem = SimRunner.launch(Seq(command, trace.toString), trace, dir, log, append = true)
+      show(MessageType.Warning, s"Surfer exited before connecting (it may be too old for --wcp-initiate); see ${dir / "surfer.log"}." +
+        problem.fold(" Opened the trace without following the panel.")(p => s" ($p)"))
+    }
+
+  /** What following needs: a live session, the trace, and the published
+    * design of the trace's test (it pauses while the panel shows another one). */
+  private def followContext: Option[WaveFollower.Context] =
+    for {
+      (session, trace, test) <- lock.synchronized(wcp)
+      if session.alive
+      (design, designTest) <- publishedDesign
+      if designTest == test
+    } yield WaveFollower.Context(session, test, design, trace.names.prefix, trace.names.names, simSettings.wave)
+
+  /** `POST /wave/select` from the panel: acts only with the `surfer` viewer
+    * ([[WaveFollower.select]]), without a second debounce (the panel waits
+    * `wavesFollowDelayMs` before it posts). Runs on the HTTP thread, never waits. */
+  def waveSelect(req: SelectRequest): Unit =
+    if (!stopped && simSettings.waveViewer == "surfer") follower.select(req, debounce = false)
 
   /** Simulate settings from a flat settings object; an invalid `waveFlag` is
     * logged and shown once (Warning), and the default is used. */
   private def configureSim(opts: Any): Unit = {
     simSettings = SimSettings.fromInit(opts)
+    ideUpdate(_.copy(waveViewer = simSettings.waveViewer, waveSettings = Some(simSettings.wave)))
     SimSettings.invalidFlag(opts).filterNot(warnedFlag.contains).foreach { bad =>
       warnedFlag = Some(bad)
       val msg = s"""SoCLess: invalid waveFlag "$bad" (expected an option name such as emitFst); using ${SimSettings.DefaultWaveFlag}"""
@@ -380,7 +512,8 @@ final class SoclessLanguageServer(
   private def submit(w: Workspace, req: ViewRequest): Unit = lock.synchronized {
     latest = Some(req)
     ideUpdate(_.copy(status = "running", message = "", test = req.test, suite = req.suite))
-    w.queue.submit(req)
+    // a capture replaced in the queue never runs: its Simulate waits for this request
+    for (old <- w.queue.submit(req); (pw, sim, view) <- pendingSim if view eq old) pendingSim = Some((pw, sim, req))
   }
 
   /** Re-runs the last view (a fresh request, so its result is the latest). */
@@ -403,6 +536,8 @@ final class SoclessLanguageServer(
         case Viewed(d) =>
           http.publishJson(json)
           publishedSources = d.sources.keySet
+          publishedPorts = d.modules.find(_.name == d.top).fold(Set.empty[String])(_.ports.map(_.name).toSet)
+          publishedDesign = Some((d, s"${req.suite}#${req.test}"))
           ideUpdate(_.copy(status = "ok", message = ""))
           None
         case Failed(_, msg) =>
@@ -411,6 +546,7 @@ final class SoclessLanguageServer(
       }
     }
     error.foreach(showError)
+    startPendingSim(req) // a Simulate waiting for this capture
   }
 
   /** A command-level failure: panel state plus an editor message; the design

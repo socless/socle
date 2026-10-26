@@ -17,8 +17,15 @@ final class RunQueue(exec: ViewRequest => RunResult, onResult: (ViewRequest, Run
   worker.setDaemon(true)
   worker.start()
 
-  def submit(r: ViewRequest): Unit = lock.synchronized {
-    if (!closed) { pending = Some(r); lock.notifyAll() }
+  /** Queues `r`; returns the pending request it replaced (which will never run). */
+  def submit(r: ViewRequest): Option[ViewRequest] = lock.synchronized {
+    if (closed) None
+    else {
+      val replaced = pending
+      pending = Some(r)
+      lock.notifyAll()
+      replaced
+    }
   }
 
   /** Drops the pending request and stops the worker after the current run. */

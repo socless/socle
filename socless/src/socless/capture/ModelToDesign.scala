@@ -188,6 +188,7 @@ object ModelToDesign {
         parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),
         logic      = logic,
         tieOffs    = tied,
+        signals    = signalsOf(circ.modules.find(_.name == c.name)),
       )
     }
     Design(
@@ -197,6 +198,12 @@ object ModelToDesign {
       warnings = m.problems.map(p => Warning("probe-problem", 1, p)) ++
         reg.unknown.map { case (cls, n) =>
           Warning("probe-unknown-type", n, s"$n port leaf(s) of type $cls shown by class name: no schema type for it")
+        } ++ m.modules.flatMap { c =>
+          val cut = cutLeaves(circ.modules.find(_.name == c.name))
+          if (cut <= 0) None
+          else Some(Warning("signals-capped", math.min(cut, Int.MaxValue.toLong).toInt,
+            s"$cut ground leaves of aggregate registers or wires are not in the signal list: each aggregate lists its first $MaxLeaves",
+            c.name))
         },
       regions  = regions.toMap,
       // A port no wire reaches (probe-supplied wiring, an unused input) still shows.
@@ -204,7 +211,47 @@ object ModelToDesign {
     )
   }
 
-  private val FallbackNote = "Transitions are not available: the state machine's Scala source could not be read."
+  /** An aggregate register or wire expands to at most this many ground leaves
+    * (the first ones, in order): a huge Vec would otherwise flood the signal list.
+    * The leaves left out are counted in a `signals-capped` warning of the module. */
+  private val MaxLeaves = 256
+
+  /** The module's named internal signals: registers, then wires and named nodes
+    * in declaration order (a node has no declared type, so its width is 0).
+    * Compiler temporaries (`_T`, `_GEN_0`) and layer content are dropped;
+    * aggregates expand to ground leaves (`a.b`, `v[0]`). */
+  private def signalsOf(mod: Option[ChirrtlParser.Mod]): Seq[SignalDef] = mod.toSeq.flatMap { cm =>
+    def src(s: Option[ChirrtlParser.SrcInfo]) = s.map(i => SourceRef(i.file, i.line, i.col)).getOrElse(SourceRef.unknown)
+    def leaves(path: String, t: ChirrtlParser.Type): Seq[(String, Int)] = t match {
+      case ChirrtlParser.GroundT(_, w) => Seq(path -> w.getOrElse(0))
+      case ChirrtlParser.BundleT(fs)   => fs.view.flatMap(f => leaves(s"$path.${f.name}", f.tpe)).take(MaxLeaves).toSeq
+      case ChirrtlParser.VecT(e, n)    => (0 until math.min(n, MaxLeaves)).view.flatMap(i => leaves(s"$path[$i]", e)).take(MaxLeaves).toSeq
+    }
+    def named(n: String) = !n.startsWith("_")
+    def expand(name: String, t: ChirrtlParser.Type, kind: String, at: Option[ChirrtlParser.SrcInfo]) =
+      leaves(name, t).take(MaxLeaves).map { case (n, w) => SignalDef(n, kind, w, src(at)) }
+    val regs = cm.regs.filter(r => named(r.name) && !r.inLayer).flatMap(r => expand(r.name, r.tpe, "reg", r.src))
+    val rest: Seq[(Int, Seq[SignalDef])] =
+      cm.wires.filter(w => named(w.name) && !w.inLayer).map(w => w.idx -> expand(w.name, w.tpe, "wire", w.src)) ++
+        cm.nodes.filter(n => named(n.name) && !n.inLayer).map(n => n.idx -> Seq(SignalDef(n.name, "wire", 0, src(n.src))))
+    regs ++ rest.sortBy(_._1).flatMap(_._2)
+  }
+
+  /** How many ground leaves [[signalsOf]] leaves out of the module's aggregates
+    * ([[MaxLeaves]] each, the first ones in order, so a cap anywhere inside
+    * keeps exactly the first [[MaxLeaves]] overall). */
+  private def cutLeaves(mod: Option[ChirrtlParser.Mod]): Long = mod.toSeq.flatMap { cm =>
+    def count(t: ChirrtlParser.Type): Long = t match {
+      case ChirrtlParser.GroundT(_, _) => 1L
+      case ChirrtlParser.BundleT(fs)   => fs.map(f => count(f.tpe)).sum
+      case ChirrtlParser.VecT(e, n)    => n.toLong * count(e)
+    }
+    def named(n: String) = !n.startsWith("_")
+    cm.regs.filter(r => named(r.name) && !r.inLayer).map(r => count(r.tpe)) ++
+      cm.wires.filter(w => named(w.name) && !w.inLayer).map(w => count(w.tpe))
+  }.map(n => math.max(0L, n - MaxLeaves)).sum
+
+  private val FallbackNote ="Transitions are not available: the state machine's Scala source could not be read."
   private val NoIndexNote  = "Transitions are not shown: this view was built without the Scala source index."
   private val LitValue     = """^(?:UInt|SInt)(?:<\d+>)?\((.*)\)$""".r
 

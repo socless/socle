@@ -9,10 +9,17 @@
 //
 // Usage (from the repo root, after `./mill socless-ui.dist`, the elaborated designs
 // `./mill example.soclessRunGcd` and `./mill example.soclessRunDeepSoc`, and the
-// captured FSM design `./mill example.soclessCapturedFsm`):
+// captured FSM and GCD designs `./mill example.soclessCapturedFsm` and
+// `./mill example.soclessCapturedGcd`):
 //   node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
 //     --deep out/example/soclessRunDeepSoc.dest/design.json \
-//     --fsm out/example/soclessCapturedFsm.dest/design.json
+//     --fsm out/example/soclessCapturedFsm.dest/design.json \
+//     --gcd out/example/soclessCapturedGcd.dest/design.json
+//
+// The Waveform check (8) stands in for the language server: it serves /ide.json
+// (mutable), a ChiselSim GCD trace (tools/ui-smoke/fixtures/gcd-trace.vcd) and its
+// names under /wave/<id>/, the vendored Surfer (socless-lsp/vendor/surfer, the
+// files the server jar packs) under /surfer/, and records POST /wave/select.
 //
 // Serves the dist page itself (loopback, free port) with a two-entry designs.json so
 // the multi-top picker shows in normal mode. Uses CHROMIUM=/path like smoke.mjs.
@@ -31,7 +38,30 @@ const UI = args.ui || 'out/socless-ui/dist.dest/SoCLess.html';
 const DESIGN = args.design || 'out/example/soclessRunGcd.dest/design.json';
 const DEEP = args.deep || 'out/example/soclessRunDeepSoc.dest/design.json'; // a design with instances
 const FSM = args.fsm || 'out/example/soclessCapturedFsm.dest/design.json'; // an FSM block with a state diagram
-for (const f of [UI, DESIGN, DEEP, FSM]) if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
+const GCD = args.gcd || 'out/example/soclessCapturedGcd.dest/design.json'; // a captured design with its signals
+const VCD = args.vcd || 'tools/ui-smoke/fixtures/gcd-trace.vcd'; // a ChiselSim (Verilator) trace of that design
+const SURFER = args.surfer || 'socless-lsp/vendor/surfer'; // the vendored Surfer WASM build
+const SHOTS = args.shots || null; // where to save the Waveform screenshot
+for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURFER}/surfer_bg.wasm`])
+  if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
+
+// The stand-in language server state for check 8: /ide.json (404 while null), the
+// POST /wave/select bodies, and how often each Surfer file was fetched.
+const wave = { ide: null, posts: [], surferJs: 0, surferWasm: 0 };
+// The trace's full dotted var paths, from its VCD header (as the server's TraceNames).
+const vcdNames = (() => {
+  const scopes = []; const names = [];
+  for (const line of readFileSync(VCD, 'utf8').split('\n')) {
+    const t = line.trim().split(/\s+/);
+    if (t[0] === '$scope') scopes.push(t[2]);
+    else if (t[0] === '$upscope') scopes.pop();
+    else if (t[0] === '$var') names.push([...scopes, t[4]].join('.'));
+    else if (t[0] === '$enddefinitions') break;
+  }
+  return names;
+})();
+const PREFIX = 'TOP.svsimTestbench.dut';
+const names = (drop) => JSON.stringify({ prefix: PREFIX, names: vcdNames.filter((n) => !drop.includes(n)) });
 
 const files = {
   '/': ['text/html', readFileSync(UI)],
@@ -40,11 +70,40 @@ const files = {
   '/deep/design.json': ['application/json', readFileSync(DEEP)],
   '/fsm/': ['text/html', readFileSync(UI)],
   '/fsm/design.json': ['application/json', readFileSync(FSM)],
+  '/gcd/': ['text/html', readFileSync(UI)],
+  '/gcd/design.json': ['application/json', readFileSync(GCD)],
+  '/wave/t1/trace': ['application/octet-stream', readFileSync(VCD)],
+  '/wave/t1/names': ['application/json', names([])],
+  // the second trace's names lack one register: the panel counts it missing
+  '/wave/t2/trace': ['application/octet-stream', readFileSync(VCD)],
+  '/wave/t2/names': ['application/json', names([`${PREFIX}.y`])],
+  // the third trace lacks `y` (renamed in its header, so its value changes stay
+  // valid) and its names are unknown, as an FST's: Surfer itself drops `y`
+  '/wave/t3/trace': ['application/octet-stream', readFileSync(VCD, 'utf8').replace("$var wire 16 ' y [15:0] $end", "$var wire 16 ' yy [15:0] $end")],
+  '/wave/t3/names': ['application/json', JSON.stringify({ prefix: PREFIX, names: [] })],
   '/designs.json': ['application/json', JSON.stringify({ designs: [
     { id: 'a', label: 'A', path: 'design.json' }, { id: 'b', label: 'B', path: 'design.json' }] })],
 };
 const server = http.createServer((req, res) => {
-  const f = files[req.url.split('?')[0]];
+  const path = req.url.split('?')[0];
+  if (path === '/gcd/ide.json') {
+    if (!wave.ide) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(wave.ide)); return;
+  }
+  if (req.method === 'POST' && path.endsWith('/wave/select')) {
+    let body = '';
+    req.on('data', (c) => { body += c; });
+    req.on('end', () => { wave.posts.push({ path, type: req.headers['content-type'], body }); res.writeHead(204); res.end(); });
+    return;
+  }
+  if (path === '/surfer/surfer.js' || path === '/surfer/surfer_bg.wasm') {
+    const js = path.endsWith('.js');
+    if (js) wave.surferJs++; else wave.surferWasm++;
+    res.writeHead(200, { 'content-type': js ? 'text/javascript' : 'application/wasm' });
+    res.end(readFileSync(`${SURFER}/${path.slice('/surfer/'.length)}`)); return;
+  }
+  const f = files[path];
   if (!f) { res.writeHead(404); res.end(); return; }
   res.writeHead(200, { 'content-type': f[0] }); res.end(f[1]);
 });
@@ -65,7 +124,9 @@ const PARENT_DEEP = `http://localhost:${server.address().port}/parent-deep.html`
 
 const EXEC = process.env.CHROMIUM
   || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable'].find((p) => existsSync(p));
-const browser = await chromium.launch(EXEC ? { executablePath: EXEC, args: ['--no-sandbox'] } : { args: ['--no-sandbox'] });
+// Software WebGL: Surfer (egui) draws with WebGL, which headless Chromium has only through SwiftShader.
+const LAUNCH_ARGS = ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'];
+const browser = await chromium.launch(EXEC ? { executablePath: EXEC, args: LAUNCH_ARGS } : { args: LAUNCH_ARGS });
 
 const failures = [];
 const check = (where, ok, msg) => { console.log(`  ${ok ? 'ok  ' : 'FAIL'} [${where}] ${msg}`); if (!ok) failures.push(where); };
@@ -141,7 +202,7 @@ async function waitLoaded(frame) {
   await page.keyboard.press('Control+k');
   const cmds = await page.locator('[data-command-palette]').innerText();
   check('embedded', !/Toggle theme/.test(cmds), 'no "Toggle theme" command');
-  check('embedded', !/waveform/.test(cmds), 'bottom panel command says ports only');
+  check('embedded', /ports \/ waveform/.test(cmds) && !/source \/ waveform/.test(cmds), 'bottom panel command says ports / waveform, no source');
   check('embedded', !/Toggle hierarchy panel|Toggle inspector panel/.test(cmds), 'no hierarchy / inspector toggle commands');
   await page.keyboard.press('Escape');
   // A window posting to itself is not the parent: ignored.
@@ -265,6 +326,245 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await page.waitForTimeout(200);
   check('fsm', (await count(page, '[data-fsm-diagram]')) === 0 && (await count(page, `[data-fsm="${id}"]`)) === 1, 'Escape closes it');
   check('fsm', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 8. The Waveform tab follows the selection. The page plays the VS Code panel of
+// the language server after Simulate of `GcdSpec / GCD computes gcd(48, 18)`.
+// Embedded Surfer (`surfer-panel`): no trace yet, the tab says how to get one; a
+// trace arrives, Surfer boots once and shows GCD's plan, grouped by port; smaller
+// selections focus their signal, a focus below the visible rows scrolls into view;
+// another test pauses following; a new trace loads in place and counts a missing
+// signal, as does a path Surfer drops itself (names unknown, as for FST); following
+// off does nothing. Then `surfer` (the app, driven by the server) POSTs the
+// selection, a page load POSTs the module in view, and `custom` sends nothing.
+{
+  const TEST = 'GCD computes gcd(48, 18)';
+  const TRACE_TEST = `gcd.GcdSpec#${TEST}`; // as the server stamps the trace: <suite>#<test>
+  const SETTINGS = { followSelection: true, showClockReset: false, foldBundles: false, showWires: true, colorByDirection: true, followDelayMs: 150 };
+  // /ide.json as LiveHttp writes it: `test` is the bare test name, `suite` its suite.
+  wave.ide = { status: 'ok', message: '', focusClass: '', test: TEST, suite: 'gcd.GcdSpec', stamp: 1, waveViewer: 'surfer-panel', trace: '', traceTest: '', waveSettings: SETTINGS };
+  const setIde = async (patch) => { wave.ide = { ...wave.ide, ...patch, stamp: wave.ide.stamp + 1 }; await new Promise((r) => setTimeout(r, 2000)); }; // > one 1500 ms poll
+  const { ctx, page, errors } = await open('/gcd/?host=vscode&theme=light');
+  await waitLoaded(page);
+  const snap = () => page.evaluate(() => window.__soclessWave ? window.__soclessWave.snapshot() : null);
+  const waitSnap = async (what, pred, ms = 20000) => {
+    for (let t = 0; t < ms; t += 200) { const s = await snap(); if (s && pred(s)) return s; await page.waitForTimeout(200); }
+    check('wave', false, `timed out waiting for ${what}: ${JSON.stringify(await snap())}`);
+    return null;
+  };
+  const P = (leaf) => `${PREFIX}.${leaf}`;
+  const stub = (id) => page.locator(`[data-boundary-stub="${id}"]`).first().click();
+
+  // No trace yet: the Waveform tab is there and explains how to get one; selecting is harmless.
+  await page.click('[data-toggle-pane="bottom"]'); // embedded, the bottom panel starts closed
+  const tab = await page.waitForSelector('[data-bottom-tab="wave"]', { timeout: 10000 }).then(() => true).catch(() => false);
+  check('wave', tab, 'Waveform tab shown in embedded mode for surfer-panel');
+  await page.click('[data-bottom-tab="wave"]').catch(() => {});
+  const hint = await page.locator('[data-wave-hint]').innerText().catch(() => '');
+  check('wave', /Simulate/.test(hint), `no trace: the tab says how to get one (${JSON.stringify(hint)})`);
+  await stub('io.in.valid');
+  await page.waitForTimeout(400);
+  check('wave', wave.surferJs === 0, 'no trace: Surfer not loaded');
+
+  // A trace arrives: Surfer boots once and shows GCD's plan in order, grouped by port.
+  await setIde({ trace: '/wave/t1/trace', traceTest: TRACE_TEST });
+  const ready = await page.waitForSelector('[data-surfer-status="ready"]', { timeout: 120000 }).then(() => true).catch(() => false);
+  check('wave', ready, 'Surfer reports loaded');
+  const shown = await waitSnap('the top plan', (s) => s.idle && s.shown && s.shown.path === '["GCD"]' && s.loadedTrace.endsWith('/wave/t1/trace'), 30000);
+  const items = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
+  // GCD's plan (WaveLayout): one group per port, its bundles nested (a Decoupled
+  // reads valid, ready, bits, BundleTree's order), then the registers.
+  const want = ['group io', 'group io.in', P('io_in_valid'), P('io_in_ready'), 'group io.in.bits', P('io_in_bits_a'), P('io_in_bits_b'),
+    'group io.out', P('io_out_valid'), P('io_out_ready'), 'group io.out.bits', P('io_out_bits_result'),
+    'group Registers', P('x'), P('y'), P('busy')];
+  check('wave', JSON.stringify(got) === JSON.stringify(want), `Surfer shows GCD's plan in order\n      got  ${JSON.stringify(got)}\n      want ${JSON.stringify(want)}`);
+  check('wave', (await count(page, '[data-wave-missing]')) === 0, 'nothing missing from the first trace');
+  // Each signal shows its short label (ItemNameChange), its group says the rest; a
+  // multi-bit one keeps its width as Surfer showed it.
+  const label = (t) => (items.find((i) => i.trace === t) || {}).name;
+  check('wave', label(P('io_in_valid')) === 'valid' && label(P('io_out_bits_result')) === 'result [15:0]' && label(P('x')) === 'x [15:0]',
+    `short labels (${label(P('io_in_valid'))}, ${label(P('io_out_bits_result'))}, ${label(P('x'))})`);
+  if (SHOTS) {
+    // a taller panel, so every signal shows
+    const h = await page.locator('[data-bottom-resize]').boundingBox();
+    await page.mouse.move(h.x + 100, h.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 100, h.y - 260, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(1000); // Surfer redraws at the new size
+    await page.locator('[data-bottom-panel]').screenshot({ path: `${SHOTS}/wave-gcd.png` });
+    console.log(`  shot ${SHOTS}/wave-gcd.png`);
+  }
+
+  // Smaller selections focus their signal: a port, a block (its first pin), a wire, a bundle (its first field).
+  const focusAfter = async (what, act, trace) => {
+    const before = (await snap()).focusCount;
+    await act();
+    const s = await waitSnap(`the focus of ${what}`, (x) => x.idle && x.focusCount > before && x.lastFocus);
+    check('wave', !!s && s.lastFocus.trace === trace && s.lastFocus.ok, `${what} focuses ${trace} (${JSON.stringify(s && s.lastFocus)})`);
+  };
+  await focusAfter('port io.out.bits.result', () => stub('io.out.bits.result'), P('io_out_bits_result'));
+  await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
+  await focusAfter('wire from blk$GCD$logic.io_in_bits_a', () => page.locator('[data-wire="blk$GCD$logic.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
+  await focusAfter('bundle io.out', () => page.evaluate(() => window.__soclessWave.select('io.out')), P('io_out_valid'));
+  // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
+  // index): a short panel, then the last signal.
+  {
+    const h = await page.locator('[data-bottom-resize]').boundingBox();
+    await page.mouse.move(h.x + 100, h.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(h.x + 100, h.y + 150, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(1000); // Surfer redraws at the new size
+    const rows = (await page.evaluate(() => window.__soclessWave.items()).catch(() => [])).map((i) => i.trace);
+    await focusAfter('register busy (the last row)', () => page.evaluate(() => window.__soclessWave.select('busy')), P('busy'));
+    const s = await snap();
+    check('wave', !!s.lastScroll && s.lastScroll.index === rows.indexOf(P('busy')) && s.lastScroll.index > 0,
+      `the focus scrolled its row into view (ScrollToItem ${JSON.stringify(s.lastScroll)}, row ${rows.indexOf(P('busy'))})`);
+    if (SHOTS) { await page.locator('[data-bottom-panel]').screenshot({ path: `${SHOTS}/wave-scroll.png` }); console.log(`  shot ${SHOTS}/wave-scroll.png`); }
+    const h2 = await page.locator('[data-bottom-resize]').boundingBox();
+    await page.mouse.move(h2.x + 100, h2.y + 3);
+    await page.mouse.down();
+    await page.mouse.move(h2.x + 100, h2.y - 150, { steps: 5 });
+    await page.mouse.up();
+    await page.waitForTimeout(500);
+  }
+  // The canvas survives the panel closing and reopening and other tabs: Surfer still answers.
+  await page.click('[data-toggle-pane="bottom"]');
+  await page.waitForTimeout(300);
+  await page.click('[data-toggle-pane="bottom"]');
+  await page.click('[data-bottom-tab="ports"]');
+  await page.click('[data-bottom-tab="wave"]');
+  await focusAfter('port io.in.bits.a after closing the panel', () => stub('io.in.bits.a'), P('io_in_bits_a'));
+
+  // Folded bundles (wavesFoldBundles): the plan is redone with its bundle groups
+  // folded (GroupFold); a focus inside unfolds them first (GroupUnfold).
+  const visible = async () => (await page.evaluate(() => window.__soclessWave.items()).catch(() => []))
+    .map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace));
+  await page.evaluate(() => window.__soclessWave.select(null)); // no selection: no focus unfolds a group
+  await setIde({ waveSettings: { ...SETTINGS, foldBundles: true } });
+  await waitSnap('the folded plan', (s) => s.idle);
+  const foldedItems = await visible();
+  const wantFolded = ['group io', 'group io.in', 'group io.out', 'group Registers', P('x'), P('y'), P('busy')];
+  check('wave', JSON.stringify(foldedItems) === JSON.stringify(wantFolded), `bundle groups folded ${JSON.stringify(foldedItems)}`);
+  await focusAfter('port io.in.bits.a in a folded bundle', () => stub('io.in.bits.b').then(() => stub('io.in.bits.a')), P('io_in_bits_a'));
+  const unfolded = await visible();
+  check('wave', unfolded.includes(P('io_in_bits_a')) && unfolded.includes(P('io_in_bits_b')) && !unfolded.includes(P('io_out_valid')),
+    `the focus unfolded its groups only ${JSON.stringify(unfolded)}`);
+  await setIde({ waveSettings: SETTINGS });
+  await waitSnap('the unfolded plan', (s) => s.idle);
+
+  // A burst of selections: only the last one reaches Surfer (debounced, one exchange at a time).
+  const burst0 = (await snap()).focusCount;
+  await page.evaluate(() => ['io.in.valid', 'io.in.ready', 'io.out.valid', 'io.in.bits.b'].forEach((x) => window.__soclessWave.select(x)));
+  const burst = await waitSnap('the burst', (x) => x.idle && x.focusCount > burst0);
+  await page.waitForTimeout(500);
+  const burst1 = await snap();
+  check('wave', !!burst && burst1.focusCount === burst0 + 1 && burst1.lastFocus.trace === P('io_in_bits_b'),
+    `a burst of 4 selections focuses once, the last (${burst1.focusCount - burst0}, ${JSON.stringify(burst1.lastFocus)})`);
+
+  // The keyboard still drives the panel once Surfer runs (its canvas is not focused).
+  await stub('io.out.valid');
+  await page.keyboard.press('Control+k');
+  check('wave', (await count(page, '[data-command-palette]')) === 1, 'Ctrl+K opens the palette with Surfer running');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('?');
+  check('wave', (await count(page, '[data-help-overlay]')) === 1, '? opens the help with Surfer running');
+  await page.keyboard.press('Escape');
+
+  // Another test in the panel: following pauses, and the tab says why.
+  await setIde({ test: 'GCD something else' });
+  const paused = await page.locator('[data-wave-paused]').innerText().catch(() => '');
+  check('wave', /paused/i.test(paused), `another test pauses following (${JSON.stringify(paused)})`);
+  const f0 = (await snap()).focusCount;
+  await stub('io.in.valid');
+  await page.waitForTimeout(800);
+  check('wave', (await snap()).focusCount === f0, 'paused: a selection does not reach Surfer');
+  await setIde({ test: TEST });
+  // The same test name in another suite is another test: still paused.
+  await setIde({ suite: 'other.OtherSpec' });
+  const paused2 = await page.locator('[data-wave-paused]').innerText().catch(() => '');
+  check('wave', /paused/i.test(paused2), `the same test name in another suite pauses following (${JSON.stringify(paused2)})`);
+  const f2 = (await snap()).focusCount;
+  await stub('io.in.ready');
+  await page.waitForTimeout(800);
+  check('wave', (await snap()).focusCount === f2, 'another suite: a selection does not reach Surfer');
+  await setIde({ suite: 'gcd.GcdSpec' });
+
+  // A new Simulate: the new trace loads in place (no second boot) and a missing signal is counted.
+  await setIde({ trace: '/wave/t2/trace' });
+  await waitSnap('the second trace', (s) => s.idle && s.loadedTrace.endsWith('/wave/t2/trace') && s.shown && s.shown.trace.endsWith('/wave/t2/trace'), 30000);
+  const missing = await page.locator('[data-wave-missing]').innerText().catch(() => '');
+  check('wave', missing.trim() === '1 signal not in the trace', `missing count shown (${JSON.stringify(missing)})`);
+  const items2 = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  check('wave', !items2.some((i) => i.trace === P('y')) && items2.some((i) => i.trace === P('x')), 'the missing register is not shown, the others are');
+  check('wave', wave.surferJs === 1 && wave.surferWasm === 1 && (await snap()).boots === 1, `Surfer booted once (js ${wave.surferJs}, wasm ${wave.surferWasm})`);
+
+  // A trace whose names are unknown (as an FST's): the plan keeps every signal and
+  // Surfer drops the one it lacks; the rest of its group is still matched by name.
+  await setIde({ trace: '/wave/t3/trace' });
+  await waitSnap('the third trace', (s) => s.idle && s.shown && s.shown.trace.endsWith('/wave/t3/trace'), 30000);
+  const missing3 = await page.locator('[data-wave-missing]').innerText().catch(() => '');
+  check('wave', missing3.trim() === '1 signal not in the trace', `a path Surfer dropped is counted missing (${JSON.stringify(missing3)})`);
+  const items3 = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const regs3 = items3.filter((i) => i.type !== 'Group').map((i) => i.trace);
+  check('wave', regs3.includes(P('x')) && regs3.includes(P('busy')) && !regs3.includes(P('y')) && !regs3.includes(null),
+    `the dropped register's group keeps its other signals, each matched ${JSON.stringify(regs3.slice(-3))}`);
+  await focusAfter('register busy beside a dropped one', () => page.evaluate(() => window.__soclessWave.select('busy')), P('busy'));
+
+  // Following off: selections do nothing.
+  await setIde({ waveSettings: { ...SETTINGS, followSelection: false } });
+  const f1 = (await snap()).focusCount;
+  await stub('io.out.bits.result');
+  await page.waitForTimeout(800);
+  check('wave', (await snap()).focusCount === f1, 'wavesFollowSelection=false: a selection does not reach Surfer');
+  await setIde({ waveSettings: SETTINGS });
+
+  // `surfer` (the app): the UI only POSTs the selection, with the trace's test and the module path.
+  await setIde({ waveViewer: 'surfer' });
+  wave.posts = [];
+  await stub('io.in.bits.b');
+  await page.waitForTimeout(800);
+  const want2 = { traceTest: TRACE_TEST, instPath: ['GCD'], selection: 'io.in.bits.b' };
+  const bodies = wave.posts.map((x) => JSON.parse(x.body));
+  check('wave', wave.posts.length === 1 && JSON.stringify(bodies[0]) === JSON.stringify(want2) && /application\/json/.test(wave.posts[0].type),
+    `surfer mode POSTs /wave/select ${JSON.stringify(wave.posts)}`);
+  check('wave', (await count(page, '[data-bottom-tab="wave"]')) === 0, 'surfer mode: no Waveform tab embedded');
+
+  // `custom`: nothing is sent.
+  await setIde({ waveViewer: 'custom' });
+  wave.posts = [];
+  await stub('io.out.valid');
+  await page.waitForTimeout(800);
+  check('wave', wave.posts.length === 0, `custom mode sends nothing ${JSON.stringify(wave.posts)}`);
+  check('wave', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+
+  // `surfer`, the panel (re)loaded on a trace: it POSTs the module in view, with no
+  // selection, so the app shows it whatever it showed before.
+  wave.ide = { ...wave.ide, waveViewer: 'surfer', trace: '/wave/t1/trace', traceTest: TRACE_TEST, waveSettings: SETTINGS, stamp: wave.ide.stamp + 1 };
+  wave.posts = [];
+  const reload = await open('/gcd/?host=vscode&theme=light');
+  await waitLoaded(reload.page);
+  for (let t = 0; t < 5000 && wave.posts.length === 0; t += 200) await reload.page.waitForTimeout(200);
+  await reload.page.waitForTimeout(500);
+  const loadBodies = wave.posts.map((x) => JSON.parse(x.body));
+  check('wave', loadBodies.length === 1 && JSON.stringify(loadBodies[0]) === JSON.stringify({ traceTest: TRACE_TEST, instPath: ['GCD'], selection: null }),
+    `surfer mode: a page load POSTs the current path ${JSON.stringify(loadBodies)}`);
+  check('wave', reload.errors.length === 0, `no page errors ${reload.errors.join(' | ')}`);
+  await reload.ctx.close();
+  wave.ide = null;
+}
+
+// 9. The debug hook is installed only where the smoke needs it (embedded, or once
+// the panel has a trace to show): a normal page without a trace has no
+// window.__soclessWave.
+{
+  const { ctx, page } = await open('/');
+  await waitLoaded(page);
+  check('hook', (await page.evaluate(() => typeof window.__soclessWave)) === 'undefined', 'no __soclessWave on a normal page');
   await ctx.close();
 }
 

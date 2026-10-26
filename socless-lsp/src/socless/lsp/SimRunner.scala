@@ -3,28 +3,60 @@ package socless.lsp
 import com.google.gson.JsonObject
 import scala.util.Try
 import scala.util.control.NonFatal
+import socless.wave.WaveSettings
 
 /** One test to simulate: the source file it was asked from, its suite and full name. */
 case class SimRequest(file: os.Path, suite: String, test: String)
 
 /** The Simulate settings: the ChiselSim ScalaTest option that turns waves on
-  * (`-D<waveFlag>=1`) and the executable that opens a trace. */
-case class SimSettings(waveFlag: String = SimSettings.DefaultWaveFlag, surferCommand: String = SimSettings.DefaultSurfer)
+  * (`-D<waveFlag>=1`), the executable that opens a trace, and the wave viewer
+  * choice (`surfer` | `surfer-panel` | `custom`, with its command) and
+  * [[WaveSettings]]. */
+case class SimSettings(
+    waveFlag: String = SimSettings.DefaultWaveFlag,
+    surferCommand: String = SimSettings.DefaultSurfer,
+    waveViewer: String = SimSettings.DefaultViewer,
+    waveViewerCommand: String = "",
+    wave: WaveSettings = WaveSettings()
+)
 
 object SimSettings {
   val DefaultWaveFlag = "emitVcd" // ChiselSim's own; Cli.EmitVcd
   val DefaultSurfer   = "surfer"
+  val DefaultViewer   = "surfer"
+  val Viewers         = Set("surfer", "surfer-panel", "custom")
 
   private val FlagName = "[A-Za-z0-9_.-]+"
 
   private def str(o: JsonObject, k: String): Option[String] =
     Option(o.get(k)).filter(_.isJsonPrimitive).map(_.getAsString.trim).filter(_.nonEmpty)
 
-  /** From an LSP settings object: `waveFlag` and `surferCommand`, each
-    * defaulted when absent, blank or (the flag) not an option name. */
-  private def fromObject(o: JsonObject): SimSettings =
-    SimSettings(str(o, "waveFlag").filter(_.matches(FlagName)).getOrElse(DefaultWaveFlag),
-      str(o, "surferCommand").getOrElse(DefaultSurfer))
+  private def bool(o: JsonObject, k: String, default: Boolean): Boolean =
+    Option(o.get(k)).filter(e => e.isJsonPrimitive && e.getAsJsonPrimitive.isBoolean)
+      .map(_.getAsBoolean).getOrElse(default)
+
+  private def nonNegInt(o: JsonObject, k: String, default: Int): Int =
+    Option(o.get(k)).filter(e => e.isJsonPrimitive && e.getAsJsonPrimitive.isNumber)
+      .flatMap(e => Try(e.getAsBigDecimal.intValueExact).toOption).filter(_ >= 0).getOrElse(default)
+
+  /** From an LSP settings object: every key defaulted when absent or invalid
+    * (blank text, a `waveFlag` that is not an option name, an unknown
+    * `waveViewer`, a negative or non-integer delay, a non-boolean flag). */
+  private def fromObject(o: JsonObject): SimSettings = {
+    val d = WaveSettings()
+    SimSettings(
+      str(o, "waveFlag").filter(_.matches(FlagName)).getOrElse(DefaultWaveFlag),
+      str(o, "surferCommand").getOrElse(DefaultSurfer),
+      str(o, "waveViewer").filter(Viewers).getOrElse(DefaultViewer),
+      str(o, "waveViewerCommand").getOrElse(""),
+      WaveSettings(
+        bool(o, "wavesFollowSelection", d.followSelection),
+        bool(o, "wavesShowClockReset", d.showClockReset),
+        bool(o, "wavesFoldBundles", d.foldBundles),
+        bool(o, "wavesShowWires", d.showWires),
+        bool(o, "wavesColorByDirection", d.colorByDirection),
+        nonNegInt(o, "wavesFollowDelayMs", d.followDelayMs)))
+  }
 
   /** A non-blank `waveFlag` in a flat settings object that is not an option
     * name (so [[fromInit]] ignored it), for a warning. */
@@ -70,9 +102,15 @@ final case class SimOutcome(passed: Boolean, waves: Option[os.Path], message: St
   * env is this process's plus `fork.env`; output goes to `<dir>/sim.log`.
   *
   * After the JVM exits (pass or fail) the newest `*.vcd` / `*.fst` under
-  * `<dir>` is opened with `<surferCommand> <trace>`, detached, its output in
-  * `<dir>/surfer.log`. One simulation at a time ([[start]] refuses a second);
-  * a run past `timeoutMs` has its process tree killed.
+  * `<dir>` is opened in the viewer [[SimRunner.viewerCommand]] names, detached,
+  * its output in `<dir>/surfer.log`; in `surfer` mode the language server
+  * starts Surfer itself, over WCP ([[WcpSession]]). One simulation at a time ([[start]]
+  * refuses a second); a run past `timeoutMs` has its process tree killed.
+  *
+  * A run that leaves a trace (pass or fail, not timed out) gets a random hex
+  * id ([[currentTrace]]), the name the live panel serves it under; the
+  * previous id is dropped as soon as the next run starts (its directory may
+  * be wiped).
   */
 final class SimRunner(
     root: os.Path,
@@ -84,6 +122,14 @@ final class SimRunner(
   private var running = Option.empty[SimRequest] // guarded by lock
   private var current = Option.empty[Process]    // the test JVM, guarded by lock
   private var closed  = false                    // guarded by lock
+  private var trace   = Option.empty[(String, os.Path, String)] // guarded by lock
+
+  /** The last run's trace (pass or fail, not timed out): its id (random hex), file and
+    * `<suite>#<test>`; None from the start of the next run. */
+  def currentTrace: Option[(String, os.Path, String)] = lock.synchronized(trace)
+
+  /** The simulation running, if any. */
+  def busy: Option[SimRequest] = lock.synchronized(running)
 
   def dirFor(suite: String, test: String): os.Path = SimRunner.dirFor(root, suite, test)
 
@@ -97,6 +143,7 @@ final class SimRunner(
       case busy @ Some(_) => busy
       case None =>
         running = Some(req)
+        trace = None
         started()
         val t = new Thread(() => {
           val out =
@@ -117,8 +164,14 @@ final class SimRunner(
     p.foreach(p => ProcessTree.kill(p.toHandle))
   }
 
-  /** One simulation, synchronously. Never throws for a run that fails. */
-  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = fork match {
+  /** One simulation, synchronously; drops the previous trace id first. Never
+    * throws for a run that fails. */
+  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = {
+    lock.synchronized { trace = None }
+    simulate(req, settings, fork)
+  }
+
+  private def simulate(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = fork match {
     case Left(msg) => SimOutcome(passed = false, None, s"Simulation not run: ${req.suite} ${req.test}. $msg")
     case Right(f) =>
       val dir = dirFor(req.suite, req.test)
@@ -151,18 +204,33 @@ final class SimRunner(
         case None if noTest => s"""No test named "${req.test}" ran in ${req.suite}."""
         case None => s"No waveform found (is waves support enabled? flag -D${settings.waveFlag}=1)"
         case Some(w) if lock.synchronized(closed) => s"Waves: $w" // shut down meanwhile: no viewer
-        case Some(w) => s"Waves: $w" + openWaves(settings.surferCommand, w, dir).fold("")(e => s" ($e)")
+        case Some(w) => s"Waves: $w" + openWaves(settings, w, dir).fold("")(e => s" ($e)")
       }
+      // a failing test's waves are the ones to look at; a killed run's trace is cut short
+      if (!timedOut) waves.foreach(w => lock.synchronized { if (!closed) trace = Some((SimRunner.newId(), w, s"${req.suite}#${req.test}")) })
       SimOutcome(passed, waves, s"${SimRunner.head(req, passed)}$timeout $tail")
   }
 
   /** Starts the viewer detached (never waited on, output to a log file, never
-    * our stdout). Some(problem) when it cannot be started. */
-  private def openWaves(surfer: String, trace: os.Path, dir: os.Path): Option[String] = {
+    * our stdout); none for `surfer` and `surfer-panel`. Some(problem) when it cannot be started. */
+  private def openWaves(settings: SimSettings, trace: os.Path, dir: os.Path): Option[String] =
+    SimRunner.viewerCommand(settings, trace).flatMap(openWith(_, trace, dir))
+
+  private def openWith(cmd: Seq[String], trace: os.Path, dir: os.Path): Option[String] =
+    SimRunner.launch(cmd, trace, dir, log, append = false)
+}
+
+object SimRunner {
+  /** Starts `cmd` on `trace` detached in `dir` (never waited on, empty stdin,
+    * output to `dir/surfer.log`, appended to when `append`, never our stdout).
+    * Some(problem) when it cannot be started. */
+  private[lsp] def launch(cmd: Seq[String], trace: os.Path, dir: os.Path, log: String => Unit, append: Boolean): Option[String] = {
+    val surfer = cmd.head
     val viewerLog = dir / "surfer.log"
     try {
-      new ProcessBuilder(surfer, trace.toString).directory(dir.toIO)
-        .redirectOutput(viewerLog.toIO).redirectErrorStream(true).start()
+      val out = if (append) ProcessBuilder.Redirect.appendTo(viewerLog.toIO) else ProcessBuilder.Redirect.to(viewerLog.toIO)
+      new ProcessBuilder(cmd: _*).directory(dir.toIO)
+        .redirectOutput(out).redirectErrorStream(true).start()
         .getOutputStream.close() // empty stdin, never ours (the LSP channel)
       log(s"simulate: opened $trace with $surfer (log $viewerLog)")
       None
@@ -172,10 +240,30 @@ final class SimRunner(
         Some(s"cannot start $surfer: ${e.getMessage}")
     }
   }
-}
 
-object SimRunner {
   val DefaultTimeoutMs: Long = 30L * 60 * 1000
+
+  private val random = new java.security.SecureRandom
+
+  /** 128 random bits, in hex: a trace id nobody can guess. */
+  private def newId(): String = {
+    val b = new Array[Byte](16)
+    random.nextBytes(b)
+    b.map("%02x".format(_)).mkString
+  }
+
+  /** The viewer to open `trace` with, by `waveViewer`: `surfer` runs nothing
+    * here (the language server starts it over WCP); `surfer-panel` runs nothing
+    * (the panel shows it); `custom` runs `waveViewerCommand` split on
+    * whitespace, each `{file}` replaced by the trace path, or the path appended
+    * when no word has `{file}` (no shell); `<surferCommand> <trace>` when it is empty. */
+  private[lsp] def viewerCommand(s: SimSettings, trace: os.Path): Option[Seq[String]] = s.waveViewer match {
+    case "surfer" | "surfer-panel" => None
+    case "custom" if s.waveViewerCommand.trim.nonEmpty =>
+      val words = s.waveViewerCommand.trim.split("\\s+").toSeq
+      Some(if (words.exists(_.contains("{file}"))) words.map(_.replace("{file}", trace.toString)) else words :+ trace.toString)
+    case _ => Some(Seq(s.surferCommand, trace.toString))
+  }
 
   private[lsp] def head(req: SimRequest, passed: Boolean): String =
     s"Simulation ${if (passed) "passed" else "failed"}: ${req.suite} ${req.test}."

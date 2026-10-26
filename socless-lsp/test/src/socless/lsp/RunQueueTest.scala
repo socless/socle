@@ -35,6 +35,20 @@ object RunQueueTest extends TestSuite {
         assert(results.asScala.toSeq == Seq("A", "D"))
       } finally q.close()
     }
+    test("submit returns the pending request it replaced") {
+      val started = new CountDownLatch(1)
+      val release = new CountDownLatch(1)
+      val q = new RunQueue(r => {
+        if (r.test == "A") { started.countDown(); release.await(10, TimeUnit.SECONDS) }
+        dummy
+      }, (_, _) => ())
+      try {
+        val (a, b, c) = (req("A"), req("B"), req("C"))
+        assert(q.submit(a).isEmpty, started.await(10, TimeUnit.SECONDS))
+        assert(q.submit(b).isEmpty) // A is running, not pending
+        assert(q.submit(c).exists(_ eq b))
+      } finally { release.countDown(); q.close() }
+    }
     test("exec throwing keeps the worker alive") {
       val done    = new CountDownLatch(2)
       val results = new ConcurrentLinkedQueue[(String, RunResult)]
