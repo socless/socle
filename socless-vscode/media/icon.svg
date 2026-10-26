@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Marketplace logo source; render to icon.png (256x256): rsvg-convert -w 256 -h 256 icon.svg -o icon.png -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10243d"/>
+      <stop offset="1" stop-color="#0a1626"/>
+    </linearGradient>
+  </defs>
+  <rect x="10" y="10" width="108" height="108" rx="24" fill="url(#bg)"/>
+  <path stroke="#39c2ff" stroke-width="5" stroke-linecap="round" d="M45 24v12M57 24v12M71 24v12M83 24v12M45 92v12M57 92v12M71 92v12M83 92v12M24 45h12M24 57h12M24 71h12M24 83h12M92 45h12M92 57h12M92 71h12M92 83h12"/>
+  <rect x="36" y="36" width="56" height="56" rx="7" fill="#173556" stroke="#39c2ff" stroke-width="4"/>
+  <path d="M43 78h9V52h15v26h6" fill="none" stroke="#ffd166" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- the chisel, drawn along +x with its tip at the origin, after the Chisel logo's silhouette -->
+  <g transform="translate(74,77) rotate(-56) scale(1.12)">
+    <path d="M34,-7 C38,-7 38,-3.6 41.5,-3.6 C45.5,-3.6 47,-9.5 53,-9.5 H66.5 A9.5,9.5 0 0 1 66.5,9.5 H53 C47,9.5 45.5,3.6 41.5,3.6 C38,3.6 38,7 34,7 Z" fill="#d08a3a"/>
+    <path d="M53,-9.5 H66.5 A9.5,9.5 0 0 1 75.6,-3 H50 C51,-6.5 51.5,-9.5 53,-9.5 Z" fill="#e3a65e"/>
+    <polygon points="2,-7 34.5,-7 34.5,7 0,7" fill="#c9d4e0"/>
+    <polygon points="3.5,-7 34.5,-7 34.5,-3 2.4,-3" fill="#eef3f8"/>
+  </g>
+</svg>
