@@ -93,6 +93,12 @@ vim.api.nvim_create_autocmd('CursorHold', {
 The panel listens on `127.0.0.1` only, on a new port for each server. Quitting
 Neovim stops the server and the panel.
 
+The browser panel draws the same schematic as the VS Code panel: logic grouped
+into FSM, generator-loop and `logic` blocks, an FSM block's state diagram,
+folded generator copies and tied-port stubs. See
+[The schematic in the IDE view](ide-vscode.md#the-schematic-in-the-ide-view)
+in the VS Code guide.
+
 ## Simulate
 
 Each test with a `View design` lens also gets a `Simulate` lens. It runs that

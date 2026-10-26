@@ -7,7 +7,7 @@ SoCLess is a Mill plugin for Chisel that exports elaborated hardware designs to
 
 | Tool | Version |
 |------|---------|
-| JDK | 11 or 17 (tested) |
+| JDK | 21 (what CI uses; the language server needs 21 or newer) |
 | Mill | 1.1.6 (pinned in `build.mill`) |
 
 The included `./mill` wrapper script downloads Mill automatically on first run.
@@ -80,12 +80,45 @@ socless/src/socless/    # runtime exporter library (Scala 2.13 + Chisel)
 socless-js/             # Scala.js layout engine (shares pure sources with the backend)
 socless-ui/             # Scala.js + Laminar frontend (the shipped UI)
 mill-socless/           # Mill plugin trait (Scala 3)
+socless-probe/          # Java agent: captures a ChiselSim test's design (IDE view mode)
+socless-lsp/            # language server for the Chisel IDE (lenses, live panel, Simulate)
+socless-vscode/         # VS Code extension (Scala.js) around the language server
 example/src/            # bundled demo designs
+tools/                  # CI helpers (ci/selective.sh) and the UI smokes (ui-smoke/)
 ```
 
 See `CLAUDE.md` for a detailed breakdown of every source file and the key
 design decisions (CHIRRTL extraction surface, bundle deduplication, wire
 coalescing, etc.).
+
+## CI
+
+On a pull request, CI (`.github/workflows/ci.yml`) uses Mill selective
+execution through `tools/ci/selective.sh`: it snapshots the base commit, then
+runs only the test suites (`socless`, `socless-probe`, `socless-vscode`,
+`socless-lsp`) whose inputs changed. The browser UI smokes run only when one of
+the Mill tasks they drive (the UI dist, the assembly, an example design) is
+selected, or when a file under `tools/ui-smoke`, `tools/ci`,
+`socless/test/resources/chirrtl` or `.github/workflows` changed. Pushes to
+`main` run everything.
+
+When you add a test module or a task that drives a smoke, add it to
+`ALL_TASKS` in `tools/ci/selective.sh` (the snapshot only covers those tasks)
+and, for a smoke input, to the selector of the "Decide whether the UI smokes
+run" step in `ci.yml`.
+
+To run the UI smokes locally, see `tools/ui-smoke/README.md`: `smoke.mjs`
+(every example design), `serve-smoke.mjs` (the standalone server) and
+`embedded.mjs` (the VS Code panel mode, not run in CI). They use the system
+Chromium (`/usr/bin/chromium`); set `CHROMIUM=/path/to/chromium` to use
+another.
+
+```bash
+./mill socless-ui.dist && ./mill 'example.{soclessRunGcd,soclessRunDeepSoc,soclessCapturedFsm}'
+node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
+  --deep out/example/soclessRunDeepSoc.dest/design.json \
+  --fsm out/example/soclessCapturedFsm.dest/design.json
+```
 
 ## Contribution workflow
 

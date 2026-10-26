@@ -11,14 +11,20 @@ Today it reads **Chisel / CHIRRTL**. The viewer is a single, self-contained HTML
 file with no network dependencies, so a design is something you can open, share,
 and explore offline.
 
-There are two ways to use it, and **the standalone app and the Mill plugin are
-equal front doors** to the same UI:
+There are three ways in, all front doors to the same UI:
 
 - **Standalone app** - point the bundled, Python-free server at any `.fir`
   (CHIRRTL) or `design.json`, from any build that can emit CHIRRTL (sbt, mill,
   raw Chisel, ...). See **[docs/usage-standalone.md](docs/usage-standalone.md)**.
 - **Mill plugin** - the smoothest Chisel integration: one task elaborates your
   design and serves the UI. See **[docs/usage-mill.md](docs/usage-mill.md)**.
+- **Chisel IDE** - in a Mill project, a **View design** lens on every ChiselSim
+  test shows the design that test elaborates in a live panel beside your code
+  (no simulator needed, refreshed on save), and a **Simulate** lens runs the
+  test with waves and opens them in [Surfer](https://surfer-project.org/). Use
+  the VS Code extension ([docs/ide-vscode.md](docs/ide-vscode.md)) or the
+  language server in Neovim or any LSP editor
+  ([docs/ide-neovim.md](docs/ide-neovim.md)). Your tests are never modified.
 
 ## Features
 
@@ -28,6 +34,11 @@ equal front doors** to the same UI:
   constants, FSMs, and memories are drawn and routed, not hidden.
 - **Expand bundle ports** in place to see channels and fields; wires stay
   orthogonal and boxes move aside so nothing overlaps.
+- **IDE view** of a ChiselSim test: logic grouped into FSM, generator-loop and
+  `logic` blocks (a click opens the code), an FSM block opens into its state
+  diagram with Scala conditions on the transitions, generator copies
+  (`Seq.fill(n)(Module(...))`) fold into one box, and tied-off ports show
+  their constant as a small stub.
 - **Inspect** any wire or module (types, widths, registers/memories, source
   location) and **jump to the source** in your editor (VS Code / IntelliJ).
 - **Command palette** (Ctrl/Cmd-K): fuzzy search over modules, instances, and
@@ -54,14 +65,19 @@ mill example.soclessRunRegHeavy  # register-heavy design
 ```
 
 Then point it at your own design via the **[standalone
-app](docs/usage-standalone.md)** or the **[Mill plugin](docs/usage-mill.md)**.
+app](docs/usage-standalone.md)**, the **[Mill plugin](docs/usage-mill.md)** or
+the **[Chisel IDE](docs/ide-vscode.md)**. Each release on the
+[GitHub releases page](https://github.com/e-ban/SoCless/releases) attaches the
+standalone jar, the language server jar, the VS Code vsix and the single-file UI.
 
 ## How it works
 
 Chisel design -> `ChiselStage.emitCHIRRTL` -> CHIRRTL text -> typed AST -> bundle
 dedup + wire coalescing + logic-node extraction -> `design.json` -> the Scala.js
 UI. The exporter only uses Chisel's public CHIRRTL surface (no
-`chisel3.internal.*`), so it survives Chisel patch updates. Details in
+`chisel3.internal.*`), so it survives Chisel patch updates. The Chisel IDE
+captures the design a ChiselSim test elaborates with a Java agent instead, and
+groups its logic with the help of your Scala sources. Details in
 **[docs/how-it-works.md](docs/how-it-works.md)**; the per-file module map for
 contributors is in [CLAUDE.md](CLAUDE.md).
 
@@ -70,9 +86,10 @@ contributors is in [CLAUDE.md](CLAUDE.md).
 SoCLess is a hardware-inspection UI first; the Chisel/CHIRRTL exporter and the
 Mill plugin are the first integrations. Planned directions:
 
-- **Simulation frontend** - discover and run ChiselSim suites from the UI,
-  ingest the waveforms, and cross-probe them against the schematic (epic
-  [#127](https://github.com/e-ban/SoCless/issues/127)).
+- **Simulation frontend** - the first part has shipped: the Chisel IDE's
+  Simulate lens runs a ChiselSim test and opens its waves in Surfer. Still
+  planned: ingest the waveforms and cross-probe them against the
+  schematic (epic [#127](https://github.com/e-ban/SoCless/issues/127)).
 - **CIRCT multi-level IR** - inspect a design across lowering passes, not just
   at the CHIRRTL level.
 - **Exports & teamwork** - richer shareable artifacts and integrations for
@@ -82,5 +99,6 @@ Mill plugin are the first integrations. Planned directions:
 ## Contributing & releases
 
 - Build, test, and dev-loop details: [CONTRIBUTING.md](CONTRIBUTING.md).
+- What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 - Versioning and the release procedure: [RELEASING.md](RELEASING.md).
 - Architecture and design decisions for contributors: [CLAUDE.md](CLAUDE.md).

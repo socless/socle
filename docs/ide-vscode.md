@@ -14,7 +14,10 @@ leaves your machine.
 
 ## Install
 
-The extension is not on the Marketplace yet; build the vsix from this repo.
+The extension is not on the Marketplace yet. Download `socless-<version>.vsix`
+from the [GitHub releases](https://github.com/e-ban/SoCless/releases) page and
+install it with `code --install-extension socless-<version>.vsix`, or build it
+from this repo:
 
 ```bash
 ./mill socless-vscode.vsix
@@ -57,9 +60,9 @@ views. The webview beside the editor keeps only the schematic.
   test has two inline actions: `View design` (eye) and `Simulate` (play),
   the same commands as the lenses. The test whose design the panel shows is
   marked `shown` (eye icon); a test being viewed reads `running…`, one being
-  simulated `simulating…` (as the panel's run status: not when the simulation
-  starts while a view runs or has failed); a test whose last view failed shows an error
-  icon until a view of it succeeds. The list follows your saves: adding,
+  simulated `simulating…`, except while a view runs or after a view failed
+  (as in the panel's run status); a test whose last view failed shows an
+  error icon until a view of it succeeds. The list follows your saves: adding,
   renaming or removing a test updates it.
 - **Hierarchy**: the instance tree of the design in the panel (instance name,
   then its module, or the simple name of its Scala class for a captured
@@ -98,8 +101,8 @@ The panel is the SoCLess UI in embedded mode (the extension loads it with
   panel keeps Ports and starts closed; its toolbar button opens it;
 - no theme toggle or theme gallery: the panel follows the VS Code theme, light
   to the light theme, dark to the dark one, high contrast to the high-contrast
-  one and high contrast light to the light one, and switches live when you change the VS Code theme. This is not saved
-  as your theme in the browser UI;
+  one and high contrast light to the light one, and switches live when you
+  change the VS Code theme. This is not saved as your theme in the browser UI;
 - no multi-top design picker, no drop zone for `design.json` / `.fir` files and
   no `share` (HTML snapshot) button: the design always comes from the test you
   viewed. The `svg` and `png` exports stay;
@@ -107,65 +110,13 @@ The panel is the SoCLess UI in embedded mode (the extension loads it with
   commands: the [side panel](#the-socless-side-panel) shows them, and the
   schematic takes the whole width.
 
-Viewing a test again, or another one, or running `SoCLess: Show design panel`
-does not reload the panel: the new design loads in place, and the open panels
-and the drill path (while it exists in the new design) are kept.
-
-Generator copies (`Seq.fill(n)(Module(...))`) show folded:
-one box titled `<name> × <n>` stands for the n copies, and the wires into and
-out of them merge with their counts. The `+` on the box, or a double-click on
-it, unfolds the copies; the `−` on any copy folds them back. The choice is kept
-while you navigate. The side panel's Hierarchy tree still lists every copy;
-selecting a copy there unfolds its group.
-
-Inside a module, the logic that is not an instance collapses into blocks: an
-`FSM: <reg>` box for each state machine, a box labelled with its loop head for
-each generator loop (`for (b <- 0 until batch)`), and a `logic` box for the
-rest. A block's pins are the signals that cross its edge. A pin wired to a port
-or an instance is named after that signal without its Vec indices, so the lanes
-of `io.out.data.bits` share one pin, and a folded copy's pin takes the group's
-name (`acc_io_deq_bits`); a pin between two blocks is named after the signal
-that drives it. Selecting a block opens its
-code: the loop, the module, or for an FSM its `switch` line. Blocks that only carry debug logic
-(`printf`, `assert`) are labelled `debug logic` and stay hidden until you turn
-on `layers`. A port or an instance pin tied to a constant (`io.op := 0.U`) is
-not drawn as a constant node: the pin carries a short `|-` stub with the
-value (`0`; `0x2a` from 10 up). When several tie-offs land on one pin (a folded
-bundle row, a Vec group) with different values, the stub reads `<n> tied` and its
-tooltip lists `signal = value` (the first 10). A constant that is only a `when`
-default next to another driver is not a tie and gets no stub.
-
-Double-click an `FSM: <reg>` box (or click the `↵` at the right of its header,
-or focus it and press Enter) to open
-its state diagram: one node per state, the initial state marked by a dot, and an
-arrow per transition read from the `switch` in your source. An arrow's label is
-the Scala condition text of the `when` / `.elsewhen` that guards the assignment
-(`io.start`, `cond && !(inflight =/= 0.U)`); it is empty when the state moves on
-unconditionally, and a branch after earlier ones carries their negation (`!cond`).
-Click a state or an arrow to open its line. `fit` shows the whole diagram and
-`1:1` its natural size, scrolled; Escape returns to the schematic. A transition whose target is computed rather than a state name is
-not drawn, and the diagram says how many were skipped. A separate next-state
-wire is followed: a local `val next` (`Wire`, `WireDefault(state)`, `WireInit`, ...)
-counts like the register itself when it is assigned (`next := ...`) and the
-register takes it unconditionally (`state := next` outside every `when` and
-every `is` case), or when the register is defined as
-`RegNext(next)`, `RegNext(next, sIdle)`, `RegEnable(next, en)` or
-`RegEnable(next, sIdle, en)` (the init then marks the initial state). Its
-`next := sRun` assignments are transitions, and holds such as `next := state`
-are ignored. A `state := next` under a `when` is not followed: `next`'s assignments are not
-shown, and the `state := next` counts as one computed transition.
-
-`mill soclessView` (and the `Launcher` path behind it) has no source index: it
-shows the FSM and `logic` blocks, but no generator blocks; their logic stays in
-the `logic` block. Its FSM diagrams list the states without transitions, under the
-note "Transitions are not shown: this view was built without the Scala source
-index." In the editor, a state machine whose source cannot be read shows its
-states the same way, with "Transitions are not available: the state machine's
-Scala source could not be read."
-
 Breadcrumbs, search, the run status, the bottom panel toggle, the view settings
 and the keyboard help work as in the browser. Opened in a browser or from
 Neovim, the UI is unchanged.
+
+Viewing a test again, or another one, or running `SoCLess: Show design panel`
+does not reload the panel: the new design loads in place, and the open panels
+and the drill path (while it exists in the new design) are kept.
 
 The UI and the side panel talk through the webview page: the UI posts its drill
 path, selection and details (`socless-state`, once per change), with the design
@@ -176,10 +127,72 @@ and forwards the extension's `socless-navigate` (from a window of the webview's
 own origin only) to the UI's origin. The server sends the UI page with
 `Content-Security-Policy: frame-ancestors 'self' vscode-webview: vscode-file:`,
 so no other site can frame it (`vscode-file:` is the workbench, which the
-check covers as an ancestor too). The
-language server adds the `socless/tests` request and the
-`socless/testsChanged` and `socless/status` notifications, sent only to a
-client that hosts the panel (VS Code), so Neovim sees no change.
+check covers as an ancestor too). The language server adds the `socless/tests`
+request and the `socless/testsChanged` and `socless/status` notifications, sent
+only to a client that hosts the panel (VS Code), so Neovim sees no change.
+
+## The schematic in the IDE view
+
+A design viewed from a test is drawn with a few extras over the classic
+CHIRRTL view. They are the same in the Neovim browser panel.
+
+**Folded copies.** Generator copies (`Seq.fill(n)(Module(...))`) show folded:
+one box titled `<name> × <n>` stands for the n copies, and the wires into and
+out of them merge with their counts. The `+` on the box, or a double-click on
+it, unfolds the copies; the `−` on any copy folds them back. The choice is kept
+while you navigate. The side panel's Hierarchy tree still lists every copy;
+selecting a copy there unfolds its group.
+
+**Logic blocks.** Inside a module, the logic that is not an instance collapses
+into blocks: an `FSM: <reg>` box for each state machine, a box labelled with
+its loop head for each generator loop (`for (b <- 0 until batch)`), and a
+`logic` box for the rest. A block's pins are the signals that cross its edge. A
+pin wired to a port or an instance is named after that signal without its Vec
+indices, so the lanes of `io.out.data.bits` share one pin, and a folded copy's
+pin takes the group's name (`acc_io_deq_bits`); a pin between two blocks is
+named after the signal that drives it. Selecting a block opens its code: the
+loop, the module, or for an FSM its `switch` line. Blocks of Chisel layer
+content (`assert` and other verification) are kept apart (the leftover one is
+labelled `debug logic`) and stay hidden until you turn on `layers`.
+
+**Tied ports.** A port or an instance pin tied to a constant (`io.op := 0.U`)
+is not drawn as a constant node: the pin carries a short `|-` stub with the
+value (`0`; `0x2a` from 10 up). When several tie-offs land on one pin (a folded
+bundle row, a Vec group) with different values, the stub reads `<n> tied` and
+its tooltip lists `signal = value` (the first 10). A constant that is only a
+`when` default next to another driver is not a tie and gets no stub.
+
+**State diagrams.** Double-click an `FSM: <reg>` box (or click the `↵` at the
+right of its header, or focus it and press Enter) to open its state diagram:
+one node per state, the initial state marked by a dot, and an arrow per
+transition read from the `switch` in your source. An arrow's label is the Scala
+condition text of the `when` / `.elsewhen` that guards the assignment
+(`io.start`, `cond && !(inflight =/= 0.U)`); it is empty when the state moves
+on unconditionally, and a branch after earlier ones carries their negation
+(`!cond`). Click a state or an arrow to open its line. `fit` shows the whole
+diagram and `1:1` its natural size, scrolled; Escape returns to the schematic.
+A transition whose target is computed rather than a state name is not drawn,
+and the diagram says how many were skipped.
+
+A separate next-state wire is followed: a local `val next` (`Wire`,
+`WireDefault(state)`, `WireInit`, ...) counts like the register itself when it
+is assigned (`next := ...`) and the register takes it unconditionally
+(`state := next` outside every `when` and every `is` case), or when the
+register is defined as `RegNext(next)`, `RegNext(next, sIdle)`,
+`RegEnable(next, en)` or `RegEnable(next, sIdle, en)` (the init then marks the
+initial state). Its `next := sRun` assignments are transitions, and holds such
+as `next := state` are ignored. A `state := next` under a `when` is not
+followed: `next`'s assignments are not shown, and the `state := next` counts as
+one computed transition.
+
+**Without the source index.** `./mill example.soclessView` (and the
+`Launcher from-capture` path behind it) has no Scala source index: it shows the
+FSM and `logic` blocks, but no generator blocks; their logic stays in the
+`logic` block. Its FSM diagrams list the states without transitions, under the
+note "Transitions are not shown: this view was built without the Scala source
+index." In the editor, a state machine whose source cannot be read shows its
+states the same way, with "Transitions are not available: the state machine's
+Scala source could not be read."
 
 ## Simulate
 
@@ -271,8 +284,8 @@ and extensions dir) on this repository with the staged extension and checks:
 10. after switching the VS Code theme (dark to light), the UI in the webview
     follows it.
 
-The webview checks (from step 7 on) drive the webview over the Chrome DevTools Protocol: `run.sh` starts VS Code
-with a free `--remote-debugging-port` and runs
+The webview checks (from step 7 on) drive the webview over the Chrome DevTools
+Protocol: `run.sh` starts VS Code with a free `--remote-debugging-port` and runs
 `socless-vscode/e2e/webview-click.mjs` (plain Node, no npm package) next to it.
 The screenshot it takes before the click and its result are kept in
 `$SOCLESS_E2E_ARTIFACTS` (default `${TMPDIR:-/tmp}/socless-e2e-artifacts`).
@@ -289,7 +302,8 @@ about 18 seconds. The pure logic is covered by `./mill socless-vscode.test`
   lenses, its command, save handling and cursor forwarding, and the `scala`
   language contribution merges with Metals' own. The end-to-end test runs with
   `--disable-extensions`, so no automated check has Metals installed.
-- The vsix and the end-to-end test are not run in CI.
+- CI builds the vsix (a downloadable artifact of every run), but the headless
+  end-to-end test is not run in CI.
 - The end-to-end test does not run Simulate; the server's tests cover it (a
   real Verilator run of the GCD test when `verilator` is on the `PATH`).
 - Remote workspaces (Remote-SSH, WSL, Codespaces) are not supported for the

@@ -79,9 +79,49 @@ server runs the same contract from an editor (a View design lens per test, a
 live panel, refresh on save): see [SoCLess in Neovim](ide-neovim.md) and
 [SoCLess in VS Code](ide-vscode.md).
 
+## The IDE view
+
+A capture becomes a `Design` in `socless.capture.ModelToDesign.design`, which
+takes an optional `SourceIndex` (the Scala source of the design). Per module:
+
+1. **Fold groups.** Generator copies (`Seq.fill(n)(Module(...))`: instances
+   sharing a CHIRRTL source marker, a Scala class and a base name, at least
+   two) get a common `InstanceDef.foldGroup`.
+2. **Logic grouping.** The module's logic comes from the CHIRRTL pipeline
+   (`IrWalk`, via `WiresFromChirrtl`); `LogicGroups.assign` decides which nodes
+   form one box: an FSM (its node and state register), a generator construct
+   (a `for` loop, or a `foreach` / `map` / `tabulate`-style call, that the
+   index maps the node's source position to), the remaining `logic`, and the
+   same kinds again for layer nodes (Chisel layer content such as `assert`),
+   which never mix with the others.
+3. **Collapse.** `LogicBlocks.collapse` turns each group into one box node with
+   pins and rewires the module; the group bodies go to `Design.regions`.
+4. **FSM diagrams.** An FSM box carries its state diagram from the index's
+   `fsm(scalaClass, register)`. Without it, the states come from the CHIRRTL
+   case literals (`FsmDetect`) and a note says the transitions are unknown.
+5. **Tie-offs.** A constant whose every wire ends on a port or an instance pin
+   is dropped with its wires; when it is the pin's only driver it is recorded
+   as a `TieOff`, which the UI draws as a value stub (no layout node).
+
+`InstanceFold.fold` (shared with the browser build) then folds each group into
+one box when the layout is baked (`Layout`) and in the UI, which keeps the
+unfold state. The source index lives in the language server:
+`socless.lsp.ScalaSourceIndex` (scalameta, parse-only) maps positions to
+generator constructs, and `FsmFacts` reads `switch(register)` state machines,
+with `when` conditions as transition labels and next-state wires followed. The
+language server's view runs and `socless.lsp.FromCapture` use it;
+`Launcher from-capture` (behind `./mill example.soclessView`) has none, so it
+shows no generator blocks and no transitions.
+
+The classic CHIRRTL view (`IrWalk` from a `.fir` or the Mill plugin) is
+unchanged: it never sets a fold group, and its logic stays as individual nodes.
+
 ## Compatibility notes
 
-- **Chisel** - example elaboration runs against 7.16.0, but the parser is
+- **Chisel** - the runtime library and the Mill plugin need Chisel 7.16 or
+  newer (the library depends on 7.16.0); the IDE's probe is built for 7.16
+  only (see **Versions** above). Example elaboration runs against 7.16.0, but
+  the parser is
   written for cross-version portability and a committed fixture matrix proves it:
   `VersionMatrixTest` parses the *same* design emitted in three syntax eras
   (SFC/legacy `lhs <= rhs` + `reg ... with`, early-CIRCT `connect` + `regreset`
