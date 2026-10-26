@@ -16,6 +16,7 @@ const DEEP_TEST_LINE = 7; // 0-based line of test("DeepSoc elaborates and steps"
 const CLICK_INST = 'cluster0'; // a deephier.Cluster instance in DeepSoc
 const GCD_TITLE = 'SoCLess: GCD computes gcd(48, 18)';
 const DEEP_TITLE = 'SoCLess: DeepSoc elaborates and steps';
+const SURFER_TITLE = 'Surfer: GCD computes gcd(48, 18)';
 
 /** The UI's data-theme for a vscode.ColorThemeKind (null: the default light theme, no attribute). */
 const uiTheme = (kind) => (kind === 2 ? 'dark' : kind === 3 ? 'contrast' : null);
@@ -79,6 +80,53 @@ function soclessTabs() {
   return vscode.window.tabGroups.all
     .flatMap((g) => g.tabs)
     .filter((t) => t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith('socless.panel'));
+}
+
+const isWebview = (t, viewType) => !!t && t.input instanceof vscode.TabInputWebview && t.input.viewType.endsWith(viewType);
+
+/** The Surfer tab(s): webview `socless.surfer`. */
+function surferTabs() {
+  return vscode.window.tabGroups.all.flatMap((g) => g.tabs).filter((t) => isWebview(t, 'socless.surfer'));
+}
+const surferTab = () => surferTabs()[0];
+
+/** The editor groups and their tabs, for the log: `1[GcdSpec.scala*] 2[SoCLess: ...*]` (* active). */
+const groupsText = () => vscode.window.tabGroups.all
+  .map((g) => `${g.viewColumn}[${g.tabs.map((t) => t.label + (t.isActive ? '*' : '')).join(', ')}]`).join(' ');
+
+/** The Surfer tab and the SoCLess panel are in different editor groups, and both are visible. */
+function apart() {
+  const s = surferTabs();
+  const p = soclessTabs();
+  if (s.length !== 1 || p.length !== 1) throw new Error(`expected one Surfer tab and one SoCLess panel, found ${s.length} and ${p.length}: ${groupsText()}`);
+  if (s[0].group === p[0].group) throw new Error(`the Surfer tab shares the panel's group: ${groupsText()}`);
+  if (!p[0].isActive) throw new Error(`the SoCLess panel is hidden in its group: ${groupsText()}`);
+  if (!s[0].isActive) throw new Error(`the Surfer tab is hidden in its group: ${groupsText()}`);
+}
+
+/** Makes the Surfer tab the active editor, by focusing its group (where it is the active tab). */
+async function activateSurfer() {
+  const names = ['First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth'];
+  const col = surferTab().group.viewColumn;
+  await vscode.commands.executeCommand(`workbench.action.focus${names[col - 1]}EditorGroup`);
+  await poll('the Surfer tab active', 10000, () => isWebview(vscode.window.tabGroups.activeTabGroup.activeTab, 'socless.surfer'));
+}
+
+/** One op of webview-click.mjs's wave phase: writes wave-request-<n>.json, waits for its result. */
+let waveOps = 0;
+async function driver(op, args, timeoutMs) {
+  const runDir = process.env.SOCLESS_E2E_DIR;
+  const n = ++waveOps;
+  const requestFile = path.join(runDir, `wave-request-${n}.json`);
+  const resultFile = path.join(runDir, `wave-result-${n}.json`);
+  fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ op, ...args }));
+  fs.renameSync(requestFile + '.tmp', requestFile);
+  const res = await poll(`${path.basename(resultFile)} (${op}) from webview-click.mjs`, timeoutMs, () =>
+    fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
+  for (const s of res.screenshots || []) log(`      screenshot ${path.basename(s)} (run.sh copies it to its artifacts dir)`);
+  if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
+  log(`      ${res.message}`);
+  return res;
 }
 
 function root() {
@@ -353,12 +401,11 @@ async function run() {
     log(`      ${res.message}`);
   });
 
-  // Simulate with the embedded Surfer (socless.waveViewer = surfer-panel): the server captures and
-  // simulates GCD (Verilator), sets the trace in ide.json, and the panel's Waveform tab boots the
-  // vendored Surfer WASM inside the webview's iframe. The driver checks it there (status, GCD's plan
-  // read back over WCP, a selection's focus, no page errors) and takes wave.png.
-  await step('10. Simulate shows the embedded Surfer in the webview', async () => {
-    const runDir = process.env.SOCLESS_E2E_DIR;
+  // Simulate with socless.waveViewer = surfer-panel: the server captures and simulates GCD
+  // (Verilator) and sets the trace in ide.json; the panel's UI opens Surfer in its own editor tab
+  // and drives it there. The driver checks both webviews over CDP (wave-request-<n>.json ops).
+  const wave = {};
+  await step('10. Simulate opens Surfer in its own tab, beside the panel', async () => {
     // A user setting: VS Code's client sends the `socless` section in didChangeConfiguration.
     await vscode.workspace.getConfiguration('socless').update('waveViewer', 'surfer-panel', vscode.ConfigurationTarget.Global);
     await poll('ide.json waveViewer == surfer-panel', 30000, async () => (await getJson(url + 'ide.json')).waveViewer === 'surfer-panel');
@@ -378,16 +425,98 @@ async function run() {
     await poll(`the SoCLess tab titled "${GCD_TITLE}"`, 10000, () => soclessTabs().some((t) => t.label === GCD_TITLE));
     const names = await getJson(url + ide.trace.replace(/^\//, '').replace(/\/trace$/, '/names'));
     log(`      trace prefix ${names.prefix}, ${names.names.length} names`);
-    await vscode.commands.executeCommand('notifications.clearAll'); // the toasts would cover the waves in wave.png
-    const requestFile = path.join(runDir, 'wave-request.json');
-    const resultFile = path.join(runDir, 'wave-result.json');
-    fs.writeFileSync(requestFile + '.tmp', JSON.stringify({ trace: ide.trace, prefix: names.prefix }));
-    fs.renameSync(requestFile + '.tmp', requestFile);
-    const res = await poll(`${resultFile} from webview-click.mjs`, 240000, () =>
-      fs.existsSync(resultFile) && JSON.parse(fs.readFileSync(resultFile, 'utf8')));
-    if (res.screenshot) log(`      screenshot ${path.basename(res.screenshot)} taken (run.sh copies it to its artifacts dir)`);
-    if (!res.ok) throw new Error(`webview driver failed at stage "${res.stage}": ${res.message}`);
-    log(`      ${res.message}`);
+    Object.assign(wave, { trace: ide.trace, prefix: names.prefix });
+    await poll(`a webview tab titled "${SURFER_TITLE}"`, 60000, () => surferTabs().some((t) => t.label === SURFER_TITLE));
+    await sleep(2000); // a second tab would show up here
+    log(`      editor groups ${groupsText()}`);
+    apart();
+  });
+
+  await step('10b. the Surfer tab shows GCD\'s plan; the panel has no Surfer pane', async () => {
+    await vscode.commands.executeCommand('notifications.clearAll'); // the toasts would cover the webviews
+    await driver('surfer', { ...wave, shot: '' }, 300000);
+  });
+
+  await step('10c. a selection in the panel focuses its signal in the Surfer tab', async () => {
+    await driver('select', wave, 60000);
+  });
+
+  // Moving the tab must not reload its frame (retainContextWhenHidden): the driver compares the frame
+  // (target id, a marker set in it, Surfer's boot count) with the one 10b saw.
+  await step('10d. moving the Surfer tab to another group keeps Surfer (one boot)', async () => {
+    // A group after the tab's, so the move lands in an existing group (beside GCD.scala) and the
+    // tab's own group, emptied, closes: into a new last group the layout would look the same.
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path.join(root(), GCD_FILE)));
+    await vscode.window.showTextDocument(doc, { viewColumn: surferTab().group.viewColumn + 1, preview: false });
+    const from = surferTab().group;
+    await activateSurfer();
+    log(`      before: ${groupsText()}`);
+    await vscode.commands.executeCommand('workbench.action.moveEditorToNextGroup');
+    // By group identity, not column number: an emptied group closes and the columns renumber.
+    await poll('the Surfer tab in the group of GCD.scala', 10000, () => {
+      const t = surferTab();
+      return t && t.group !== from && t.group.tabs.some((x) => x.input instanceof vscode.TabInputText && x.input.uri.fsPath.endsWith(GCD_FILE));
+    });
+    log(`      after:  ${groupsText()}`);
+    apart();
+    await sleep(2000);
+    await driver('keep', {}, 60000);
+  });
+
+  // The panel reveals in its own column: with ViewColumn.Beside it would move beside the active
+  // editor, the Surfer tab. The lens is read first, as opening its file would change the active editor.
+  await step('10e. View design with the Surfer tab active keeps the panel in its column', async () => {
+    const lens = await viewDesignLens(specUri);
+    const panel0 = soclessTabs()[0].group;
+    await activateSurfer();
+    const active = vscode.window.tabGroups.activeTabGroup.activeTab;
+    if (!isWebview(active, 'socless.surfer')) throw new Error(`the active tab is "${active && active.label}", not the Surfer tab`);
+    log(`      before: ${groupsText()} (active: ${active.label})`);
+    // The view's completion: the stamp moves past the one read just before the lens and the
+    // status is no longer running (a fast view can be over before a poll ever sees `running`).
+    const stamp0 = (await getJson(url + 'ide.json')).stamp;
+    await vscode.commands.executeCommand(lens.command.command, ...(lens.command.arguments || []));
+    const done = await poll('the view run to end', 180000, async () => {
+      const j = await getJson(url + 'ide.json');
+      return j.stamp > stamp0 && j.status !== 'running' && j;
+    }, 250);
+    if (done.status === 'error') throw new Error(`the view failed: ${done.message}`);
+    await sleep(3000); // Panel.show (the server's openPanel) lands here
+    log(`      after:  ${groupsText()}`);
+    const p = soclessTabs();
+    if (p.length !== 1) throw new Error(`expected one SoCLess tab, found ${p.length}`);
+    if (p[0].label !== GCD_TITLE) throw new Error(`panel title "${p[0].label}", expected "${GCD_TITLE}"`);
+    if (p[0].group !== panel0) throw new Error(`the panel moved: column ${panel0.viewColumn} -> ${p[0].group.viewColumn}`);
+    apart();
+    await driver('keep', {}, 60000);
+  });
+
+  await step('10f. a closed Surfer tab comes back on Show waveforms', async () => {
+    await vscode.window.tabGroups.close(surferTab());
+    await poll('the Surfer tab to close', 10000, () => surferTabs().length === 0);
+    await sleep(1000);
+    await vscode.commands.executeCommand('socless.showWaves');
+    await poll(`the Surfer tab "${SURFER_TITLE}" back`, 30000, () => surferTabs().some((t) => t.label === SURFER_TITLE));
+    log(`      editor groups ${groupsText()}`);
+    apart();
+    await driver('surfer', { ...wave, fresh: true }, 300000);
+  });
+
+  await step('10g. closed panel and tab come back on Show waveforms', async () => {
+    await vscode.window.tabGroups.close([...surferTabs(), ...soclessTabs()]);
+    await poll('the panel and the Surfer tab to close', 10000, () => surferTabs().length === 0 && soclessTabs().length === 0);
+    await sleep(1000);
+    await vscode.commands.executeCommand('socless.showWaves');
+    await poll('the SoCLess panel back', 30000, () => soclessTabs().some((t) => t.label === GCD_TITLE));
+    await poll(`the Surfer tab "${SURFER_TITLE}" back`, 30000, () => surferTabs().some((t) => t.label === SURFER_TITLE));
+    await sleep(2000);
+    log(`      editor groups ${groupsText()}`);
+    apart();
+    await driver('surfer', { ...wave, fresh: true, freshPanel: true, shot: '-reopened' }, 300000);
+  });
+
+  await step('10h. no page errors in either webview', async () => {
+    await driver('errors', {}, 30000);
   });
 
   log('ALL PASSED');

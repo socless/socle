@@ -19,19 +19,22 @@ object Panel {
   /** A navigate message waiting for the UI to be ready (the last one wins). */
   private var pendingNavigate: Option[js.Any] = None
 
-  /** Creates the panel beside the editor (or reveals the existing one), points it at `url` in embedded
-    * mode with VS Code's current theme kind, and titles it after `test` (None keeps the last one).
+  /** Creates the panel beside the editor (or reveals the existing one in its own column), points it at
+    * `url` in embedded mode with VS Code's current theme kind, and titles it after `test` (None keeps
+    * the last one). The promise resolves once the panel exists (so [[column]] is known).
     */
-  def show(url: String, test: Option[String]): Unit = {
+  def show(url: String, test: Option[String]): js.Promise[Unit] = {
     lastUrl = Some(url)
     test.foreach(t => lastTest = Some(t))
     env.asExternalUri(Uri.parse(url)).`then`[Unit] { (external: Uri) =>
+      val existing      = column
       val (panel, page) = current.getOrElse(create())
       panel.title = Logic.panelTitle(lastTest)
-      panel.reveal(ViewColumn.Beside, preserveFocus = true)
+      panel.reveal(Logic.panelRevealColumn(existing), preserveFocus = true)
       // Same URL, same html: leave it alone so the iframe (and the UI state in it) is not reloaded.
       val html = page.html(external.toString(), panel.webview.cspSource)
       if (panel.webview.html != html) { panel.webview.html = html; uiReady = false }
+      SurferTab.retarget(external.toString()) // a restarted server: the tab follows it
     }
   }
 
@@ -52,11 +55,16 @@ object Panel {
     )
     // The listeners live and die with this panel, not in ctx.subscriptions (one per panel ever made).
     val messages = panel.webview.onDidReceiveMessage { (msg: js.Any) =>
-      // The page relays only socless-state messages from the UI, which listens from then on.
-      uiReady = true
-      pendingNavigate.foreach(m => panel.webview.postMessage(m))
-      pendingNavigate = None
-      Sidebar.onUiState(msg)
+      Logic.msgType(msg) match {
+        case Some("socless-state") =>
+          // The UI listens from its first state on.
+          uiReady = true
+          pendingNavigate.foreach(m => panel.webview.postMessage(m))
+          pendingNavigate = None
+          Sidebar.onUiState(msg)
+        case Some("socless-surfer-open") => SurferTab.onOpenRequest(msg, lastTest)
+        case _ => Logic.route("panel", msg).foreach { case (_, m) => SurferTab.post(m) }
+      }
     }
     var listener: Option[Disposable] = None
     listener = Some(panel.onDidDispose { () =>
@@ -78,6 +86,15 @@ object Panel {
     panel.reveal(js.undefined, preserveFocus = true) // where it is
     if (uiReady) panel.webview.postMessage(msg) else pendingNavigate = Some(msg)
   }
+
+  /** Posts a Surfer channel message (the tab's status, or its close) to the UI, if the panel is open. */
+  def post(msg: js.Any): Unit = current.foreach { case (panel, _) => panel.webview.postMessage(msg) }
+
+  /** The panel's editor column, when it is open (the Surfer tab opens after it). */
+  def column: Option[Int] = current.flatMap(_._1.viewColumn.toOption)
+
+  /** The test of the last view (for the Surfer tab's title). */
+  def test: Option[String] = lastTest
 
   /** The editor column for a source opened from the side panel: the first one, or the one
     * beside when the panel is there (so the source never covers the panel). */

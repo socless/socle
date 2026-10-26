@@ -61,7 +61,7 @@ import socless.wave.{WaveGroup, WaveLayout, WavePlan}
   * so the visible list (what `get_item_list` returns) is the item index.
   * `focus_item` only reaches visible items: a focus unfolds its groups first.
   */
-final class SurferPane {
+final class SurferPane extends WavePane {
   import SurferPane._
 
   /** "idle" (nothing to show), "booting", "loading", "ready" or "error". */

@@ -1,19 +1,23 @@
 package socless.wave
 
 import socless.schema._
+import upickle.default.{ReadWriter, macroRW}
 
 /** One signal of the waveform list: its full dotted trace path, the label shown
   * in the viewer, a Surfer theme colour name (Green, Red, Yellow, Blue, Pink,
   * Orange, Gray, Violet) and its width in bits (0 when unknown, as for a named
   * node). */
 case class WaveItem(trace: String, label: String, color: String, width: Int = 0)
+object WaveItem { implicit val rw: ReadWriter[WaveItem] = macroRW }
 
 /** A named, possibly nested, group of signals. `folded` collapses it in the viewer. */
 case class WaveGroup(name: String, items: Seq[WaveItem], children: Seq[WaveGroup], folded: Boolean)
+object WaveGroup { implicit val rw: ReadWriter[WaveGroup] = macroRW }
 
 /** The signal list of one module. `missing` counts the signals dropped because
   * the trace does not hold them (optimised away). */
 case class WavePlan(groups: Seq[WaveGroup], missing: Int)
+object WavePlan { implicit val rw: ReadWriter[WavePlan] = macroRW }
 
 /** The pure plan of a module's signals for the waveform viewer, shared by the
   * language server and the Scala.js UI, so it stays free of JVM-only code.

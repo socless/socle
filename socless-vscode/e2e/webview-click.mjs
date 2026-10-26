@@ -16,10 +16,15 @@
 // state-request.json, and the driver checks all three survived (no iframe reload) in state-result.json.
 // Then index.js switches the VS Code theme and writes <runDir>/theme-request.json ({theme}); the driver
 // waits for the UI's data-theme to follow and writes <runDir>/theme-result.json.
-// Last, index.js sets socless.waveViewer = surfer-panel, simulates GCD and writes wave-request.json
-// ({trace, prefix}); the driver opens the Waveform tab, checks the embedded Surfer (ready, GCD's plan,
-// a focus, no page errors), takes wave.png and writes <runDir>/wave-result.json.
+// Last, the wave phase: index.js sets socless.waveViewer = surfer-panel and simulates GCD, which opens
+// Surfer in its own editor tab (a second webview, its UI frame at ?view=surfer). index.js then writes
+// numbered requests <runDir>/wave-request-<n>.json ({op, ...}) and the driver answers each in
+// wave-result-<n>.json: `surfer` (the panel's Waveform tab is the remote one, the tab's Surfer is
+// ready on GCD's plan; screenshots surfer.png and panel.png), `select` (a panel selection focuses
+// its signal in the tab), `keep` (the tab's frame did not reload: same target, marker, one boot) and
+// `errors` (no page errors in any UI frame of either webview).
 //
+// Two UI frames share the server url: the Surfer tab's has view=surfer, the panel's has no view.
 // Raw CDP over Node's built-in WebSocket, no npm package: Playwright's connectOverCDP (the one in
 // tools/ui-smoke) attached to VS Code's Electron sees only the workbench frame, not the webview's
 // out-of-process iframes, although /json/list lists them.
@@ -43,9 +48,14 @@ const stateRequestFile = join(runDir, 'state-request.json');
 const stateResultFile = join(runDir, 'state-result.json');
 const themeRequestFile = join(runDir, 'theme-request.json');
 const themeResultFile = join(runDir, 'theme-result.json');
-const waveRequestFile = join(runDir, 'wave-request.json');
-const waveResultFile = join(runDir, 'wave-result.json');
-const waveShotFile = join(runDir, 'wave.png');
+
+/** The panel's UI frame url (`host=vscode`, no `view`) and the Surfer tab's (`view=surfer`), on `base`. */
+const isPanelUrl = (u, base) => {
+  if (!u || !u.startsWith(base)) return false;
+  const q = new URL(u).searchParams;
+  return q.get('host') === 'vscode' && !q.get('view');
+};
+const isSurferUrl = (u, base) => !!u && u.startsWith(base) && new URL(u).searchParams.get('view') === 'surfer';
 
 let stage = 'start';
 let result = { ok: false };
@@ -95,7 +105,8 @@ function connect(target) {
       } else (handlers.get(m.method) || []).forEach((h) => h(m.params));
     };
     ws.onerror = () => reject(new Error(`cannot connect to ${target.url}`));
-    ws.onopen = () => resolve({
+    const self = {
+      closed: false,
       send: (method, params = {}) => new Promise((res, rej) => {
         const n = ++id;
         pending.set(n, { resolve: res, reject: rej, method });
@@ -103,9 +114,66 @@ function connect(target) {
         setTimeout(() => pending.has(n) && (pending.delete(n), rej(new Error(`${method} timed out`))), 10000);
       }),
       on: (event, h) => handlers.set(event, [...(handlers.get(event) || []), h]),
-    });
+    };
+    // A closed frame (its webview closed) closes the socket: the cache below forgets it.
+    ws.onclose = () => { self.closed = true; conns.delete(target.id); };
+    ws.onopen = () => resolve(self);
   });
 }
+
+/** One connection per target id, while its socket is open. */
+const conns = new Map();
+function conn(target) {
+  if (!conns.has(target.id)) conns.set(target.id, connect(target).catch((e) => { conns.delete(target.id); throw e; }));
+  return conns.get(target.id);
+}
+
+/** The page errors of every UI frame watched (both webviews), each tagged with its frame. */
+const pageErrors = [];
+const watched = new Set();
+// As tools/ui-smoke/embedded.mjs: a failed load (designs.json, an old trace's 404) is no page
+// error; a Surfer file that fails to load shows as data-surfer-status="error". Nor is Chromium
+// refusing the autofocus of egui's hidden text input: our iframe is cross-origin in the webview,
+// and Surfer gets the keyboard once clicked.
+const benign = /Failed to load resource|Blocked autofocusing on a <input> element in a cross-origin subframe/;
+
+/** Collects the page errors of a UI frame from now on: uncaught exceptions, console.error, and the
+  * browser's own error entries (a CSP violation, a failed load). */
+async function watchErrors(c, target, label) {
+  if (watched.has(target.id)) return;
+  watched.add(target.id);
+  c.on('Runtime.exceptionThrown', (p) =>
+    pageErrors.push(`${label}: exception: ${p.exceptionDetails.exception?.description || p.exceptionDetails.text}`));
+  c.on('Runtime.consoleAPICalled', (p) => p.type === 'error' &&
+    pageErrors.push(`${label}: console.error: ${p.args.map((a) => a.value ?? a.description).join(' ')}`));
+  c.on('Log.entryAdded', (p) => p.entry.level === 'error' && !benign.test(p.entry.text) &&
+    pageErrors.push(`${label}: ${p.entry.source}: ${p.entry.text}${p.entry.url ? ' ' + p.entry.url : ''}`));
+  await c.send('Runtime.enable');
+  await c.send('Log.enable');
+}
+
+/** The src of the UI iframe inside a vscode-webview target (VS Code's active-frame holds it). */
+const innerSrc = `(() => {
+  const a = document.getElementById('active-frame');
+  const f = a && a.contentDocument && a.contentDocument.querySelector('iframe');
+  return f ? f.src : null;
+})()`;
+
+/** The vscode-webview target of the panel (`kind` 'panel') or of the Surfer tab ('surfer'), told
+  * apart by the url of the UI frame it holds; null when there is none (yet). */
+async function webviewOf(kind, base) {
+  const all = (await targets()).filter((t) => t.type === 'iframe' && t.url.startsWith('vscode-webview://'));
+  for (const t of all) {
+    const c = await conn(t).catch(() => null);
+    const src = c && (await evaluate(c, innerSrc).catch(() => null));
+    if (kind === 'surfer' ? isSurferUrl(src, base) : isPanelUrl(src, base)) return t;
+  }
+  return null;
+}
+
+/** The workbench <iframe> element of a vscode-webview target, as a JS expression. */
+const outerFrame = (webview) => `[...document.querySelectorAll('iframe')].find((f) => f.src === ${JSON.stringify(webview.url)})
+  || [...document.querySelectorAll('iframe')].find((f) => f.src.startsWith(${JSON.stringify(webview.url.split('?')[0])}))`;
 
 /** Evaluates `expr` in the target and returns its value. */
 async function evaluate(conn, expr) {
@@ -131,34 +199,19 @@ async function main() {
   Object.assign(result, { inst: req.inst, url: req.url });
 
   stage = 'find the UI frame in the webview';
-  const ui = await until(`a CDP iframe target whose URL starts with ${req.url}`, 60000, async () =>
-    (await targets()).find((t) => t.type === 'iframe' && t.url.startsWith(req.url))
+  const ui = await until(`a CDP iframe target of the panel UI (${req.url}, no view)`, 60000, async () =>
+    (await targets()).find((t) => t.type === 'iframe' && isPanelUrl(t.url, req.url))
   ).catch(async (e) => {
     result.targets = (await targets().catch(() => [])).map((t) => `${t.type} ${t.url}`);
     throw e;
   });
-  const all = await targets();
-  const webview = all.find((t) => t.type === 'iframe' && t.url.startsWith('vscode-webview://'));
-  const workbench = all.find((t) => t.type === 'page' && t.url.includes('workbench'));
-  if (!webview || !workbench) throw new Error('no webview iframe or workbench page target');
+  const webview = await until('the vscode-webview target holding the panel UI', 30000, () => webviewOf('panel', req.url));
+  const workbench = (await targets()).find((t) => t.type === 'page' && t.url.includes('workbench'));
+  if (!workbench) throw new Error('no workbench page target');
   log(`frame ${ui.url} in ${webview.url.split('?')[0]}`);
-  const uiConn = await connect(ui);
-  // The page errors of our iframe from here on, checked by the wave phase: uncaught exceptions,
-  // console.error, and the browser's own error entries (a CSP violation, a failed load).
-  const pageErrors = [];
-  uiConn.on('Runtime.exceptionThrown', (p) =>
-    pageErrors.push(`exception: ${p.exceptionDetails.exception?.description || p.exceptionDetails.text}`));
-  uiConn.on('Runtime.consoleAPICalled', (p) => p.type === 'error' &&
-    pageErrors.push(`console.error: ${p.args.map((a) => a.value ?? a.description).join(' ')}`));
-  // As tools/ui-smoke/embedded.mjs: a failed load (designs.json, an old trace's 404) is no page
-  // error; a Surfer file that fails to load shows as data-surfer-status="error". Nor is Chromium
-  // refusing the autofocus of egui's hidden text input: our iframe is cross-origin in the webview,
-  // and Surfer gets the keyboard once clicked.
-  const benign = /Failed to load resource|Blocked autofocusing on a <input> element in a cross-origin subframe/;
-  uiConn.on('Log.entryAdded', (p) => p.entry.level === 'error' && !benign.test(p.entry.text) &&
-    pageErrors.push(`${p.entry.source}: ${p.entry.text}${p.entry.url ? ' ' + p.entry.url : ''}`));
-  await uiConn.send('Runtime.enable');
-  await uiConn.send('Log.enable');
+  const uiConn = await conn(ui);
+  // The page errors of our iframe from here on, checked by the wave phase.
+  await watchErrors(uiConn, ui, 'panel');
 
   stage = 'UI polls ide.json from the iframe';
   // Network events of our iframe: every request the UI makes, with its method and status.
@@ -176,7 +229,7 @@ async function main() {
   await until('a 200 GET ide.json from the UI (the IDE link is enabled)', 30000, () =>
     responses.some((r) => r.method === 'GET' && r.url.startsWith(req.url + 'ide.json') && r.status === 200));
 
-  const wbConn = await connect(workbench);
+  const wbConn = await conn(workbench);
   const screenshot = async () => {
     const shot = await wbConn.send('Page.captureScreenshot', { format: 'png' });
     writeFileSync(shotFile, Buffer.from(shot.data, 'base64'));
@@ -241,8 +294,8 @@ async function main() {
   result.local = local;
   if (!local.hits) throw new Error(`the header point ${JSON.stringify(local)} does not hit the ${req.inst} box`);
   // Workbench coordinates of that point: workbench -> webview iframe -> active-frame -> our iframe.
-  const wvConn = await connect(webview);
-  const outer = await evaluate(wbConn, frameOrigin(`[...document.querySelectorAll('iframe')].find((f) => f.src.startsWith(${JSON.stringify(webview.url.split('?')[0])}))`));
+  const wvConn = await conn(webview);
+  const outer = await evaluate(wbConn, frameOrigin(outerFrame(webview)));
   const active = await evaluate(wvConn, frameOrigin(`document.getElementById('active-frame')`));
   const inner = await evaluate(wvConn, frameOrigin(`document.getElementById('active-frame').contentDocument.querySelector('iframe')`));
   if (!outer || !active || !inner) throw new Error(`iframe chain not found: ${JSON.stringify({ outer, active, inner })}`);
@@ -335,81 +388,188 @@ async function main() {
   });
   finish({ ok: true, message: `UI data-theme is now ${treq.theme}` });
 
-  // Wave phase: index.js set socless.waveViewer = surfer-panel, simulated GCD and writes
-  // wave-request.json ({trace, prefix}) once ide.json has the trace. The Waveform tab boots the
-  // vendored Surfer WASM in our iframe: it must report ready, show GCD's plan in order (read back
-  // over WCP through the UI's window.__soclessWave hook) and focus a selected signal.
-  out = waveResultFile;
-  result = { ok: false };
-  stage = 'wait for the wave request';
-  const wreq = await until(`${waveRequestFile} from index.js`, 15 * 60 * 1000, () =>
-    existsSync(waveRequestFile) && JSON.parse(readFileSync(waveRequestFile, 'utf8')), 500);
-  log(`wave request ${JSON.stringify(wreq)}`);
-  const snap = () => evaluate(uiConn, `window.__soclessWave ? window.__soclessWave.snapshot() : null`);
-  const waveShot = async () => {
-    const shot = await wbConn.send('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(waveShotFile, Buffer.from(shot.data, 'base64'));
-    result.screenshot = waveShotFile;
+  // Wave phase: index.js set socless.waveViewer = surfer-panel and simulated GCD, so the panel's UI
+  // drives Surfer in its own editor tab. Each numbered request is one op (see the header).
+  const surferIds = new Set(); // the Surfer tab's UI frames seen
+  const panelIds = new Set([ui.id]);
+  let kept = null; // the Surfer frame marked by the last `surfer` op: {id, loadedTrace}
+  const status = (c) => evaluate(c, `(() => { const e = document.querySelector('[data-surfer-status]'); return e && e.getAttribute('data-surfer-status'); })()`);
+  const snapOf = (c) => evaluate(c, `window.__soclessWave ? window.__soclessWave.snapshot() : null`);
+  const P = (prefix, leaf) => `${prefix}.${leaf}`;
+  const plan = (prefix) => ['group io', 'group io.in', P(prefix, 'io_in_valid'), P(prefix, 'io_in_ready'), 'group io.in.bits',
+    P(prefix, 'io_in_bits_a'), P(prefix, 'io_in_bits_b'), 'group io.out', P(prefix, 'io_out_valid'), P(prefix, 'io_out_ready'),
+    'group io.out.bits', P(prefix, 'io_out_bits_result'), 'group Registers', P(prefix, 'x'), P(prefix, 'y'), P(prefix, 'busy')];
+
+  /** The UI frame of the panel or of the Surfer tab, watched for page errors; `fresh`: one not seen
+    * before (its webview was closed and opened again). */
+  const frameOf = async (kind, fresh) => {
+    const seen = kind === 'surfer' ? surferIds : panelIds;
+    const is = kind === 'surfer' ? isSurferUrl : isPanelUrl;
+    const t = await until(`the ${kind} UI frame${fresh ? ' (a new one)' : ''}`, 60000, async () =>
+      (await targets()).find((x) => x.type === 'iframe' && is(x.url, req.url) && !(fresh && seen.has(x.id))));
+    seen.add(t.id);
+    const c = await conn(t);
+    await watchErrors(c, t, kind);
+    return { t, c };
   };
-  const failWith = async (e) => {
-    result.snapshot = await snap().catch(String);
-    result.webgl = await evaluate(uiConn, `({ webgl2: !!document.createElement('canvas').getContext('webgl2'), webgl: !!document.createElement('canvas').getContext('webgl') })`).catch(String);
+
+  /** A screenshot of one webview: the workbench capture clipped to its outer iframe. */
+  const shotOf = async (kind, file) => {
+    const wv = await webviewOf(kind, req.url);
+    if (!wv) throw new Error(`no ${kind} webview to screenshot`);
+    const r = await evaluate(wbConn, `(() => {
+      const f = ${outerFrame(wv)};
+      if (!f) return null;
+      const b = f.getBoundingClientRect();
+      return { x: b.left, y: b.top, width: b.width, height: b.height };
+    })()`);
+    if (!r || r.width < 1 || r.height < 1) throw new Error(`the ${kind} webview is not on screen: ${JSON.stringify(r)}`);
+    const shot = await wbConn.send('Page.captureScreenshot', { format: 'png', clip: { ...r, scale: 1 } });
+    writeFileSync(file, Buffer.from(shot.data, 'base64'));
+    (result.screenshots ||= []).push(file);
+  };
+
+  /** On a failure: both frames' state, the page errors and a screenshot of the window. */
+  const diagnose = async () => {
+    const all = await targets().catch(() => []);
+    result.frames = all.filter((t) => t.type === 'iframe').map((t) => t.url);
+    for (const [kind, is] of [['panel', isPanelUrl], ['surfer', isSurferUrl]]) {
+      const t = all.find((x) => x.type === 'iframe' && is(x.url, req.url));
+      if (t) result[kind + 'Snapshot'] = await conn(t).then(snapOf).catch(String);
+    }
     result.pageErrors = pageErrors;
-    await waveShot().catch(() => {});
-    throw e;
+    const shot = await wbConn.send('Page.captureScreenshot', { format: 'png' }).catch(() => null);
+    if (shot) {
+      writeFileSync(join(runDir, 'wave-fail.png'), Buffer.from(shot.data, 'base64'));
+      result.screenshot = join(runDir, 'wave-fail.png');
+    }
   };
 
-  stage = 'open the Waveform tab';
-  await until('the Waveform tab', 30000, () => evaluate(uiConn, `(() => {
-    if (!document.querySelector('[data-bottom-panel]')) document.querySelector('[data-toggle-pane="bottom"]').click();
-    const t = document.querySelector('[data-bottom-tab="wave"]');
-    if (t) t.click();
-    return !!t;
-  })()`), 500).catch(failWith);
+  const ops = {
+    // The panel's Waveform tab is the remote one (Show Surfer, no Surfer canvas), and the Surfer tab
+    // is ready on GCD's top plan, in plan order; marks the tab's frame for `keep`.
+    surfer: async (w) => {
+      stage = 'panel: the remote Waveform tab';
+      const pf = await frameOf('panel', w.freshPanel);
+      const remote = await until('the panel\'s Waveform tab with Show Surfer', 60000, () => evaluate(pf.c, `(() => {
+        if (!document.querySelector('[data-bottom-panel]')) document.querySelector('[data-toggle-pane="bottom"]').click();
+        const tab = document.querySelector('[data-bottom-tab="wave"]');
+        const pane = document.querySelector('[data-wave-pane]');
+        if (tab && (!pane || pane.style.display === 'none')) tab.click();
+        const btn = document.querySelector('[data-show-surfer]');
+        const s = window.__soclessWave && window.__soclessWave.snapshot();
+        return pane && pane.style.display !== 'none' && btn && btn.offsetParent !== null && s
+          ? { surferPane: !!document.querySelector('[data-surfer-pane]'), remote: s.remote === true, button: btn.textContent } : null;
+      })()`), 500);
+      result.panel = remote;
+      if (remote.surferPane) throw new Error('the panel has a [data-surfer-pane]: Surfer is embedded in it');
+      if (!remote.remote) throw new Error('the panel\'s wave pane is not the remote one');
 
-  stage = 'Surfer reports ready';
-  const status = () => evaluate(uiConn, `(() => { const e = document.querySelector('[data-surfer-status]'); return e && e.getAttribute('data-surfer-status'); })()`);
-  const st = await until('[data-surfer-status] ready (or error)', 120000, async () => {
-    const s = await status();
-    return (s === 'ready' || s === 'error') && s;
-  }, 500).catch(failWith);
-  if (st !== 'ready') await failWith(new Error(`Surfer status "${st}"`));
+      stage = 'Surfer tab: ready';
+      const sf = await frameOf('surfer', w.fresh);
+      const st = await until('[data-surfer-status] ready (or error) in the Surfer tab', 120000, async () => {
+        const s = await status(sf.c);
+        return (s === 'ready' || s === 'error') && s;
+      }, 500);
+      if (st !== 'ready') throw new Error(`Surfer status "${st}"`);
 
-  stage = 'Surfer shows the top plan';
-  const P = (leaf) => `${wreq.prefix}.${leaf}`;
-  await until('the top plan of GCD on this trace', 30000, async () => {
-    const s = await snap();
-    return s && s.idle && s.shown && s.shown.path === '["GCD"]' && s.loadedTrace.endsWith(wreq.trace);
-  }).catch(failWith);
-  const items = await evaluate(uiConn, `window.__soclessWave.items()`).catch(failWith);
-  const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
-  const want = ['group io', 'group io.in', P('io_in_valid'), P('io_in_ready'), 'group io.in.bits', P('io_in_bits_a'), P('io_in_bits_b'),
-    'group io.out', P('io_out_valid'), P('io_out_ready'), 'group io.out.bits', P('io_out_bits_result'),
-    'group Registers', P('x'), P('y'), P('busy')];
-  result.items = got;
-  if (JSON.stringify(got) !== JSON.stringify(want)) await failWith(new Error(`Surfer items ${JSON.stringify(got)}, expected ${JSON.stringify(want)}`));
+      stage = 'Surfer tab: the top plan';
+      const s = await until('the top plan of GCD on this trace in the Surfer tab', 60000, async () => {
+        const s = await snapOf(sf.c);
+        return s && s.idle && s.shown && s.shown.path === '["GCD"]' && s.loadedTrace.endsWith(w.trace) && s;
+      });
+      const items = await evaluate(sf.c, `window.__soclessWave.items()`);
+      const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
+      result.items = got;
+      if (JSON.stringify(got) !== JSON.stringify(plan(w.prefix))) {
+        throw new Error(`Surfer items ${JSON.stringify(got)}, expected ${JSON.stringify(plan(w.prefix))}`);
+      }
 
-  stage = 'a selection focuses its signal';
-  const focus0 = (await snap()).focusCount;
-  await evaluate(uiConn, `window.__soclessWave.select('io.out.bits.result')`);
-  const focused = await until('the focus of io.out.bits.result', 20000, async () => {
-    const s = await snap();
-    return s && s.idle && s.focusCount > focus0 && s.lastFocus && s;
-  }).catch(failWith);
-  result.lastFocus = focused.lastFocus;
-  if (focused.lastFocus.trace !== P('io_out_bits_result') || !focused.lastFocus.ok) {
-    await failWith(new Error(`io.out.bits.result focused ${JSON.stringify(focused.lastFocus)}, expected ${P('io_out_bits_result')}`));
+      stage = 'panel: mirrors the tab\'s state';
+      const mirrored = await until('the panel\'s pane status "ready"', 15000, async () => {
+        const p = await snapOf(pf.c);
+        return p && p.status === 'ready' && p;
+      });
+
+      await evaluate(sf.c, `(window.__soclessKeep = 1, true)`);
+      kept = { id: sf.t.id, loadedTrace: s.loadedTrace };
+      if (w.shot !== undefined) {
+        stage = 'screenshots';
+        await sleep(500);
+        await shotOf('surfer', join(runDir, `surfer${w.shot}.png`));
+        await shotOf('panel', join(runDir, `panel${w.shot}.png`));
+      }
+      return `Surfer tab frame ${sf.t.id.slice(0, 8)} ready (boots ${s.boots}), ${got.length} items in GCD's plan order; ` +
+        `panel frame ${pf.t.id.slice(0, 8)}: remote pane (status ${mirrored.status}, "${remote.button}"), no [data-surfer-pane]`;
+    },
+
+    // A selection in the panel (its __soclessWave.select) focuses its signal in the Surfer tab.
+    select: async (w) => {
+      stage = 'a panel selection focuses its signal in the tab';
+      const pf = await frameOf('panel');
+      const sf = await frameOf('surfer');
+      const focus0 = (await snapOf(sf.c)).focusCount;
+      await evaluate(pf.c, `window.__soclessWave.select('io.out.bits.result')`);
+      const focused = await until('the focus of io.out.bits.result in the Surfer tab', 20000, async () => {
+        const s = await snapOf(sf.c);
+        return s && s.idle && s.focusCount > focus0 && s.lastFocus && s;
+      });
+      result.lastFocus = focused.lastFocus;
+      const want = P(w.prefix, 'io_out_bits_result');
+      if (focused.lastFocus.trace !== want || !focused.lastFocus.ok) {
+        throw new Error(`io.out.bits.result focused ${JSON.stringify(focused.lastFocus)}, expected ${want}`);
+      }
+      stage = 'screenshot of the focus';
+      await sleep(1000); // Surfer redraws the focus
+      await shotOf('surfer', join(runDir, 'surfer-focus.png'));
+      return `the panel's selection of io.out.bits.result focused ${want} in the Surfer tab (focus #${focused.focusCount})`;
+    },
+
+    // The Surfer tab's frame is the one `surfer` marked: same target, marker kept, one boot, still
+    // ready on the same trace with a plan shown (no reload).
+    keep: async () => {
+      stage = 'the Surfer tab did not reload';
+      const sf = await frameOf('surfer');
+      const s = await snapOf(sf.c);
+      const marker = await evaluate(sf.c, `window.__soclessKeep === 1`);
+      const now = { id: sf.t.id, marker, boots: s && s.boots, status: s && s.status, loadedTrace: s && s.loadedTrace, shown: !!(s && s.shown) };
+      result.keep = now;
+      if (!kept || now.id !== kept.id || !now.marker || now.boots !== 1 || now.status !== 'ready' || now.loadedTrace !== kept.loadedTrace || !now.shown) {
+        throw new Error(`the Surfer tab reloaded or rebooted: was ${JSON.stringify(kept)}, now ${JSON.stringify(now)}`);
+      }
+      return `Surfer tab frame ${now.id.slice(0, 8)} kept: marker set, boots 1, ready, same trace`;
+    },
+
+    // No page errors in any UI frame watched, of either webview.
+    errors: async () => {
+      stage = 'no page errors';
+      result.pageErrors = pageErrors;
+      result.frames = [...watched];
+      if (pageErrors.length > 0) throw new Error(`page errors in the webview UIs: ${pageErrors.join(' | ')}`);
+      return `no page errors in ${watched.size} UI frames (panel ${panelIds.size}, Surfer tab ${surferIds.size})`;
+    },
+  };
+
+  for (let n = 1; ; n++) {
+    const reqFile = join(runDir, `wave-request-${n}.json`);
+    out = join(runDir, `wave-result-${n}.json`);
+    result = { ok: false };
+    stage = `wait for wave request ${n}`;
+    const w = await until(`${reqFile} from index.js`, 20 * 60 * 1000, () =>
+      existsSync(reqFile) && JSON.parse(readFileSync(reqFile, 'utf8')), 500);
+    log(`wave request ${n} ${JSON.stringify(w)}`);
+    result.op = w.op;
+    if (!ops[w.op]) throw new Error(`unknown op ${w.op}`);
+    let message;
+    try {
+      message = await ops[w.op](w);
+    } catch (e) {
+      await diagnose().catch(() => {});
+      throw e;
+    }
+    finish({ ok: true, message });
+    if (w.op === 'errors') process.exit(0);
   }
-
-  stage = 'screenshot of the waves';
-  await sleep(1000); // Surfer redraws the focus
-  await waveShot();
-
-  stage = 'no page errors';
-  result.pageErrors = pageErrors;
-  if (pageErrors.length > 0) throw new Error(`page errors in the webview UI: ${pageErrors.join(' | ')}`);
-  finish({ ok: true, message: `Surfer ready, ${got.length} items in GCD's plan order, io.out.bits.result focused ${P('io_out_bits_result')}, no page errors` });
-  process.exit(0);
 }
 
 main().catch((e) => finish({ ok: false, message: e.message }));

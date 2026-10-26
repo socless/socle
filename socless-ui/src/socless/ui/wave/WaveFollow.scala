@@ -14,8 +14,10 @@ import socless.wave.{WaveLayout, WaveSettings}
 /** Makes the waveform viewer follow the panel's selection and drill path.
   *
   * The viewer is the language server's `waveViewer` (`/ide.json`):
-  *  - `surfer-panel`: the embedded [[SurferPane]], loaded with each new trace
-  *    and driven here;
+  *  - `surfer-panel`: `pane`, loaded with each new trace and driven here:
+  *    the embedded [[SurferPane]], or in VS Code the [[RemotePane]] of the
+  *    Surfer tab, which a new trace also opens (`socless-surfer-open`) in
+  *    place of the Waveform tab;
   *  - `surfer`: the Surfer app, held by the language server: only
   *    `POST /wave/select` (`{"traceTest","instPath","selection"}`), the server
   *    plans (without a second debounce). Once the trace's names are read (a
@@ -43,10 +45,9 @@ final class WaveFollow(
     selectedVar: Var[Option[String]],
     moduleSig: Signal[Option[ModuleDef]],
     onTrace: () => Unit,
+    val pane: WavePane,
 ) {
   import WaveFollow._
-
-  val pane = new SurferPane
 
   private var state  = Option.empty[IdeState]
   private var design = Option.empty[Design]
@@ -77,9 +78,26 @@ final class WaveFollow(
     Signal.combine(pathSig, selectedVar.signal) --> { case (p, s) => path = p; sel = s; schedule() },
   )
 
+  pane match {
+    case r: RemotePane => r.resync = () => resync()
+    case _             => ()
+  }
+
   if (Embedded.on) installHook()
 
+  /** Shows the trace and the module in view again, as for a new viewer: the
+    * Surfer tab came back (a new or reloaded tab, or an error). */
+  def resync(): Unit = if (state.exists(_.waveViewer == Panel)) {
+    shownKey = None
+    showingKey = None
+    onState()
+    fire(initial = true)
+  }
+
   private def settings: WaveSettings = state.flatMap(_.waveSettings).getOrElse(WaveSettings())
+
+  /** The trace's test (`<suite>#<test>`, "" for none), for the Surfer tab's title. */
+  def traceTest: String = state.fold("")(_.traceTest)
 
   private def following(s: IdeState): Boolean = s.waveViewer == Panel || s.waveViewer == App
 
@@ -92,8 +110,11 @@ final class WaveFollow(
       if (s.trace.nonEmpty && following(s)) fetchNames(s.trace)
     }
     if (s.waveViewer == Panel && s.trace.nonEmpty) {
-      // A new trace (or the panel viewer chosen) shows the Waveform tab.
-      if (opened != ((s.waveViewer, s.trace))) { opened = (s.waveViewer, s.trace); onTrace() }
+      // A new trace (or the panel viewer chosen) shows the Waveform tab, or opens the Surfer tab.
+      if (opened != ((s.waveViewer, s.trace))) {
+        opened = (s.waveViewer, s.trace)
+        pane match { case r: RemotePane => r.open(SurferPane.absolute(s.trace), s.traceTest, force = false); case _ => onTrace() }
+      }
       installHook()
       pane.load(SurferPane.absolute(s.trace))
     }
@@ -149,7 +170,7 @@ final class WaveFollow(
         // Surfer. It counts as shown once Surfer has it.
         if (!shownKey.contains(key) && !showingKey.contains(key)) {
           showingKey = Some(key)
-          pane.show(plan, path, s.trace, shown => if (showingKey.contains(key)) {
+          pane.show(plan, path, SurferPane.absolute(s.trace), shown => if (showingKey.contains(key)) {
             showingKey = None
             // missing: what the trace's names lack, plus what Surfer dropped (names unknown, as for FST)
             shown.foreach { dropped => shownKey = Some(key); viewVar.update(_.copy(missing = plan.missing + dropped)) }

@@ -5,7 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import socless.schema.{Design, ModuleDef, PortDir}
 import socless.ui.theme._
-import socless.ui.wave.WaveFollow
+import socless.ui.wave.{RemotePane, SurferPane, WaveFollow}
 
 /** The bottom panel under the schematic (epic #172 Phase 3 follow-up): a tabbed
   * Source / Waveform / Ports view. Behavioral port of the JS `BenchBottomPanel`
@@ -20,7 +20,10 @@ import socless.ui.wave.WaveFollow
   *                language server's viewer is `surfer-panel` and a trace exists,
   *                following the selection ([[socless.ui.wave.WaveFollow]]);
   *                otherwise a note on how to get a trace (Simulate). Its canvas is
-  *                mounted once, outside the per-selection body.
+  *                mounted once, outside the per-selection body. The VS Code panel
+  *                mounts no Surfer: it drives the Surfer tab
+  *                ([[socless.ui.wave.RemotePane]]) and shows its notes, its state
+  *                and a Show Surfer button.
   *   - Ports    : a table of this module's ports plus each child instance's. */
 object BottomPanel {
 
@@ -288,9 +291,23 @@ object BottomPanel {
       child.maybe <-- Signal.combine(viewSig, surferSig).map { case (v, surfer) =>
         Option.when(!surfer)(div(dataAttr("wave-hint") := "1",
           styleAttr := s"display:flex;align-items:center;justify-content:center;flex:1;font-size:12px;color:${Tokens.ink4};padding:24px;text-align:center",
-          waveHint(v)))
+          waveHint(v, remote = wave.exists(_.pane.isInstanceOf[RemotePane]))))
       },
-      wave.map(w => div(styleAttr <-- surferSig.map(on => s"display:${if (on) "flex" else "none"};flex:1;min-height:0"), w.pane.canvasHost)),
+      wave.map(w => w.pane match {
+        case p: SurferPane =>
+          div(styleAttr <-- surferSig.map(on => s"display:${if (on) "flex" else "none"};flex:1;min-height:0"), p.canvasHost)
+        case r: RemotePane =>
+          // VS Code: Surfer is in its own editor tab; this one only reveals or reopens it.
+          div(dataAttr("wave-remote") := "1",
+            styleAttr <-- surferSig.map(on => s"display:${if (on) "flex" else "none"};flex:1;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:12px;color:${Tokens.ink4};padding:24px;text-align:center"),
+            span("The waveforms are in the Surfer tab, which follows the selection."),
+            button(dataAttr("show-surfer") := "1",
+              styleAttr := s"border:1px solid ${Tokens.border};background:${Tokens.panel};color:${Tokens.ink};border-radius:5px;padding:4px 12px;font-family:inherit;font-size:12px;cursor:pointer",
+              onClick.compose(_.sample(viewSig)) --> { v =>
+                r.open(v.fold("")(x => SurferPane.absolute(x.trace)), w.traceTest, force = true)
+              }, "Show Surfer"))
+        case _ => emptyNode
+      }),
     )
   }
 
@@ -303,7 +320,9 @@ object BottomPanel {
     }
   }
 
-  private def waveHint(v: Option[WaveFollow.View]): String = v match {
+  private def waveHint(v: Option[WaveFollow.View], remote: Boolean): String = v match {
+    case Some(x) if remote && x.viewer == WaveFollow.Panel && x.trace.isEmpty =>
+      "No trace yet: run Simulate on a ChiselSim test (the Simulate lens above it in the editor); its waveforms open in a Surfer tab."
     case Some(x) if x.viewer == WaveFollow.App && x.trace.nonEmpty =>
       "The waveforms are in the Surfer app, which follows the selection."
     case Some(x) if x.viewer == "custom" && x.trace.nonEmpty =>

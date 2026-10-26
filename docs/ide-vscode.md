@@ -49,6 +49,10 @@ with Node.
    (after a 300 ms pause), click a box to open its source.
 4. Close the panel and run the lens again to get it back, or run the command
    `SoCLess: Show design panel` to reveal the current design.
+5. With `socless.waveViewer` set to `surfer-panel`, run the command
+   `SoCLess: Show waveforms` to reveal the panel and the Surfer tab (or bring
+   them back after closing them). Before any Simulate it says to run Simulate
+   first; with another viewer it names the `socless.waveViewer` setting instead.
 
 ## The SoCLess side panel
 
@@ -100,9 +104,11 @@ The panel is the SoCLess UI in embedded mode (the extension loads it with
 - no Source tab (the editor shows the code, and a click on a box opens it
   there). The Waveform tab is there only when `socless.waveViewer` is
   `surfer-panel` (see [Waveforms that follow the
-  schematic](#waveforms-that-follow-the-schematic)). The bottom panel keeps
-  Ports and starts closed; its toolbar button opens it, and so does a new
-  trace in `surfer-panel` mode, on the Waveform tab;
+  schematic](#waveforms-that-follow-the-schematic)): Surfer itself is in its
+  own Surfer tab, and the Waveform tab shows its state, the notes (signals not
+  in the trace, following paused) and a **Show Surfer** button that reveals or
+  reopens it. The bottom panel keeps Ports and starts closed; its toolbar
+  button opens it;
 - no theme toggle or theme gallery: the panel follows the VS Code theme, light
   to the light theme, dark to the dark one, high contrast to the high-contrast
   one and high contrast light to the light one, and switches live when you
@@ -249,10 +255,31 @@ the waveform viewer shows. `socless.waveViewer` picks the viewer:
   Simulate (like a `custom` viewer); close it yourself. A `surferCommand`
   wrapper must `exec` Surfer: one that forks and exits looks like an old
   Surfer.
-- `surfer-panel`: Surfer runs inside the panel's Waveform tab. The list is
-  grouped: one group per port, with its bundles nested, then `Registers`, then
-  `Wires`. Signals are coloured and carry short labels (`valid`, `bits`,
-  `data [31:0]` for a multi-bit one) under their group's name.
+- `surfer-panel`: Surfer runs in the web UI, from the SoCLess language
+  server. The list is grouped: one group per port, with its bundles nested,
+  then `Registers`, then `Wires`. Signals are coloured and carry short labels
+  (`valid`, `bits`, `data [31:0]` for a multi-bit one) under their group's
+  name. In VS Code it has its own editor tab, `Surfer: <test name>`, named
+  after the test of its trace (viewing another test does not rename it):
+  - A new trace opens the tab in the column after the SoCLess panel's, so it
+    never covers the schematic, without taking the focus.
+    Drag it to another column or group, or hide it behind another tab: it keeps
+    its trace and is not reloaded.
+  - The SoCLess panel drives it: the extension relays the panel's commands to
+    the tab and the tab's state back. The panel's Waveform tab shows that
+    state (`Surfer: ready`) and a **Show Surfer** button. A reloaded or
+    reopened panel asks for that state at once, so it reads `Surfer: ready`
+    or `Surfer: closed` (no tab), not `idle`.
+  - Close it, and it stays closed: viewing a test or reopening the SoCLess
+    panel does not bring it back, only the next new trace (a Simulate), the
+    Show Surfer button or `SoCLess: Show waveforms`, which reopens it on the
+    same trace and module.
+  - Its page follows the VS Code theme; Surfer's waveform canvas keeps its
+    own colours.
+  - After a language server restart (a new port), the next view points the
+    tab at the new server.
+
+  In Neovim and in a browser, Surfer runs in the UI's Waveform tab instead.
 - `custom`: `socless.waveViewerCommand` runs on the trace, with `{file}`
   replaced by its path. It is split on whitespace, with no quoting and no
   shell, so a path with spaces cannot be passed. Without `{file}`, the path is
@@ -290,8 +317,10 @@ With the two Surfer viewers:
 
 Known limits:
 
-- The panel's Surfer only answers while its canvas is drawn: on another tab
-  or with the panel closed, the latest selection applies once it shows again.
+- The web Surfer only answers while its canvas is drawn: while the Surfer
+  tab (or, outside VS Code, the Waveform tab) is hidden, the latest selection
+  applies once it shows again. With the SoCLess panel closed, nothing drives
+  the Surfer tab.
 - On a Wayland desktop with XWayland (`DISPLAY` set), the Surfer app is
   started under XWayland: a native Wayland window gets no frames while it is
   hidden (another workspace, a locked screen), and Surfer only answers WCP
@@ -322,7 +351,7 @@ comes from and how to rebuild it.
 | `socless.serverJar` | empty | Server jar to use instead of the bundled one. |
 | `socless.waveFlag` | `emitVcd` | ChiselSim option that turns waves on for [Simulate](#simulate), passed as `-D<flag>=1`. |
 | `socless.surferCommand` | `surfer` | The Surfer app (an executable): started as `<command> --wcp-initiate <port> <trace>` for `surfer`, and as `<command> <trace>` for an empty `custom` command. |
-| `socless.waveViewer` | `surfer` | `surfer` (external app), `surfer-panel` (embedded in the panel) or `custom`. |
+| `socless.waveViewer` | `surfer` | `surfer` (external app), `surfer-panel` (the web Surfer, in its own VS Code tab) or `custom`. |
 | `socless.waveViewerCommand` | empty | Command for `custom`, split on whitespace (no quoting); `{file}` is the trace path, e.g. `gtkwave {file}`. |
 | `socless.wavesFollowSelection` | `true` | Surfer viewers only: the selected module decides which signals Surfer shows. |
 | `socless.wavesShowClockReset` | `false` | Surfer viewers only: clock and reset lead the list. |

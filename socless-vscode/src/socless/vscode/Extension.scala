@@ -19,6 +19,7 @@ object Extension {
   @JSExportTopLevel("activate")
   def activate(ctx: ExtensionContext): Unit = {
     ctx.subscriptions.push(commands.registerCommand("socless.showPanel", (() => showPanel()): js.Function0[Unit]))
+    ctx.subscriptions.push(commands.registerCommand("socless.showWaves", (() => showWaves()): js.Function0[Unit]))
     ctx.subscriptions.push(
       commands.registerCommand("socless._panelUrl", (() => Panel.lastUrl.orUndefined): js.Function0[js.UndefOr[String]])
     )
@@ -50,6 +51,7 @@ object Extension {
   @JSExportTopLevel("deactivate")
   def deactivate(): js.UndefOr[js.Promise[Unit]] = {
     deactivated = true
+    SurferTab.dispose()
     Panel.dispose()
     // Only a running client stops cleanly; a starting or failed one would reject, so swallow that too.
     client.filter(_.isRunning()).map { c =>
@@ -105,7 +107,7 @@ object Extension {
 
     ctx.subscriptions.push(
       c.onNotification("socless/openPanel", (params: js.Dynamic) =>
-        Panel.show(params.url.asInstanceOf[String], params.test.asInstanceOf[js.UndefOr[String]].toOption.flatMap(Option(_))))
+        ignoreFailure(Panel.show(params.url.asInstanceOf[String], params.test.asInstanceOf[js.UndefOr[String]].toOption.flatMap(Option(_)))))
     )
 
     val debounce = new Debouncer(
@@ -128,8 +130,22 @@ object Extension {
   private def ignoreFailure(p: js.Promise[Unit]): Unit =
     p.asInstanceOf[js.Dynamic].`catch`((_: js.Any) => ())
 
+  /** `socless.showWaves`: reveals the SoCLess panel (or reopens it on its last view), whose UI drives
+    * the Surfer tab, then opens or reveals that tab. Only once a Simulate gave the panel a trace. */
+  private def showWaves(): Unit = {
+    val viewer = workspace.getConfiguration("socless").get[String]("waveViewer").toOption
+    (Logic.showWavesProblem(viewer, SurferTab.traced && Panel.lastUrl.isDefined), Panel.lastUrl) match {
+      case (None, Some(url)) =>
+        // After the panel exists, so the tab opens in the column after the panel's. None keeps the
+        // tab's title: the test of its trace, not of the panel's view.
+        val openTab: js.Function1[Unit, js.|[Unit, js.Thenable[Unit]]] = (_: Unit) => SurferTab.open(None)
+        ignoreFailure(Panel.show(url, None).`then`[Unit](openTab))
+      case (problem, _) => problem.foreach(window.showInformationMessage(_))
+    }
+  }
+
   private def showPanel(): Unit = Panel.lastUrl match {
-    case Some(url) => Panel.show(url, None)
+    case Some(url) => ignoreFailure(Panel.show(url, None))
     case None =>
       javaProblem match {
         case Some(problem) => window.showErrorMessage(problem)

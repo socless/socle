@@ -123,6 +123,10 @@
         "icon": "$(preview)"
       },
       {
+        "command": "socless.showWaves",
+        "title": "SoCLess: Show waveforms"
+      },
+      {
         "command": "socless.refreshTests",
         "title": "SoCLess: Refresh tests",
         "icon": "$(refresh)"

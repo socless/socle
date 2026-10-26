@@ -2,6 +2,7 @@ package socless.ui.data
 
 import org.scalajs.dom
 import scala.scalajs.js
+import socless.wave.SurferWire
 
 /** Embedded mode: the page runs inside an editor's panel (the VS Code
   * extension loads it with `?host=vscode&theme=<kind>`). The editor already
@@ -14,6 +15,10 @@ object Embedded {
   private val params = new dom.URLSearchParams(dom.window.location.search)
 
   val on: Boolean = params.get("host") == "vscode"
+
+  /** The VS Code Surfer tab page (`view=surfer`): only Surfer, driven by
+    * `socless-surfer-cmd` messages from the parent ([[socless.ui.wave.SurferTab]]). */
+  val surferView: Boolean = on && params.get("view") == "surfer"
 
   /** The UI theme id for an editor theme kind (`light` / `dark` / `hc`). */
   def themeFor(kind: String): Option[String] = kind match {
@@ -76,6 +81,56 @@ object Embedded {
         if (js.special.strictEquals(e.source, dom.window.parent) && e.origin == origin)
           parseNavigate(e.data.asInstanceOf[js.Any]).foreach { case (p, s) => apply(p, s) })
     }
+
+  /** Calls `apply` with the command of every valid
+    * `{type: "socless-surfer-cmd", cmd}` message from the parent page (same
+    * window and origin rules as [[postToParent]]); a `cmd` that is not a
+    * [[SurferWire.Cmd]] is ignored. */
+  def onSurferCmd(apply: SurferWire.Cmd => Unit): Unit =
+    parentOrigin.foreach { origin =>
+      dom.window.addEventListener("message", (e: dom.MessageEvent) =>
+        if (js.special.strictEquals(e.source, dom.window.parent) && e.origin == origin &&
+            e.data != null && js.typeOf(e.data) == "object") {
+          val d = e.data.asInstanceOf[js.Dynamic]
+          val cmd = d.selectDynamic("cmd")
+          if (d.selectDynamic("type").asInstanceOf[Any] == "socless-surfer-cmd" && cmd != null && js.typeOf(cmd) == "object")
+            SurferWire.parseCmd(js.JSON.stringify(cmd)).foreach(apply)
+        })
+    }
+
+  /** The SoCLess panel in VS Code: framed by the editor's webview (the side
+    * panel channel is open) and not the Surfer tab. Its waveforms go to the
+    * Surfer tab ([[socless.ui.wave.RemotePane]]); unframed, there is no one to
+    * relay them, so Surfer stays in the Waveform tab. */
+  lazy val surferRemote: Boolean = on && !surferView && parentOrigin.isDefined
+
+  /** Calls `apply` with the status of every valid
+    * `{type: "socless-surfer-status", status}` message from the parent page
+    * (same window and origin rules as [[postToParent]]). */
+  def onSurferStatus(apply: SurferWire.Status => Unit): Unit =
+    onParentMessage("socless-surfer-status") { d =>
+      val st = d.selectDynamic("status")
+      if (st != null && js.typeOf(st) == "object") SurferWire.parseStatus(js.JSON.stringify(st)).foreach(apply)
+    }
+
+  /** Calls `apply` on every `{type: "socless-surfer-closed"}` message from the
+    * parent page (same window and origin rules as [[postToParent]]). */
+  def onSurferClosed(apply: () => Unit): Unit =
+    onParentMessage("socless-surfer-closed")(_ => apply())
+
+  private def onParentMessage(tpe: String)(apply: js.Dynamic => Unit): Unit =
+    parentOrigin.foreach { origin =>
+      dom.window.addEventListener("message", (e: dom.MessageEvent) =>
+        if (js.special.strictEquals(e.source, dom.window.parent) && e.origin == origin &&
+            e.data != null && js.typeOf(e.data) == "object") {
+          val d = e.data.asInstanceOf[js.Dynamic]
+          if (d.selectDynamic("type").asInstanceOf[Any] == tpe) apply(d)
+        })
+    }
+
+  /** Posts `{type: "socless-surfer-status", status}` to the parent page. */
+  def postSurferStatus(s: SurferWire.Status): Unit =
+    postToParent(js.Dynamic.literal(`type` = "socless-surfer-status", status = js.JSON.parse(SurferWire.writeStatus(s))))
 
   /** Calls `apply` with the theme of every `{type: "socless-theme", kind}`
     * message posted by the parent page (the editor's webview). Messages from

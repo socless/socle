@@ -20,6 +20,12 @@
 // (mutable), a ChiselSim GCD trace (tools/ui-smoke/fixtures/gcd-trace.vcd) and its
 // names under /wave/<id>/, the vendored Surfer (socless-lsp/vendor/surfer, the
 // files the server jar packs) under /surfer/, and records POST /wave/select.
+// Check 10 frames the Surfer tab page (`?host=vscode&view=surfer`) and drives it with
+// `socless-surfer-cmd` messages, as the extension does, on the same trace. Check 11
+// frames the VS Code panel page, which then drives the Surfer tab by messages (the
+// check answers as the tab), and check 12 shows the browser page keeps its Surfer.
+// Check 8 runs the panel page unframed: with no parent to relay to, it keeps Surfer
+// in its Waveform tab, as the browser does.
 //
 // Serves the dist page itself (loopback, free port) with a two-entry designs.json so
 // the multi-top picker shows in normal mode. Uses CHROMIUM=/path like smoke.mjs.
@@ -47,7 +53,7 @@ for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURF
 
 // The stand-in language server state for check 8: /ide.json (404 while null), the
 // POST /wave/select bodies, and how often each Surfer file was fetched.
-const wave = { ide: null, posts: [], surferJs: 0, surferWasm: 0 };
+const wave = { ide: null, posts: [], surferJs: 0, surferWasm: 0, tabFetches: [] };
 // The trace's full dotted var paths, from its VCD header (as the server's TraceNames).
 const vcdNames = (() => {
   const scopes = []; const names = [];
@@ -72,6 +78,7 @@ const files = {
   '/fsm/design.json': ['application/json', readFileSync(FSM)],
   '/gcd/': ['text/html', readFileSync(UI)],
   '/gcd/design.json': ['application/json', readFileSync(GCD)],
+  '/tab/': ['text/html', readFileSync(UI)], // the Surfer tab page (check 10): no design.json beside it
   '/wave/t1/trace': ['application/octet-stream', readFileSync(VCD)],
   '/wave/t1/names': ['application/json', names([])],
   // the second trace's names lack one register: the panel counts it missing
@@ -86,6 +93,7 @@ const files = {
 };
 const server = http.createServer((req, res) => {
   const path = req.url.split('?')[0];
+  if (path.startsWith('/tab/') && path !== '/tab/') wave.tabFetches.push(path); // the Surfer tab page fetches nothing of its own
   if (path === '/gcd/ide.json') {
     if (!wave.ide) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -121,6 +129,23 @@ const f = document.getElementById('f');
 addEventListener('message', (e) => { if (e.source === f.contentWindow) window.__msgs.push({ origin: e.origin, data: e.data }); });
 </script></body>`];
 const PARENT_DEEP = `http://localhost:${server.address().port}/parent-deep.html`;
+// The VS Code Surfer tab stand-in: frames the Surfer-only page and records what it posts.
+files['/parent-tab.html'] = ['text/html', `<!DOCTYPE html><body style="margin:0"><iframe id="f" src="${BASE}/tab/?host=vscode&view=surfer&theme=dark" style="width:1200px;height:700px;border:0"></iframe>
+<script>
+window.__msgs = [];
+const f = document.getElementById('f');
+addEventListener('message', (e) => { if (e.source === f.contentWindow) window.__msgs.push({ origin: e.origin, data: e.data }); });
+</script></body>`];
+const PARENT_TAB = `http://localhost:${server.address().port}/parent-tab.html`;
+// The VS Code SoCLess panel stand-in on the GCD capture (check 11): records what the UI
+// posts; the check answers as the extension and the Surfer tab would.
+files['/parent-panel.html'] = ['text/html', `<!DOCTYPE html><body style="margin:0"><iframe id="f" src="${BASE}/gcd/?host=vscode&theme=light" style="width:1400px;height:800px;border:0"></iframe>
+<script>
+window.__msgs = [];
+const f = document.getElementById('f');
+addEventListener('message', (e) => { if (e.source === f.contentWindow) window.__msgs.push({ origin: e.origin, data: e.data }); });
+</script></body>`];
+const PARENT_PANEL = `http://localhost:${server.address().port}/parent-panel.html`;
 
 const EXEC = process.env.CHROMIUM
   || ['/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome-stable'].find((p) => existsSync(p));
@@ -566,6 +591,307 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await waitLoaded(page);
   check('hook', (await page.evaluate(() => typeof window.__soclessWave)) === 'undefined', 'no __soclessWave on a normal page');
   await ctx.close();
+}
+
+// 10. The Surfer tab page (`?host=vscode&view=surfer`): only Surfer, driven by its
+// parent's `socless-surfer-cmd` messages, answering `socless-surfer-status`. It
+// fetches no design and no /ide.json; a Load then a Show of GCD's top plan shows
+// its 16 rows; Hello reports the state; Focus reaches the pane; self-posted and
+// malformed commands are ignored.
+{
+  const TRACE = `${BASE}/wave/t1/trace`;
+  const P = (leaf) => `${PREFIX}.${leaf}`;
+  const it = (leaf, label, color, width) => ({ trace: P(leaf), label, color, width });
+  const g = (name, items, children = []) => ({ name, items, children, folded: false });
+  // GCD's top plan as WaveLayout makes it (the default settings).
+  const plan = { missing: 0, groups: [
+    g('io', [], [
+      g('in', [it('io_in_valid', 'valid', 'Blue', 1), it('io_in_ready', 'ready', 'Green', 1)],
+        [g('bits', [it('io_in_bits_a', 'a', 'Blue', 16), it('io_in_bits_b', 'b', 'Blue', 16)])]),
+      g('out', [it('io_out_valid', 'valid', 'Green', 1), it('io_out_ready', 'ready', 'Blue', 1)],
+        [g('bits', [it('io_out_bits_result', 'result', 'Green', 16)])]),
+    ]),
+    g('Registers', [it('x', 'x', 'Orange', 16), it('y', 'y', 'Orange', 16), it('busy', 'busy', 'Orange', 1)]),
+  ] };
+  const want = ['group io', 'group io.in', P('io_in_valid'), P('io_in_ready'), 'group io.in.bits', P('io_in_bits_a'), P('io_in_bits_b'),
+    'group io.out', P('io_out_valid'), P('io_out_ready'), 'group io.out.bits', P('io_out_bits_result'),
+    'group Registers', P('x'), P('y'), P('busy')];
+
+  wave.tabFetches = [];
+  const js0 = wave.surferJs;
+  const { ctx, page, errors } = await open(PARENT_TAB);
+  const mounted = await page.frameLocator('#f').locator('[data-surfer-pane]').waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
+  check('tab', mounted, 'the Surfer tab page mounts its pane');
+  const f = page.frames().find((x) => x !== page.mainFrame());
+  const statuses = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socless-surfer-status'));
+  const waitStatus = async (what, pred, ms = 30000) => {
+    for (let t = 0; t < ms; t += 200) {
+      const s = (await statuses()).find((m) => pred(m.data.status));
+      if (s) return s;
+      await page.waitForTimeout(200);
+    }
+    check('tab', false, `timed out waiting for ${what}: ${JSON.stringify((await statuses()).map((m) => m.data.status)).slice(-400)}`);
+    return null;
+  };
+  const cmd = (c) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-cmd', cmd: x }, '*'), c);
+
+  const first = await waitStatus('the first status', () => true, 10000);
+  check('tab', !!first && first.origin === BASE && first.data.status.state === 'idle', `the page reports idle at start ${JSON.stringify(first)}`);
+  check('tab', (await count(f, '[data-surfer-pane]')) === 1 && (await count(f, 'canvas')) === 1, 'one Surfer canvas');
+  for (const sel of ['[data-pane="schematic"]', '[data-bottom-panel]', '[data-search-trigger]', '[data-settings-toggle]', '[data-design-loaded]'])
+    check('tab', (await count(f, sel)) === 0, `no ${sel}`);
+  check('tab', (await theme(f)) === 'dark', 'theme from ?theme=dark');
+
+  // Ignored: posted by the frame to itself, or malformed.
+  await f.evaluate((u) => window.postMessage({ type: 'socless-surfer-cmd', cmd: { $type: 'Load', url: u } }, '*'), TRACE);
+  for (const bad of [{}, 'Load', { $type: 'Nope' }, { $type: 'Load' }, null]) await cmd(bad);
+  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-cmd' }, '*'));
+  await page.waitForTimeout(600);
+  check('tab', wave.surferJs === js0 && (await statuses()).every((m) => m.data.status.state === 'idle'),
+    `self-posted and malformed commands ignored (surfer.js fetched ${wave.surferJs - js0}x)`);
+
+  // Load, then Show: Surfer boots, loads the trace and shows the plan.
+  await cmd({ $type: 'Load', url: TRACE });
+  await cmd({ $type: 'Show', seq: 1, plan, path: ['GCD'], trace: TRACE });
+  const done = await waitStatus('the shown seq 1', (s) => s.shownSeq === 1, 120000);
+  check('tab', !!done && done.data.status.state === 'ready' && done.data.status.loadedTrace === TRACE && done.data.status.dropped === 0 && !done.data.status.shownSeqFailed,
+    `seq 1 shown, ready, nothing dropped ${JSON.stringify(done && done.data.status)}`);
+  const items = await f.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
+  check('tab', items.length === 16 && JSON.stringify(got) === JSON.stringify(want),
+    `Surfer shows GCD's 16 rows\n      got  ${JSON.stringify(got)}\n      want ${JSON.stringify(want)}`);
+
+  // Hello: the page reports its state again.
+  const n0 = (await statuses()).length;
+  await cmd({ $type: 'Hello' });
+  await page.waitForTimeout(400);
+  const hello = (await statuses()).slice(n0);
+  check('tab', hello.length === 1 && hello[0].data.status.state === 'ready' && hello[0].data.status.loadedTrace === TRACE,
+    `Hello answers one status ${JSON.stringify(hello.map((m) => m.data.status))}`);
+
+  // Focus reaches the pane.
+  await cmd({ $type: 'Focus', trace: P('busy') });
+  let focus = null;
+  for (let t = 0; t < 20000 && !focus; t += 200) {
+    const s = await f.evaluate(() => window.__soclessWave.snapshot());
+    if (s.idle && s.lastFocus) focus = s.lastFocus; else await page.waitForTimeout(200);
+  }
+  check('tab', !!focus && focus.trace === P('busy') && focus.ok, `Focus reaches Surfer ${JSON.stringify(focus)}`);
+  check('tab', wave.tabFetches.length === 0, `no design or /ide.json fetched ${JSON.stringify(wave.tabFetches)}`);
+  // Surfer (egui) focuses its hidden text input; Chromium refuses that in a cross-origin
+  // frame (as the VS Code webview is) and logs it as an error: not a page fault.
+  const pageErrors = errors.filter((e) => !/^Blocked autofocusing on a <input> element in a cross-origin subframe/.test(e));
+  check('tab', pageErrors.length === 0, `no page errors ${pageErrors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 11. The VS Code panel (framed, `surfer-panel`) drives Surfer in another tab: on load
+// it posts a `Hello` (a tagged object) to learn the tab's state; a new trace posts
+// `socless-surfer-open` (with the trace and its test, unforced), then the `Load` and the
+// `Show` of the top plan (`socless-surfer-cmd`, its seq seeded per page); the new tab's
+// first status (no trace yet) gets them once more; the Waveform tab mounts no Surfer, says what the tab
+// reports and has a Show Surfer button (a forced open); a stale status changes nothing;
+// a selection posts `Focus`; after `socless-surfer-closed` nothing is sent until a
+// fresh tab reports, which gets the trace and the plan again; an error is retried once
+// per tab. 11b: a reloaded panel whose Hello is answered `socless-surfer-closed` (no tab)
+// says "Surfer: closed", and its seq starts elsewhere.
+let seq1 = -1;
+{
+  const TEST = 'GCD computes gcd(48, 18)';
+  const TRACE_TEST = `gcd.GcdSpec#${TEST}`;
+  const SETTINGS = { followSelection: true, showClockReset: false, foldBundles: false, showWires: true, colorByDirection: true, followDelayMs: 150 };
+  wave.ide = { status: 'ok', message: '', focusClass: '', test: TEST, suite: 'gcd.GcdSpec', stamp: 100, waveViewer: 'surfer-panel', trace: '', traceTest: '', waveSettings: SETTINGS };
+  const setIde = async (patch) => { wave.ide = { ...wave.ide, ...patch, stamp: wave.ide.stamp + 1 }; await new Promise((r) => setTimeout(r, 2000)); };
+  const P = (leaf) => `${PREFIX}.${leaf}`;
+  const js0 = wave.surferJs;
+  const { ctx, page, errors } = await open(PARENT_PANEL);
+  await page.frameLocator('#f').locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
+  const f = page.frames().find((x) => x !== page.mainFrame());
+  const msgs = () => page.evaluate(() => window.__msgs.map((m) => m.data)
+    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socless-surfer')));
+  const kind = (m) => (m.type === 'socless-surfer-cmd' ? (m.cmd && m.cmd.$type) : m.type);
+  const after = async (n) => (await msgs()).slice(n);
+  const waitMsgs = async (what, n, pred, ms = 20000) => {
+    for (let t = 0; t < ms; t += 200) { const xs = await after(n); if (pred(xs)) return xs; await page.waitForTimeout(200); }
+    check('remote', false, `timed out waiting for ${what}: ${JSON.stringify((await after(n)).map(kind))}`);
+    return null;
+  };
+  const toUi = (m) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage(x, '*'), m);
+  const status = (s) => toUi({ type: 'socless-surfer-status', status: s });
+  const stub = (id) => f.locator(`[data-boundary-stub="${id}"]`).first().click();
+
+  await f.waitForTimeout(500);
+  const hello = await waitMsgs('the Hello', 0, (xs) => xs.length > 0, 5000);
+  await f.waitForTimeout(300);
+  check('remote', !!hello && JSON.stringify(await msgs()) === '[{"type":"socless-surfer-cmd","cmd":{"$type":"Hello"}}]',
+    `no trace: only a Hello posted, as a tagged object ${JSON.stringify(await msgs())}`);
+  const base = (await msgs()).length;
+  await f.click('[data-toggle-pane="bottom"]');
+  await f.click('[data-bottom-tab="wave"]').catch(() => {});
+  const hint = await f.locator('[data-wave-hint]').innerText().catch(() => '');
+  check('remote', /Simulate/.test(hint) && /Surfer tab/.test(hint) && !/here/.test(hint), `no trace: the hint points at the Surfer tab (${JSON.stringify(hint)})`);
+  await f.click('[data-toggle-pane="bottom"]'); // closed again, as the rest expects
+
+  // A new trace: open the tab, then Load, then the top plan's Show (seq 1).
+  await setIde({ trace: '/wave/t1/trace', traceTest: TRACE_TEST });
+  const first = await waitMsgs('open, Load and Show', base, (xs) => xs.some((m) => kind(m) === 'Show'));
+  await page.waitForTimeout(500);
+  const xs = await after(base);
+  check('remote', JSON.stringify(xs.map(kind)) === '["socless-surfer-open","Load","Show"]', `a new trace posts open, Load, Show ${JSON.stringify(xs.map(kind))}`);
+  const load = xs.find((m) => kind(m) === 'Load');
+  const show = xs.find((m) => kind(m) === 'Show');
+  const url = load && load.cmd.url;
+  check('remote', !!first && !!url && url === `${BASE}/wave/t1/trace`, `Load of the absolute trace (${url})`);
+  const open0 = xs.find((m) => m.type === 'socless-surfer-open');
+  check('remote', !!open0 && open0.trace === url && open0.traceTest === TRACE_TEST && open0.force === false,
+    `the new trace's open names it and its test, unforced ${JSON.stringify(open0)}`);
+  seq1 = show ? show.cmd.seq : -1;
+  check('remote', !!show && seq1 > 2 && JSON.stringify(show.cmd.path) === '["GCD"]' && show.cmd.trace === url &&
+    JSON.stringify(show.cmd.plan.groups.map((g) => g.name)) === '["io","Registers"]',
+    `Show (seq seeded per page, not 1) of GCD's top plan ${JSON.stringify(show && { seq: show.cmd.seq, path: show.cmd.path, groups: show.cmd.plan.groups.map((g) => g.name) })}`);
+  check('remote', wave.surferJs === js0, 'no Surfer loaded in the panel');
+
+  // The new tab's first status (no closed before it: the real first open) reports no trace
+  // yet: the panel sends the trace and the plan again, exactly once.
+  const nf = (await msgs()).length;
+  await status({ state: 'idle', loadedTrace: '', shownSeq: null, dropped: null });
+  const fr = await waitMsgs('the fresh tab resync', nf, (ys) => ys.some((m) => kind(m) === 'Show'));
+  await page.waitForTimeout(1000);
+  const frs = await after(nf);
+  const show2 = frs.find((m) => kind(m) === 'Show');
+  check('remote', !!fr && JSON.stringify(frs.map(kind)) === '["Load","Show"]' && frs[0].cmd.url === url && show2.cmd.seq === seq1 + 1,
+    `a fresh tab's first status gets one Load and one Show ${JSON.stringify(frs.map((m) => [kind(m), m.cmd && (m.cmd.url || m.cmd.seq)]))}`);
+  const seq2 = show2 ? show2.cmd.seq : -1;
+
+  // The Waveform tab: no Surfer canvas, a Show Surfer button that asks for the tab.
+  await f.click('[data-toggle-pane="bottom"]');
+  await f.click('[data-bottom-tab="wave"]').catch(() => {});
+  check('remote', (await f.locator('[data-wave-pane]').isVisible().catch(() => false)) && (await count(f, '[data-surfer-pane]')) === 0,
+    'the Waveform tab shows and mounts no Surfer');
+  const btn = f.locator('[data-show-surfer]');
+  check('remote', (await btn.count()) === 1 && /Show Surfer/.test(await btn.innerText().catch(() => '')), 'a Show Surfer button');
+  const n0 = (await msgs()).length;
+  await btn.click().catch(() => {});
+  const opened = await waitMsgs('the open of Show Surfer', n0, (ys) => ys.length > 0, 5000);
+  check('remote', !!opened && JSON.stringify(opened.map(kind)) === '["socless-surfer-open"]' &&
+    opened[0].trace === url && opened[0].traceTest === TRACE_TEST && opened[0].force === true, `Show Surfer posts a forced open ${JSON.stringify(opened)}`);
+
+  // A stale status (seq 1, replaced by seq 2) changes nothing.
+  const missingText = () => f.locator('[data-wave-missing]').innerText().catch(() => '');
+  const before = await missingText();
+  await status({ state: 'ready', loadedTrace: url, shownSeq: seq2 - 1, dropped: 3 });
+  await page.waitForTimeout(800);
+  const afterStale = await missingText();
+  check('remote', afterStale === before, `a stale shownSeq leaves the missing note unchanged (${JSON.stringify(before)} -> ${JSON.stringify(afterStale)})`);
+
+  // The tab shows seq 2, dropping one signal: the Waveform tab counts it, with the tab's state.
+  await status({ state: 'ready', loadedTrace: url, shownSeq: seq2, dropped: 1 });
+  let missing = '';
+  for (let t = 0; t < 5000 && !missing; t += 200) { missing = await f.locator('[data-wave-missing]').innerText().catch(() => ''); if (!missing) await page.waitForTimeout(200); }
+  check('remote', missing.trim() === '1 signal not in the trace', `the dropped signal is counted (${JSON.stringify(missing)})`);
+  const info = await f.locator('[data-bottom-panel]').innerText().catch(() => '');
+  check('remote', /Surfer: ready/.test(info), `the tab's state shown (${JSON.stringify(info.slice(0, 120))})`);
+
+  // A selection: Focus with its trace, no new plan.
+  const n1 = (await msgs()).length;
+  await stub('io.out.bits.result');
+  const foc = await waitMsgs('the Focus', n1, (ys) => ys.some((m) => kind(m) === 'Focus'));
+  await page.waitForTimeout(400);
+  const ys = await after(n1);
+  check('remote', !!foc && JSON.stringify(ys.map(kind)) === '["Focus"]' && ys[0].cmd.trace === P('io_out_bits_result'),
+    `a port click posts Focus ${JSON.stringify(ys.map((m) => m.cmd))}`);
+
+  // The tab closed: nothing is sent; a fresh tab's first status gets Load and Show again.
+  await toUi({ type: 'socless-surfer-closed' });
+  await page.waitForTimeout(200);
+  const n2 = (await msgs()).length;
+  await stub('io.in.valid');
+  await page.waitForTimeout(800);
+  check('remote', (await msgs()).length === n2, `closed: a selection posts nothing ${JSON.stringify((await after(n2)).map(kind))}`);
+  await status({ state: 'idle', loadedTrace: '', shownSeq: null, dropped: null });
+  const re = await waitMsgs('the resync', n2, (zs) => zs.some((m) => kind(m) === 'Show'));
+  await page.waitForTimeout(500);
+  const zs = await after(n2);
+  const reLoad = zs.find((m) => kind(m) === 'Load');
+  const reShow = zs.find((m) => kind(m) === 'Show');
+  check('remote', !!re && !!reLoad && reLoad.cmd.url === url && !!reShow && reShow.cmd.seq > seq1 + 1 && JSON.stringify(reShow.cmd.path) === '["GCD"]' &&
+    zs.map(kind).indexOf('Load') < zs.map(kind).indexOf('Show'),
+    `a fresh tab gets Load then Show again ${JSON.stringify(zs.map((m) => [kind(m), m.cmd && (m.cmd.url || m.cmd.seq)]))}`);
+  // It reports the plan shown: no further resend.
+  await status({ state: 'ready', loadedTrace: url, shownSeq: reShow ? reShow.cmd.seq : -1, dropped: 0 });
+  const n3 = (await msgs()).length;
+  await page.waitForTimeout(800);
+  check('remote', (await msgs()).length === n3, `settled: nothing more posted ${JSON.stringify((await after(n3)).map(kind))}`);
+
+  // An error for the trace is retried once: two errors, one resync.
+  const errStatus = { state: 'error', loadedTrace: url, shownSeq: null, dropped: null };
+  const ne = (await msgs()).length;
+  await status(errStatus);
+  await page.waitForTimeout(1000);
+  await status(errStatus);
+  await page.waitForTimeout(1500);
+  // One resync: the trace and the plan, then the selection's Focus.
+  const resent = (ms) => JSON.stringify(ms.map(kind).filter((k) => k === 'Load' || k === 'Show'));
+  const es = await after(ne);
+  check('remote', resent(es) === '["Load","Show"]', `an error twice resyncs once ${JSON.stringify(es.map(kind))}`);
+  // A new tab may retry again.
+  await toUi({ type: 'socless-surfer-closed' });
+  await page.waitForTimeout(200);
+  await status({ state: 'idle', loadedTrace: '', shownSeq: null, dropped: null });
+  await page.waitForTimeout(1500);
+  const ne2 = (await msgs()).length;
+  await status(errStatus);
+  await page.waitForTimeout(1500);
+  const es2 = await after(ne2);
+  check('remote', resent(es2) === '["Load","Show"]', `a new tab's error is retried ${JSON.stringify(es2.map(kind))}`);
+  check('remote', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+  wave.ide = null;
+}
+// 11b. A reloaded panel (after a Simulate) with no Surfer tab: its Hello is answered closed.
+{
+  const TEST = 'GCD computes gcd(48, 18)';
+  wave.ide = { status: 'ok', message: '', focusClass: '', test: TEST, suite: 'gcd.GcdSpec', stamp: 300, waveViewer: 'surfer-panel',
+    trace: '/wave/t1/trace', traceTest: `gcd.GcdSpec#${TEST}` };
+  const { ctx, page, errors } = await open(PARENT_PANEL);
+  await page.frameLocator('#f').locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
+  const f = page.frames().find((x) => x !== page.mainFrame());
+  const surferMsgs = () => page.evaluate(() => window.__msgs.map((m) => m.data)
+    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socless-surfer')));
+  let ms = [];
+  for (let t = 0; t < 5000 && ms.length === 0; t += 200) { ms = await surferMsgs(); if (!ms.length) await page.waitForTimeout(200); }
+  check('remote-reload', ms.length > 0 && ms[0].type === 'socless-surfer-cmd' && ms[0].cmd && ms[0].cmd.$type === 'Hello',
+    `the reloaded panel's first message is a Hello ${JSON.stringify(ms[0])}`);
+  // The extension's answer with no Surfer tab.
+  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-closed' }, '*'));
+  await f.click('[data-toggle-pane="bottom"]');
+  await f.click('[data-bottom-tab="wave"]').catch(() => {});
+  let info = '';
+  for (let t = 0; t < 10000 && !/Surfer: closed/.test(info); t += 200) {
+    info = await f.locator('[data-bottom-panel]').innerText().catch(() => '');
+    if (!/Surfer: closed/.test(info)) await page.waitForTimeout(200);
+  }
+  check('remote-reload', /Surfer: closed/.test(info), `the answer shows the tab closed, not idle (${JSON.stringify(info.slice(0, 120))})`);
+  const seqB = await f.evaluate(() => window.__soclessWave && window.__soclessWave.snapshot().seq);
+  check('remote-reload', typeof seqB === 'number' && seqB > 2 && Math.abs(seqB - seq1) > 2,
+    `a new page's seq starts elsewhere (${seq1} then ${seqB})`);
+  check('remote-reload', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+  wave.ide = null;
+}
+
+// 12. The browser (no host), `surfer-panel` with a trace: Surfer stays in the Waveform tab.
+{
+  wave.ide = { status: 'ok', message: '', focusClass: '', test: 'GCD computes gcd(48, 18)', suite: 'gcd.GcdSpec', stamp: 200, waveViewer: 'surfer-panel',
+    trace: '/wave/t1/trace', traceTest: 'gcd.GcdSpec#GCD computes gcd(48, 18)' };
+  const { ctx, page, errors } = await open('/gcd/');
+  await waitLoaded(page);
+  const pane = await page.waitForSelector('[data-surfer-pane]', { state: 'attached', timeout: 10000 }).then(() => true).catch(() => false);
+  check('browser', pane, 'the Waveform tab mounts Surfer');
+  check('browser', (await count(page, '[data-show-surfer]')) === 0, 'no Show Surfer button');
+  check('browser', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+  wave.ide = null;
 }
 
 await browser.close();

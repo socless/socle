@@ -103,22 +103,43 @@ object App {
   // select. Disables itself when the page is not served by the language server.
   private val ide = new IdeLink
   // The waveform viewer follows the selection and the drill path (wave sync);
-  // a new trace for the embedded Surfer opens the Waveform tab.
+  // a new trace for the embedded Surfer opens the Waveform tab. The VS Code
+  // panel drives the Surfer tab instead (a RemotePane, fed by the relayed
+  // statuses), and a new trace opens that tab.
   // Lazy: it reads currentModuleSig, defined further down.
-  private lazy val wave = new socless.ui.wave.WaveFollow(
-    stateSig    = ide.stateSig,
-    designSig   = loader.designSig,
-    pathSig     = pathVar.signal,
-    selectedVar = selectedSigVar,
-    moduleSig   = currentModuleSig,
-    onTrace     = () => { bottomOpenVar.set(true); bottomTabVar.set("wave") },
-  )
+  private lazy val wave = {
+    val pane: socless.ui.wave.WavePane =
+      if (Embedded.surferRemote) {
+        val r = new socless.ui.wave.RemotePane(Embedded.postToParent)
+        Embedded.onSurferStatus(r.onStatus)
+        Embedded.onSurferClosed(() => r.onClosed())
+        r.hello() // the tab's state, for a reloaded panel
+        r
+      } else new socless.ui.wave.SurferPane
+    new socless.ui.wave.WaveFollow(
+      stateSig    = ide.stateSig,
+      designSig   = loader.designSig,
+      pathSig     = pathVar.signal,
+      selectedVar = selectedSigVar,
+      moduleSig   = currentModuleSig,
+      onTrace     = () => { bottomOpenVar.set(true); bottomTabVar.set("wave") },
+      pane        = pane,
+    )
+  }
 
   @JSExport
   def main(rootId: String): String = {
     val container = dom.document.getElementById(rootId)
     if (container == null) return "no-root"
     themeVar.set(currentTheme()) // sync with the set-before-paint script in the template
+    if (Embedded.surferView) {
+      // The VS Code Surfer tab: only Surfer, driven by the parent's messages; no design, no live poll.
+      Embedded.initialTheme.foreach(applyTheme)
+      Embedded.onThemeMessage(applyTheme)
+      Embedded.blockFileDrops()
+      render(container, surferTab())
+      return "mounted"
+    }
     if (Embedded.on) {
       Embedded.initialTheme.foreach(applyTheme)
       Embedded.onThemeMessage(applyTheme)
@@ -133,6 +154,28 @@ object App {
     loader.start() // load design.json + the multi-top picker index (#197)
     ide.start()    // probe /ide.json; polls only when served by the language server
     "mounted"
+  }
+
+  /** The Surfer tab page: the pane, full size, and a one-line status bar. */
+  private def surferTab(): HtmlElement = {
+    val pane = new socless.ui.wave.SurferPane
+    div(
+      dataAttr("surfer-tab") := "1",
+      styleAttr := "position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink)",
+      socless.ui.wave.SurferTab.run(pane),
+      pane.canvasHost,
+      div(
+        dataAttr("surfer-tab-status") <-- pane.statusVar.signal,
+        styleAttr := "flex:none;padding:2px 8px;font-size:11px;opacity:0.7",
+        child.text <-- pane.statusVar.signal.map {
+          case "idle"    => "Surfer: waiting for a trace"
+          case "booting" => "Surfer: starting"
+          case "loading" => "Surfer: loading the trace"
+          case "ready"   => "Surfer: ready"
+          case other     => s"Surfer: $other"
+        },
+      ),
+    )
   }
 
   // Global shortcuts: Ctrl/Cmd+K (or P) opens the palette, ? toggles help, Esc

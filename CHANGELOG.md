@@ -18,6 +18,13 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   (`surfer-panel`), or a `custom` command (`socless.waveViewerCommand`); six
   `socless.waves*` settings tune it. On Wayland the Surfer app is started
   under XWayland when available, so it keeps following while hidden.
+- VS Code: with `surfer-panel`, Surfer has its own editor tab (`Surfer: <test>`)
+  in the column after the SoCLess panel's, which drives it, so it never covers
+  the schematic. A new trace opens it; it can be
+  dragged or hidden without reloading, and a closed tab stays closed until the
+  next new trace, the Waveform tab's **Show Surfer** button or the new command
+  `SoCLess: Show waveforms`. Neovim and the browser keep Surfer in the
+  Waveform tab.
 - Simulate first views the test, so the panel shows the design whose waves it
   opens; the trace of a failing test is published too.
 - The language server ships Surfer v0.7.0 as WebAssembly (EUPL-1.2, with its
