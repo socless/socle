@@ -144,7 +144,16 @@ the Scala condition text of the `when` / `.elsewhen` that guards the assignment
 unconditionally, and a branch after earlier ones carries their negation (`!cond`).
 Click a state or an arrow to open its line. `fit` shows the whole diagram and
 `1:1` its natural size, scrolled; Escape returns to the schematic. A transition whose target is computed rather than a state name is
-not drawn, and the diagram says how many were skipped.
+not drawn, and the diagram says how many were skipped. A separate next-state
+wire is followed: a local `val next` (`Wire`, `WireDefault(state)`, `WireInit`, ...)
+counts like the register itself when it is assigned (`next := ...`) and the
+register takes it unconditionally (`state := next` outside every `when` and
+every `is` case), or when the register is defined as
+`RegNext(next)`, `RegNext(next, sIdle)`, `RegEnable(next, en)` or
+`RegEnable(next, sIdle, en)` (the init then marks the initial state). Its
+`next := sRun` assignments are transitions, and holds such as `next := state`
+are ignored. A `state := next` under a `when` is not followed: `next`'s assignments are not
+shown, and the `state := next` counts as one computed transition.
 
 `mill soclessView` (and the `Launcher` path behind it) has no source index: it
 shows the FSM and `logic` blocks, but no generator blocks; their logic stays in

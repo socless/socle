@@ -47,6 +47,23 @@ object FsmSourceTest extends TestSuite {
   private def fsmOf(body: String): Option[FsmSource] =
     new ScalaSourceIndex(tree(MFile -> module(body))).fsm("pkg.M", "state")
 
+  /** A module with states `sIdle`, `sRun`, `sDone` around `body`, which
+    * defines `state` itself. */
+  private def nextFsm(body: String): Option[FsmSource] = {
+    val text =
+      s"""package pkg
+         |
+         |import chisel3._
+         |import chisel3.util._
+         |
+         |class N extends Module {
+         |  val sIdle :: sRun :: sDone :: Nil = Enum(3)
+         |$body
+         |}
+         |""".stripMargin
+    new ScalaSourceIndex(tree("src/main/scala/pkg/N.scala" -> text)).fsm("pkg.N", "state")
+  }
+
   private val GemmFile = "src/main/scala/core/Gemm.scala"
   /** TensorGemmSimple's `switch(state)`, copied verbatim, with the later
     * `state === sIdle` chains and `io.state := state` that must not count. */
@@ -330,6 +347,133 @@ object FsmSourceTest extends TestSuite {
       assert(f.diagram.transitions.map(_.source.file) ==
         Seq("src/main/scala/pkg/Leaf.scala", "src/main/scala/pkg/Base.scala"))
       assert(idx.fsm("pkg.Other", "state").isEmpty)
+    }
+
+    test("next-state wire: WireDefault(state) and state := next") {
+      val f = nextFsm(
+        """  val state = RegInit(sIdle)
+          |  val next  = WireDefault(state)
+          |  switch(state) {
+          |    is(sIdle) { when(io.go) { next := sRun } }
+          |    is(sRun)  { next := sDone }
+          |    is(sDone) { next := sIdle }
+          |  }
+          |  state := next""".stripMargin).get
+      assert(states(f) == Seq("sIdle" -> true, "sRun" -> false, "sDone" -> false))
+      assert(edges(f) == Seq(("sIdle", "sRun", "io.go"), ("sRun", "sDone", ""), ("sDone", "sIdle", "")))
+      assert(f.diagram.note == "")
+    }
+
+    test("next-state wire: Wire with next := state, RegNext(next, init)") {
+      val f = nextFsm(
+        """  val next = Wire(UInt(2.W))
+          |  next := state
+          |  switch(state) {
+          |    is(sIdle) { when(go) { next := sRun } }
+          |    is(sRun)  { next := sDone }
+          |    is(sDone) { next := sIdle }
+          |  }
+          |  val state = RegNext(next, sIdle)""".stripMargin).get
+      assert(states(f) == Seq("sIdle" -> true, "sRun" -> false, "sDone" -> false))
+      assert(edges(f) == Seq(("sIdle", "sRun", "go"), ("sRun", "sDone", ""), ("sDone", "sIdle", "")))
+      assert(f.diagram.note == "")
+    }
+
+    test("next-state wire: WireInit, a default hold, a from-any assignment and a computed one") {
+      val f = nextFsm(
+        """  val state = RegInit(sIdle)
+          |  val next  = WireInit(sIdle)
+          |  next := state
+          |  switch(state) {
+          |    is(sIdle) { when(io.go) { next := sRun } }
+          |    is(sRun)  { next := Mux(x, sDone, sIdle) }
+          |  }
+          |  when(io.flush) { next := sIdle }
+          |  state := next""".stripMargin).get
+      assert(edges(f) == Seq(("sIdle", "sRun", "io.go"), ("*", "sIdle", "io.flush")))
+      assert(f.diagram.note == "1 transition to a computed state is not shown.")
+    }
+
+    test("next-state wire: RegEnable(next, init, en)") {
+      val f = nextFsm(
+        """  val next = Wire(chiselTypeOf(sIdle))
+          |  next := state
+          |  switch(state) {
+          |    is(sIdle) { next := sRun }
+          |    is(sRun)  { when(done) { next := sIdle } }
+          |  }
+          |  val state = RegEnable(next, sIdle, en)""".stripMargin).get
+      assert(states(f) == Seq("sIdle" -> true, "sRun" -> false, "sDone" -> false))
+      assert(edges(f) == Seq(("sIdle", "sRun", ""), ("sRun", "sIdle", "done")))
+      assert(f.diagram.note == "")
+    }
+
+    test("next-state wire: state := next under a when is no alias") {
+      val f = nextFsm(
+        """  val state = RegInit(sIdle)
+          |  val next  = WireDefault(state)
+          |  switch(state) {
+          |    is(sIdle) { when(io.go) { next := sRun } }
+          |    is(sRun)  { next := sDone }
+          |  }
+          |  when(en) { state := next }""".stripMargin).get
+      assert(edges(f) == Nil)
+      assert(f.diagram.note == "1 transition to a computed state is not shown.")
+    }
+
+    test("next-state wire: a never-assigned val (MuxLookup) is no alias, its transition stays computed") {
+      val f = nextFsm(
+        """  val state = RegInit(sIdle)
+          |  val nxt   = MuxLookup(state, sIdle)(Seq(sIdle -> sRun, sRun -> sDone))
+          |  switch(state) {
+          |    is(sIdle) { }
+          |    is(sRun)  { }
+          |  }
+          |  state := nxt""".stripMargin).get
+      assert(edges(f) == Nil)
+      assert(f.diagram.note == "1 transition to a computed state is not shown.")
+    }
+
+    test("next-state wire: state := next in a case of another register's switch is no alias") {
+      val f = nextFsm(
+        """  val state = RegInit(sIdle)
+          |  val next  = WireDefault(state)
+          |  switch(state) {
+          |    is(sIdle) { next := sRun }
+          |    is(sRun)  { next := sIdle }
+          |  }
+          |  switch(mode) {
+          |    is(m0) { state := next }
+          |  }""".stripMargin).get
+      assert(edges(f) == Nil)
+      assert(f.diagram.note == "1 transition to a computed state is not shown.")
+    }
+
+    test("next-state wire: RegNext(next) and RegEnable(next, en) give no initial state") {
+      val body = (reg: String) =>
+        s"""  val next = WireDefault(state)
+           |  switch(state) {
+           |    is(sIdle) { next := sRun }
+           |    is(sRun)  { next := sIdle }
+           |  }
+           |  val state = $reg""".stripMargin
+      for (reg <- Seq("RegNext(next)", "RegEnable(next, en)")) {
+        val f = nextFsm(body(reg)).get
+        assert(states(f) == Seq("sIdle" -> false, "sRun" -> false, "sDone" -> false))
+        assert(edges(f) == Seq(("sIdle", "sRun", ""), ("sRun", "sIdle", "")), f.diagram.note == "")
+      }
+    }
+
+    test("next-state wire: a state val assigned unguarded is a transition, not an alias") {
+      val f = nextFsm(
+        """  val sWait = 3.U(2.W)
+          |  val state = RegInit(sIdle)
+          |  switch(state) {
+          |    is(sIdle) { state := sWait }
+          |    is(sWait) { state := sIdle }
+          |  }
+          |  state := sWait""".stripMargin).get
+      assert(edges(f) == Seq(("sIdle", "sWait", ""), ("sWait", "sIdle", ""), ("*", "sWait", "")), f.diagram.note == "")
     }
 
     test("computed target is skipped and counted in the note") {

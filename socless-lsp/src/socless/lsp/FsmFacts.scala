@@ -16,7 +16,11 @@ import socless.schema.{FsmDiagram, FsmState, FsmTransition, SourceRef}
   * `.otherwise` after `c, d` gives `!c && !d`. A negation is `!x` for a
   * plain name or select, else `!(x)`; a top-level `||` condition is
   * parenthesized when joined to others. A `switch` on another register
-  * nested in a case adds no condition. */
+  * nested in a case adds no condition.
+  *
+  * A next-state wire `n` (an assigned local val the register takes
+  * unconditionally, `reg := n`, or through `RegNext(n)` / `RegEnable(n, ...)`) counts like the
+  * register: `n := sX` is a transition, and `n := reg`, `reg := n` are holds. */
 private[lsp] object FsmFacts {
   final case class Pos(line: Int, col: Int)
 
@@ -41,24 +45,35 @@ private[lsp] object FsmFacts {
     * `is` cases, innermost first. */
   final case class Assign(reg: String, to: Option[Ref], parts: Seq[Part], cases: List[InCase], pos: Pos)
 
+  /** `reg = RegNext(next[, init])` or `RegEnable(next[, init], en)`. */
+  final case class RegNextOf(reg: String, next: String, init: Option[Ref])
+
   /** One template's facts. `chiselEnum` holds the values of an object that
-    * extends `ChiselEnum`. */
+    * extends `ChiselEnum`; `vals` the names its `val`s define. */
   final case class Facts(
       switches: Seq[Switch], assigns: Seq[Assign], enums: Seq[Seq[String]],
-      regInits: Seq[(String, Ref)], chiselEnum: Option[Seq[String]])
+      regInits: Seq[(String, Ref)], chiselEnum: Option[Seq[String]],
+      vals: Set[String], regNexts: Seq[RegNextOf])
 
   def collect(stats: Seq[Stat], isChiselEnum: Boolean): Facts = {
     val switches = ArrayBuffer.empty[(String, Pos, ArrayBuffer[Case])]
     val assigns  = Seq.newBuilder[Assign]
     val enums    = Seq.newBuilder[Seq[String]]
     val regInits = Seq.newBuilder[(String, Ref)]
+    val vals     = Set.newBuilder[String]
+    val regNexts = Seq.newBuilder[RegNextOf]
 
     def go(t: Tree, parts: Vector[Part], cases: List[InCase]): Unit = t match {
       case _: Defn.Class | _: Defn.Trait | _: Defn.Object => () // its own template
       case v: Defn.Val =>
+        v.pats.foreach { case p: Pat.Var => vals += p.name.value; case _ => }
         (v.pats, v.rhs) match {
           case (List(p), Call("Enum", _)) => consNames(p).foreach(enums += _)
           case (List(p: Pat.Var), Call("RegInit", args)) => args.lastOption.flatMap(ref).foreach(r => regInits += p.name.value -> r)
+          case (List(p: Pat.Var), Call("RegNext", Term.Name(n) :: rest)) if rest.size <= 1 =>
+            regNexts += RegNextOf(p.name.value, n, rest.headOption.flatMap(ref))
+          case (List(p: Pat.Var), Call("RegEnable", Term.Name(n) :: rest)) if rest.size == 1 || rest.size == 2 =>
+            regNexts += RegNextOf(p.name.value, n, if (rest.size == 2) ref(rest.head) else None)
           case _ =>
         }
         go(v.rhs, parts, cases)
@@ -94,7 +109,7 @@ private[lsp] object FsmFacts {
       case v: Defn.Val if isValue(v.rhs) => v.pats.collect { case p: Pat.Var => p.name.value }
     }.flatten)
     Facts(switches.map { case (s, p, c) => Switch(s, p, c.toSeq) }.toSeq, assigns.result(), enums.result(),
-      regInits.result(), values)
+      regInits.result(), values, vals.result(), regNexts.result())
   }
 
   /** The diagram on `register` from the owned bodies' facts (with their
@@ -115,8 +130,21 @@ private[lsp] object FsmFacts {
         case Seq(obj) if args.forall(_.qual.isDefined) => enumValues(obj).find(v => argNames.forall(v.contains))
         case _                                         => None
       }
-      val names   = fromEnum.orElse(fromChiselEnum).getOrElse(argNames)
-      val initial = bodies.flatMap(_._2.regInits).find(_._1 == register).map(_._2.name).filter(names.contains)
+      val names    = fromEnum.orElse(fromChiselEnum).getOrElse(argNames)
+      val regNexts = bodies.flatMap(_._2.regNexts).filter(_.reg == register)
+      val initial = bodies.flatMap(_._2.regInits).find(_._1 == register).map(_._2.name)
+        .orElse(regNexts.flatMap(_.init).headOption.map(_.name)).filter(names.contains)
+      // Next-state wires: `register = RegNext(n)`, or `register := n` outside
+      // every `when` and every `is` case with `n` itself assigned (`n := ...`);
+      // `n` is a local val that is not a state.
+      val vals     = bodies.flatMap(_._2.vals).toSet
+      val assigned = bodies.flatMap(_._2.assigns.map(_.reg)).toSet
+      val aliases = (regNexts.map(_.next) ++ (for {
+        (_, f) <- bodies
+        a      <- f.assigns if a.reg == register && a.parts.isEmpty && a.cases.isEmpty
+        to     <- a.to if to.qual.isEmpty && assigned.contains(to.name)
+      } yield to.name)).toSet.filter(n => n != register && vals.contains(n) && !names.contains(n))
+      val regs = aliases + register
       val states = names.map { n =>
         val first = cases.find(_._2.states.get.exists(_.name == n))
         FsmState(n, initial.contains(n), first.fold(SourceRef.unknown) { case (file, c) => at(file, c.pos) })
@@ -124,7 +152,7 @@ private[lsp] object FsmFacts {
       var computed = 0
       val transitions = for {
         (file, f) <- bodies
-        a         <- f.assigns if a.reg == register
+        a         <- f.assigns if regs.contains(a.reg) && !a.to.exists(t => t.qual.isEmpty && regs.contains(t.name))
         t <- a.to.map(_.name).filter(names.contains) match {
           case None =>
             computed += 1
