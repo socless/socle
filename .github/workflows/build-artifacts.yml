@@ -1,0 +1,109 @@
+name: Build artifacts
+
+# Reusable: builds the distributable files into dist/ and uploads them as the
+# `socless-dist` workflow artifact. Called by ci.yml on every pull request and
+# push to main (a downloadable vsix and jars for each change) and by
+# release.yml, which publishes them on a `v*` tag (see RELEASING.md).
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version label of the files; empty: V.publishVer from build.mill"
+        type: string
+        required: false
+        default: ""
+    outputs:
+      version:
+        description: "The version label the files carry"
+        value: ${{ jobs.build.outputs.version }}
+
+jobs:
+  build:
+    name: Build release files
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # The VS Code extension's vsix is packaged with npm / npx.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Mill / Coursier / Ivy caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.mill
+            ~/.ivy2
+          key: mill-${{ runner.os }}-${{ hashFiles('build.mill') }}
+          restore-keys: |
+            mill-${{ runner.os }}-
+
+      - name: Make mill wrapper executable
+        run: chmod +x ./mill
+
+      - name: Version
+        id: version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          ver="$INPUT_VERSION"
+          if [ -z "$ver" ]; then ver=$(grep -oP 'publishVer\s*=\s*"\K[^"]+' build.mill); fi
+          if [ -z "$ver" ]; then echo "::error::V.publishVer not found in build.mill"; exit 1; fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "version: $ver"
+
+      - name: Build the standalone app
+        run: ./mill socless.assembly
+
+      - name: Build the language server
+        run: ./mill socless-lsp.assembly
+
+      - name: Build the VS Code extension
+        run: ./mill socless-vscode.vsix
+
+      - name: Build the single-file UI
+        run: ./mill socless-ui.dist
+
+      - name: Collect the files into dist/
+        env:
+          VER: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          cp out/socless/assembly.dest/out.jar "dist/socless-$VER.jar"
+          cp out/socless-lsp/assembly.dest/out.jar "dist/socless-lsp-$VER.jar"
+          vsix=(out/socless-vscode/vsix.dest/*.vsix)
+          if [ "${#vsix[@]}" != 1 ] || [ ! -f "${vsix[0]}" ]; then
+            echo "::error::expected one vsix in out/socless-vscode/vsix.dest, found: ${vsix[*]}"; exit 1
+          fi
+          cp "${vsix[0]}" "dist/socless-$VER.vsix"
+          cp out/socless-ui/dist.dest/SoCLess.html "dist/SoCLess-$VER.html"
+          (cd dist && sha256sum -- * > SHA256SUMS)
+          ls -l dist
+          cat dist/SHA256SUMS
+
+      - name: Standalone jar runs
+        env:
+          VER: ${{ steps.version.outputs.version }}
+        run: |
+          java -jar "dist/socless-$VER.jar" --help
+          java -jar "dist/socless-$VER.jar" serve --help
+
+      - name: Upload dist/
+        uses: actions/upload-artifact@v4
+        with:
+          name: socless-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7

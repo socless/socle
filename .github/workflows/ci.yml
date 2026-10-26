@@ -11,7 +11,14 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  build-and-test:
+  # The distributable files (jars, vsix, single-file UI), built on every pull
+  # request and push to main and uploaded as the `socless-dist` artifact. It
+  # runs in parallel with `test`, which builds what its own checks need.
+  artifacts:
+    name: Artifacts
+    uses: ./.github/workflows/build-artifacts.yml
+
+  test:
     name: Build, test, and elaborate examples
     runs-on: ubuntu-latest
 

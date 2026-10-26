@@ -1,0 +1,97 @@
+name: Release
+
+# A pushed `v*` tag checks the version and the release notes, builds the
+# files (build-artifacts.yml) and publishes them as a GitHub release (see
+# RELEASING.md). A manual dispatch only checks and builds. Pull requests do not
+# run this: ci.yml's `artifacts` job builds the same files on every change.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check version and release notes
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # A tag must name the version build.mill publishes; a dispatch labels
+      # the files with V.publishVer as it is (usually a -SNAPSHOT).
+      - name: Version
+        id: version
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ver=$(grep -oP 'publishVer\s*=\s*"\K[^"]+' build.mill)
+          if [ -z "$ver" ]; then echo "::error::V.publishVer not found in build.mill"; exit 1; fi
+          if [ "$REF_TYPE" = tag ] && [ "${TAG#v}" != "$ver" ]; then
+            echo "::error::tag $TAG does not match V.publishVer = $ver in build.mill: bump V.publishVer to ${TAG#v} (or tag v$ver)"
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "version: $ver"
+
+      # Releases must have notes: a tag run fails before the build without a
+      # CHANGELOG.md section for its version, a dispatch only warns.
+      - name: Release notes
+        env:
+          EVENT: ${{ github.event_name }}
+          VER: ${{ steps.version.outputs.version }}
+        run: |
+          if tools/release/notes.sh "$VER"; then :
+          elif [ "$EVENT" = push ]; then
+            echo "::error::no release notes for $VER: add a '## [$VER]' section to CHANGELOG.md"
+            exit 1
+          else
+            echo "::warning::no release notes for $VER in CHANGELOG.md (a tag run would fail)"
+          fi
+
+  build:
+    name: Build
+    needs: check
+    uses: ./.github/workflows/build-artifacts.yml
+    with:
+      version: ${{ needs.check.outputs.version }}
+
+  publish:
+    name: Publish the GitHub release
+    needs: [check, build]
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the release files
+        uses: actions/download-artifact@v4
+        with:
+          name: socless-dist
+          path: dist
+
+      # Never overwrite a release: a re-run on an already released tag fails.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          VER: ${{ needs.check.outputs.version }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::release $TAG already exists: not overwriting it"
+            exit 1
+          fi
+          tools/release/notes.sh "$VER" > "$RUNNER_TEMP/notes.md"
+          ls -l dist
+          gh release create "$TAG" dist/* \
+            --verify-tag \
+            --title "SoCLess $VER" \
+            --notes-file "$RUNNER_TEMP/notes.md"

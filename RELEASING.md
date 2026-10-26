@@ -1,9 +1,15 @@
 # Releasing SoCLess
 
-This document describes how to cut a release of the two published artifacts:
+This document describes how to cut a release. A release publishes:
 
 - `io.socless::socless:<version>` - runtime library (Scala 2.13 / Chisel)
 - `io.socless::mill-socless:<version>` - Mill plugin trait (Scala 3 / Mill APIs)
+- a GitHub release `v<version>` with the distributable files:
+  - `socless-<version>.jar` - standalone UI server + CLI (`java -jar socless-<version>.jar serve`, see [docs/usage-standalone.md](docs/usage-standalone.md))
+  - `socless-lsp-<version>.jar` - the language server
+  - `socless-<version>.vsix` - the VS Code extension
+  - `SoCLess-<version>.html` - the single-file UI
+  - `SHA256SUMS` - checksums of the above
 
 ## Versioning
 
@@ -25,9 +31,26 @@ object V {
 ```
 
 Between releases the value carries a `-SNAPSHOT` suffix. There is no
-automated snapshot publishing today: CI runs `publishLocal` for both artifacts
-on every push (so publish metadata cannot rot), and stable releases are
-published manually from a tagged commit (see step 5).
+automated Maven snapshot publishing today: CI runs `publishLocal` for both
+artifacts on every push (so publish metadata cannot rot).
+
+## Automation
+
+- Every CI run (each pull request and push to `main`) builds the distributable
+  files in its `artifacts` job (`.github/workflows/build-artifacts.yml`) and
+  uploads them as the `socless-dist` workflow artifact, kept for a few days:
+  download it from the run's summary page to try a change's vsix or jars.
+- Pushing a `v<version>` tag runs `.github/workflows/release.yml`: it checks
+  that the tag equals `V.publishVer` and that `CHANGELOG.md` has a section for
+  the version, builds the files with the same reusable workflow, and publishes
+  the GitHub release with that section as its notes. It never overwrites an
+  existing release. A manual run (`workflow_dispatch`) only checks and builds.
+
+Preview a version's release notes locally with:
+
+```bash
+tools/release/notes.sh 0.2.0
+```
 
 ## Pre-release checklist
 
@@ -45,8 +68,7 @@ published manually from a tagged commit (see step 5).
    ./mill example.soclessRunPipeline
    ```
 
-3. Review `CHANGELOG.md` (if present) or collect notable changes from the git
-   log since the last tag:
+3. Collect notable changes from the git log since the last tag:
 
    ```bash
    git log v0.1.0..HEAD --oneline
@@ -63,39 +85,44 @@ release version (no suffix):
 val publishVer = "0.2.0"
 ```
 
-### 2. Commit the version bump
+### 2. Add the CHANGELOG section
+
+Add a section for the version to `CHANGELOG.md` (Keep a Changelog style). The
+release notes are its text, from the `## [0.2.0]` (or `## 0.2.0`) heading to the
+next `## ` heading; the release run fails without it. Check it with
+`tools/release/notes.sh 0.2.0`.
+
+### 3. Commit the release to `main`
 
 ```bash
-git add build.mill
+git add build.mill CHANGELOG.md
 git commit -m "chore: release 0.2.0"
 ```
 
-### 3. Tag the release
+### 4. Tag the release
 
-```bash
-git tag v0.2.0
-```
-
-Use an annotated tag so the GitHub release page gets a sensible title:
+Use an annotated tag:
 
 ```bash
 git tag -a v0.2.0 -m "Release 0.2.0"
 ```
 
-### 4. Push the commit and tag
+### 5. Push the commit and the tag
 
 ```bash
 git push origin main
 git push origin v0.2.0
 ```
 
-There is currently NO tag-triggered release workflow: pushing the tag only
-records the release point. Publish the artifacts manually (next step). If a
-release workflow is added later, this section should be updated to match.
+The tag starts the release workflow, which builds the files and publishes the
+GitHub release `v0.2.0` ("SoCLess 0.2.0") with them. Follow it in the Actions
+tab; if it fails (for example a tag that does not match `V.publishVer`, or a
+missing CHANGELOG section), fix the cause, then delete and re-push the tag.
 
-### 5. Publish locally (manual / fallback)
+### 6. Publish the Maven artifacts (if needed)
 
-If CI publishing is not yet wired up, publish from a clean checkout:
+The Maven artifacts are not published by the workflow. If you need them,
+publish from a clean checkout of the tag:
 
 ```bash
 ./mill socless.publishLocal
@@ -105,7 +132,7 @@ If CI publishing is not yet wired up, publish from a clean checkout:
 Replace `publishLocal` with `publish` (and supply credentials) to push to a
 remote repository.
 
-### 6. Bump to the next snapshot
+### 7. Bump to the next snapshot
 
 Immediately after tagging, open `build.mill` again and set the next development
 version:
