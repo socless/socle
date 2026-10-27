@@ -8,6 +8,8 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-10-27
+
 ### Added
 
 - The editor focus (the class under the cursor lights its boxes and dims the
@@ -21,18 +23,15 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   `schematicHide`. The panel applies them when it opens and when one changes.
   In the browser, the colorize, Show and verification-layers toggles are now
   remembered too.
-
 - Waveforms show FSM state names instead of numbers (VCD and FST traces):
   SoCLess pairs the state diagram's names with their encodings in the CHIRRTL
   and writes them into a copy of the trace as an enum table, which Surfer
   applies by itself.
-
 - Surfer's right-click menu: Go to declaration shows the signal in the
   schematic and opens its declaration in the editor; Add drivers and Add loads
   add the signals that drive it or that it feeds, found in the design through
   operators, muxes, memories and logic blocks, and across a port into the
   parent. In the Surfer app and the panel's Surfer (docs/ide-vscode.md).
-
 - Neovim: the [socless.nvim](https://github.com/e-ban/socless.nvim) plugin
   installs SoCLess from lazy.nvim / LazyVim, `vim.pack`, mini.deps, packer or
   vim-plug (it fetches the server jar of a pinned release; configurable);
@@ -74,10 +73,12 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Fixed
 
+- Opening a design whose top is the module already shown (a picked or dropped
+  design) left Back and Forward empty until the next move; its fit is now
+  the first entry.
 - A design file dropped (or another top picked) while a live reload was on
   its way could be replaced by that reload when it landed; a live reload now
   applies only while the live design is the one shown.
-
 - The "laying out..." spinner no longer stays on after expanding a bundle in a
   drilled module and returning to the top: each module now keeps its own
   expanded bundles, and returning to a module shows it as it was left.
