@@ -74,6 +74,10 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Fixed
 
+- A design file dropped (or another top picked) while a live reload was on
+  its way could be replaced by that reload when it landed; a live reload now
+  applies only while the live design is the one shown.
+
 - The "laying out..." spinner no longer stays on after expanding a bundle in a
   drilled module and returning to the top: each module now keeps its own
   expanded bundles, and returning to a module shows it as it was left.

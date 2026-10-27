@@ -278,9 +278,11 @@ final class DesignLoader(
             case None              => liveBaseline = Some(stamp)     // no stamp from load; baseline now
             case Some(s) if s != stamp =>
               liveBaseline = Some(stamp)                             // changed: reload in place
+              // Applied only if the live design is still the one shown: a file
+              // dropped (or another top picked) while it loads takes over.
               dom.fetch("design.json").flatMap(rr => rr.text())
                 .map(t => upickle.default.read[Design](t))
-                .foreach(d => reloadLiveDesign(d))
+                .foreach(d => if (sourceVar.now().exists(_._1 == "live")) reloadLiveDesign(d))
             case _ => ()                                            // unchanged
           }
         }

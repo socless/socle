@@ -258,8 +258,21 @@ async function smokeReloadNav(design, ctx, top, W) {
     const litNow = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.follow').length);
     if (!litNow) note(design, where, 'after the live reload no wire is drawn followed in cluster0');
 
-    // A fresh load (a dropped design file), still drilled into cluster0.
+    // A fresh load (a dropped design file), still drilled into cluster0, while
+    // a live reload is on its way: the served design changes again and its
+    // download is slow. The dropped file wins: the late live design is not
+    // applied over it.
     await page.unroute('**/design.json');
+    let slowGets = 0;
+    await page.route('**/design.json', async (rt) => {
+      const headers = { 'Last-Modified': 'Thu, 01 Jan 2032 00:00:00 GMT' };
+      if (rt.request().method() !== 'GET') return rt.fulfill({ contentType: 'application/json', body: '', headers });
+      slowGets++;
+      await new Promise((r) => setTimeout(r, 2500));
+      return rt.fulfill({ contentType: 'application/json', body, headers }).catch(() => {});
+    });
+    for (let t = 0; t < 10000 && slowGets === 0; t += 100) await page.waitForTimeout(100);
+    if (!slowGets) note(design, where, 'the live poller never started the slow reload');
     await page.evaluate((txt) => {
       const dt = new DataTransfer();
       dt.items.add(new File([txt], 'fresh.json', { type: 'application/json' }));
@@ -267,6 +280,10 @@ async function smokeReloadNav(design, ctx, top, W) {
     }, body);
     const dropped = await page.waitForSelector('[data-source="file"]', { timeout: 10000 }).then(() => true).catch(() => false);
     if (!dropped) { note(design, where, 'the dropped design file never loaded'); return; }
+    await page.waitForTimeout(3000); // the slow live reload lands
+    const src = await page.evaluate(() => document.querySelector('[data-source]')?.getAttribute('data-source'));
+    if (src !== 'file') note(design, where, `a live reload in flight replaced the dropped file (source ${src})`);
+    await page.unroute('**/design.json');
     await settle();
     await page.waitForTimeout(300);
     const h2 = await hist(); const f2 = await follow(); const c2 = await crumbs();
