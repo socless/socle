@@ -100,6 +100,9 @@ object LogicBlocks {
     val parent   = mutable.ArrayBuffer.empty[WireDef]
     // WireDef(from = sink, to = source): a member sink is fed from outside (in
     // pin), a member source drives outside (out pin). The driver is `w.to`.
+    // The body keeps the crossing wire too, from its member end to the pin,
+    // written `<box>.<pin>` as the parent writes it: a pin name alone may be a
+    // member's id (an out pin named after the register that drives it).
     wires.foreach { w =>
       val fromMem = inMember(w.from)
       val toMem   = inMember(w.to)
@@ -108,6 +111,7 @@ object LogicBlocks {
         val pin     = addPin(w.to, if (fromMem) w.to else w.from, if (toMem) PortDir.Out else PortDir.In)
         val pinPath = s"${g.id}.$pin"
         parent += (if (fromMem) w.copy(from = pinPath) else w.copy(to = pinPath))
+        internal += (if (fromMem) w.copy(to = pinPath) else w.copy(from = pinPath))
       } else parent += w
     }
 

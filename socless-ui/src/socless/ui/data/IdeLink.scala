@@ -25,6 +25,7 @@ case class IdeState(
   traceTest:    String = "",
   waveSettings: Option[socless.wave.WaveSettings] = None,
   suite:        String = "", // FQCN of `test`'s suite (older servers: empty)
+  reveal:       Option[socless.wave.SurferWire.Reveal] = None, // the Surfer app's last Go to declaration
 )
 object IdeState {
   implicit val rw: ReadWriter[IdeState] = macroRW

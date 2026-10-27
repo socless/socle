@@ -2,7 +2,7 @@ package socless.ui.wave
 
 import com.raquo.laminar.api.L._
 import scala.scalajs.js
-import socless.wave.WavePlan
+import socless.wave.{SurferWire, WavePlan}
 
 /** What [[WaveFollow]] drives: Surfer on this page ([[SurferPane]]) or in the
   * VS Code Surfer tab ([[RemotePane]]). */
@@ -18,6 +18,13 @@ trait WavePane {
 
   /** Focuses the signal `trace` of the plan shown. */
   def focus(trace: String): Unit
+
+  /** Adds the signals `traces` not shown (Surfer's Add drivers or Add loads),
+    * below the signal `after` when it is shown; dropped by a new trace or plan. */
+  def add(traces: Seq[String], after: Option[String]): Unit
+
+  /** Set by [[WaveFollow]]: a right-click action chosen in Surfer. */
+  var onEvent: SurferWire.Event => Unit = _ => ()
 
   /** Surfer's state: "idle", "booting", "loading", "ready" or "error", or "closed" when the
     * Surfer tab it drives is closed ([[RemotePane]]). */

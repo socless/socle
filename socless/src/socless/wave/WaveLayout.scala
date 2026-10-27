@@ -50,7 +50,7 @@ object WaveLayout {
 
   /** A ground leaf of a port: its full dotted path (`io.in.bits.a`), its width and its
     * direction seen from the module (`in`, `out`, None when unknown). */
-  private case class Leaf(path: String, dir: Option[String], width: Int)
+  private[wave] case class Leaf(path: String, dir: Option[String], width: Int)
 
   /** The trace path of `leaf` (a dotted path inside the module) for the instance
     * at `instPath`. The first element of `instPath` is the top instance, which is
@@ -72,7 +72,7 @@ object WaveLayout {
   /** The ground leaves of a port in bundle order, with directions seen from the
     * module. A Decoupled's valid/ready follow the channel's own direction (the
     * producer drives valid, the consumer ready), whatever side the port is on. */
-  private def leaves(design: Design, p: PortDef): Seq[Leaf] = {
+  private[wave] def leaves(design: Design, p: PortDef): Seq[Leaf] = {
     val base = if (p.dir == PortDir.Out || p.dir == PortDir.Master) PortDir.Out else PortDir.In
     def flip(d: Option[String]) = d.map(x => if (x == PortDir.Out) PortDir.In else PortDir.Out)
     def walk(n: BundleTree.PortNode): Seq[Leaf] = {

@@ -27,7 +27,19 @@ object LogicBlocksTest extends TestSuite {
       assert(pairs(out.wires) == Seq((s"$B.io_a", "io.a"), ("io.b", s"$B._T_1")))
       val body = bodies(B)
       assert(body.ports.map(p => (p.name, p.dir)) == Seq(("io_a", PortDir.In), ("_T_1", PortDir.Out)))
-      assert(body.wires.size == 2, body.logic.size == 3)
+      assert(body.logic.size == 3)
+      // The internal wires, then each crossing wire from its member end to the pin.
+      assert(pairs(body.wires) == Seq(("_T~in0", s"$B.io_a"), ("r", "_T"), ("_T_1~in0", "r~q"), (s"$B._T_1", "_T_1")))
+    }
+    test("a crossing wire's pin is written as the parent writes it, never by its bare name") {
+      // The out pin is named after the register that drives it: `r`, also the
+      // register's own id (its input) inside the body.
+      val m = module(Seq(node("_T", NodeKind.Op), node("r", NodeKind.Reg)),
+        Seq(w("r", "_T"), w("_T~in0", "r~q"), w("io.o", "r~q")))
+      val (out, bodies) = LogicBlocks.collapse(m, Seq(group(B, "_T", "r")))
+      assert(bodies(B).ports.map(_.name) == Seq("r"))
+      assert(pairs(out.wires) == Seq(("io.o", s"$B.r")))
+      assert(pairs(bodies(B).wires) == Seq(("r", "_T"), ("_T~in0", "r~q"), (s"$B.r", "r~q")))
     }
     test("wires between two groups go pin to pin") {
       val m = module(Seq(node("_T", NodeKind.Op), node("_T_1", NodeKind.Op)),

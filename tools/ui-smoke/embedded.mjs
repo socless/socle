@@ -52,8 +52,8 @@ for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURF
   if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
 
 // The stand-in language server state for check 8: /ide.json (404 while null), the
-// POST /wave/select bodies, and how often each Surfer file was fetched.
-const wave = { ide: null, posts: [], surferJs: 0, surferWasm: 0, tabFetches: [] };
+// POST /wave/select and POST /open bodies, and how often each Surfer file was fetched.
+const wave = { ide: null, posts: [], opens: [], surferJs: 0, surferWasm: 0, tabFetches: [] };
 // The trace's full dotted var paths, from its VCD header (as the server's TraceNames).
 const vcdNames = (() => {
   const scopes = []; const names = [];
@@ -99,10 +99,13 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     res.end(JSON.stringify(wave.ide)); return;
   }
-  if (req.method === 'POST' && path.endsWith('/wave/select')) {
+  if (req.method === 'POST' && (path.endsWith('/wave/select') || path.endsWith('/open'))) {
     let body = '';
     req.on('data', (c) => { body += c; });
-    req.on('end', () => { wave.posts.push({ path, type: req.headers['content-type'], body }); res.writeHead(204); res.end(); });
+    req.on('end', () => {
+      (path.endsWith('/open') ? wave.opens : wave.posts).push({ path, type: req.headers['content-type'], body });
+      res.writeHead(204); res.end();
+    });
     return;
   }
   if (path === '/surfer/surfer.js' || path === '/surfer/surfer_bg.wasm') {
@@ -574,6 +577,28 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await page.click('[data-bottom-tab="wave"]');
   await focusAfter('port io.in.bits.a after closing the panel', () => stub('io.in.bits.a'), P('io_in_bits_a'));
 
+  // Surfer's right-click actions (WCP events; the hook stands in for its menu):
+  // Go to declaration of a register selects its logic block and opens its source,
+  // and Surfer is left as it is (the reveal is not followed); Add drivers of a
+  // signal whose drivers are shown adds nothing.
+  {
+    wave.opens = [];
+    const before = await snap();
+    await page.evaluate((v) => window.__soclessWave.event('goto_declaration', v), P('x'));
+    await page.waitForTimeout(800);
+    const v = await page.evaluate(() => window.__soclessWave.view());
+    check('wave', v.path === '["GCD"]' && v.selection === 'blk$GCD$logic', `Go to declaration of x selects its block ${JSON.stringify(v)}`);
+    const opened = wave.opens.map((o) => JSON.parse(o.body));
+    check('wave', opened.length === 1 && /GCD\.scala$/.test(opened[0].file) && opened[0].line === 30, `and opens x's declaration ${JSON.stringify(opened)}`);
+    const after = await snap();
+    check('wave', after.idle && after.focusCount === before.focusCount, `the reveal's selection is not followed (focus ${before.focusCount} -> ${after.focusCount})`);
+    await page.evaluate((v) => window.__soclessWave.event('add_drivers', v), P('io_out_bits_result'));
+    await page.waitForTimeout(800);
+    const added = await snap();
+    check('wave', added.idle && added.addCount === before.addCount, `Add drivers of a signal whose drivers are shown adds nothing (${added.addCount})`);
+    check('wave', wave.opens.length === 1, 'the selection the reveal made opened nothing more');
+  }
+
   // Folded bundles (wavesFoldBundles): the plan is redone with its bundle groups
   // folded (GroupFold); a focus inside unfolds them first (GroupUnfold).
   const visible = async () => (await page.evaluate(() => window.__soclessWave.items()).catch(() => []))
@@ -841,6 +866,29 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   check('tab', !!legOff && JSON.stringify(legOff.rows) === JSON.stringify(LEGEND_OFF) && /ports are all Blue/.test(legOff.text),
     `a plan coloured without direction: ports are all Blue ${JSON.stringify(legOff)}`);
   await page.mouse.move(5, 5);
+  // Add (Surfer's Add drivers or Add loads, sent by the panel): the signals not
+  // shown go in below the one right-clicked, the first one focused; one shown
+  // already is skipped.
+  {
+    const small = { missing: 0, groups: [g('Registers', [it('x', 'x', 'Orange', 16)])] };
+    await cmd({ $type: 'Show', seq: 3, plan: small, path: ['GCD'], trace: TRACE });
+    await waitStatus('the shown seq 3', (s) => s.shownSeq === 3, 30000);
+    await cmd({ $type: 'Add', traces: [P('x'), P('busy'), P('io_out_bits_result')], after: P('x') });
+    let s = null;
+    for (let t = 0; t < 20000 && !(s && s.idle && s.addCount > 0); t += 200) {
+      s = await f.evaluate(() => window.__soclessWave.snapshot());
+      if (!(s.idle && s.addCount > 0)) await page.waitForTimeout(200);
+    }
+    const rows = (await f.evaluate(() => window.__soclessWave.items()).catch(() => [])).filter((i) => i.type !== 'Group').map((i) => i.trace);
+    check('tab', JSON.stringify(rows) === JSON.stringify([P('x'), P('busy'), P('io_out_bits_result')]) &&
+      JSON.stringify(s.lastAdd) === JSON.stringify([P('busy'), P('io_out_bits_result')]) && s.lastFocus && s.lastFocus.trace === P('busy'),
+      `Add shows the signals not shown, the first focused ${JSON.stringify({ rows, lastAdd: s && s.lastAdd, focus: s && s.lastFocus })}`);
+    // A right-click action in the tab's Surfer goes up as a status carrying it.
+    await f.evaluate((v) => window.__soclessWave.event('add_loads', v), P('x'));
+    const ev = await waitStatus('the status with the event', (st) => !!st.event, 5000);
+    check('tab', !!ev && ev.data.status.event.kind === 'add_loads' && ev.data.status.event.variable === P('x') && ev.data.status.loadedTrace === TRACE,
+      `an action in the tab's Surfer posts a status with its event ${JSON.stringify(ev && ev.data.status)}`);
+  }
   check('tab', wave.tabFetches.length === 0, `no design or /ide.json fetched ${JSON.stringify(wave.tabFetches)}`);
   // Surfer (egui) focuses its hidden text input; Chromium refuses that in a cross-origin
   // frame (as the VS Code webview is) and logs it as an error: not a page fault.
@@ -964,6 +1012,22 @@ let seq1 = -1;
   const ys = await after(n1);
   check('remote', !!foc && JSON.stringify(ys.map(kind)) === '["Focus"]' && ys[0].cmd.trace === P('io_out_bits_result'),
     `a port click posts Focus ${JSON.stringify(ys.map((m) => m.cmd))}`);
+
+  // A right-click action in the tab's Surfer (a status carrying its event): Add
+  // drivers posts the drivers the design gives (Add); Go to declaration selects
+  // in the panel, and that selection posts no Focus.
+  const n4 = (await msgs()).length;
+  await status({ state: 'ready', loadedTrace: url, shownSeq: null, dropped: null, event: { kind: 'add_drivers', variable: P('io_out_bits_result') } });
+  const addMsgs = await waitMsgs('the Add', n4, (ws) => ws.some((m) => kind(m) === 'Add'));
+  const addCmd = addMsgs && addMsgs.find((m) => kind(m) === 'Add');
+  check('remote', !!addCmd && JSON.stringify(addCmd.cmd.traces) === JSON.stringify([P('x')]), `Add drivers posts Add of x ${JSON.stringify(addCmd)}`);
+  check('remote', !!addCmd && addCmd.cmd.after === P('io_out_bits_result'), `below the signal right-clicked ${JSON.stringify(addCmd && addCmd.cmd.after)}`);
+  const n5 = (await msgs()).length;
+  await status({ state: 'ready', loadedTrace: url, shownSeq: null, dropped: null, event: { kind: 'goto_declaration', variable: P('busy') } });
+  await page.waitForTimeout(800);
+  const rv = await f.evaluate(() => window.__soclessWave.view());
+  check('remote', rv.selection === 'blk$GCD$logic' && (await after(n5)).length === 0,
+    `Go to declaration selects busy's block, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
 
   // The tab closed: nothing is sent; a fresh tab's first status gets Load and Show again.
   await toUi({ type: 'socless-surfer-closed' });

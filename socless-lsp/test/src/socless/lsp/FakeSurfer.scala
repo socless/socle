@@ -20,7 +20,8 @@ import scala.jdk.CollectionConverters._
   * all at once in order (Surfer drains its whole WCP queue each frame); with
   * it, [[maxOutstanding]] is how many commands the session had in flight.
   * Error paths: `drop` paths are left out of `add_items` (Surfer drops missing
-  * paths silently), and `set_item_color` on id `colorError` gets an error. */
+  * paths silently), and `set_item_color` on id `colorError` gets an error.
+  * [[event]] sends a right-click action's event, as Surfer does on its own. */
 final class FakeSurfer(port: Int, loadingProbes: Int = 0, delayMs: Long = 0, greetingDelayMs: Long = 0,
     slow: Option[(String, Long)] = None, drop: Set[String] = Set.empty, colorError: Option[Int] = None,
     burst: Boolean = false) {
@@ -47,12 +48,20 @@ final class FakeSurfer(port: Int, loadingProbes: Int = 0, delayMs: Long = 0, gre
 
   private def send(v: ujson.Value): Unit = {
     if (delayMs > 0) Thread.sleep(delayMs)
+    write(v)
+    outstanding -= 1
+  }
+
+  private def write(v: ujson.Value): Unit = sock.synchronized {
     val out = sock.getOutputStream
     out.write(ujson.write(v).getBytes(UTF_8))
     out.write(0)
     out.flush()
-    outstanding -= 1
   }
+
+  /** A WCP event (`goto_declaration`, `add_drivers`, `add_loads`) on `variable`. */
+  def event(kind: String, variable: String): Unit =
+    write(ujson.Obj("type" -> "event", "event" -> kind, "variable" -> variable))
 
   private def reply(f: ujson.Obj): Unit = f("type").str match {
     case "greeting" => Thread.sleep(greetingDelayMs); send(ujson.Obj("type" -> "greeting", "version" -> "0", "commands" -> ujson.Arr("add_items", "clear")))

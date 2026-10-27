@@ -11,6 +11,7 @@ import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
 import socless.schema.Design
+import socless.wave.{SurferWire, WaveLinks}
 
 /** The SoCLess language server: "View design" and "Simulate" code lenses on
   * ChiselSim tests, the `socless.viewDesign` and `socless.simulate` commands
@@ -413,7 +414,8 @@ final class SoclessLanguageServer(
     val dir = w.sim.dirFor(req.suite, req.test)
     val command = simSettings.surferCommand
     val surfer = trace.filter(_ => current && simSettings.waveViewer == "surfer" && !stopped).map { case (t, _) =>
-      try Right(WcpSession.start(command, t.file, Some(dir / "surfer.log"), log, () => surferExited(gen, command, t.file, dir)))
+      try Right(WcpSession.start(command, t.file, Some(dir / "surfer.log"), log, () => surferExited(gen, command, t.file, dir),
+        (kind, variable) => surferEvent(kind, variable)))
       catch { case NonFatal(e) => Left(s"cannot start $command: ${e.getMessage}") }
     }
     val wcpProblem = surfer.flatMap(_.left.toOption)
@@ -462,6 +464,47 @@ final class SoclessLanguageServer(
       (design, designTest) <- publishedDesign
       if designTest == test
     } yield WaveFollower.Context(session, test, design, trace.names.prefix, trace.names.names, simSettings.wave)
+
+  private var revealSeq = 0 // guarded by lock
+
+  /** A right-click action in the Surfer app (its WCP event), on the session's
+    * thread: Add drivers and Add loads add the traced signals [[WaveLinks]]
+    * finds to that Surfer; Go to declaration opens the signal's source in the
+    * editor and has the panel show it (`reveal` in `/ide.json`). Needs the
+    * design of the trace's test (the panel on that test); else, or when
+    * nothing is found, an Info says so. */
+  private def surferEvent(kind: String, variable: String): Unit = followContext match {
+    case None => show(MessageType.Info, s"SoCLess: Surfer's ${label(kind)} needs the panel on the simulated test")
+    case Some(c) =>
+      kind match {
+        case "goto_declaration" =>
+          WaveLinks.locate(c.design, c.prefix, variable) match {
+            case None => show(MessageType.Info, s"SoCLess: $variable is not a signal of the design")
+            case Some(loc) =>
+              if (loc.source.file.nonEmpty) openInEditor(loc.source.file, loc.source.line)
+              lock.synchronized {
+                revealSeq += 1
+                val r = SurferWire.Reveal(revealSeq, loc.instPath, loc.leaf)
+                ideUpdate(_.copy(reveal = Some(r)))
+              }
+          }
+        case _ =>
+          val found =
+            if (kind == "add_drivers") WaveLinks.drivers(c.design, c.prefix, c.names, variable)
+            else WaveLinks.loads(c.design, c.prefix, c.names, variable)
+          if (found.isEmpty) show(MessageType.Info, s"SoCLess: no traced ${if (kind == "add_drivers") "drivers" else "loads"} of $variable")
+          else c.target match {
+            case s: WcpSession => s.add(found, Some(variable))
+            case _ => ()
+          }
+      }
+  }
+
+  private def label(kind: String): String = kind match {
+    case "goto_declaration" => "Go to declaration"
+    case "add_drivers"      => "Add drivers"
+    case _                  => "Add loads"
+  }
 
   /** `POST /wave/select` from the panel: acts only with the `surfer` viewer
     * ([[WaveFollower.select]]), without a second debounce (the panel waits

@@ -42,7 +42,7 @@ object WcpSessionTest extends TestSuite {
         // the greeting leads and asks for waveforms_loaded; the session waits for the trace to load
         val greeting = eventually("greeting")(fake.frames.headOption)
         assert(greeting("type").str == "greeting", greeting("version").str == "0")
-        assert(greeting("commands").arr.map(_.str).contains("waveforms_loaded"))
+        assert(greeting("commands").arr.map(_.str) == Seq("waveforms_loaded", "goto_declaration", "add_drivers", "add_loads"))
         eventually("loaded")(Some(fake.commands).filter(_ == Seq("greeting", "get_item_list", "get_item_list", "get_item_list")))
 
         s.apply(WaveLayout.plan(gcd, List("GCD"), Dut, Set.empty, WaveSettings()))
@@ -59,6 +59,65 @@ object WcpSessionTest extends TestSuite {
         assert(colours == Seq(1 -> "Blue", 2 -> "Green", 3 -> "Blue", 4 -> "Blue", 5 -> "Green", 6 -> "Blue",
           7 -> "Green", 8 -> "Orange", 9 -> "Orange", 10 -> "Orange"))
         assert(s.alive)
+      } finally { fake.close(); s.close() }
+    }
+    test("a right-click event reaches onEvent while the session is idle, and during a plan") {
+      val got = new java.util.concurrent.ConcurrentLinkedQueue[(String, String)]
+      val s = WcpSession.listen(log = _ => (), onEvent = (k, v) => got.add((k, v)))
+      val fake = new FakeSurfer(s.port, delayMs = 20)
+      try {
+        s.apply(flat("T.a", "T.b"))
+        eventually("applied")(Some(fake.commands).filter(_.count(_ == "set_item_color") == 2))
+        Thread.sleep(200) // idle: nothing awaited
+        fake.event("add_drivers", "T.a")
+        eventually("idle event")(Some(got.asScala.toSeq).filter(_ == Seq(("add_drivers", "T.a"))))
+        // one that arrives among the replies of a plan
+        s.apply(flat("T.c", "T.d", "T.e"))
+        fake.event("goto_declaration", "T.c")
+        eventually("plan event")(Some(got.asScala.toSeq).filter(_.size == 2))
+        assert(got.asScala.toSeq(1) == (("goto_declaration", "T.c")))
+        eventually("second plan")(Some(fake.commands).filter(_.count(_ == "set_item_color") == 5))
+        fake.event("waveforms_loaded", "x") // not an action
+        fake.event("unknown", "x")
+        Thread.sleep(300)
+        assert(got.size == 2, s.alive)
+      } finally { fake.close(); s.close() }
+    }
+    test("add focuses the signal to add below, sends one add_items with the paths not shown, then focuses the first added") {
+      val s = session()
+      val fake = new FakeSurfer(s.port, drop = Set("T.gone"))
+      try {
+        s.apply(flat("T.a", "T.b"))
+        eventually("applied")(Some(fake.commands).filter(_.count(_ == "set_item_color") == 2))
+        s.add(Seq("T.b", "T.gone", "T.c", "T.d"), after = Some("T.a"))
+        def focuses = fake.frames.filter(_.value.get("command").exists(_.str == "focus_item")).map(_("id").num.toInt)
+        eventually("focus")(Some(focuses).filter(_.size == 2))
+        val sent = fake.commands.drop(fake.commands.indexOf("focus_item"))
+        // T.a (id 1) focused before the add, so Surfer inserts below it
+        assert(sent.take(2) == Seq("focus_item", "add_items"), focuses.head == 1)
+        val adds = fake.frames.filter(_.value.get("command").exists(_.str == "add_items"))
+        assert(adds.last("items").arr.map(_.str) == Seq("T.gone", "T.c", "T.d"))
+        // Surfer dropped T.gone: the ids returned (3, 4) are named, T.c's is 3
+        assert(fake.commands.contains("get_item_info"), focuses(1) == 3)
+        // added signals are shown now: a focus on one reaches it, a second add of them sends nothing
+        s.focus("T.d")
+        eventually("focus d")(Some(focuses).filter(_ == Seq(1, 3, 4)))
+        s.add(Seq("T.c", "T.a"))
+        Thread.sleep(300)
+        assert(fake.commands.count(_ == "add_items") == 2)
+      } finally { fake.close(); s.close() }
+    }
+    test("a new plan drops the adds not run yet") {
+      val s = session()
+      val fake = new FakeSurfer(s.port, delayMs = 30)
+      try {
+        s.apply(flat("T.a"))
+        s.add(Seq("T.x"))
+        s.apply(flat("T.b"))
+        eventually("second plan")(Some(fake.frames.filter(_.value.get("command").exists(_.str == "add_items")))
+          .filter(_.exists(_("items").arr.map(_.str) == Seq("T.b"))))
+        Thread.sleep(300)
+        assert(!fake.frames.exists(f => f.value.get("items").exists(_.arr.map(_.str).contains("T.x"))))
       } finally { fake.close(); s.close() }
     }
     test("focus sends focus_item with the id returned for that path") {

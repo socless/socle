@@ -12,7 +12,9 @@ import socless.wave.SurferWire._
   * change of the pane's state, on `Hello`, and when a `Show` completes (its
   * `seq`, with the paths Surfer dropped, or failed). `loadedTrace` is the
   * trace the tab was last asked to load. `byDirection` takes how the last
-  * plan shown was coloured (the colours legend: the page has no settings). */
+  * plan shown was coloured (the colours legend: the page has no settings).
+  * A right-click action in its Surfer goes up as a status with its `event`
+  * (the panel acts on it: the design is there), and `Add` comes back down. */
 object SurferTab {
 
   /** Starts the loop for `pane`. The returned binder, bound to the page,
@@ -28,13 +30,18 @@ object SurferTab {
         byDirection.set(plan.colorByDirection)
         pane.show(plan, path, t, r => status(shown = Some(seq), dropped = r, failed = r.isEmpty))
       case Focus(t) => pane.focus(t)
+      case Add(ts, at) => pane.add(ts, at)
       case Hello    => status()
     }
 
-    // `window.__soclessWave`, as in the panel (for the smoke): the pane's state and items.
+    pane.onEvent = e => Embedded.postSurferStatus(Status(pane.statusVar.now(), trace, None, None, event = Some(e)))
+
+    // `window.__soclessWave`, as in the panel (for the smoke): the pane's state
+    // and items, and Surfer's right-click menu.
     dom.window.asInstanceOf[js.Dynamic].__soclessWave = js.Dynamic.literal(
       snapshot = (() => pane.snapshot()): js.Function0[js.Object],
       items = (() => pane.items()): js.Function0[js.Promise[js.Array[js.Object]]],
+      event = ((k: String, v: String) => pane.onEvent(Event(k, v))): js.Function2[String, String, Unit],
     )
 
     pane.statusVar.signal.distinct --> { _ => status() }

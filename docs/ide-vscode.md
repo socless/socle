@@ -322,6 +322,26 @@ With the two Surfer viewers:
 - With `socless.wavesFollowSelection` off, Surfer shows the module in view
   when the trace arrives, and stays there.
 
+Surfer's right-click menu on a signal has three SoCLess actions, in the app
+and in the panel's Surfer (they use WCP events, so Surfer shows them only
+when SoCLess drives it):
+
+- **Go to declaration** shows the signal's module in the panel, selects it
+  (a port, a register, or the logic block that holds the register) and opens
+  its declaration in the editor. A port captured without a source position
+  opens its module's class. Surfer keeps its list: this selection is not
+  followed.
+- **Add drivers** adds the signals that drive this one, **Add loads** the
+  ones it feeds, below it in the list. SoCLess finds them in the design: it
+  goes through the logic the trace does not hold (operators, muxes, memories,
+  logic block pins) to the nearest ports, registers and instance pins, and
+  into the parent module for a port. Signals already listed are not added
+  twice. An Info says when there are none (an input of the top module has no
+  drivers).
+- They act on the trace's design, so the panel must show the simulated test.
+  An FSM block does not pass on its internal links yet: the walk stops at its
+  pins.
+
 Known limits:
 
 - The web Surfer only answers while its canvas is drawn: while the Surfer

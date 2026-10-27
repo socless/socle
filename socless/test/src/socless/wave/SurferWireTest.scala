@@ -20,6 +20,8 @@ object SurferWireTest extends TestSuite {
         Show(3, plan, List("GCD", "sub"), "http://127.0.0.1:1/wave/t1/trace"),
         Show(4, WavePlan(Nil, 0), Nil, ""),
         Focus("TOP.dut.x"),
+        Add(Seq("TOP.dut.x", "TOP.dut.io_a"), Some("TOP.dut.y")),
+        Add(Nil),
         Hello,
       )
       for (c <- cmds) assert(parseCmd(writeCmd(c)) == Some(c))
@@ -38,11 +40,15 @@ object SurferWireTest extends TestSuite {
         Status("ready", "http://h/wave/t1/trace", Some(7), Some(1)),
         Status("error", "", Some(2), None, shownSeqFailed = true),
         Status("idle", "", None, None),
+        Status("ready", "u", None, None, event = Some(Event("add_drivers", "TOP.dut.x"))),
       )) assert(parseStatus(writeStatus(s)) == Some(s))
     }
     test("a Status has plain JSON fields for the page") {
       val j = ujson.read(writeStatus(Status("ready", "u", Some(7), None)))
       assert(j("shownSeq").num == 7, j("state").str == "ready", j("loadedTrace").str == "u")
+    }
+    test("an older Status without an event still parses") {
+      assert(parseStatus("""{"state":"ready","loadedTrace":"u","shownSeq":null,"dropped":null}""").map(_.event) == Some(None))
     }
     test("malformed input is None") {
       assert(parseCmd("{}").isEmpty)

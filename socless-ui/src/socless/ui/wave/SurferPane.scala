@@ -9,7 +9,7 @@ import scala.scalajs.js.Thenable.Implicits._
 import scala.scalajs.js.timers._
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.{Failure, Success}
-import socless.wave.{WaveGroup, WaveLayout, WavePlan}
+import socless.wave.{SurferWire, WaveGroup, WaveLayout, WavePlan}
 
 /** The embedded Surfer of the Waveform tab: the vendored WASM build
   * (socless-lsp/vendor/surfer, served at `/surfer/`), driven over its in-page
@@ -60,6 +60,12 @@ import socless.wave.{WaveGroup, WaveLayout, WavePlan}
   * its one new id is the group's. Nothing is folded until every group exists,
   * so the visible list (what `get_item_list` returns) is the item index.
   * `focus_item` only reaches visible items: a focus unfolds its groups first.
+  *
+  * The greeting asks for Surfer's right-click actions (Go to declaration, Add
+  * drivers, Add loads: [[SurferWire.Event.Kinds]]); each one Surfer sends goes
+  * to [[onEvent]]. [[add]] adds signals below the one given (Surfer inserts
+  * after its focused item, so that one is focused first), then focuses the
+  * first added.
   */
 final class SurferPane extends WavePane {
   import SurferPane._
@@ -84,6 +90,8 @@ final class SurferPane extends WavePane {
   private var pendingLoad  = Option.empty[String]
   private var pendingPlan  = Option.empty[(WavePlan, List[String], String, Option[Int] => Unit)]
   private var pendingFocus = Option.empty[String]
+  private var pendingAdds  = Vector.empty[String]
+  private var pendingAfter = Option.empty[String]
   private val queries      = mutable.Queue.empty[() => Future[Unit]]
   private var busy         = false
 
@@ -98,6 +106,8 @@ final class SurferPane extends WavePane {
   private var lastFocus = Option.empty[(String, Int, Boolean)]
   private var lastScroll = Option.empty[Int] // the visible index of the last ScrollToItem
   private var focusCount = 0
+  private var addCount   = 0
+  private var lastAdd    = Seq.empty[String]
 
   private val canvasEl = canvasTag(idAttr := "the_canvas_id",
     styleAttr := "display:block;width:100%;height:100%;outline:none")
@@ -119,6 +129,7 @@ final class SurferPane extends WavePane {
       pendingPlan.foreach(_._4(None)) // dropped: never shown
       pendingPlan = None
       pendingFocus = None
+      pendingAdds = Vector.empty
       pump()
     }
 
@@ -130,11 +141,18 @@ final class SurferPane extends WavePane {
   def show(plan: WavePlan, path: List[String], trace: String, done: Option[Int] => Unit = _ => ()): Unit = {
     pendingPlan = Some((plan, path, trace, done))
     pendingFocus = None
+    pendingAdds = Vector.empty
     pump()
   }
 
   /** Focuses the signal `trace` of the plan shown. */
   def focus(trace: String): Unit = { pendingFocus = Some(trace); pump() }
+
+  def add(traces: Seq[String], after: Option[String]): Unit = {
+    pendingAdds = (pendingAdds ++ traces).distinct
+    pendingAfter = after
+    pump()
+  }
 
   private def connected: Boolean = dom.document.body.contains(canvasEl.ref)
 
@@ -149,6 +167,11 @@ final class SurferPane extends WavePane {
             () => doShow(p._1, p._2, p._3).andThen { case r => p._4(r.toOption.flatten) }.map(_ => ())
           })
           .orElse(pendingFocus.filter(_ => loadedTrace.nonEmpty).map { t => pendingFocus = None; () => doFocus(t) })
+          .orElse(Option.when(pendingAdds.nonEmpty && loadedTrace.nonEmpty) {
+            val (a, at) = (pendingAdds, pendingAfter)
+            pendingAdds = Vector.empty
+            () => doAdd(a, at)
+          })
           .orElse(if (queries.nonEmpty) Some(queries.dequeue()) else None)
       work.foreach { w =>
         busy = true
@@ -176,7 +199,7 @@ final class SurferPane extends WavePane {
       m <- imp(absolute(SurferJs)).toFuture
       _ <- m.selectDynamic("default")(js.Dynamic.literal(module_or_path = absolute(SurferWasm))).asInstanceOf[js.Promise[js.Any]].toFuture
       _ <- m.start_wcp().asInstanceOf[js.Promise[js.Any]].toFuture
-      g <- { mod = m; readLoop(); send(js.Dynamic.literal(`type` = "greeting", version = "0", commands = js.Array("waveforms_loaded"))) }
+      g <- { mod = m; readLoop(); send(js.Dynamic.literal(`type` = "greeting", version = "0", commands = js.Array(("waveforms_loaded" +: SurferWire.Event.Kinds): _*))) }
     } yield g
     started.onComplete { r =>
       booting = false
@@ -198,7 +221,12 @@ final class SurferPane extends WavePane {
       case Success(m) if m.isDefined =>
         val msg = js.JSON.parse(m.get)
         if (msg.selectDynamic("type").asInstanceOf[Any] == "event") {
-          if (msg.selectDynamic("event").asInstanceOf[Any] == "waveforms_loaded") loadWaiter.foreach(_.trySuccess(()))
+          (msg.selectDynamic("event"): Any, msg.selectDynamic("variable"): Any) match {
+            case ("waveforms_loaded", _) => loadWaiter.foreach(_.trySuccess(()))
+            case (k: String, v: String) if SurferWire.Event.Kinds.contains(k) =>
+              try onEvent(SurferWire.Event(k, v)) catch { case e: Throwable => dom.console.warn(s"socless: Surfer $k: ${e.getMessage}") }
+            case _ => ()
+          }
         } else if (waiters.nonEmpty) waiters.dequeue().trySuccess(msg)
         readLoop()
       case _ => failPane(new RuntimeException("the Surfer WCP channel closed"))
@@ -410,15 +438,43 @@ final class SurferPane extends WavePane {
       } yield { lastFocus = Some((trace, id, r.isDefined)); focusCount += 1 }
   }
 
+  /** Adds `traces` not shown yet with one `add_items` (Surfer drops the paths
+    * its trace lacks: a short reply is named as a plan's group is), below
+    * `after` when shown, then focuses the first one added. */
+  private def doAdd(traces: Seq[String], after: Option[String]): Future[Unit] = {
+    val fresh = traces.filterNot(ids.contains)
+    val below = after.flatMap(ids.get).fold(Future.unit)(id => send(command("focus_item", "id" -> id)).map(_ => ()))
+    if (fresh.isEmpty) Future.unit
+    else below.flatMap(_ => send(command("add_items", "items" -> js.Array(fresh: _*), "recursive" -> false))).flatMap {
+      case None => Future.unit
+      case Some(r) =>
+        val got = r.ids.asInstanceOf[js.Array[Int]].toSeq
+        val named: Future[Seq[(String, Int)]] =
+          if (got.size == fresh.size) Future.successful(fresh.zip(got))
+          else if (got.isEmpty) Future.successful(Nil)
+          else send(command("get_item_info", "ids" -> js.Array(got: _*))).map { info =>
+            val names = info.fold(Seq.empty[String])(_.results.asInstanceOf[js.Array[js.Dynamic]].toSeq.map(_.name.asInstanceOf[String]))
+            WaveLayout.matchAdded(fresh, names).zip(got).collect { case (Some(t), id) => (t, id) }
+          }
+        named.flatMap { ps =>
+          ps.foreach { case (t, id) => ids += t -> id; traceOf += id -> t }
+          addCount += 1
+          lastAdd = ps.map(_._1)
+          ps.headOption.fold(Future.unit)(p => doFocus(p._1))
+        }
+    }
+  }
+
   // ── Debug hook (window.__soclessWave, for the smoke) ─────────────────────
   /** The pane's state: status, trace, the plan shown, the last focus sent. */
   def snapshot(): js.Object = js.Dynamic.literal(
     status = statusVar.now(), boots = boots, loadedTrace = loadedTrace,
-    idle = !busy && pendingLoad.isEmpty && pendingPlan.isEmpty && pendingFocus.isEmpty && queries.isEmpty,
+    idle = !busy && pendingLoad.isEmpty && pendingPlan.isEmpty && pendingFocus.isEmpty && pendingAdds.isEmpty && queries.isEmpty,
     shown = shown.fold[js.Any](null) { case (p, t) => js.Dynamic.literal(path = js.JSON.stringify(js.Array(p: _*)), trace = t) },
     lastFocus = lastFocus.fold[js.Any](null) { case (t, id, ok) => js.Dynamic.literal(trace = t, id = id, ok = ok) },
     lastScroll = lastScroll.fold[js.Any](null)(i => js.Dynamic.literal(index = i)),
     focusCount = focusCount,
+    addCount = addCount, lastAdd = js.Array(lastAdd: _*),
   )
 
   /** Surfer's displayed items in order (WCP `get_item_list` / `get_item_info`),

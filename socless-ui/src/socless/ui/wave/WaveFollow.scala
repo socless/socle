@@ -9,7 +9,7 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.util.Success
 import socless.schema.{Design, ModuleDef, NodeKind}
 import socless.ui.data.{Embedded, IdeState}
-import socless.wave.{WaveLayout, WaveSettings}
+import socless.wave.{SurferWire, WaveLayout, WaveLinks, WaveSettings}
 
 /** Makes the waveform viewer follow the panel's selection and drill path.
   *
@@ -37,6 +37,13 @@ import socless.wave.{WaveLayout, WaveSettings}
   * or while the panel shows another test than the trace's (paused, see
   * [[WaveFollow.paused]]). A new trace still shows the module in view once (Simulate
   * shows the test's design), whatever the follow setting.
+  *
+  * Surfer's right-click actions ([[SurferWire.Event]]) act on the trace's
+  * design: Add drivers and Add loads add the signals [[WaveLinks]] finds;
+  * Go to declaration calls `onReveal` (show the signal's module, select it,
+  * open its source), as does a `reveal` in the state (the Surfer app's, the
+  * language server opened the source). The selection a reveal makes is not
+  * followed: Surfer keeps what it shows until the next selection.
   */
 final class WaveFollow(
     stateSig: Signal[Option[IdeState]],
@@ -46,6 +53,7 @@ final class WaveFollow(
     moduleSig: Signal[Option[ModuleDef]],
     onTrace: () => Unit,
     val pane: WavePane,
+    onReveal: (WaveLinks.Located, Boolean) => Option[String] = (_, _) => None,
 ) {
   import WaveFollow._
 
@@ -66,6 +74,11 @@ final class WaveFollow(
   /** The plan handed to the pane and not shown yet. */
   private var showingKey = Option.empty[(String, List[String], WaveSettings, Design)]
   private val viewVar = Var(View("", "", None, 0))
+  /** The drill path and selection a reveal made: not followed (see [[fire]]). */
+  private var hold = Option.empty[(List[String], Option[String])]
+  /** The last state's reveal seq; None before the first state (a reveal
+    * already there when the page loads is not applied). */
+  private var revealSeq = Option.empty[Int]
 
   /** What the Waveform tab says. */
   val viewSig: Signal[View] = viewVar.signal
@@ -85,6 +98,36 @@ final class WaveFollow(
   pane match {
     case r: RemotePane => r.resync = () => resync()
     case _             => ()
+  }
+  pane.onEvent = onSurferEvent
+
+  /** A right-click action chosen in the panel's Surfer (or the Surfer tab's). */
+  private def onSurferEvent(e: SurferWire.Event): Unit =
+    try for {
+      s <- state
+      if s.waveViewer == Panel && s.trace.nonEmpty
+      d <- design
+      n <- names
+      if n.trace == s.trace
+    } {
+      if (paused(s)) dom.console.info(s"socless: Surfer ${e.kind}: the panel shows another test than the trace's")
+      else e.kind match {
+        case "goto_declaration" =>
+          WaveLinks.locate(d, n.prefix, e.variable) match {
+            case Some(loc) => reveal(loc, open = true)
+            case None      => dom.console.info(s"socless: Go to declaration: ${e.variable} is not a signal of the design")
+          }
+        case k =>
+          val found = if (k == "add_drivers") WaveLinks.drivers(d, n.prefix, n.names, e.variable)
+                      else WaveLinks.loads(d, n.prefix, n.names, e.variable)
+          if (found.isEmpty) dom.console.info(s"socless: Surfer $k: nothing traced found for ${e.variable}")
+          else pane.add(found, Some(e.variable))
+      }
+    } catch { case ex: Throwable => dom.console.warn(s"socless: Surfer ${e.kind}: ${ex.getMessage}") }
+
+  private def reveal(loc: WaveLinks.Located, open: Boolean): Unit = {
+    val sel = onReveal(loc, open)
+    hold = Some((loc.instPath, sel))
   }
 
   if (Embedded.on) installHook()
@@ -106,6 +149,9 @@ final class WaveFollow(
   private def following(s: IdeState): Boolean = s.waveViewer == Panel || s.waveViewer == App
 
   private def onState(): Unit = state.foreach { s =>
+    val seq = s.reveal.fold(0)(_.seq)
+    if (revealSeq.exists(_ != seq)) s.reveal.foreach(r => reveal(WaveLinks.Located(r.instPath, r.leaf, socless.schema.SourceRef.unknown), open = false))
+    revealSeq = Some(seq)
     if (s.trace != traceSeen) {
       traceSeen = s.trace
       names = None
@@ -155,7 +201,7 @@ final class WaveFollow(
     timer = Some(setTimeout(math.max(0, settings.followDelayMs).toDouble) { timer = None; fire(initial = false) })
   }
 
-  private def fire(initial: Boolean): Unit =
+  private def fire(initial: Boolean): Unit = if (initial || !held()) {
     try for {
       s <- state
       if following(s) && s.trace.nonEmpty && !paused(s)
@@ -191,6 +237,14 @@ final class WaveFollow(
         else if (fresh || initial) post(s.traceTest, path, None)
       }
     } catch { case e: Throwable => dom.console.warn(s"socless: waveform follow: ${e.getMessage}") }
+  }
+
+  /** Whether the path and selection are the ones a reveal made (once). */
+  private def held(): Boolean = {
+    val h = hold
+    hold = None
+    h.contains((path, sel))
+  }
 
   /** `POST /wave/select`: same-origin, JSON, relative like `/open`. */
   private def post(traceTest: String, instPath: List[String], selection: Option[String]): Unit = {
@@ -205,14 +259,18 @@ final class WaveFollow(
   private var hooked = false
 
   /** `window.__soclessWave`: the pane's state and items, and a way to select
-    * anything (a bundle like `io.out` has no node of its own to click). For the
-    * smoke: installed once, in embedded mode or when the pane gets a trace. */
+    * anything (a bundle like `io.out` has no node of its own to click), to act
+    * as Surfer's right-click menu (`event`) and to read the drill path and the
+    * selection (`view`). For the smoke: installed once, in embedded mode or
+    * when the pane gets a trace. */
   private def installHook(): Unit = if (!hooked) {
     hooked = true
     dom.window.asInstanceOf[js.Dynamic].__soclessWave = js.Dynamic.literal(
       snapshot = (() => pane.snapshot()): js.Function0[js.Object],
       items = (() => pane.items()): js.Function0[js.Promise[js.Array[js.Object]]],
       select = ((s: String) => selectedVar.set(Option(s))): js.Function1[String, Unit],
+      event = ((k: String, v: String) => onSurferEvent(SurferWire.Event(k, v))): js.Function2[String, String, Unit],
+      view = (() => js.Dynamic.literal(path = js.JSON.stringify(js.Array(path: _*)), selection = sel.fold[js.Any](null)(s => s))): js.Function0[js.Dynamic],
     )
   }
 }

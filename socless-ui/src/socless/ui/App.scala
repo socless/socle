@@ -134,6 +134,7 @@ object App {
       moduleSig   = currentModuleSig,
       onTrace     = () => { bottomOpenVar.set(true); bottomTabVar.set("wave") },
       pane        = pane,
+      onReveal    = (loc, open) => reveal(loc, open),
     )
   }
 
@@ -537,6 +538,39 @@ object App {
       navSelect = sel
       selectedSigVar.set(sel)
     }
+
+  /** Surfer's Go to declaration: show the module at `loc.instPath`, select
+    * what stands for `loc.leaf` there ([[revealSelection]]) and fly to it when
+    * it is a box, then open the signal's source when `open` (the Surfer app's
+    * language server opened it already). The selection itself opens nothing.
+    * Returns the selection made. */
+  private def reveal(loc: socless.wave.WaveLinks.Located, open: Boolean): Option[String] =
+    loader.currentDesign.flatMap { d =>
+      currentModule(d, loc.instPath).flatMap { _ =>
+        if (pathVar.now() != loc.instPath) pathVar.set(loc.instPath) // its binder clears the selection first
+        val sel = shownModule(d, loc.instPath).flatMap(revealSelection(d, _, loc.leaf))
+        navSelect = sel
+        selectedSigVar.set(sel)
+        sel.filter(s => shownModule(d, loc.instPath).exists(_.logic.exists(_.id == s))).foreach(viewCmds.flyTo(loc.instPath, _))
+        if (open) openSource(loc.source)
+        sel
+      }
+    }
+
+  /** What to select in `mod` for a port leaf or a signal: its own logic node
+    * (a register), else the box whose region holds it, else the leaf or the
+    * nearest bundle above it that [[selectionIn]] resolves. */
+  private def revealSelection(d: Design, mod: ModuleDef, leaf: String): Option[String] = {
+    def holds(m: ModuleDef, depth: Int): Boolean =
+      m.logic.exists(_.id == leaf) || (depth < 8 && m.logic.exists(n => NodeKind.isBox(n.kind) && d.regions.get(n.id).exists(holds(_, depth + 1))))
+    def ups(p: String): List[String] = {
+      val i = math.max(p.lastIndexOf('.'), p.lastIndexOf('['))
+      p :: (if (i > 0) ups(p.substring(0, i)) else Nil)
+    }
+    mod.logic.find(_.id == leaf).map(_.id)
+      .orElse(mod.logic.find(n => NodeKind.isBox(n.kind) && d.regions.get(n.id).exists(holds(_, 0))).map(_.id))
+      .orElse(ups(leaf).find(selectionIn(mod, _)))
+  }
 
   /** The `socless-state` message for the editor's side panel: the drill path,
     * the selection and the details of the selected instance, else of the current

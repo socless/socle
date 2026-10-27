@@ -4,7 +4,7 @@ import java.io.{BufferedInputStream, BufferedOutputStream, ByteArrayOutputStream
 import java.net.{InetAddress, ServerSocket, Socket, SocketTimeoutException}
 import java.nio.charset.StandardCharsets.UTF_8
 import scala.util.control.NonFatal
-import socless.wave.{WaveGroup, WaveLayout, WavePlan}
+import socless.wave.{SurferWire, WaveGroup, WaveLayout, WavePlan}
 
 /** Where a [[WavePlan]] and a focus go: the external Surfer ([[WcpSession]]). */
 trait WaveTarget {
@@ -18,8 +18,10 @@ trait WaveTarget {
   * The language server listens on 127.0.0.1:0 and Surfer, started with
   * `--wcp-initiate <port>`, connects to it once: Surfer is the TCP client but
   * plays the WCP server. Frames are JSON objects, each followed by a null byte.
-  * The session sends `{"type":"greeting","version":"0","commands":["waveforms_loaded"]}`
-  * first (Surfer rejects every command before it), waits for Surfer's greeting,
+  * The session sends `{"type":"greeting","version":"0","commands":["waveforms_loaded",
+  * "goto_declaration","add_drivers","add_loads"]}` first (Surfer rejects every
+  * command before it, and shows its right-click actions only for the events
+  * asked for), waits for Surfer's greeting,
   * then for the trace to load: `get_item_list` errors ("No waveform loaded")
   * until it has, and `waveforms_loaded` only comes when loading ends after the
   * greeting, so both count.
@@ -40,6 +42,12 @@ trait WaveTarget {
   * latest plan. WCP cannot scroll Surfer's list: a focused signal below the
   * visible rows stays out of view.
   *
+  * A right-click action (`goto_declaration`, `add_drivers`, `add_loads`) goes
+  * to `onEvent(kind, variable)`, on the session's thread: read while a reply
+  * is awaited, and every [[WcpSession.EventPollMs]] while idle. [[add]] adds
+  * signals after those shown (one `add_items`, the paths shown skipped); a
+  * new plan drops the adds not run yet.
+  *
   * A slow reply is waited for (Surfer answers from its UI loop, which stalls
   * while its window is hidden); the next plan simply waits behind it. When
   * Surfer never connects, exits or closes the socket, or the greeting and load
@@ -54,6 +62,7 @@ final class WcpSession private (
     replyTimeoutMs: Int,
     loadTimeoutMs: Long,
     onEarlyExit: () => Unit,
+    onEvent: (String, String) => Unit,
 ) extends WaveTarget {
   import WcpSession._
 
@@ -63,6 +72,8 @@ final class WcpSession private (
   private val lock         = new Object
   private var pendingPlan  = Option.empty[WavePlan] // guarded by lock
   private var pendingFocus = Option.empty[String]   // guarded by lock
+  private var pendingAdds  = Vector.empty[String]   // guarded by lock
+  private var pendingAfter = Option.empty[String]   // guarded by lock
   private var closed       = false                  // guarded by lock
   @volatile private var dead = false
   @volatile private var socket = Option.empty[Socket]
@@ -78,6 +89,14 @@ final class WcpSession private (
   def apply(plan: WavePlan): Unit = lock.synchronized {
     pendingPlan = Some(plan)
     pendingFocus = None
+    pendingAdds = Vector.empty
+    lock.notifyAll()
+  }
+
+  /** Adds `traces` not shown, below the signal `after` when it is shown. */
+  def add(traces: Seq[String], after: Option[String] = None): Unit = lock.synchronized {
+    pendingAdds = (pendingAdds ++ traces).distinct
+    pendingAfter = after
     lock.notifyAll()
   }
 
@@ -102,7 +121,7 @@ final class WcpSession private (
         socket = Some(s)
         if (!isClosed) { // else closed while accepting: the finally closes it
           s.setSoTimeout(replyTimeoutMs)
-          val io = new Frames(new BufferedInputStream(s.getInputStream), new BufferedOutputStream(s.getOutputStream))
+          val io = new Frames(new BufferedInputStream(s.getInputStream), new BufferedOutputStream(s.getOutputStream), event)
           if (handshake(io)) serve(io)
         }
       }
@@ -136,7 +155,8 @@ final class WcpSession private (
 
   /** Greeting both ways, then the trace loaded. */
   private def handshake(io: Frames): Boolean = {
-    io.send(ujson.Obj("type" -> "greeting", "version" -> "0", "commands" -> ujson.Arr("waveforms_loaded")))
+    io.send(ujson.Obj("type" -> "greeting", "version" -> "0",
+      "commands" -> ujson.Arr.from(("waveforms_loaded" +: SurferWire.Event.Kinds).map(ujson.Str(_)))))
     // Surfer answers from its UI loop, which may only run once its window is
     // shown: its greeting gets the load deadline, not one reply's timeout
     val end = System.currentTimeMillis() + loadTimeoutMs
@@ -159,24 +179,60 @@ final class WcpSession private (
     }
   }
 
-  /** Runs the pending plan and focus until the session closes or dies. */
+  /** A right-click action from Surfer, handed to `onEvent`; nothing it throws ends the session. */
+  private def event(f: ujson.Obj): Unit =
+    (f.value.get("event").map(_.str), f.value.get("variable").map(_.str)) match {
+      case (Some(k), Some(v)) if SurferWire.Event.Kinds.contains(k) =>
+        try onEvent(k, v) catch { case NonFatal(e) => log(s"wcp: $k on $v failed: $e") }
+      case _ => ()
+    }
+
+  /** Runs the pending plan, focus and adds until the session closes or dies.
+    * While idle, Surfer's events are read every [[EventPollMs]]. */
   private def serve(io: Frames): Unit =
     while (!isClosed) {
+      io.drain()
       val next = lock.synchronized {
-        while (!closed && pendingPlan.isEmpty && pendingFocus.isEmpty) lock.wait()
-        val n = (pendingPlan, pendingFocus)
+        if (!closed && pendingPlan.isEmpty && pendingFocus.isEmpty && pendingAdds.isEmpty) lock.wait(EventPollMs)
+        val n = (pendingPlan, pendingFocus, pendingAdds, pendingAfter)
         pendingPlan = None
         pendingFocus = None
+        pendingAdds = Vector.empty
         n
       }
       // a plan aborted for a newer one drops the focus that came with it
-      if (!isClosed && next._1.forall(show(io, _))) next._2.foreach { t =>
-        ids.get(t) match {
-          case Some(id) => step(io, command("focus_item", "id" -> ujson.Num(id)))
-          case None => log(s"wcp: no focus on $t: it has no Surfer id (not in the plan shown, or not in the trace)")
+      if (!isClosed && next._1.forall(show(io, _))) {
+        next._2.foreach { t =>
+          ids.get(t) match {
+            case Some(id) => step(io, command("focus_item", "id" -> ujson.Num(id)))
+            case None => log(s"wcp: no focus on $t: it has no Surfer id (not in the plan shown, or not in the trace)")
+          }
         }
+        if (next._3.nonEmpty) addItems(io, next._3, next._4)
       }
     }
+
+  /** Adds the paths of `traces` not shown yet with one `add_items`, names the
+    * ids of a short reply as [[show]] does, then focuses the first one added.
+    * Surfer inserts after its focused item: `after`, when shown, is focused first. */
+  private def addItems(io: Frames, traces: Seq[String], after: Option[String]): Unit = {
+    val fresh = traces.filterNot(ids.contains)
+    if (fresh.nonEmpty) after.flatMap(ids.get).foreach(id => step(io, command("focus_item", "id" -> ujson.Num(id))))
+    if (fresh.nonEmpty) step(io, command("add_items", "items" -> ujson.Arr.from(fresh), "recursive" -> ujson.False)).foreach { r =>
+      val got = r.value.get("ids").fold(Seq.empty[Int])(_.arr.map(_.num.toInt).toSeq)
+      val named =
+        if (got.size == fresh.size) fresh.zip(got)
+        else if (got.isEmpty) Nil
+        else {
+          val names = step(io, command("get_item_info", "ids" -> ujson.Arr.from(got.map(ujson.Num(_)))))
+            .flatMap(_.value.get("results")).fold(Seq.empty[String])(_.arr.map(_("name").str).toSeq)
+          WaveLayout.matchAdded(fresh, names).zip(got).collect { case (Some(t), id) => (t, id) }
+        }
+      ids ++= named
+      if (named.size < fresh.size) log(s"wcp: ${fresh.size - named.size} signal(s) to add not in the trace (Surfer did not add them)")
+      named.headOption.foreach { case (_, id) => step(io, command("focus_item", "id" -> ujson.Num(id))) }
+    }
+  }
 
   /** Whether a newer plan waits (or the session closed): the running one stops
     * at the end of its phase. */
@@ -272,6 +328,8 @@ object WcpSession {
   val DefaultLoadTimeoutMs   = 5L * 60 * 1000
   /** At most this many commands in flight. */
   val Window = 32
+  /** How often an idle session reads Surfer's events. */
+  val EventPollMs = 50L
   private val LoadProbeMs    = 100L
   private val MaxFrame       = 16 * 1024 * 1024
 
@@ -281,7 +339,8 @@ object WcpSession {
     * once, on the session's thread, when that process exits before connecting
     * (a Surfer without `--wcp-initiate`), unless the session was closed. */
   def start(command: String, trace: os.Path, logFile: Option[os.Path] = None,
-      log: String => Unit = m => Console.err.println(s"[socless-lsp] $m"), onEarlyExit: () => Unit = () => ()): WcpSession = {
+      log: String => Unit = m => Console.err.println(s"[socless-lsp] $m"), onEarlyExit: () => Unit = () => (),
+      onEvent: (String, String) => Unit = (_, _) => ()): WcpSession = {
     val server = new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
     val pb = new ProcessBuilder(command, "--wcp-initiate", server.getLocalPort.toString, trace.toString)
       .directory(trace.toNIO.getParent.toFile).redirectErrorStream(true)
@@ -292,7 +351,7 @@ object WcpSession {
       catch { case NonFatal(e) => quietly(server.close()); throw e }
     p.getOutputStream.close()
     log(s"wcp: started $command --wcp-initiate ${server.getLocalPort} $trace")
-    new WcpSession(server, Some(p), log, DefaultAcceptTimeoutMs, DefaultReplyTimeoutMs, DefaultLoadTimeoutMs, onEarlyExit)
+    new WcpSession(server, Some(p), log, DefaultAcceptTimeoutMs, DefaultReplyTimeoutMs, DefaultLoadTimeoutMs, onEarlyExit, onEvent)
   }
 
   /** Start Surfer under XWayland when both displays exist: a native-Wayland
@@ -303,9 +362,9 @@ object WcpSession {
 
   /** A session with no process: the test's fake Surfer connects to [[WcpSession.port]]. */
   private[lsp] def listen(log: String => Unit, acceptTimeoutMs: Long = 10000, replyTimeoutMs: Int = 5000,
-      loadTimeoutMs: Long = 10000): WcpSession =
+      loadTimeoutMs: Long = 10000, onEvent: (String, String) => Unit = (_, _) => ()): WcpSession =
     new WcpSession(new ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")), None, log,
-      acceptTimeoutMs, replyTimeoutMs, loadTimeoutMs, () => ())
+      acceptTimeoutMs, replyTimeoutMs, loadTimeoutMs, () => (), onEvent)
 
   private def command(name: String, fields: (String, ujson.Value)*): ujson.Obj =
     ujson.Obj.from(Seq("type" -> ujson.Str("command"), "command" -> ujson.Str(name)) ++ fields)
@@ -316,8 +375,9 @@ object WcpSession {
 
   private def quietly(f: => Unit): Unit = try f catch { case NonFatal(_) => () }
 
-  /** Null-delimited JSON frames over the socket. */
-  private final class Frames(in: InputStream, out: OutputStream) {
+  /** Null-delimited JSON frames over the socket; events other than
+    * `waveforms_loaded` go to `onEvent`. */
+  private final class Frames(in: InputStream, out: OutputStream, onEvent: ujson.Obj => Unit) {
     /** Whether a `waveforms_loaded` event went by. */
     var loaded = false
 
@@ -333,12 +393,24 @@ object WcpSession {
       var eof = false
       while (r.isEmpty && !eof) frame() match {
         case None => eof = true
-        case Some(f) if f.value.get("type").exists(_.str == "event") =>
-          if (f.value.get("event").exists(_.str == "waveforms_loaded")) loaded = true
+        case Some(f) if f.value.get("type").exists(_.str == "event") => seen(f)
         case Some(f) => r = Some(f)
       }
       r
     }
+
+    private def seen(event: ujson.Obj): Unit =
+      if (event.value.get("event").exists(_.str == "waveforms_loaded")) loaded = true else onEvent(event)
+
+    /** Reads the frames already arrived while no command is in flight: its
+      * events (a stray reply, which nothing awaits, is dropped). Throws at
+      * EOF, which ends the session; a frame cut by the read timeout is kept. */
+    def drain(): Unit =
+      try while (in.available() > 0) frame() match {
+        case None => throw new IOException("Surfer closed the WCP connection")
+        case Some(f) if f.value.get("type").exists(_.str == "event") => seen(f)
+        case Some(_) => ()
+      } catch { case _: SocketTimeoutException => () }
 
     // the frame read so far: kept across a read timeout
     private val buf = new ByteArrayOutputStream

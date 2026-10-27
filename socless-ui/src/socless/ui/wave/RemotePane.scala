@@ -3,7 +3,7 @@ package socless.ui.wave
 import com.raquo.laminar.api.L._
 import scala.scalajs.js
 import socless.wave.SurferWire
-import socless.wave.SurferWire.{Cmd, Focus, Hello, Load, Show, Status}
+import socless.wave.SurferWire.{Add, Cmd, Focus, Hello, Load, Show, Status}
 import socless.wave.WavePlan
 
 /** The VS Code Surfer tab, driven from the SoCLess panel: each call is posted
@@ -18,7 +18,9 @@ import socless.wave.WavePlan
   *    increasing `seq` (seeded per page, so a tab's late status for an older
   *    page never completes this one's), and only the latest seq's `done` is kept: it completes
   *    on the status that reports that seq (its `dropped`, or None when
-  *    `shownSeqFailed`); `focus` posts `Focus`.
+  *    `shownSeqFailed`); `focus` posts `Focus`, `add` posts `Add`.
+  *  - A status carrying an `event` (a right-click action in the tab's
+  *    Surfer) goes to [[onEvent]].
   *  - The tab's `state` is mirrored into [[statusVar]].
   *  - A status whose `loadedTrace` is not the last Load (a fresh or reloaded
   *    tab), the first one after [[onClosed]] (a new tab), or an `error` for
@@ -64,6 +66,8 @@ final class RemotePane(post: js.Any => Unit) extends WavePane {
 
   def focus(trace: String): Unit = send(Focus(trace))
 
+  def add(traces: Seq[String], after: Option[String]): Unit = send(Add(traces, after))
+
   /** A `socless-surfer-status` from the tab. */
   def onStatus(s: Status): Unit = {
     val reopened = closed // the first status of a new tab
@@ -82,6 +86,7 @@ final class RemotePane(post: js.Any => Unit) extends WavePane {
       (n, done)   <- pending
       if n == shown
     } { pending = None; done(if (s.shownSeqFailed) None else Some(s.dropped.getOrElse(0))) }
+    s.event.foreach(onEvent)
   }
 
   /** `socless-surfer-closed`: the tab is gone. */

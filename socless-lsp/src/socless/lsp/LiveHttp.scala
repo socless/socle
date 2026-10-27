@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets.UTF_8
 import java.util.concurrent.Executors
 import socless.cli.Serve
 import socless.schema.Design
-import socless.wave.WaveSettings
+import socless.wave.{SurferWire, WaveSettings}
 import upickle.default.{ReadWriter, macroRW}
 
 /** What the live panel shows about the IDE side. The field names are a
@@ -27,7 +27,9 @@ case class IdeState(
     waveViewer: String = "",
     trace: String = "",
     traceTest: String = "",
-    waveSettings: Option[WaveSettings] = None
+    waveSettings: Option[WaveSettings] = None,
+    // The Surfer app's last Go to declaration, for the panel to show (each seq once).
+    reveal: Option[SurferWire.Reveal] = None
 )
 object IdeState { implicit val rw: ReadWriter[IdeState] = macroRW }
 
@@ -122,7 +124,8 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
       "focusClass" -> s.focusClass, "test" -> s.test, "suite" -> s.suite, "stamp" -> s.stamp.toDouble,
       "waveViewer" -> s.waveViewer, "trace" -> s.trace, "traceTest" -> s.traceTest,
       // the object or null, as the UI's macroRW reads (upickle 4 writes an Option that way)
-      "waveSettings" -> upickle.default.writeJs(s.waveSettings)))
+      "waveSettings" -> upickle.default.writeJs(s.waveSettings),
+      "reveal" -> upickle.default.writeJs(s.reveal)))
 
   private def err(code: Int, ex: HttpExchange, msg: String): Unit =
     Serve.send(ex, code, "text/plain", msg.getBytes(UTF_8))

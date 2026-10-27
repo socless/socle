@@ -10,6 +10,12 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Added
 
+- Surfer's right-click menu: Go to declaration shows the signal in the
+  schematic and opens its declaration in the editor; Add drivers and Add loads
+  add the signals that drive it or that it feeds, found in the design through
+  operators, muxes, memories and logic blocks, and across a port into the
+  parent. In the Surfer app and the panel's Surfer (docs/ide-vscode.md).
+
 - Neovim: the [socless.nvim](https://github.com/e-ban/socless.nvim) plugin
   installs SoCLess from lazy.nvim / LazyVim, `vim.pack`, mini.deps, packer or
   vim-plug (it fetches the server jar of a pinned release; configurable);

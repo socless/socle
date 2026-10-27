@@ -740,6 +740,19 @@ object LanguageServerTest extends TestSuite {
         // a register of the shown module: focus on its id (x, y, busy are 8, 9, 10)
         assert(select(traceTest, "y") == 204)
         eventually("focus y")(Some(focusIds(fake)).filter(_ == Seq(9)))
+        // Surfer's right-click actions: Go to declaration opens the register's
+        // source and has the panel reveal it; a top input has no drivers (Info)
+        val dut = "TOP.svsimTestbench.dut"
+        assert(ide(base).reveal.isEmpty)
+        fake.event("goto_declaration", s"$dut.x")
+        val r = eventually("reveal")(ide(base).reveal)
+        assert(r.instPath == List("GCD"), r.leaf == "x", r.seq == 1)
+        val doc = eventually("source opened")(f.client.documents.asScala.find(_.getUri.endsWith("GCD.scala")))
+        assert(doc.getSelection.getStart.getLine == 29)
+        fake.event("add_drivers", s"$dut.io_in_bits_a")
+        eventually("no drivers")(f.client.messages.asScala.find(_.getMessage == s"SoCLess: no traced drivers of $dut.io_in_bits_a"))
+        fake.event("goto_declaration", s"$dut.io_out_bits_result")
+        eventually("second reveal")(ide(base).reveal.filter(_.seq == 2).map(_.leaf)) ==> "io.out.bits.result"
         // another trace's selection, or another viewer: nothing reaches Surfer
         assert(select("other.Spec#t", "x") == 204)
         val cfg = new JsonObject
