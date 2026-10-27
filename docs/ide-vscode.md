@@ -326,11 +326,13 @@ A state machine's register shows its state names (`sGreen`) instead of
 numbers, in both Surfer viewers. Chisel lowers the states to plain numbers, so
 SoCLess pairs each name of the state diagram with its value in the CHIRRTL
 (the `state := sX` assignments, the reset value and the `is(...)` order, which
-must agree) and writes them into a copy of the trace (`trace-states.vcd` in
-the simulation's directory) as a GTKWave enum table, which Surfer applies by
-itself. A value no state has (the register before its reset) shows as its
-number. This needs the state diagram (the panel on the simulated test) and a
-VCD trace for now; FST traces keep their numbers.
+must agree) and writes them into a copy of the trace (`trace-states.vcd` or
+`trace-states.fst` in the simulation's directory) as a GTKWave enum table,
+which Surfer applies by itself. A value no state has (the register before its
+reset) shows as its number. This needs the state diagram (the panel on the
+simulated test). VCD and FST traces both work; ChiselSim 7.16 has no FST
+option of its own, so an FST comes from an option your project defines
+(`socless.waveFlag`).
 
 Surfer's right-click menu on a signal has three SoCLess actions, in the app
 and in the panel's Surfer (they use WCP events, so Surfer shows them only

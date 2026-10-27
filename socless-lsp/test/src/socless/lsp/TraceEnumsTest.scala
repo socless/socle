@@ -62,6 +62,38 @@ object TraceEnumsTest extends TestSuite {
       assert(run(Nil) == ((0, None)))
     }
 
+    test("FST: Verilator's LZ4 hierarchy gets the table before the register, as gzip; the value blocks are untouched") {
+      // TrafficFsm's own trace, from Verilator through ChiselSim (an emitFst option of the spec)
+      val dir = os.temp.dir(prefix = "socless-enums-")
+      val in  = dir / "trace.fst"
+      os.write(in, os.read.bytes(os.Path(sys.props("socless.root")) / "socless-lsp" / "test" / "resources" / "wave" / "trafficfsm.fst"))
+      val out = dir / "trace-states.fst"
+      assert(TraceEnums.write(in, out, Seq(traffic)) == 1)
+      val before = TraceEnums.fstEntries(in).get
+      val after  = TraceEnums.fstEntries(out).get
+      // the attributes: 252, misc 0, enum table 7, the text, 0, the id (1); then the reference
+      val table = Array[Byte](252.toByte, 0, 7) ++ "state_t 4 sRed sGreen sYellow 3 00 01 10 11".getBytes ++ Array[Byte](0, 1)
+      val ref   = Array[Byte](252.toByte, 0, 7, 0, 1)
+      val at    = after.indexOfSlice(table)
+      assert(at > 0, after.indexOfSlice(ref, at) == at + table.length)
+      // right before the var entry of `state`, the entries otherwise as they were
+      assert(new String(after.slice(at + table.length + ref.length + 2, at + table.length + ref.length + 7)) == "state")
+      assert(after.patch(at, Nil, table.length + ref.length).sameElements(before))
+      // the blocks before and after the hierarchy are the same bytes
+      val (a, b) = (os.read.bytes(in), os.read.bytes(out))
+      val hierAt = 526 // HDR, VCDATA_DYN_ALIAS2, GEOM, then HIER_LZ4 (the fixture's layout)
+      assert(a(hierAt) == 6, b(hierAt) == 4, a.take(hierAt).sameElements(b.take(hierAt)))
+    }
+
+    test("FST: no matching register, or not an FST, writes nothing") {
+      val dir = os.temp.dir(prefix = "socless-enums-")
+      val in  = dir / "trace.fst"
+      os.write(in, os.read.bytes(os.Path(sys.props("socless.root")) / "socless-lsp" / "test" / "resources" / "wave" / "trafficfsm.fst"))
+      assert(TraceEnums.write(in, dir / "o.fst", Seq(traffic.copy(trace = s"$Dut.other"))) == 0, !os.exists(dir / "o.fst"))
+      os.write(dir / "junk.fst", "not an fst")
+      assert(TraceEnums.write(dir / "junk.fst", dir / "o2.fst", Seq(traffic)) == 0)
+    }
+
     test("a header with no end is left alone") {
       val dir = os.temp.dir(prefix = "socless-enums-")
       os.write(dir / "t.vcd", Header.replace("$enddefinitions $end\n", ""))
