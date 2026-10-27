@@ -98,6 +98,55 @@
           "default": 150,
           "minimum": 0,
           "description": "Surfer viewers only: delay in milliseconds after a selection change before Surfer is updated."
+        },
+        "socless.followCursor": {
+          "type": "boolean",
+          "default": true,
+          "description": "The class under the editor's cursor lights its boxes in the schematic and dims the rest. The panel's Focus chip turns it off until the cursor moves to another class."
+        },
+        "socless.schematicColorizeComponents": {
+          "type": "boolean",
+          "default": false,
+          "description": "Schematic: colour the boxes by kind (instances, registers, operators, memories, state machines, logic blocks)."
+        },
+        "socless.schematicColorizeWires": {
+          "type": "boolean",
+          "default": false,
+          "description": "Schematic: colour the wires by bundle type."
+        },
+        "socless.schematicDensity": {
+          "type": "string",
+          "enum": ["compact", "comfortable", "comfy"],
+          "default": "comfortable",
+          "description": "Schematic: how tight the panel's chrome is."
+        },
+        "socless.schematicLabelSize": {
+          "type": "string",
+          "enum": ["normal", "large", "xl"],
+          "default": "normal",
+          "description": "Schematic: the size of port labels and box names, for reading a zoomed-out view."
+        },
+        "socless.schematicAutoOptimize": {
+          "type": "boolean",
+          "default": true,
+          "description": "Schematic: lay every view out with the optimize pass (fewer crossings, in the background)."
+        },
+        "socless.schematicHintBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Schematic: the hint bar under the schematic, which says what the mouse does on what is under it."
+        },
+        "socless.schematicShowLayers": {
+          "type": "boolean",
+          "default": false,
+          "description": "Schematic: draw verification layers (asserts, assumes, covers)."
+        },
+        "socless.schematicHide": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["op", "reg", "const", "mem", "fsm", "block"] },
+          "uniqueItems": true,
+          "default": [],
+          "description": "Schematic: node kinds to leave out (op operators, reg registers, const constants, mem memories, fsm state machines, block logic blocks)."
         }
       }
     },

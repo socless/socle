@@ -10,6 +10,18 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Added
 
+- The editor focus (the class under the cursor lights its boxes and dims the
+  rest) shows a **focus** chip naming the class; its × stops the focus until
+  the cursor is on another class. It can be turned off in the settings popover
+  (Follow the editor's cursor) or with `socless.followCursor`. docs/usage-ui.md
+  says what dims the schematic.
+- Schematic defaults in the editor's settings: `socless.schematicColorizeComponents`,
+  `schematicColorizeWires`, `schematicDensity`, `schematicLabelSize`,
+  `schematicAutoOptimize`, `schematicHintBar`, `schematicShowLayers` and
+  `schematicHide`. The panel applies them when it opens and when one changes.
+  In the browser, the colorize, Show and verification-layers toggles are now
+  remembered too.
+
 - Waveforms show FSM state names instead of numbers (VCD and FST traces):
   SoCLess pairs the state diagram's names with their encodings in the CHIRRTL
   and writes them into a copy of the trace as an enum table, which Surfer

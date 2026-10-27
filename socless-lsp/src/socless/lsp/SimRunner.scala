@@ -3,6 +3,7 @@ package socless.lsp
 import com.google.gson.JsonObject
 import scala.util.Try
 import scala.util.control.NonFatal
+import socless.schema.SchematicSettings
 import socless.wave.WaveSettings
 
 /** One test to simulate: the source file it was asked from, its suite and full name. */
@@ -11,13 +12,15 @@ case class SimRequest(file: os.Path, suite: String, test: String)
 /** The Simulate settings: the ChiselSim ScalaTest option that turns waves on
   * (`-D<waveFlag>=1`), the executable that opens a trace, and the wave viewer
   * choice (`surfer` | `surfer-panel` | `custom`, with its command) and
-  * [[WaveSettings]]. */
+  * [[WaveSettings]]; with them, from the same settings object, the panel's
+  * schematic defaults ([[SchematicSettings]]). */
 case class SimSettings(
     waveFlag: String = SimSettings.DefaultWaveFlag,
     surferCommand: String = SimSettings.DefaultSurfer,
     waveViewer: String = SimSettings.DefaultViewer,
     waveViewerCommand: String = "",
-    wave: WaveSettings = WaveSettings()
+    wave: WaveSettings = WaveSettings(),
+    schematic: SchematicSettings = SchematicSettings()
 )
 
 object SimSettings {
@@ -55,7 +58,29 @@ object SimSettings {
         bool(o, "wavesFoldBundles", d.foldBundles),
         bool(o, "wavesShowWires", d.showWires),
         bool(o, "wavesColorByDirection", d.colorByDirection),
-        nonNegInt(o, "wavesFollowDelayMs", d.followDelayMs)))
+        nonNegInt(o, "wavesFollowDelayMs", d.followDelayMs)),
+      schematic(o))
+  }
+
+  /** The `schematic*` keys and `followCursor`; an unknown density, label
+    * size or kind is left out (its default kept). */
+  private def schematic(o: JsonObject): SchematicSettings = {
+    val d = SchematicSettings()
+    val hide = Option(o.get("schematicHide")).filter(_.isJsonArray).fold(d.hide) { a =>
+      (0 until a.getAsJsonArray.size).map(a.getAsJsonArray.get).filter(_.isJsonPrimitive)
+        .map(_.getAsString.trim).filter(SchematicSettings.Kinds.contains).distinct
+    }
+    SchematicSettings(
+      colorizeComponents = bool(o, "schematicColorizeComponents", d.colorizeComponents),
+      colorizeWires      = bool(o, "schematicColorizeWires", d.colorizeWires),
+      density            = str(o, "schematicDensity").filter(SchematicSettings.Densities.contains).getOrElse(d.density),
+      labelSize          = str(o, "schematicLabelSize").filter(SchematicSettings.LabelSizes.contains).getOrElse(d.labelSize),
+      autoOptimize       = bool(o, "schematicAutoOptimize", d.autoOptimize),
+      hintBar            = bool(o, "schematicHintBar", d.hintBar),
+      showLayers         = bool(o, "schematicShowLayers", d.showLayers),
+      hide               = hide,
+      followCursor       = bool(o, "followCursor", d.followCursor),
+    )
   }
 
   /** A non-blank `waveFlag` in a flat settings object that is not an option

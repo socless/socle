@@ -37,7 +37,8 @@ private[schematic] object SchematicChrome {
 
   // ── chrome (top-left chips) ──
   def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String],
-             matchSig: Signal[Option[(Int, Int)]] = Val(None)): Element =
+             matchSig: Signal[Option[(Int, Int)]] = Val(None),
+             focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => ()): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
         child <-- moduleSig.map {
@@ -66,6 +67,19 @@ private[schematic] object SchematicChrome {
           child.maybe <-- filterVar.signal.map(f => if (f.nonEmpty)
             Some(button(title := "Clear filter (Esc)", styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0",
               onClick --> { _ => filterVar.set("") }, "×")) else None)),
+        // The editor focus (the class under the editor's cursor) while it dims
+        // the view: what dims it, and × to stop it until the cursor moves to
+        // another class (or the Follow the editor's cursor setting).
+        child.maybe <-- focusSig.map(_.map { case (cls, n) =>
+          val short = cls.split('.').last
+          div(dataAttr("focus-chip") := cls,
+            title := s"$cls is the class under your editor's cursor: its ${if (n == 1) "box is" else s"$n boxes are"} lit, the rest dimmed. Select something to see everything, or × to stop until the cursor moves to another class.",
+            styleAttr := s"display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.accent};border-radius:5px;padding:0 4px 0 10px;height:26px;font-size:11px;color:${Tokens.ink2};font-family:${Tokens.mono}",
+            span(styleAttr := s"color:${Tokens.ink4}", "focus"), span(styleAttr := s"color:${Tokens.ink}", short),
+            button(dataAttr("focus-off") := "1", title := "Stop lighting this class (until the cursor moves to another class)",
+              styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0 4px",
+              onClick --> { _ => onFocusOff() }, "×"))
+        }),
       ),
     )
 

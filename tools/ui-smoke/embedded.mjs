@@ -54,6 +54,8 @@ for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURF
 // The stand-in language server state for check 8: /ide.json (404 while null), the
 // POST /wave/select and POST /open bodies, and how often each Surfer file was fetched.
 const wave = { ide: null, posts: [], opens: [], surferJs: 0, surferWasm: 0, tabFetches: [] };
+// Check 13's /ide.json, for the DeepSoc page whose Cluster modules name their Scala class.
+const focusIde = { state: null };
 // The trace's full dotted var paths, from its VCD header (as the server's TraceNames).
 const vcdNames = (() => {
   const scopes = []; const names = [];
@@ -74,6 +76,13 @@ const files = {
   '/design.json': ['application/json', readFileSync(DESIGN)],
   '/deep/': ['text/html', readFileSync(UI)],
   '/deep/design.json': ['application/json', readFileSync(DEEP)],
+  // DeepSoc as a capture names it: its two Cluster modules come from deephier.Cluster (check 13).
+  '/focus/': ['text/html', readFileSync(UI)],
+  '/focus/design.json': ['application/json', (() => {
+    const d = JSON.parse(readFileSync(DEEP, 'utf8'));
+    for (const m of d.modules) if (m.name === 'Cluster' || m.name === 'Cluster_1') m.scalaClass = 'deephier.Cluster';
+    return JSON.stringify(d);
+  })()],
   '/fsm/': ['text/html', readFileSync(UI)],
   '/fsm/design.json': ['application/json', readFileSync(FSM)],
   '/gcd/': ['text/html', readFileSync(UI)],
@@ -94,6 +103,11 @@ const files = {
 const server = http.createServer((req, res) => {
   const path = req.url.split('?')[0];
   if (path.startsWith('/tab/') && path !== '/tab/') wave.tabFetches.push(path); // the Surfer tab page fetches nothing of its own
+  if (path === '/focus/ide.json') {
+    if (!focusIde.state) { res.writeHead(404); res.end(); return; }
+    res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(focusIde.state)); return;
+  }
   if (path === '/gcd/ide.json') {
     if (!wave.ide) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -392,7 +406,18 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   // shows its tooltip card; neither posts a state to the side panel.
   {
     const nh = (await states()).length;
-    const bb = await f.locator('[data-box-inst="cluster1"]').first().boundingBox();
+    // The view settled first: the navigate's fit (or a relayout landing) moves the
+    // box, and a box that moves under a still pointer gets no hover.
+    await f.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+    await f.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+    const rect = () => f.locator('[data-box-inst="cluster1"]').first().boundingBox();
+    let bb = await rect();
+    for (let i = 0; i < 25; i++) {
+      await page.waitForTimeout(150);
+      const nb = await rect();
+      if (JSON.stringify(nb) === JSON.stringify(bb)) break;
+      bb = nb;
+    }
     await page.mouse.move(bb.x + 20, bb.y + 3);
     await page.waitForTimeout(900);
     const h = await f.evaluate(() => {
@@ -400,7 +425,17 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
       return { outlined: document.querySelector('[data-box-inst="cluster1"]').classList.contains('ohov'),
                tip: t && getComputedStyle(t).display !== 'none' ? t.textContent : null };
     });
-    check('side', h.outlined, 'resting on a box outlines it');
+    // What the pointer was on, should it miss: the box then and now, and the element there.
+    const missed = async () => {
+      const now = await rect();
+      const fb = await page.locator('#f').boundingBox();
+      const under = await f.evaluate(([x, y]) => {
+        const e = document.elementFromPoint(x, y);
+        return e ? `${e.tagName}.${e.className && e.className.baseVal !== undefined ? e.className.baseVal : e.className}` : null;
+      }, [bb.x + 20 - fb.x, bb.y + 3 - fb.y]);
+      return JSON.stringify({ moved: bb, now, under });
+    };
+    check('side', h.outlined, `resting on a box outlines it${h.outlined ? '' : ' ' + (await missed())}`);
     check('side', !!h.tip && h.tip.startsWith('cluster1') && /Double-click: open/.test(h.tip), `resting on a box shows its card (${h.tip})`);
     await page.mouse.move(2, 2);
     await page.waitForTimeout(150);
@@ -1122,6 +1157,59 @@ let seq1 = -1;
   check('browser', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
   wave.ide = null;
+}
+
+// 13. The editor's schematic settings and the editor focus, in the VS Code panel: the
+// settings in /ide.json set the view's toggles when they come and when they change;
+// the class under the editor's cursor dims the rest and shows a Focus chip, whose ×
+// stops it until the cursor is on another class; followCursor off stops it too.
+{
+  const poll = () => new Promise((r) => setTimeout(r, 2000)); // > one 1500 ms poll
+  const set = async (patch) => { focusIde.state = { ...focusIde.state, ...patch, stamp: focusIde.state.stamp + 1 }; await poll(); };
+  focusIde.state = { status: 'ok', message: '', focusClass: 'deephier.Cluster', test: '', suite: '', stamp: 1, waveViewer: '',
+    trace: '', traceTest: '',
+    schematicSettings: { colorizeComponents: true, colorizeWires: true, density: 'compact', labelSize: 'large', hide: ['const'], showLayers: true } };
+  const { ctx, page, errors } = await open('/focus/?host=vscode&theme=light');
+  await waitLoaded(page);
+  await poll();
+  const view = () => page.evaluate(() => {
+    const pane = document.querySelector('[data-pane="schematic"]');
+    const cls = (sel) => !!pane.querySelector(sel);
+    return {
+      cb: cls('.hl-cb'), cw: cls('.hl-cw'),
+      density: document.documentElement.getAttribute('data-density'), labels: document.documentElement.getAttribute('data-labels'),
+      chip: document.querySelector('[data-focus-chip]')?.getAttribute('data-focus-chip') || null,
+      off: pane.querySelectorAll('.scl-b.off').length, lit: pane.querySelectorAll('[data-box-inst]:not(.off)').length,
+    };
+  });
+  let v = await view();
+  check('settings', v.cb && v.cw && v.density === 'compact' && v.labels === 'large', `the editor's settings set the view ${JSON.stringify(v)}`);
+  await page.click('[data-settings-toggle]');
+  const toggle = (hook) => page.locator(`[${hook}]`).first().getAttribute('data-on');
+  const hidden = await page.locator('[data-declutter-kind="const"]').first().getAttribute('data-on');
+  const layers = await toggle('data-toggle-layers');
+  const follow = await toggle('data-follow-cursor');
+  check('settings', hidden === '0' && layers === '1' && follow === '1', `the popover shows them (const hidden ${hidden}, layers ${layers}, follow ${follow})`);
+  await page.click('[data-settings-toggle]');
+  check('focus', v.chip === 'deephier.Cluster' && v.off > 0 && v.lit >= 2, `the cursor's class dims the rest and shows its chip ${JSON.stringify(v)}`);
+  // The chip's ×: the dim goes, until the cursor is on another class.
+  await page.click('[data-focus-off]');
+  await page.waitForTimeout(300);
+  v = await view();
+  check('focus', !v.chip && v.off === 0, `× stops the focus ${JSON.stringify(v)}`);
+  await poll(); // the same class on the next poll stays off
+  v = await view();
+  check('focus', !v.chip && v.off === 0, `it stays off while the cursor stays in the class ${JSON.stringify(v)}`);
+  await set({ focusClass: '' });
+  await set({ focusClass: 'deephier.Cluster' });
+  v = await view();
+  check('focus', v.chip === 'deephier.Cluster' && v.off > 0, `the cursor back on the class brings it back ${JSON.stringify(v)}`);
+  // followCursor off in the editor: no focus at all.
+  await set({ schematicSettings: { ...focusIde.state.schematicSettings, followCursor: false, colorizeComponents: false } });
+  v = await view();
+  check('settings', !v.chip && v.off === 0 && !v.cb && v.cw, `a changed setting applies at once (followCursor off, components not coloured) ${JSON.stringify(v)}`);
+  check('settings', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
 }
 
 await browser.close();

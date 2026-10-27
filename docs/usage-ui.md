@@ -114,6 +114,21 @@ Back and Forward. Esc or a click on the background stops following.
 A net that crosses a folded generator group (`<name> × <n>`) may not light
 inside it at the folded level: unfold the group to follow it there.
 
+### Why is the schematic dimmed?
+
+Three things dim part of the schematic:
+
+- **The class under your editor's cursor** (with an editor): its boxes stay lit
+  and the rest dims, and a **focus** chip next to the filter box names the
+  class. Its **×** stops the focus until the cursor is on another class; a
+  selection shows everything while it lasts. Turn it off for good with
+  **Follow the editor's cursor** in the settings popover, or the editor's
+  `socless.followCursor` setting (Neovim: `follow_cursor`).
+- **The filter box** (top left): the boxes matching its text and their
+  neighbours stay lit. Esc or its **×** clears it.
+- **A selection**: the wires not connected to it fade (boxes stay). Esc or a
+  click on the background clears it.
+
 ### Waveform colours
 
 When Surfer shows a trace (the Waveform tab, or VS Code's Surfer tab), a small

@@ -203,6 +203,8 @@ object `socless-js` extends ScalaJSModule {
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "ir" / "Synthetic.scala",
     // The wave viewer settings, read by the UI from /ide.json.
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveSettings.scala",
+    // The schematic's defaults from the editor's settings, read by the UI from /ide.json.
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "SchematicSettings.scala",
     // The pure plan of a module's signals for the waveform viewer.
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveLayout.scala",
     // The messages between the panel and the VS Code Surfer tab.

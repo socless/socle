@@ -71,6 +71,10 @@ object Schematic {
     designSnapshot: () => Option[(String, String)] = () => None, // (rawJson, top) for the share button
     // Generator class under the editor cursor (plan 2, language server); "" = none.
     focusClassSig: Signal[String] = Signal.fromValue(""),
+    // The Focus chip's ×: stop the editor focus (App decides until when).
+    onFocusOff: () => Unit = () => (),
+    // Verification layers drawn (the layers button; App owns it, the settings default it).
+    showLayersVar: Var[Boolean] = Var(false),
     // The HTML snapshot ("share") button; off when embedded in an editor.
     showShare: Boolean = true,
     // The hint bar under the schematic (App mounts it): it follows the target
@@ -99,7 +103,6 @@ object Schematic {
     val engineVar   = Var[Option[(String, Design, LaidOut)]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
-    val showLayersVar = Var(false) // verification layers hidden by default (issue #212)
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
@@ -803,7 +806,7 @@ object Schematic {
       styleAttr := "flex:1;position:relative;overflow:hidden",
       styleTag(Highlight.css),
       hl.bind(filterDimSig, focusClassSig),
-      SchematicChrome.chrome(moduleSig, filterVar, matchSig),
+      SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,

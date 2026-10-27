@@ -530,7 +530,8 @@ final class SoclessLanguageServer(
     * logged and shown once (Warning), and the default is used. */
   private def configureSim(opts: Any): Unit = {
     simSettings = SimSettings.fromInit(opts)
-    ideUpdate(_.copy(waveViewer = simSettings.waveViewer, waveSettings = Some(simSettings.wave)))
+    ideUpdate(_.copy(waveViewer = simSettings.waveViewer, waveSettings = Some(simSettings.wave),
+      schematicSettings = Some(simSettings.schematic)))
     SimSettings.invalidFlag(opts).filterNot(warnedFlag.contains).foreach { bad =>
       warnedFlag = Some(bad)
       val msg = s"""SoCLess: invalid waveFlag "$bad" (expected an option name such as emitFst); using ${SimSettings.DefaultWaveFlag}"""

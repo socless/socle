@@ -398,9 +398,21 @@ comes from and how to rebuild it.
 | `socless.wavesShowWires` | `true` | Surfer viewers only: include the Wires group. |
 | `socless.wavesColorByDirection` | `true` | Surfer viewers only: inputs blue, outputs green (else all ports blue). |
 | `socless.wavesFollowDelayMs` | `150` | Surfer viewers only: delay before Surfer is updated after a selection change. |
+| `socless.followCursor` | `true` | The class under the editor's cursor lights its boxes and dims the rest (see [Why is the schematic dimmed?](usage-ui.md#why-is-the-schematic-dimmed)). |
+| `socless.schematicColorizeComponents` | `false` | Colour the boxes by kind. |
+| `socless.schematicColorizeWires` | `false` | Colour the wires by bundle type. |
+| `socless.schematicDensity` | `comfortable` | `compact`, `comfortable` or `comfy` panel chrome. |
+| `socless.schematicLabelSize` | `normal` | `normal`, `large` or `xl` port labels and box names. |
+| `socless.schematicAutoOptimize` | `true` | Lay every view out with the optimize pass. |
+| `socless.schematicHintBar` | `true` | The hint bar under the schematic. |
+| `socless.schematicShowLayers` | `false` | Draw verification layers. |
+| `socless.schematicHide` | `[]` | Node kinds to leave out: `op`, `reg`, `const`, `mem`, `fsm`, `block`. |
 
 `socless.javaPath` and `socless.serverJar` need a reload. The others apply
 without one; the `socless.waves*` settings are read on the next selection.
+`socless.followCursor` and the `socless.schematic*` settings are the panel's
+defaults: they apply when the panel opens and whenever one changes, and the
+panel's settings popover (the sliders button) changes the view until then.
 
 The four executable paths (`javaPath`, `serverJar`, `surferCommand`,
 `waveViewerCommand`) are per machine: in a remote window (WSL), set them in the

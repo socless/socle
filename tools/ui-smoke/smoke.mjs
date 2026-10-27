@@ -2011,7 +2011,11 @@ async function smokeDesignIn(design, ctx) {
     const where = 'history';
     const fmt = JSON.stringify;
     // (No flight running and the view still for 150 ms: on a loaded runner one
-    // frame can outlast a shorter poll, which then read a flight as settled.)
+    // frame can outlast a shorter poll, which then read a flight as settled.
+    // Then the view the history holds as its current entry: on a slow runner
+    // the module's own view (its fit or restored view) can land after a quiet
+    // spell, and the entry is that view, not the one shown before it.)
+    const near0 = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
     const settle = async () => {
       await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
       await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
@@ -2021,6 +2025,13 @@ async function smokeDesignIn(design, ctx) {
         const n = await readView();
         if (fmt(n) === fmt(v)) break;
         v = n;
+      }
+      for (let i = 0; i < 20; i++) {
+        const h = await page.evaluate(() => (window.__soclessHistory ? window.__soclessHistory() : null));
+        const cur = h && h.entries[h.index];
+        if (!cur || near0(v, cur)) break;
+        await page.waitForTimeout(150);
+        v = await readView();
       }
       return v;
     };
@@ -2127,7 +2138,7 @@ async function smokeDesignIn(design, ctx) {
         const v = await key(k);
         const c = await crumbs();
         if (!near(v, want) || c !== wantCrumbs)
-          note(design, where, `${k}: ${what}: got ${fmt(v)} at "${c}", expected ${fmt(want)} at "${wantCrumbs}"`);
+          note(design, where, `${k}: ${what}: got ${fmt(v)} at "${c}", expected ${fmt(want)} at "${wantCrumbs}"; history ${fmt(await hist())}`);
       }
       // A new place after Back drops the forward entries.
       await key('Alt+ArrowLeft');
@@ -2170,11 +2181,11 @@ async function smokeDesignIn(design, ctx) {
       if (!await pick('Back')) note(design, where, 'no Back command in the palette');
       else {
         const v = await settle();
-        if (!near(v, C1) || await crumbs() !== cChild) note(design, where, `the palette's Back did not go back: ${fmt(v)} at "${await crumbs()}"`);
+        if (!near(v, C1) || await crumbs() !== cChild) note(design, where, `the palette's Back did not go back: ${fmt(v)} at "${await crumbs()}", expected ${fmt(C1)}; history ${fmt(await hist())}`);
         if (!await pick('Forward')) note(design, where, 'no Forward command in the palette');
         else {
           const w = await settle();
-          if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}"`);
+          if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}; history ${fmt(await hist())}`);
         }
       }
       if (!await page.evaluate(() => Array.isArray(window.__soclessHistory && window.__soclessHistory().entries))) note(design, where, 'no window.__soclessHistory hook');

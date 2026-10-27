@@ -32,6 +32,20 @@ object SimSettingsTest extends TestSuite {
       assert(s.waveViewer == "custom", s.waveViewerCommand == "gtkwave {file}")
       assert(s.wave == WaveSettings(false, true, true, false, false, 40))
     }
+    test("the schematic settings: every key, and what is not one of their values keeps its default") {
+      import socless.schema.SchematicSettings
+      assert(SimSettings().schematic == SchematicSettings())
+      val hide = new com.google.gson.JsonArray
+      Seq("const", "nope", "mem", "const").foreach(hide.add)
+      val o = obj("schematicColorizeComponents" -> true, "schematicColorizeWires" -> true, "schematicDensity" -> "compact",
+        "schematicLabelSize" -> "xl", "schematicAutoOptimize" -> false, "schematicHintBar" -> false,
+        "schematicShowLayers" -> true, "followCursor" -> false)
+      o.add("schematicHide", hide)
+      assert(SimSettings.fromInit(o).schematic ==
+        SchematicSettings(true, true, "compact", "xl", false, false, true, Seq("const", "mem"), false))
+      val bad = SimSettings.fromInit(obj("schematicDensity" -> "huge", "schematicLabelSize" -> "tiny", "schematicHintBar" -> "yes"))
+      assert(bad.schematic == SchematicSettings())
+    }
     test("fromConfig reads the socless section") {
       val sec = obj("waveViewer" -> "surfer-panel", "wavesFollowDelayMs" -> 0)
       val top = new JsonObject

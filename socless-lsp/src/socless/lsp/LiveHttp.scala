@@ -29,7 +29,9 @@ case class IdeState(
     traceTest: String = "",
     waveSettings: Option[WaveSettings] = None,
     // The Surfer app's last Go to declaration, for the panel to show (each seq once).
-    reveal: Option[SurferWire.Reveal] = None
+    reveal: Option[SurferWire.Reveal] = None,
+    // The panel's schematic defaults, from the editor's settings.
+    schematicSettings: Option[socless.schema.SchematicSettings] = None
 )
 object IdeState { implicit val rw: ReadWriter[IdeState] = macroRW }
 
@@ -125,7 +127,8 @@ final class LiveHttp(onOpen: (String, Int) => Unit, clock: () => Long = () => Sy
       "waveViewer" -> s.waveViewer, "trace" -> s.trace, "traceTest" -> s.traceTest,
       // the object or null, as the UI's macroRW reads (upickle 4 writes an Option that way)
       "waveSettings" -> upickle.default.writeJs(s.waveSettings),
-      "reveal" -> upickle.default.writeJs(s.reveal)))
+      "reveal" -> upickle.default.writeJs(s.reveal),
+      "schematicSettings" -> upickle.default.writeJs(s.schematicSettings)))
 
   private def err(code: Int, ex: HttpExchange, msg: String): Unit =
     Serve.send(ex, code, "text/plain", msg.getBytes(UTF_8))

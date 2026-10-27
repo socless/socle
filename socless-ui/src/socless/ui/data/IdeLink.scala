@@ -26,6 +26,7 @@ case class IdeState(
   waveSettings: Option[socless.wave.WaveSettings] = None,
   suite:        String = "", // FQCN of `test`'s suite (older servers: empty)
   reveal:       Option[socless.wave.SurferWire.Reveal] = None, // the Surfer app's last Go to declaration
+  schematicSettings: Option[socless.schema.SchematicSettings] = None, // the editor's schematic defaults
 )
 object IdeState {
   implicit val rw: ReadWriter[IdeState] = macroRW
@@ -57,6 +58,9 @@ final class IdeLink {
   val enabledSig:    Signal[Boolean]          = enabledVar.signal
   val stateSig:      Signal[Option[IdeState]] = stateVar.signal
   val focusClassSig: Signal[String]           = stateVar.signal.map(_.map(_.focusClass).getOrElse(""))
+
+  /** The class under the editor's cursor now ("" for none). */
+  def currentFocusClass: String = stateVar.now().fold("")(_.focusClass)
 
   /** Probe `/ide.json` once, then poll it every 1500 ms while the tab is
     * visible (same cadence as the design live watch). */

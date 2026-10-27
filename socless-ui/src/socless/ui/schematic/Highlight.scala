@@ -49,6 +49,9 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
   private var reg: Registry = Registry.empty
   private var filter: String = ""
   private var focusClass: String = ""
+  /** The editor focus while it dims the view: its class and how many boxes it
+    * lights (the Focus chip); None while it dims nothing. */
+  val focusShownVar: Var[Option[(String, Int)]] = Var(None)
 
   private val wireHl  = new Channel("hl")
   private val wireHov = new Channel("hov")
@@ -190,6 +193,9 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
       case None    => Set.empty
       case Some(f) => reg.boxes.iterator.filter(b => b.kind == BoxKind.Instance && f.contains(b.id)).map(_.el).toSet
     })
+    // the focus dims the view only when it is the dim (no filter)
+    val shown = focus.filter(_ => dim == focus).map(f => (focusClass, f.size))
+    if (focusShownVar.now() != shown) focusShownVar.set(shown)
   }
 
   /** The observers, bound on the schematic pane. `filterSig` is the debounced

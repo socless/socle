@@ -44,13 +44,42 @@ object App {
   private val labelSizeVar    = Var[String]("normal")           // "normal" | "large" | "xl" (schematic labels)
   // Colorize toggles (#266) live in the settings panel now (#274); App owns them
   // and passes them into the schematic.
-  private val colorBoxesVar   = Var(false)
-  private val colorWiresVar   = Var(false)
+  // Persisted in the browser; the editor's settings (`schematicSettings`) set
+  // them too ([[applySchematicSettings]]).
+  private val colorBoxesVar   = Var(stored("socless-colorize-boxes").contains("on"))
+  private val colorWiresVar   = Var(stored("socless-colorize-wires").contains("on"))
   // Auto-optimize (#209): run the in-browser optimize layout on every module view
   // (off-thread) so the initial render matches Optimize. Default on; persisted.
   private val autoOptimizeVar = Var(true)
   // Declutter (#223): node kinds hidden from the schematic. Empty = show all.
-  private val hiddenKindsVar  = Var[Set[String]](Set.empty)
+  private val hiddenKindsVar  = Var[Set[String]](stored("socless-hide").fold(Set.empty[String])(_.split(',').toSet.filter(socless.schema.SchematicSettings.Kinds.contains)))
+  // Verification layers drawn (the schematic's layers button).
+  private val showLayersVar   = Var(stored("socless-layers").contains("on"))
+  // The editor focus (the class under the editor's cursor lights its boxes):
+  // on unless the settings turn it off; `focusOffVar` the class the Focus
+  // chip's × stopped, until the cursor is on another class.
+  private val followCursorVar = Var(true)
+  private val focusOffVar     = Var(Option.empty[String])
+
+  private def stored(key: String): Option[String] =
+    try Option(dom.window.localStorage.getItem(key)) catch { case _: Throwable => None }
+  private def store(key: String, v: String): Unit =
+    try dom.window.localStorage.setItem(key, v) catch { case _: Throwable => () }
+
+  /** The editor's schematic settings, when they arrive or change: they set
+    * the view's toggles (the settings popover changes them until the next
+    * change of a setting). */
+  private def applySchematicSettings(s: socless.schema.SchematicSettings): Unit = {
+    colorBoxesVar.set(s.colorizeComponents)
+    colorWiresVar.set(s.colorizeWires)
+    applyDensity(s.density)
+    applyLabelSize(s.labelSize)
+    autoOptimizeVar.set(s.autoOptimize)
+    hintBar.openVar.set(s.hintBar)
+    showLayersVar.set(s.showLayers)
+    hiddenKindsVar.set(s.hide.toSet)
+    followCursorVar.set(s.followCursor)
+  }
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
@@ -411,6 +440,8 @@ object App {
             toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
             toggleRow("Hint bar", "hint-toggle", hintBar.openVar),
             autoOptRow(),
+            // Only with an editor: the class under its cursor lights its boxes.
+            child.maybe <-- ide.enabledSig.map(on => Option.when(on)(toggleRow("Follow the editor's cursor", "follow-cursor", followCursorVar))),
             div(cls := "scl-set-sect", "Show"),
             declutterRow("Operators", "op"),
             declutterRow("Registers", "reg"),
@@ -418,6 +449,7 @@ object App {
             declutterRow("Memories", "mem"),
             declutterRow("State machines", "fsm"),
             declutterRow("Logic blocks", "block"),
+            toggleRow("Verification layers", "toggle-layers", showLayersVar),
             // Embedded, the theme follows the host editor: no gallery.
             Option.when(!Embedded.on)(div(cls := "scl-set-sect", "Theme")),
             Option.when(!Embedded.on)(div(cls := "scl-set-gallery",
@@ -698,7 +730,11 @@ object App {
             hiddenKindsVar   = hiddenKindsVar,
             autoOptimizeVar  = autoOptimizeVar,
             designSnapshot   = () => loader.snapshot(),
-            focusClassSig    = ide.focusClassSig,
+            focusClassSig    = Signal.combine(ide.focusClassSig, followCursorVar.signal, focusOffVar.signal).map {
+                                 case (c, on, off) => if (!on || off.contains(c)) "" else c
+                               },
+            onFocusOff       = () => focusOffVar.set(Some(ide.currentFocusClass)),
+            showLayersVar    = showLayersVar,
             showShare        = !Embedded.on,
             fsmOpenVar       = fsmOpenVar,
             openSource       = openSource,
@@ -731,6 +767,15 @@ object App {
       // coalesces to the unchanged value and is dropped; a user deselect (None)
       // lands as its own event, so selecting the same box again re-opens.
       // A selection made by the side panel's socless-navigate is not opened again.
+      // The editor's schematic settings, once they come and on each change.
+      ide.stateSig.map(_.flatMap(_.schematicSettings)).distinct --> { (s: Option[socless.schema.SchematicSettings]) => s.foreach(applySchematicSettings) },
+      // The cursor on another class (or none) ends the Focus chip's ×.
+      ide.focusClassSig.changes --> { (c: String) => if (!focusOffVar.now().contains(c)) focusOffVar.set(None) },
+      // The view toggles the browser remembers (the editor's settings set them too).
+      colorBoxesVar.signal.changes --> { (b: Boolean) => store("socless-colorize-boxes", if (b) "on" else "off") },
+      colorWiresVar.signal.changes --> { (b: Boolean) => store("socless-colorize-wires", if (b) "on" else "off") },
+      showLayersVar.signal.changes --> { (b: Boolean) => store("socless-layers", if (b) "on" else "off") },
+      hiddenKindsVar.signal.changes --> { (h: Set[String]) => store("socless-hide", h.toSeq.sorted.mkString(",")) },
       selectedSigVar.signal.changes.debounce(0).distinct --> { sel =>
         val fromNav = sel.isDefined && sel == navSelect
         navSelect = None
