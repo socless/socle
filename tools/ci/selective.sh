@@ -20,7 +20,7 @@
 # - --no-daemon: no daemon state carried across the git checkouts.
 set -euo pipefail
 
-ALL_TASKS='{socless.test,socless-probe.test,socless-vscode.test,socless-lsp.test,socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd}'
+ALL_TASKS='{socless.test,socless-probe.test,socless-vscode.test,socless-lsp.test,socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd,example.soclessRunBigArray}'
 SNAPSHOT=out/mill-selective-execution.json
 MILL=(./mill --no-daemon --ticker false)
 

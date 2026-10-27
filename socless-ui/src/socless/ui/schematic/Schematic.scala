@@ -80,7 +80,7 @@ object Schematic {
     keysBlocked: () => Boolean = () => false,
     // Back, Forward, Zoom to selection and fly to, for the app (the palette);
     // installed here.
-    history: ViewHistory.Commands = new ViewHistory.Commands,
+    commands: ViewHistory.Commands = new ViewHistory.Commands,
     // Show a drill path (Back / Forward, a fly to another module); false when
     // it does not resolve in the design.
     navigate: List[String] => Boolean = _ => false,
@@ -131,38 +131,6 @@ object Schematic {
     // Drag, wheel and keys (Gestures), installed on the viewport at mount.
     var gestures: Gestures.Controller = null
     var gesturesOff: () => Unit = () => ()
-
-    // ── view history and flights (ViewHistory) ──
-    var hist = ViewHistory.Stack()
-    var curPath: List[String] = Nil
-    // A Back or Forward entry whose module is being shown: its view stands in
-    // for the fit (or the module's saved view) and is not pushed again.
-    var restoring = Option.empty[ViewHistory.Entry]
-    // A box to fly to, (path key, box id), once that module's layout is ready.
-    var flyPending = Option.empty[(String, String)]
-    // The user moved the view since the last entry; once it rests for
-    // SettleMs it becomes one.
-    var dirty = false
-    var settleTimer = 0
-    val flyer = new ViewHistory.Flyer(panVar, zoomVar, () => viewSizeVar.now())
-    def cancelSettle(): Unit = if (settleTimer != 0) { dom.window.clearTimeout(settleTimer); settleTimer = 0 }
-    // Push the view shown; not while the module's own view is still to come.
-    def pushView(): Unit = {
-      cancelSettle(); dirty = false
-      if (!pendingFit && curPath.nonEmpty) hist = hist.push(ViewHistory.Entry(curPath, panVar.now(), zoomVar.now()))
-    }
-    // A view left before it settled is still a place the user was: push it
-    // before the move that leaves it.
-    def commitDirty(): Unit = if (dirty) pushView()
-    def armSettle(): Unit = {
-      cancelSettle()
-      settleTimer = dom.window.setTimeout(() => {
-        settleTimer = 0
-        // A drag holding still is not a settled view.
-        if (gestures != null && gestures.busy) armSettle()
-        else if (dirty && !flyer.running && !pendingFit) pushView()
-      }, ViewHistory.SettleMs)
-    }
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
 
@@ -367,18 +335,15 @@ object Schematic {
     // relayout lands only corrects the entry of the fit it replaces.
     def runFit(): Unit = {
       if (pendingFit) {
-        val back = restoring.filter(_.path.mkString("/") == prevPathKey)
-        restoring = None
-        back match {
+        history.takeRestoring(prevPathKey) match {
           case Some(e) => Var.set(zoomVar -> e.zoom, panVar -> e.pan); autoFitted = false; settle()
           case None    => viewState.get(prevPathKey) match {
-            case Some((z, p)) => Var.set(zoomVar -> z, panVar -> p); autoFitted = false; settle(); pushView()
-            case None         => if (doFit()) { settle(); pushView() }
+            case Some((z, p)) => Var.set(zoomVar -> z, panVar -> p); autoFitted = false; settle(); history.pushView()
+            case None         => if (doFit()) { settle(); history.pushView() }
           }
         }
       }
-      else if (autoFitted && doFit() && hist.current.exists(_.path == curPath))
-        hist = hist.replace(ViewHistory.Entry(curPath, panVar.now(), zoomVar.now()))
+      else if (autoFitted && doFit()) history.refitted()
     }
     // The current module's view is in place (fitted, restored, or set by the
     // user): disarm the fit and let the minimap show for this module. Until
@@ -390,88 +355,44 @@ object Schematic {
     }
     // The view is set from here on, not fitted automatically.
     def takeView(): Unit = { autoFitted = false; cancelFit(); settle() }
+    // ── view history and flights (ViewHistory.Controller) ──
+    lazy val history = new ViewHistory.Controller(panVar, zoomVar, () => viewSizeVar.now(), clamp,
+      fitPending = () => pendingFit,
+      takeView   = () => takeView(),
+      dragging   = () => gestures != null && gestures.busy,
+      navigate   = navigate,
+      flyTarget  = () => Option.when(prevPathKey != null && settledPathVar.now().contains(prevPathKey) && !pendingVar.now())(prevPathKey)
+                     .flatMap(pk => Option(hl.geom).map(pk -> _)))
     // A user pan or zoom: the view is theirs from now on. It stops a flight
     // (and drops one still waiting for its layout), and becomes an entry of
     // the history once it settles.
-    def userView(): Unit = { flyer.cancel(); flyPending = None; dirty = true; takeView() }
+    def userView(): Unit = { history.userMoved(); takeView() }
 
     def zoomBy(factor: Double): Unit = {
       userView()
       val z = zoomVar.now(); val newZ = clamp(z * factor)
       val (vw, vh) = viewSizeVar.now()
-      val cx = vw / 2.0; val cy = vh / 2.0
-      val ratio = newZ / z; val (px, py) = panVar.now()
-      Var.set(panVar -> (cx - (cx - px) * ratio, cy - (cy - py) * ratio), zoomVar -> newZ)
+      Var.set(panVar -> ViewHistory.zoomAt(panVar.now(), z, newZ, vw / 2.0, vh / 2.0), zoomVar -> newZ)
     }
 
     // Fit now (the Fit button and the f and 0 keys).
-    def fitNow(): Unit = { flyer.cancel(); flyPending = None; commitDirty(); cancelFit(); if (doFit()) { settle(); pushView() } }
+    def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
+    def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
-    // Fly to a content rect: framed with `margin` px around it, at most
-    // `maxZoom`. The flight's end is an entry; the view it leaves too, if it
-    // had not settled yet.
-    def flyToRect(r: ViewHistory.Rect, margin: Double, maxZoom: Double): Unit = {
-      val (vw, vh) = viewSizeVar.now()
-      if (vw > 0 && vh > 0) {
-        commitDirty(); takeView()
-        flyer.fly(ViewHistory.frame(r, vw, vh, margin, maxZoom, clamp), () => pushView())
-      }
-    }
-    // `z`: frame the selection (a box, a wire, a pin). Nothing selected, or
-    // not in this view: nothing (false), the fit keys are there for that.
-    def zoomToSelection(): Boolean =
-      (for { s <- selectedVar.now(); g <- Option(hl.geom); r <- ViewHistory.selectionRect(g, s) } yield r) match {
-        case Some(r) => flyToRect(r, 40, 2.0); true
-        case None    => false
-      }
-    // The pending fly to a box, once its module's view is in place and laid out.
-    def tryFly(): Unit = flyPending.foreach { case (pk, id) =>
-      if (prevPathKey == pk && settledPathVar.now().contains(pk) && !pendingVar.now())
-        Option(hl.geom).filter(_.boxById.contains(id)).flatMap(ViewHistory.selectionRect(_, id)).foreach { r =>
-          flyPending = None
-          flyToRect(r, 60, 1.0)
-        }
-    }
-    // Back or Forward: the entry's module first (its view replaces the fit),
-    // or just its view in the module shown. Entries whose path no longer
-    // resolves are skipped, so the walk never gets stuck on one.
-    def walk(step: ViewHistory.Stack => ViewHistory.Stack): Unit = {
-      flyer.cancel(); flyPending = None; commitDirty()
-      val from = hist
-      var next = step(from)
-      var landed = false
-      while (!landed && next.index != from.index && next.current.isDefined) {
-        val e = next.current.get
-        if (e.path == curPath) {
-          hist = next; landed = true
-          if (pendingFit) restoring = Some(e)
-          else { restoring = None; Var.set(zoomVar -> e.zoom, panVar -> e.pan); takeView() }
-        } else {
-          hist = next; restoring = Some(e)
-          if (navigate(e.path)) landed = true
-          else {
-            hist = from; restoring = None
-            val further = step(next)
-            next = if (further.index == next.index) from else further // the end: stay
-          }
-        }
-      }
-    }
-    history.back = () => walk(_.back)
-    history.forward = () => walk(_.forward)
-    history.zoomToSelection = () => zoomToSelection()
-    // A fresh load: forget the history, any pending flight or settle, and the
-    // followed net. Called before the new design's path is set, so the view
-    // it leaves is not pushed and the new path's fit is the first entry.
-    history.reset = () => {
-      flyer.cancel(); cancelSettle(); dirty = false
-      hist = ViewHistory.Stack(); restoring = None; flyPending = None
+    commands.back = () => history.walk(_.back)
+    commands.forward = () => history.walk(_.forward)
+    commands.zoomToSelection = () => zoomToSelection()
+    // A fresh load: forget the history, any pending flight or settle, the
+    // followed net and the modules' saved views (another design's). Called
+    // before the new design's path is set, so the view it leaves is not
+    // pushed and the new path's fit is the first entry, even when that path
+    // is the one shown (the path key is forgotten too: it counts as new).
+    commands.reset = () => {
+      history.reset()
       hl.follow(None)
+      viewState.clear(); prevPathKey = null
     }
-    history.flyTo = (path, id) => {
-      flyPending = Some((path.mkString("/"), id))
-      if (path == curPath) tryFly() else if (!navigate(path)) flyPending = None
-    }
+    commands.flyTo = (path, id) => history.flyTo(path, id)
 
     // ── content (boxes + wires), rebuilt on geometry (and the layers toggle) only ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
@@ -921,8 +842,8 @@ object Schematic {
               clearSelection = () => { selectedVar.set(None); hl.follow(None) },
               clearFollow    = () => hl.follow(None),
               keysBlocked    = () => fsmOpenVar.now().isDefined || keysBlocked(),
-              back           = () => walk(_.back),
-              forward        = () => walk(_.forward),
+              back           = () => history.walk(_.back),
+              forward        = () => history.walk(_.forward),
               zoomToSelection = () => zoomToSelection(),
             ), hl)
             gesturesOff = gestures.install()
@@ -930,14 +851,10 @@ object Schematic {
             hintOff = hintBar.fold(() => ())(_.install(viewportNode, hl))
             // Smoke test hooks: the view history ({size, index, entries}), the
             // stack model on scripted pushes, whether a flight is running.
-            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHistory")((() =>
-              js.Dynamic.literal(size = hist.entries.size, index = hist.index,
-                entries = js.Array(hist.entries.map(e =>
-                  js.Dynamic.literal(path = e.path.mkString("/"), x = e.pan._1, y = e.pan._2, z = e.zoom)): _*))
-            ): js.Function0[js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHistory")((() => history.debug()): js.Function0[js.Dynamic])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHistoryModel")(
               ((ops: js.Array[String]) => ViewHistory.modelDebug(ops)): js.Function1[js.Array[String], js.Dynamic])
-            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessFlying")((() => flyer.running): js.Function0[Boolean])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessFlying")((() => history.flyer.running): js.Function0[Boolean])
             // Smoke test hook: the tooltip card of every box, wire and pin of the view ({n, bad}).
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessTooltipCheck")((() => {
               val (n, bad) = Tooltip.selfCheck(hl.geom)
@@ -966,7 +883,7 @@ object Schematic {
             gesturesOff(); gesturesOff = () => (); gestures = null
             tooltipOff(); tooltipOff = () => ()
             hintOff(); hintOff = () => ()
-            cancelFit(); flyer.cancel(); cancelSettle()
+            cancelFit(); history.stop()
           }),
         div(styleAttr <-- transformSig, children <-- contentSig,
           dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
@@ -1041,7 +958,7 @@ object Schematic {
       // from the pointer.
       geomSig.changes --> { _ => tooltip.hide() },
       // A user's pan or zoom becomes a history entry once it rests.
-      Signal.combine(panVar.signal, zoomVar.signal).changes --> { _ => tooltip.hide(); if (dirty) armSettle() },
+      Signal.combine(panVar.signal, zoomVar.signal).changes --> { _ => tooltip.hide(); history.viewMoved() },
       // Track the current module path; arm a fit/restore only on a real path
       // change. Stash the view of the module being left so returning restores it.
       // Bundle expansion grows the box (changes totalW/canvasH) but does NOT
@@ -1049,23 +966,17 @@ object Schematic {
       pathSig --> { p =>
         val pk = p.mkString("/")
         if (prevPathKey != null && prevPathKey != pk) {
-          flyer.cancel()
           // While a fit is still pending, the view shown is not that module's yet
           // (the fit runs a frame later): do not save it as that module's view.
-          if (!pendingFit) {
-            commitDirty() // the view left, before the new module's entry
-            viewState(prevPathKey) = (zoomVar.now(), panVar.now())
-          }
-          cancelSettle(); dirty = false
+          if (!pendingFit) viewState(prevPathKey) = (zoomVar.now(), panVar.now())
+          history.leave() // the view left, if not settled, before the new module's entry
         }
-        if (prevPathKey != pk) {
-          pendingFit = true
-          if (flyPending.exists(_._1 != pk)) flyPending = None
-        }
-        prevPathKey = pk; curPath = p
+        if (prevPathKey != pk) pendingFit = true
+        history.enter(pk, p)
+        prevPathKey = pk
       },
       // A fly to a box waits for its module's view and layout.
-      Signal.combine(settledPathVar.signal, pendingVar.signal) --> { _ => tryFly() },
+      Signal.combine(settledPathVar.signal, pendingVar.signal) --> { _ => history.tryFly() },
       // Perform the armed fit/restore once the geometry dimensions are known,
       // then disarm. Later dimension changes (expansion, Optimize, the engine
       // relayout landing) refit only while the view is still the automatic fit;

@@ -59,8 +59,7 @@ object NetFollow {
       }
     }
 
-  // The head of a path, before any `.` or `[`.
-  private def head(p: String): String = p.takeWhile(c => c != '.' && c != '[')
+  private def head(p: String): String = LayoutCore.pathHead(p)
 
   /** The wires lit at `path` for `net`. `shown` are the wires drawn at `path`
     * (as `(from, to)`): the result names those, so a Vec group or a folded

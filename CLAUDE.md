@@ -36,6 +36,7 @@ mill example.soclessRunRegHeavy  # Register-heavy design (Datapath)
 mill example.soclessRunFsm       # TrafficFsm (switch/is FSM)
 mill example.soclessRunLayers    # LayeredCounter (verification layers)
 mill example.soclessRunScatter   # ScatterDemo (bundle direction split)
+mill example.soclessRunBigArray  # BigArray (16x16 stages: the UI smoke's performance guard)
 ./mill example.soclessCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
 ./mill example.soclessCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
 ./mill example.soclessCapturedGcd      # committed GCD capture -> design.json with its signals (embedded.mjs Waveform check)
@@ -123,6 +124,7 @@ example/src/
   iobundles/             # Vec-of-bundle ports and nested/mixed-direction bundles: Interconnect
   regheavy/              # Register-heavy design: Datapath
   fsm/ layers/ scatter/  # TrafficFsm, LayeredCounter (verification layers), ScatterDemo
+  bigarray/              # BigArray: 256 boxes in one module (performance guard)
 
 socless-js/src/socless/js/
   BrowserLayout.scala    # Scala.js elkjs facade; runs the schematic layout in-browser (in-process to the UI)

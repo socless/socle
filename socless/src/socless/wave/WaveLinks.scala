@@ -33,7 +33,7 @@ object WaveLinks {
 
   private def flat(path: String): String = path.replace('.', '_').replace('[', '_').replace("]", "")
 
-  private def head(p: String): String = p.takeWhile(c => c != '.' && c != '[')
+  private def head(p: String): String = LayoutCore.pathHead(p)
 
   /** The ground port leaves of `m`, in port order. */
   private def portLeaves(d: Design, m: ModuleDef): Seq[(PortDef, String)] =

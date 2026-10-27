@@ -50,6 +50,10 @@ object LayoutCore {
     if (i < 0) s else s.substring(0, i)
   }
 
+  /** The first segment of a dotted path, before any `.` or `[`: the port of
+    * `io.in.bits`, the instance of `cpu.io`, the Vec of `v[3].a`. */
+  def pathHead(path: String): String = path.takeWhile(c => c != '.' && c != '[')
+
   /** The owning node id of a wire-endpoint head (a `path.split('.').head`).
     *
     * A logic node appears in wires under synthetic pin heads - an op input pin

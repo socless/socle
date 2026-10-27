@@ -27,6 +27,8 @@ const designs = [
   ['scatter',      'soclessRunScatter',   'Scatter (bundle direction split)'],
   ['deepsoc-view', 'soclessCapturedDeepSoc', 'DeepSoc (captured view)'],
   ['fsm-view',     'soclessCapturedFsm',  'TrafficFsm (captured view, diagram)'],
+  // 256 boxes in one module: the performance guard only (smoke.mjs smokePerf).
+  ['bigarray',     'soclessRunBigArray',  'BigArray (16x16 stages, performance guard)', { perf: true }],
 ];
 
 if (!existsSync(UI)) {
@@ -36,13 +38,13 @@ if (!existsSync(UI)) {
 
 mkdirSync(out, { recursive: true });
 const manifest = [];
-for (const [id, task, label] of designs) {
+for (const [id, task, label, extra] of designs) {
   const src = `out/example/${task}.dest/design.json`;
   if (!existsSync(src)) { console.warn('skip (not elaborated):', src); continue; }
   mkdirSync(`${out}/${id}`, { recursive: true });
   copyFileSync(UI, `${out}/${id}/SoCLess.html`);
   copyFileSync(src, `${out}/${id}/design.json`);
-  manifest.push({ id, label });
+  manifest.push({ id, label, ...(extra || {}) });
 }
 // Multi-top fixture (#197): a page with a designs.json index + two design JSONs
 // so the top-bar design picker renders and can be exercised. Reuses gcd as the

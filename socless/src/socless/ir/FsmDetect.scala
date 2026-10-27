@@ -55,8 +55,7 @@ object FsmDetect {
   private val LitRe = """^(?:UInt|SInt)(?:<\d+>)?\(.*\)$""".r
   private def isLit(s: String): Boolean = LitRe.findFirstIn(s.trim).isDefined
 
-  /** head(path) = take chars until '.' or '['. */
-  private def head(path: String): String = path.takeWhile(c => c != '.' && c != '[')
+  private def head(path: String): String = socless.layout.LayoutCore.pathHead(path)
 
   /** Full sink path with only a TRAILING vec index stripped, fields kept:
     * `io.state[0]` -> `io.state`, `io.state` -> `io.state`, `state` -> `state`. */

@@ -96,6 +96,14 @@ object ViewHistory {
     ((vw / 2 - cx * z, vh / 2 - cy * z), z)
   }
 
+  /** The pan that keeps the content point under viewport point (mx, my) in
+    * place when the zoom goes from `z` to `newZ` (the wheel zooms at the
+    * pointer, the keys at the viewport's centre). */
+  def zoomAt(pan: (Double, Double), z: Double, newZ: Double, mx: Double, my: Double): (Double, Double) = {
+    val ratio = newZ / z
+    (mx - (mx - pan._1) * ratio, my - (my - pan._2) * ratio)
+  }
+
   /** Ease in and out (cubic), t in [0, 1]. */
   def ease(t: Double): Double =
     if (t < 0.5) 4 * t * t * t else 1 - math.pow(-2 * t + 2, 3) / 2
@@ -147,6 +155,155 @@ object ViewHistory {
         frame = dom.window.requestAnimationFrame(step)
       }
     }
+  }
+
+  /** One schematic's history and flights: the entries, Back and Forward, a
+    * pending fly to a box and the settle of a user's pan or zoom. The pane
+    * gives it what it owns itself:
+    *  - `fitPending`: the module's own view (its fit or saved view) is still
+    *    to come, so the view shown is not an entry;
+    *  - `takeView`: the view is set from here on, not fitted automatically;
+    *  - `dragging`: a press is in progress (a drag holding still has not settled);
+    *  - `navigate`: show another module, false when its path does not resolve;
+    *  - `flyTarget`: the path key shown and its geometry, once that module's
+    *    view is in place and laid out (a fly to a box waits for it).
+    * A user's pan or zoom ([[userMoved]]) becomes an entry once it rests
+    * [[SettleMs]]; a view left before that is pushed first ([[commitDirty]]). */
+  final class Controller(
+      panVar: Var[(Double, Double)], zoomVar: Var[Double], viewSize: () => (Double, Double),
+      clamp: Double => Double, fitPending: () => Boolean, takeView: () => Unit,
+      dragging: () => Boolean, navigate: List[String] => Boolean,
+      flyTarget: () => Option[(String, Geom)]) {
+    private[schematic] var hist = Stack()
+    /** The module path shown. */
+    var curPath: List[String] = Nil
+    // A Back or Forward entry whose module is being shown: its view stands in
+    // for the fit (or the module's saved view) and is not pushed again.
+    private var restoring = Option.empty[Entry]
+    // A box to fly to, (path key, box id), once that module's layout is ready.
+    private var flyPending = Option.empty[(String, String)]
+    // The user moved the view since the last entry.
+    private var dirty = false
+    private var settleTimer = 0
+    val flyer = new Flyer(panVar, zoomVar, viewSize)
+
+    private def cancelSettle(): Unit = if (settleTimer != 0) { dom.window.clearTimeout(settleTimer); settleTimer = 0 }
+
+    /** Pushes the view shown; not while the module's own view is still to come. */
+    def pushView(): Unit = {
+      cancelSettle(); dirty = false
+      if (!fitPending() && curPath.nonEmpty) hist = hist.push(Entry(curPath, panVar.now(), zoomVar.now()))
+    }
+    /** A view left before it settled is still a place the user was: pushes it
+      * before the move that leaves it. */
+    def commitDirty(): Unit = if (dirty) pushView()
+    private def armSettle(): Unit = {
+      cancelSettle()
+      settleTimer = dom.window.setTimeout(() => {
+        settleTimer = 0
+        if (dragging()) armSettle()
+        else if (dirty && !flyer.running && !fitPending()) pushView()
+      }, SettleMs)
+    }
+
+    /** The view moved (any pan or zoom): a user's move settles into an entry. */
+    def viewMoved(): Unit = if (dirty) armSettle()
+    /** A user pan or zoom: it stops a flight, and drops one still waiting for its layout. */
+    def userMoved(): Unit = { stopFlight(); dirty = true }
+    def stopFlight(): Unit = { flyer.cancel(); flyPending = None }
+    /** Unmounted: no flight nor settle left running. */
+    def stop(): Unit = { flyer.cancel(); cancelSettle() }
+
+    /** Another module is shown (the one shown was not on its way: `fitPending`
+      * false): its view, if not settled, is an entry before the next one's. */
+    def leave(): Unit = {
+      flyer.cancel()
+      if (!fitPending()) commitDirty()
+      cancelSettle(); dirty = false
+    }
+    /** The module at `path` (key `pk`) is shown: a fly to a box of another one is dropped. */
+    def enter(pk: String, path: List[String]): Unit = {
+      if (flyPending.exists(_._1 != pk)) flyPending = None
+      curPath = path
+    }
+
+    /** The Back or Forward entry being restored for path key `pk`, taken once. */
+    def takeRestoring(pk: String): Option[Entry] = {
+      val r = restoring.filter(_.path.mkString("/") == pk)
+      restoring = None
+      r
+    }
+    /** A refit replaced the automatic fit shown: its entry follows it. */
+    def refitted(): Unit =
+      if (hist.current.exists(_.path == curPath)) hist = hist.replace(Entry(curPath, panVar.now(), zoomVar.now()))
+
+    /** Flies to a content rect: framed with `margin` px around it, at most
+      * `maxZoom`. The flight's end is an entry; the view it leaves too, if it
+      * had not settled yet. */
+    def flyToRect(r: Rect, margin: Double, maxZoom: Double): Unit = {
+      val (vw, vh) = viewSize()
+      if (vw > 0 && vh > 0) {
+        commitDirty(); takeView()
+        flyer.fly(frame(r, vw, vh, margin, maxZoom, clamp), () => pushView())
+      }
+    }
+    /** `z`: frames the selection `sel` (a box, a wire, a pin) in `geom`.
+      * False when there is none or it is not in this view. */
+    def zoomToSelection(sel: Option[String], geom: Option[Geom]): Boolean =
+      (for { s <- sel; g <- geom; r <- selectionRect(g, s) } yield r) match {
+        case Some(r) => flyToRect(r, 40, 2.0); true
+        case None    => false
+      }
+    /** The pending fly to a box, once its module's view is in place and laid out. */
+    def tryFly(): Unit = flyPending.foreach { case (pk, id) =>
+      flyTarget().filter(_._1 == pk).map(_._2).filter(_.boxById.contains(id)).flatMap(selectionRect(_, id)).foreach { r =>
+        flyPending = None
+        flyToRect(r, 60, 1.0)
+      }
+    }
+    /** Flies to box `id` of the module at `path`, showing that module first. */
+    def flyTo(path: List[String], id: String): Unit = {
+      flyPending = Some((path.mkString("/"), id))
+      if (path == curPath) tryFly() else if (!navigate(path)) flyPending = None
+    }
+
+    /** Back or Forward: the entry's module first (its view replaces the fit),
+      * or just its view in the module shown. Entries whose path no longer
+      * resolves are skipped, so the walk never gets stuck on one. */
+    def walk(step: Stack => Stack): Unit = {
+      stopFlight(); commitDirty()
+      val from = hist
+      var next = step(from)
+      var landed = false
+      while (!landed && next.index != from.index && next.current.isDefined) {
+        val e = next.current.get
+        if (e.path == curPath) {
+          hist = next; landed = true
+          if (fitPending()) restoring = Some(e)
+          else { restoring = None; Var.set(zoomVar -> e.zoom, panVar -> e.pan); takeView() }
+        } else {
+          hist = next; restoring = Some(e)
+          if (navigate(e.path)) landed = true
+          else {
+            hist = from; restoring = None
+            val further = step(next)
+            next = if (further.index == next.index) from else further // the end: stay
+          }
+        }
+      }
+    }
+
+    /** A fresh load: no history, no pending flight or settle. */
+    def reset(): Unit = {
+      flyer.cancel(); cancelSettle(); dirty = false
+      hist = Stack(); restoring = None; flyPending = None
+    }
+
+    /** The smoke's view of the stack ({size, index, entries}). */
+    def debug(): js.Dynamic =
+      js.Dynamic.literal(size = hist.entries.size, index = hist.index,
+        entries = js.Array(hist.entries.map(e =>
+          js.Dynamic.literal(path = e.path.mkString("/"), x = e.pan._1, y = e.pan._2, z = e.zoom)): _*))
   }
 
   /** What the app asks of the schematic's view: the palette's Back, Forward

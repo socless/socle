@@ -102,9 +102,12 @@ const p0 = await ctx0.newPage();
 await p0.goto(`${BASE}/manifest.json`);
 const manifest = await p0.evaluate(() => JSON.parse(document.body.innerText));
 await ctx0.close();
-let designs = (manifest.designs || []).map((d) => d.id);
-if (ONLY) designs = designs.filter((d) => d === ONLY);
-console.log(`Designs: ${designs.join(', ')}`);
+// A `perf` design (hundreds of boxes) gets the performance guard only
+// (smokePerf), not the per-module and per-bundle walk of the others.
+let designs = (manifest.designs || []).filter((d) => !d.perf).map((d) => d.id);
+let perfDesigns = (manifest.designs || []).filter((d) => d.perf).map((d) => d.id);
+if (ONLY) { designs = designs.filter((d) => d === ONLY); perfDesigns = perfDesigns.filter((d) => d === ONLY); }
+console.log(`Designs: ${designs.join(', ')}${perfDesigns.length ? ` (performance guard: ${perfDesigns.join(', ')})` : ''}`);
 
 // Each design runs in its own browser context (own page, routes and storage),
 // closed whatever happens.
@@ -271,6 +274,19 @@ async function smokeReloadNav(design, ctx, top, W) {
     if (!h2 || h2.size > 1 || h2.entries.some((e) => e.path !== top))
       note(design, where, `a fresh load kept or seeded the old history: ${fmt(h2 && h2.entries.map((e) => e.path))}`);
     if (f2 && f2.net) note(design, where, `a fresh load kept the followed net: ${fmt(f2.net)}`);
+    // Another fresh load with the top already shown (the same path): its fit
+    // is still the history's first entry, so the next move has a Back.
+    await page.evaluate((txt) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([txt], 'again.json', { type: 'application/json' }));
+      window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, body);
+    await page.waitForTimeout(300);
+    await settle();
+    await page.waitForTimeout(300);
+    const h3 = await hist();
+    if (!h3 || h3.size !== 1 || h3.entries[0].path !== top)
+      note(design, where, `a fresh load onto the path shown left the history ${fmt(h3 && h3.entries.map((e) => e.path))}, not the top's fit`);
     if (!errors.length) reloadNavDesigns.add(design);
   } catch (e) {
     note(design, where, (e && e.message) || String(e));
@@ -2963,6 +2979,96 @@ async function smokeDesignIn(design, ctx) {
   console.log(`[${design}] ${await loadLog()}`);
 }
 
+// The performance guard, on a design of hundreds of boxes: what the pointer
+// does costs the same there as on a small design. A hover restyles the box and
+// its wires only (a few attribute changes, not one per box), a rest changes
+// nothing, a wheel zoom and a drag pan change the content's transform (and
+// light no more than a hover, for what comes under the pointer), a selection
+// toggles a few classes; nothing rebuilds the schematic, and no long
+// task (over PERF_LONG_MS) runs meanwhile. Counts, not timings, so a loaded
+// runner cannot fail it; the timings are printed.
+const PERF_MIN_BOXES = 200;
+const PERF_HOVER_MAX = 24;  // attribute changes of a hover (3 on GCD and on BigArray's 256 boxes)
+const PERF_SELECT_MAX = 48; // of a selection and its clearing
+const PERF_LONG_MS = 250;
+async function smokePerf(design) {
+  const where = 'perf';
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text()); });
+  try {
+    const t0 = Date.now();
+    await page.goto(`${BASE}/${design}/SoCLess.html`);
+    const shown = await page.waitForSelector('[data-box-inst]', { timeout: 60000 }).then(() => true).catch(() => false)
+      && await page.waitForSelector('[data-layout-ready="1"]', { timeout: 60000 }).then(() => true).catch(() => false);
+    if (!shown) { note(design, where, 'the schematic never showed laid out'); return; }
+    await page.waitForTimeout(1000);
+    const boxes = await page.locator('[data-box-inst]').count();
+    console.log(`[${design}] perf: ${boxes} boxes shown in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    if (boxes < PERF_MIN_BOXES) note(design, where, `only ${boxes} boxes shown, fewer than ${PERF_MIN_BOXES}: not a large design`);
+    const watch = () => page.evaluate(() => {
+      const c = document.querySelector('[data-content]');
+      const S = window.__perfSmoke = { child: 0, attrs: 0, self: 0, long: [], t: performance.now() };
+      S.obs = new MutationObserver((rs) => { for (const r of rs) { if (r.type === 'childList') S.child++; else if (r.target === c) S.self++; else S.attrs++; } });
+      S.obs.observe(c, { childList: true, subtree: true, attributes: true });
+      try { S.po = new PerformanceObserver((l) => { for (const e of l.getEntries()) S.long.push(Math.round(e.duration)); }); S.po.observe({ type: 'longtask' }); } catch {}
+    });
+    const unwatch = () => page.evaluate(() => {
+      const S = window.__perfSmoke;
+      S.obs.disconnect(); if (S.po) S.po.disconnect();
+      return { child: S.child, attrs: S.attrs, self: S.self, long: S.long, ms: Math.round(performance.now() - S.t) };
+    });
+    // A box with a wire, fully on screen, and an empty corner of the viewport.
+    const box = await page.evaluate(() => {
+      for (const el of document.querySelectorAll('[data-box-inst]')) {
+        const r = el.getBoundingClientRect();
+        const x = r.left + r.width / 2, y = r.top + Math.min(10, r.height / 2);
+        if (x > 0 && y > 0 && x < innerWidth && y < innerHeight && document.elementFromPoint(x, y)?.closest('[data-box-inst]') === el) return { x, y };
+      }
+      return null;
+    });
+    if (!box) { note(design, where, 'no box under the pointer to hover'); return; }
+    const vp = await page.evaluate(() => {
+      const r = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+      return { x: r.right - 8, y: r.bottom - 8, cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    });
+    const report = (what, m, max) => {
+      console.log(`[${design}] perf ${what}: ${m.child} childList, ${m.attrs} attribute records, transform ${m.self}x, long tasks [${m.long.join(', ')}] in ${m.ms} ms`);
+      if (m.child) note(design, where, `${what} rebuilt the schematic (${m.child} childList records)`);
+      if (m.attrs > max) note(design, where, `${what} changed ${m.attrs} attributes in the schematic (at most ${max}): it touches more than what it lights`);
+      const long = m.long.filter((d) => d > PERF_LONG_MS);
+      if (long.length) note(design, where, `${what} ran long tasks of ${long.join(', ')} ms (over ${PERF_LONG_MS})`);
+    };
+    await page.mouse.move(vp.x, vp.y);
+    await page.waitForTimeout(300);
+    await watch(); await page.mouse.move(box.x, box.y); await page.waitForTimeout(300);
+    report('a hover', await unwatch(), PERF_HOVER_MAX);
+    await watch(); await page.waitForTimeout(1000);
+    report('a rest on a box', await unwatch(), 0);
+    await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200); await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
+    report('a selection and its clearing', await unwatch(), PERF_SELECT_MAX);
+    await page.mouse.move(vp.cx, vp.cy); await page.waitForTimeout(300);
+    await watch(); for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(30); } await page.waitForTimeout(300);
+    const wheel = await unwatch();
+    report('a wheel zoom', wheel, PERF_HOVER_MAX);
+    if (!wheel.self) note(design, where, 'the wheel did not zoom (no transform change)');
+    await watch();
+    await page.mouse.down(); for (let i = 1; i <= 20; i++) await page.mouse.move(vp.cx + i * 10, vp.cy + i * 5); await page.mouse.up();
+    await page.waitForTimeout(300);
+    const pan = await unwatch();
+    report('a drag pan', pan, PERF_HOVER_MAX);
+    if (!pan.self) note(design, where, 'the drag did not pan (no transform change)');
+  } catch (e) {
+    note(design, where, (e && e.message) || String(e));
+  } finally {
+    for (const e of errors) note(design, where, e);
+    await ctx.close().catch(() => {});
+  }
+}
+
 // A pool of CONCURRENCY workers takes the designs in manifest order. A throw
 // inside one design is that design's failure; the others carry on.
 const queue = designs.slice();
@@ -2978,6 +3084,9 @@ const worker = async () => {
   }
 };
 await Promise.all(Array.from({ length: Math.min(CONCURRENCY, designs.length) }, worker));
+// Alone, after the others: a loaded browser would blur its timings.
+for (const design of perfDesigns) await smokePerf(design);
+if (!ONLY && perfDesigns.length === 0) note('(all)', 'perf', 'no performance-guard design in the manifest (bigarray)');
 
 await browser.close();
 

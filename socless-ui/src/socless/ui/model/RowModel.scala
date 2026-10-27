@@ -144,7 +144,7 @@ object RowModel {
         // WEST, output fields EAST).
         def topPort(path: String): String = {
           val rest = if (path.startsWith(inst + ".")) path.substring(inst.length + 1) else path
-          val seg0 = rest.takeWhile(c => c != '.' && c != '[')
+          val seg0 = LayoutCore.pathHead(rest)
           inst + "." + seg0
         }
         // Each scattered owning port is emitted as one locked group per side.

@@ -424,6 +424,11 @@ object example extends ChiselToolchain {
     PathRef(runFor("scatter.ScatterDemo", Task.dest, Task.log, runClasspath()))
   }
 
+  /** A 16x16 grid of stages in one module: the UI smoke's performance guard. */
+  def soclessRunBigArray: T[PathRef] = Task {
+    PathRef(runFor("bigarray.BigArray", Task.dest, Task.log, runClasspath()))
+  }
+
   /** Dump the default design's baked layout to debug SVG + text (no UI). */
   def soclessDebugLayout: T[PathRef] = Task {
     val json   = soclessRun().path

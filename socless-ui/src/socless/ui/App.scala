@@ -704,7 +704,7 @@ object App {
             openSource       = openSource,
             hintBar          = Some(hintBar),
             keysBlocked      = () => helpOpenVar.now(),
-            history          = viewCmds,
+            commands         = viewCmds,
             navigate         = showPath,
           ),
           // The first-time tips float above the schematic's bottom edge, over it.

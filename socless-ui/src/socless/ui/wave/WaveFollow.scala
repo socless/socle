@@ -310,7 +310,7 @@ object WaveFollow {
   def signalOf(mod: ModuleDef, d: Design, sel: String): Option[String] = {
     def clean(end: String) = end.replaceAll("~[^.\\[]*", "")
     def own(end: String): Boolean = {
-      val head = clean(end).takeWhile(c => c != '.' && c != '[')
+      val head = socless.layout.LayoutCore.pathHead(clean(end))
       mod.ports.exists(_.name == head) || mod.signals.exists(_.name == head)
     }
     mod.logic.find(_.id == sel) match {

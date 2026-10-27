@@ -288,10 +288,8 @@ object Gestures {
       val rect = viewport.getBoundingClientRect()
       val mx = wheelX - rect.left; val my = wheelY - rect.top
       val z = v.zoomVar.now(); val newZ = v.clamp(z * math.exp(wheelLog))
-      val ratio = newZ / z; val (px, py) = v.panVar.now()
-      Var.set(
-        v.panVar -> ((mx - (mx - px) * ratio + wheelDx, my - (my - py) * ratio + wheelDy)),
-        v.zoomVar -> newZ)
+      val (px, py) = ViewHistory.zoomAt(v.panVar.now(), z, newZ, mx, my)
+      Var.set(v.panVar -> ((px + wheelDx, py + wheelDy)), v.zoomVar -> newZ)
       wheelLog = 0; wheelDx = 0; wheelDy = 0
     }
 

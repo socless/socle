@@ -69,7 +69,7 @@ node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.
 ```bash
 # 1. Build the UI dist, elaborate the examples, then assemble + serve per-design dirs:
 ./mill socless-ui.dist
-for t in soclessRun soclessRunPipeline soclessRunGcd soclessRunDeepSoc soclessRunIoBundles soclessRunRegHeavy; do mill example.$t; done
+for t in soclessRun soclessRunPipeline soclessRunGcd soclessRunDeepSoc soclessRunIoBundles soclessRunRegHeavy soclessRunBigArray; do mill example.$t; done
 node tools/ui-smoke/assemble.mjs site && (cd site && python3 -m http.server 8765 &)
 
 # 2. Install deps once and run:
@@ -77,6 +77,12 @@ cd tools/ui-smoke
 npm install
 node smoke.mjs --base http://localhost:8765 [--design deepsoc] [--shots /tmp/shots] [--concurrency 4]
 ```
+
+The `bigarray` design (a 16x16 grid of stages, 256 boxes in one module) gets
+the performance guard only: a hover, a rest, a selection, a wheel zoom and a
+drag pan must cost the same there as on a small design (a few attribute
+changes for a hover, none outside the view's transform for a pan or a zoom,
+no rebuild, no long task over 250 ms). It runs after the others, alone.
 
 `--concurrency N` smokes N designs at once, each in its own browser context
 (default 1; CI uses 4). Failures are still attributed per design and the

@@ -268,9 +268,9 @@ jobs:
       # TrafficFsm, LayeredCounter (verification layers), Scatter (#237 bundle
       # direction split), and the captured DeepSoc (instance fold), TrafficFsm
       # (state diagram) and GCD (internal signals, for the Waveform check)
-      # conversions.
+      # conversions, and BigArray (256 boxes, the smoke's performance guard).
       - name: Elaborate the examples
-        run: ./mill '{example.soclessRun,example.soclessRunGcd,example.soclessRunPipeline,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd}'
+        run: ./mill '{example.soclessRun,example.soclessRunGcd,example.soclessRunPipeline,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd,example.soclessRunBigArray}'
 
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
@@ -308,7 +308,7 @@ jobs:
       - name: Decide whether the UI smokes run
         id: uismoke
         run: |
-          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd}')
+          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd,example.soclessRunBigArray}')
           changed=""
           if [ "${{ github.event_name }}" = pull_request ]; then
             changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socless/test/resources/chirrtl socless-lsp .github/workflows)
