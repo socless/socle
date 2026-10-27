@@ -46,7 +46,9 @@ object ChirrtlParser {
     *   reg <name> : <type>, <clock>                        (plain reg, no reset)
     *   regreset <name> : <type>, <clock>, <reset>, <init>  (reg with synchronous reset)
     */
-  case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false)
+  case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false,
+      // the `regreset` init operand as written (`UInt<2>(0h0)`); None for a plain reg
+      init: Option[String] = None)
 
   /** A wire declaration inside a module body: `wire <name> : <type>`. Kept for
     * the probe view's signal list; the classic IrWalk path does not read it. */
@@ -426,9 +428,11 @@ object ChirrtlParser {
     case ConnRe2(lhs, rhs, srcOpt) if !line.contains("connect ") && isRefExpr(lhs.trim) =>
       Some(Conn(lhs.trim, rhs.trim, parseSrc(Option(srcOpt))))
     case RegRe(name, typeStr, srcOpt) =>
-      // Parse just the type prefix; ignore the clock/reset/init operands.
-      val (tpe, _) = parseType(typeStr.trim)
-      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt))))
+      // Parse the type prefix; of the operands after it, keep a regreset's init.
+      val (tpe, rest) = parseType(typeStr.trim)
+      val ops  = rest.trim.stripPrefix(",").split(",", 3).map(_.trim)
+      val init = Option.when(line.trim.startsWith("regreset") && ops.length == 3 && ops(2).nonEmpty)(ops(2))
+      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt)), init = init))
     case WireRe(name, typeStr, srcOpt) =>
       val (tpe, _) = parseType(typeStr.trim)
       Some(WireDecl(name, tpe, parseSrc(Option(srcOpt))))

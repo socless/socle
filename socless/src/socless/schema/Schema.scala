@@ -295,8 +295,10 @@ object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 case class FsmDiagram(states: Seq[FsmState], transitions: Seq[FsmTransition], note: String = "")
 object FsmDiagram { implicit val rw: ReadWriter[FsmDiagram] = macroRW }
 
-/** One state; `source` is its first `is(...)` case, unknown when none. */
-case class FsmState(name: String, initial: Boolean = false, source: SourceRef = SourceRef.unknown)
+/** One state; `source` is its first `is(...)` case, unknown when none.
+  * `value` is its encoding in the state register, in decimal ("" when it is
+  * not known): the waveform viewer shows the name for it. */
+case class FsmState(name: String, initial: Boolean = false, source: SourceRef = SourceRef.unknown, value: String = "")
 object FsmState { implicit val rw: ReadWriter[FsmState] = macroRW }
 
 /** One transition. `from == "*"` means from any state (an assignment outside

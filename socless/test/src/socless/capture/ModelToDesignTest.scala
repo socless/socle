@@ -718,7 +718,9 @@ object ModelToDesignTest extends TestSuite {
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
       val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
-      assert(block.fsm == Some(diagram))
+      // as the index gives it, with the encodings FsmEncoding can pair: here
+      // only the reset's (the three transitions share one line, which has one connect)
+      assert(block.fsm == Some(diagram.copy(states = diagram.states.map(s => if (s.initial) s.copy(value = "0") else s))))
       assert(block.source == switch)
     }
 

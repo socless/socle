@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters._
 import scala.util.Try
 import scala.util.control.NonFatal
 import socless.schema.Design
-import socless.wave.{SurferWire, WaveLinks}
+import socless.wave.{SurferWire, WaveEnums, WaveLinks}
 
 /** The SoCLess language server: "View design" and "Simulate" code lenses on
   * ChiselSim tests, the `socless.viewDesign` and `socless.simulate` commands
@@ -406,12 +406,14 @@ final class SoclessLanguageServer(
   private def simDone(w: Workspace, req: SimRequest, o: SimOutcome, before: Option[IdeState], gen: Long): Unit = {
     // this run's trace (a passing or failing run's; none when it left none or
     // timed out), names read from its header
+    val dir = w.sim.dirFor(req.suite, req.test)
+    // ...with the FSM state names in a copy when the design gives them (both viewers show the copy)
     val trace = w.sim.currentTrace.map { case (id, file, test) =>
-      (LiveHttp.Trace(id, file, TraceNames.read(file, publishedPorts)), test)
+      val names = TraceNames.read(file, publishedPorts)
+      (LiveHttp.Trace(id, withStateNames(file, names.prefix, test, dir), names), test)
     }
     // `surfer` viewer: a new Surfer on the trace, driven over WCP (started outside the lock)
     val current = lock.synchronized(simGen == gen) // a superseded run starts no Surfer
-    val dir = w.sim.dirFor(req.suite, req.test)
     val command = simSettings.surferCommand
     val surfer = trace.filter(_ => current && simSettings.waveViewer == "surfer" && !stopped).map { case (t, _) =>
       try Right(WcpSession.start(command, t.file, Some(dir / "surfer.log"), log, () => surferExited(gen, command, t.file, dir),
@@ -443,6 +445,18 @@ final class SoclessLanguageServer(
     else surfer.flatMap(_.toOption).foreach(_.close()) // stale: a newer simulation started
     show(if (o.passed && viewerProblem.isEmpty) MessageType.Info else MessageType.Warning, message)
   }
+
+  /** `trace` with its FSM state names ([[TraceEnums]]), written to the
+    * simulation's own directory: the design of `test` (the published one,
+    * captured before the run) names the states of its state registers. The
+    * trace itself when there are none, or they cannot be written. */
+  private def withStateNames(trace: os.Path, prefix: String, test: String, dir: os.Path): os.Path =
+    publishedDesign.filter(_._2 == test).map(d => WaveEnums.tables(d._1, prefix)).filter(_.nonEmpty).flatMap { tables =>
+      val out = dir / s"${trace.baseName}-states.${trace.ext}"
+      os.makeDir.all(dir)
+      val n   = TraceEnums.write(trace, out, tables, log)
+      if (n > 0) { log(s"trace: $n state register(s) named in $out"); Some(out) } else None
+    }.getOrElse(trace)
 
   /** The WCP Surfer of simulation `gen` exited before connecting (one too old
     * for `--wcp-initiate`): unless a newer simulation started, a Warning, and

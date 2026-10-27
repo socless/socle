@@ -10,6 +10,11 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Added
 
+- Waveforms show FSM state names instead of numbers (VCD traces): SoCLess
+  pairs the state diagram's names with their encodings in the CHIRRTL and
+  writes them into a copy of the trace as an enum table, which Surfer applies
+  by itself.
+
 - Surfer's right-click menu: Go to declaration shows the signal in the
   schematic and opens its declaration in the editor; Add drivers and Add loads
   add the signals that drive it or that it feeds, found in the design through

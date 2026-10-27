@@ -102,7 +102,12 @@ object ModelToDesign {
               val at = circ.modules.find(_.name == c.name).flatMap(_.regs.find(_.name == register))
                 .flatMap(_.src).map(s => SourceRef(s.file, s.line, s.col))
               index.flatMap(_.fsm(c.scalaClass, register, at)) match {
-                case Some(src) => n.copy(fsm = Some(src.diagram), source = src.switch)
+                case Some(src) =>
+                  // each state's encoding, for the waveform viewer's names
+                  val enc = circ.modules.find(_.name == c.name)
+                    .fold(Map.empty[String, BigInt])(FsmEncoding.values(_, register, src.diagram, caseLits.getOrElse(register, Nil)))
+                  val diagram = src.diagram.copy(states = src.diagram.states.map(s => enc.get(s.name).fold(s)(v => s.copy(value = v.toString))))
+                  n.copy(fsm = Some(diagram), source = src.switch)
                 case None      =>
                   val note = if (index.isEmpty) NoIndexNote else FallbackNote
                   n.copy(fsm = Some(fallbackDiagram(caseLits.getOrElse(register, Nil), note)))
@@ -261,6 +266,12 @@ object ModelToDesign {
   private def fallbackDiagram(caseLits: Seq[String], note: String): FsmDiagram =
     FsmDiagram(caseLits.map(l => FsmState(litValue(l))), Nil, note)
 
+  /** A CHIRRTL literal's value: `UInt<2>(0h1)` gives 1; None for anything else. */
+  private[capture] def literal(expr: String): Option[BigInt] = expr.trim match {
+    case LitValue(v) => litNumber(v)
+    case _           => None
+  }
+
   /** A CHIRRTL literal's value in decimal: `UInt<2>(0h1)` gives `1`. */
   private def litValue(lit: String): String = lit.trim match {
     case LitValue(v) => litNumber(v).map(_.toString).getOrElse(v)
@@ -292,7 +303,7 @@ object ModelToDesign {
   private def isLane(sel: String): Boolean = sel.length > 2 && sel.drop(1).dropRight(1).forall(_.isDigit)
 
   /** The number a literal's digits spell (`0h2A`, `-0b101`, `0o7`, `12`), if any. */
-  private def litNumber(v: String): Option[BigInt] = {
+  private[capture] def litNumber(v: String): Option[BigInt] = {
     val digits = v.trim.stripPrefix("\"").stripSuffix("\"")
     val neg    = digits.startsWith("-")
     val body   = digits.stripPrefix("-").stripPrefix("0")
