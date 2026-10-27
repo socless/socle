@@ -76,7 +76,13 @@ final class DesignLoader(
 
   /** Install a freshly loaded design, resetting navigation to its top (via
     * [[onFresh]]). `source` is (kind, label) recording where it came from. */
+  // Smoke test hook: every design load, fresh or live, with its time.
+  private val loads = js.Array[js.Dynamic]()
+  dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessLoads")(loads)
+  private def logLoad(kind: String): Unit = { loads.push(js.Dynamic.literal(kind = kind, t = dom.window.performance.now())); () }
+
   private def setDesign(d: Design, source: (String, String)): Unit = {
+    logLoad("fresh")
     designVar.set(Some(d))
     onFresh(d)
     sourceVar.set(Some(source))
@@ -89,6 +95,7 @@ final class DesignLoader(
     * re-elaboration does not throw away navigation. Stamps the "updated Ns ago"
     * clock. */
   private def reloadLiveDesign(d: Design): Unit = {
+    logLoad("live")
     designVar.set(Some(d))
     onLive(d)
     sourceVar.set(Some(("live", "live (design.json)")))

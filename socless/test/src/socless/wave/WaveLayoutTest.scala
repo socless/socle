@@ -79,6 +79,28 @@ object WaveLayoutTest extends TestSuite {
       assert(group(p, "Registers").items.forall(_.color == "Orange"))
     }
 
+    test("the legend names the plan's colours, from the same mapping") {
+      assert(WaveLayout.legend(byDirection = true) ==
+        Seq("Inputs" -> "Blue", "Outputs" -> "Green", "Registers" -> "Orange", "Wires" -> "Gray"))
+      assert(WaveLayout.legend(byDirection = false) == Seq("Ports" -> "Blue", "Registers" -> "Orange", "Wires" -> "Gray"))
+      // Each colour the plan paints is the legend's colour for that kind.
+      val p = plan()
+      val colors = p.groups.flatMap(allItems).map(_.color).toSet
+      assert(colors == Set(WaveLayout.InputColor, WaveLayout.OutputColor, WaveLayout.RegisterColor))
+      assert(group(p, WaveLayout.RegistersGroup).items.forall(_.color == WaveLayout.RegisterColor))
+      // The plan says how it was coloured, for a viewer that has no settings (the VS Code Surfer tab).
+      assert(p.colorByDirection && !plan(WaveSettings(colorByDirection = false)).colorByDirection)
+    }
+
+    test("a plan without colorByDirection reads as coloured by direction") {
+      // A plan written before the field (an older server) still reads, as true.
+      val old = upickle.default.read[WavePlan]("""{"groups":[],"missing":0}""")
+      assert(old.colorByDirection)
+      val off = plan(WaveSettings(colorByDirection = false))
+      val back = upickle.default.read[WavePlan](upickle.default.write(off))
+      assert(back == off, !back.colorByDirection)
+    }
+
     test("foldBundles folds only child groups") {
       val p = plan(WaveSettings(foldBundles = true))
       val io = group(p, "io")

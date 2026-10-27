@@ -28,7 +28,9 @@ object App {
   // Schematic + inspector shared state (Phase 2 / Phase 3).
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
-  private val expandedPortsVar = Var[Set[String]](Set.empty) // in-box expanded bundle pin paths
+  // In-box expanded bundle pin paths, per module name: each module keeps its own
+  // and gets it back on return, and no module's layout ever sees another's paths.
+  private val expandedPortsVar = Var(Map.empty[String, Set[String]])
   private val expandedBundlesVar = Var[Set[String]](Set.empty) // inspector bundle-tree expansion
   // Unfolded generator-copy groups per module name; session-long, groups start folded.
   private val unfoldedVar = Var(Map.empty[String, Set[String]])
@@ -60,6 +62,11 @@ object App {
   // The FSM block (its id) whose state diagram is open in the schematic pane.
   // Cleared when the drill path changes and when a design change drops the block.
   private val fsmOpenVar       = Var[Option[String]](None)
+  // The hint bar under the schematic (help); its open state is remembered in
+  // standalone mode, for the page's life in an editor's panel.
+  private val hintBar = new Help.HintBar(Embedded.editorPanel, () => helpOpenVar.set(true))
+  // The schematic's Back, Forward, Zoom to selection and fly to (the palette's).
+  private val viewCmds = new ViewHistory.Commands
 
   // Design loading + live poll + drag-drop + toasts (#219), owning the design /
   // source state. App injects how to reset navigation when a design lands.
@@ -98,7 +105,10 @@ object App {
     mod.children.exists(_.name == head)
   }
 
-  private val loader = new DesignLoader(topOf = topOf, onFresh = navResetToTop, onLive = navReconcile)
+  // A fresh load (first load, picker, dropped file) also forgets the view
+  // history and the followed net; a live reload keeps them (navReconcile).
+  private def navFresh(d: Design): Unit = { viewCmds.reset(); navResetToTop(d) }
+  private val loader = new DesignLoader(topOf = topOf, onFresh = navFresh, onLive = navReconcile)
   // Language-server link (plan 2): run status, editor cursor focus, open on
   // select. Disables itself when the page is not served by the language server.
   private val ide = new IdeLink
@@ -159,21 +169,26 @@ object App {
   /** The Surfer tab page: the pane, full size, and a one-line status bar. */
   private def surferTab(): HtmlElement = {
     val pane = new socless.ui.wave.SurferPane
+    val byDirection = Var(true)
     div(
       dataAttr("surfer-tab") := "1",
       styleAttr := "position:fixed;inset:0;display:flex;flex-direction:column;background:var(--bg);color:var(--ink)",
-      socless.ui.wave.SurferTab.run(pane),
+      socless.ui.wave.SurferTab.run(pane, byDirection),
       pane.canvasHost,
       div(
-        dataAttr("surfer-tab-status") <-- pane.statusVar.signal,
-        styleAttr := "flex:none;padding:2px 8px;font-size:11px;opacity:0.7",
-        child.text <-- pane.statusVar.signal.map {
-          case "idle"    => "Surfer: waiting for a trace"
-          case "booting" => "Surfer: starting"
-          case "loading" => "Surfer: loading the trace"
-          case "ready"   => "Surfer: ready"
-          case other     => s"Surfer: $other"
-        },
+        styleAttr := "flex:none;display:flex;align-items:center;gap:8px;padding:2px 8px;font-size:11px",
+        span(
+          dataAttr("surfer-tab-status") <-- pane.statusVar.signal,
+          styleAttr := "opacity:0.7",
+          child.text <-- pane.statusVar.signal.map {
+            case "idle"    => "Surfer: waiting for a trace"
+            case "booting" => "Surfer: starting"
+            case "loading" => "Surfer: loading the trace"
+            case "ready"   => "Surfer: ready"
+            case other     => s"Surfer: $other"
+          },
+        ),
+        socless.ui.wave.ColorLegend.chip(byDirection.signal), // the colours chip, beside the status
       ),
     )
   }
@@ -189,9 +204,10 @@ object App {
         e.preventDefault(); helpOpenVar.set(false); paletteOpenVar.set(true)
       } else if (!typing && !mod && e.key == "?") {
         e.preventDefault(); helpOpenVar.update(!_)
-      } else if (!typing && !mod && e.key == "/" && fsmOpenVar.now().isEmpty) {
+      } else if (!typing && !mod && e.key == "/" && fsmOpenVar.now().isEmpty && !helpOpenVar.now()) {
         // Focus the schematic filter (#276). The input carries data-filter-input.
-        // Not while a state diagram covers the schematic: its filter is hidden.
+        // Not while a state diagram covers the schematic (its filter is hidden)
+        // or the "?" card is open (no key acts behind it).
         Option(dom.document.querySelector("[data-filter-input]")).foreach { el =>
           e.preventDefault(); el.asInstanceOf[dom.html.Element].focus()
         }
@@ -203,8 +219,13 @@ object App {
           case el: dom.Element => el.tagName == "INPUT" || el.tagName == "TEXTAREA" || el.closest("[data-command-palette]") != null
           case _               => false
         }
-        if (!inField && !e.defaultPrevented && !paletteOpenVar.now() && !helpOpenVar.now() && !settingsOpenVar.now())
-          fsmOpenVar.set(None)
+        val overlay = paletteOpenVar.now() || helpOpenVar.now() || settingsOpenVar.now()
+        val closesDiagram = !inField && !e.defaultPrevented && !overlay && fsmOpenVar.now().isDefined
+        if (closesDiagram) fsmOpenVar.set(None)
+        // An Escape that closes an overlay or the diagram is theirs: marking it
+        // handled keeps the schematic's Escape (stop following a net) from also
+        // acting should its listener run after this one (see Gestures' Escape).
+        if (overlay || closesDiagram) e.preventDefault()
         paletteOpenVar.set(false); helpOpenVar.set(false); settingsOpenVar.set(false)
       }
     })
@@ -387,6 +408,7 @@ object App {
             labelSegment(),
             toggleRow("Colorize components", "toggle-colorize", colorBoxesVar),
             toggleRow("Colorize wires", "toggle-colorize-wires", colorWiresVar),
+            toggleRow("Hint bar", "hint-toggle", hintBar.openVar),
             autoOptRow(),
             div(cls := "scl-set-sect", "Show"),
             declutterRow("Operators", "op"),
@@ -451,7 +473,9 @@ object App {
         val s = u.getOrElse(module, Set.empty)
         u.updated(module, if (wasUnfolded) s - id else s + id)
       },
-      expandedPortsVar -> { (e: Set[String]) => e.filterNot(under) },
+      expandedPortsVar -> { (e: Map[String, Set[String]]) =>
+        e.get(module).fold(e)(s => e.updated(module, s.filterNot(under)))
+      },
     )
     if (selectedSigVar.now().exists(under)) selectedSigVar.set(None)
   }
@@ -465,7 +489,31 @@ object App {
       child    <- mod.children.find(_.name == inst)
       childMod <- d.modules.find(_.name == child.`type`)
       if childMod.kind != ModuleKind.External && childMod.kind != ModuleKind.Intrinsic
-    } pathVar.update(_ :+ inst) // selectedSig / expandedPorts cleared by the path-change binder
+    } pathVar.update(_ :+ inst) // selectedSig cleared by the path-change binder
+
+  /** Show `path` when it resolves in the design (the view history's Back and
+    * Forward, a fly to another module). */
+  private def showPath(path: List[String]): Boolean =
+    loader.currentDesign.exists(d => currentModule(d, path).isDefined) && { pathVar.set(path); true }
+
+  /** Instance `inst` of module `module` (the palette, a hierarchy row's
+    * locate button): show that module at `at`, else the one in view when it is
+    * that module, else the module itself; unfold the copy's group if it is
+    * folded away, select the instance and fly to it. The selection does not
+    * ask the editor to open the source (a navigation, not an inspection). */
+  private def flyToInstance(module: String, inst: String, at: Option[List[String]] = None): Unit =
+    for (d <- loader.currentDesign) {
+      val cur  = pathVar.now()
+      val path = at.getOrElse(if (currentModule(d, cur).exists(_.name == module)) cur else List(module))
+      for (mod <- currentModule(d, path)) {
+        if (path != cur) pathVar.set(path) // its binder clears the selection first
+        InstanceFold.groups(mod).collectFirst { case (g, ms) if ms.contains(inst) => g }
+          .filterNot(g => unfoldedVar.now().getOrElse(mod.name, Set.empty).contains(g))
+          .foreach(g => toggleFold(mod.name, g))
+        if (mod.children.exists(_.name == inst)) { navSelect = Some(inst); selectedSigVar.set(Some(inst)) }
+        viewCmds.flyTo(path, inst)
+      }
+    }
 
   /** The selection a `socless-navigate` made: the editor already opens its
     * source, so the open-on-select binder skips it once. */
@@ -545,21 +593,23 @@ object App {
   private def navTo(idx: Int): Unit = { fsmOpenVar.set(None); pathVar.update(_.take(idx + 1)) }
 
   // ── Hierarchy model ────────────────────────────────────────────────────────
-  private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String])
+  // `parentMod`: the module the instance is in (None for the top).
+  private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String],
+                         parentMod: Option[String])
 
   private def hierarchyRows(d: Design, expanded: Set[String]): List[Row] = {
     val byName = d.modules.iterator.map(m => m.name -> m).toMap
     val out    = scala.collection.mutable.ListBuffer.empty[Row]
-    def walk(instName: String, modName: String, p: List[String], depth: Int): Unit = {
+    def walk(instName: String, modName: String, p: List[String], depth: Int, parent: Option[String]): Unit = {
       val mod    = byName.get(modName)
       val isLeaf = mod.forall(_.children.isEmpty)
       val id     = p.mkString("/")
-      out += Row(id, instName, modName, depth, isLeaf, p)
+      out += Row(id, instName, modName, depth, isLeaf, p, parent)
       if (mod.isDefined && expanded.contains(id))
-        mod.get.children.foreach(c => walk(c.name, c.`type`, p :+ c.name, depth + 1))
+        mod.get.children.foreach(c => walk(c.name, c.`type`, p :+ c.name, depth + 1, Some(modName)))
     }
     val top = topOf(d)
-    if (top.nonEmpty) walk(top, top, List(top), 0)
+    if (top.nonEmpty) walk(top, top, List(top), 0, None)
     out.toList
   }
 
@@ -618,16 +668,25 @@ object App {
             showShare        = !Embedded.on,
             fsmOpenVar       = fsmOpenVar,
             openSource       = openSource,
+            hintBar          = Some(hintBar),
+            keysBlocked      = () => helpOpenVar.now(),
+            history          = viewCmds,
+            navigate         = showPath,
           ),
+          // The first-time tips float above the schematic's bottom edge, over it.
+          div(styleAttr := "position:relative;flex-shrink:0",
+            Help.firstTips(Embedded.editorPanel, Chrome.macHint),
+            hintBar.el),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
         Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None)),
       ),
-      // Expansion paths are instance-relative, not scoped to the current module:
-      // clear them (and the selection) on navigation so expanding a port in one
-      // module does not auto-expand an identically named port elsewhere (issue #94).
+      // Clear the selection and the inspector's bundle tree on navigation. The
+      // in-box expansions are kept per module name instead (expandedPortsVar), so
+      // a port expanded in one module never expands an identically named port
+      // elsewhere (issue #94), and a module shows its own again on return.
       pathVar.signal.changes --> { _ =>
-        expandedPortsVar.set(Set.empty); expandedBundlesVar.set(Set.empty); selectedSigVar.set(None); fsmOpenVar.set(None)
+        expandedBundlesVar.set(Set.empty); selectedSigVar.set(None); fsmOpenVar.set(None)
       },
       // Open on select (plan 2): selecting an instance asks the editor to show
       // its module's source: an absolute file, or a repo-relative one embedded
@@ -651,20 +710,21 @@ object App {
         }),
       // Command palette + keyboard-help overlays (fixed-position modals).
       Chrome.commandPalette(loader.designSig, paletteOpenVar, onNavigate = p => pathVar.set(p),
-        actions = if (Embedded.on) Seq(
+        onFlyTo = Some((m: String, c: String) => flyToInstance(m, c)),
+        actions = viewActions ++ (if (Embedded.on) Seq(
           ("Open settings",          "density, color",            () => settingsOpenVar.set(true)),
-          ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
+          ("Mouse and keyboard",     "help overlay",              () => helpOpenVar.set(true)),
           ("Toggle bottom panel",    "ports / waveform",          () => bottomOpenVar.update(!_)),
           ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
         ) else Seq(
           ("Toggle theme",           "dark / light",              () => toggleTheme()),
           ("Open settings",          "density, theme, color",     () => settingsOpenVar.set(true)),
-          ("Keyboard shortcuts",     "help overlay",              () => helpOpenVar.set(true)),
+          ("Mouse and keyboard",     "help overlay",              () => helpOpenVar.set(true)),
           ("Toggle hierarchy panel", "left pane",                 () => leftOpenVar.update(!_)),
           ("Toggle bottom panel",    "source / waveform / ports", () => bottomOpenVar.update(!_)),
           ("Toggle inspector panel", "right pane",                () => rightOpenVar.update(!_)),
           ("Clear selection",        "deselect wire / node",      () => selectedSigVar.set(None)),
-        )),
+        ))),
       Chrome.helpOverlay(helpOpenVar),
       wave.binders,
       // Design-input chrome (#194): drag-drop overlay + transient toasts.
@@ -673,6 +733,14 @@ object App {
       toastEl(),
     )
   }
+
+  // The view history and zoom to the selection, in the palette too: an editor
+  // (VS Code) may keep Alt+Left / Alt+Right and the mouse's side buttons.
+  private val viewActions: Seq[(String, String, () => Unit)] = Seq(
+    ("Back",              "previous view (Alt ←)",          () => viewCmds.back()),
+    ("Forward",           "next view (Alt →)",              () => viewCmds.forward()),
+    ("Zoom to selection", "frame the selected block or wire (z)", () => { viewCmds.zoomToSelection(); () }),
+  )
 
   private val kHint = if (Chrome.macHint) "⌘K" else "Ctrl K"
 
@@ -841,7 +909,7 @@ object App {
         onClick --> { _ => toggleTheme() },
         child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon))),
       // Help affordance.
-      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Keyboard shortcuts (?)",
+      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Mouse and keyboard (?)",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),
     )
 
@@ -889,6 +957,13 @@ object App {
       span(cls := "scl-hier-glyph", Glyphs.of(d, r.tpe)),
       span(cls := "scl-hier-label", r.label),
       span(cls := "scl-hier-type", r.tpe),
+      // Show in parent: the parent module, this instance's box selected and flown to.
+      r.parentMod.map { pm =>
+        button(cls := "scl-hier-locate", dataAttr("hier-locate") := r.id, title := "Show in parent",
+          aria.label := s"Show ${r.label} in its parent",
+          onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); flyToInstance(pm, r.label, Some(r.path.init)) },
+          "◎")
+      },
     )
   }
 

@@ -70,6 +70,10 @@ final class WaveFollow(
   /** What the Waveform tab says. */
   val viewSig: Signal[View] = viewVar.signal
 
+  /** Whether the plans colour the ports by direction (the colours legend). */
+  val colorByDirectionSig: Signal[Boolean] =
+    stateSig.map(_.flatMap(_.waveSettings).getOrElse(WaveSettings()).colorByDirection).distinct
+
   /** The subscriptions, bound to the app shell. */
   val binders: Seq[Modifier[HtmlElement]] = Seq(
     designSig --> { d => design = d },

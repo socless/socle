@@ -19,8 +19,10 @@ object Chrome {
 
   // ── Command palette ─────────────────────────────────────────────────────────
   // payload drives navigation (module path); `run` is set for action items
-  // (command hub, #276) and takes precedence over navigation.
-  private final case class Item(kind: String, label: String, sub: String, payload: List[String], run: Option[() => Unit] = None)
+  // (command hub, #276) and takes precedence over navigation; `inst` (module,
+  // instance) makes an instance a fly to its box, when the palette has one.
+  private final case class Item(kind: String, label: String, sub: String, payload: List[String], run: Option[() => Unit] = None,
+                                inst: Option[(String, String)] = None)
 
   private val VecRe = """^Vec\[(.+),\s*(\d+)\]$""".r
 
@@ -30,7 +32,8 @@ object Chrome {
       out += Item("module", m.name, if (m.doc.nonEmpty) m.doc else m.`type`, List(m.name))
       m.children.foreach { c =>
         val payload = if (d.modules.exists(_.name == c.`type`)) List(c.`type`) else List(m.name)
-        out += Item("instance", s"${m.name}.${c.name}", c.`type` + (if (c.doc.nonEmpty) " · " + c.doc else ""), payload)
+        out += Item("instance", s"${m.name}.${c.name}", c.`type` + (if (c.doc.nonEmpty) " · " + c.doc else ""), payload,
+          inst = Some((m.name, c.name)))
       }
       m.ports.foreach { p =>
         out += Item("port", s"${m.name}:${p.name}", s"${p.dir} ${p.bundle}", List(m.name))
@@ -89,16 +92,25 @@ object Chrome {
     "port" -> Tokens.kindPort, "action" -> Tokens.ok)
 
   /** The command palette (Ctrl/Cmd+K). `actions` are command-hub entries
-    * (label, sub, run) searchable alongside modules/instances/ports (#276). */
+    * (label, sub, run) searchable alongside modules/instances/ports (#276).
+    * With `onFlyTo`, an instance shows its module and flies to its box. */
   def commandPalette(designSig: Signal[Option[Design]], openVar: Var[Boolean],
                      onNavigate: List[String] => Unit,
-                     actions: Seq[(String, String, () => Unit)] = Nil): Element = {
+                     actions: Seq[(String, String, () => Unit)] = Nil,
+                     onFlyTo: Option[(String, String) => Unit] = None): Element = {
     val qVar       = Var("")
     val cursorVar  = Var(0)
     val resultsVar = Var[Seq[Item]](Nil) // mirror of resultsSig so the keydown handler can read it
     val actionItems = actions.map { case (label, sub, run) => Item("action", label, sub, Nil, Some(run)) }
     def close(): Unit = openVar.set(false)
-    def navigate(it: Item): Unit = { it.run match { case Some(r) => r(); case None => onNavigate(it.payload) }; close() }
+    def navigate(it: Item): Unit = {
+      (it.run, it.inst, onFlyTo) match {
+        case (Some(r), _, _)                 => r()
+        case (None, Some((m, c)), Some(fly)) => fly(m, c)
+        case _                               => onNavigate(it.payload)
+      }
+      close()
+    }
 
     val resultsSig: Signal[Seq[Item]] =
       Signal.combine(designSig, qVar.signal).map { case (dO, q) =>
@@ -126,7 +138,8 @@ object Chrome {
                 onMountCallback { ctx => ctx.thisNode.ref.focus() },
                 onKeyDown --> { (e: dom.KeyboardEvent) =>
                   e.key match {
-                    case "Escape"    => close()
+                    // Handled: the schematic's Escape (stop following a net) must not act too.
+                    case "Escape"    => e.preventDefault(); close()
                     case "ArrowDown" => e.preventDefault(); cursorVar.update(c => math.min(c + 1, resultsVar.now().length - 1))
                     case "ArrowUp"   => e.preventDefault(); cursorVar.update(c => math.max(c - 1, 0))
                     case "Enter"     => resultsVar.now().lift(cursorVar.now()).foreach(it => navigate(it))
@@ -158,24 +171,69 @@ object Chrome {
     })
   }
 
-  // ── Keyboard help overlay ─────────────────────────────────────────────────
-  private val shortcuts: Seq[(String, Seq[(Seq[String], String)])] = Seq(
-    "Navigation" -> Seq(
-      Seq("⌘K", "Ctrl K") -> "Open command palette / search",
-      Seq("↑ ↓")           -> "Move selection in palette",
-      Seq("↵")             -> "Navigate to selected result",
-      Seq("Esc")           -> "Close palette / overlay",
+  // ── Help card (keyboard and mouse) ───────────────────────────────────────
+  // Two columns: what the mouse does on each element of the schematic, and
+  // the keys. Each row: the keys or gesture (chips), then what it does.
+  private type Rows = Seq[(Seq[String], String)]
+  private val mouseHelp: Seq[(String, Rows)] = Seq(
+    "Anywhere" -> Seq(
+      Seq("Drag")          -> "Pan",
+      Seq("Middle drag")   -> "Pan",
+      Seq("Wheel")         -> "Zoom at the pointer",
+      Seq("Shift + wheel") -> "Scroll sideways",
+      Seq("Ctrl + wheel")  -> "Scroll up and down",
+      Seq("Pinch")         -> "Zoom (trackpad)",
+      Seq("Rest")          -> "Show what is under the pointer",
+      Seq("Click")         -> "On the background: clear the selection, stop following",
+      Seq("Back", "Forward") -> "Over the schematic: back, forward (mouse side buttons)",
+      Seq("◎")             -> "On a hierarchy row: show it in its parent",
     ),
+    "Blocks" -> Seq(
+      Seq("Double-click") -> "Open the module, or unfold a group",
+      Seq("Click title")  -> "Inspect",
+      Seq("Breadcrumb")   -> "Go back up",
+    ),
+    "Wires" -> Seq(Seq("Click") -> "Select and follow the net (it stays lit across levels)"),
+    "Pins" -> Seq(Seq("Click") -> "Expand or collapse a bundle"),
+    "Logic blocks" -> Seq(
+      Seq("Click")        -> "Inspect a register or an operator",
+      Seq("Click title")  -> "Inspect a block or a state machine",
+      Seq("Double-click") -> "Open a state machine's diagram",
+    ),
+  )
+  private val keyHelp: Seq[(String, Rows)] = Seq(
     "Schematic" -> Seq(
-      Seq("dbl-click")  -> "Drill into module instance",
-      Seq("breadcrumb") -> "Navigate up the hierarchy",
-      Seq("/")          -> "Focus the filter",
+      Seq("← ↑ → ↓") -> "Pan",
+      Seq("+ / -")   -> "Zoom",
+      Seq("0 / f")   -> "Fit to view",
+      Seq("z")       -> "Zoom to the selection",
+      Seq("Alt ←", "Alt →") -> "Back, forward",
+      Seq("/")       -> "Focus the filter",
+      Seq("Esc")     -> "Close a card, the palette or a diagram; stop following a net",
     ),
-    "Help" -> Seq(Seq("?") -> "Open this overlay"),
+    "Search" -> Seq(
+      Seq("⌘K", "Ctrl K") -> "Open command palette / search",
+      Seq("↑ ↓")          -> "Move selection in palette",
+      Seq("↵")            -> "Navigate to selected result",
+    ),
+    "Help" -> Seq(Seq("?") -> "Open this card"),
   )
 
   private def displayKeys(keys: Seq[String]): Seq[String] =
     keys.filterNot(k => (isMac && k == "Ctrl K") || (!isMac && k == "⌘K"))
+
+  private def helpColumn(sections: Seq[(String, Rows)]): Element =
+    div(styleAttr := "flex:1 1 300px;min-width:0",
+      sections.map { case (cat, rows) =>
+        div(dataAttr("help-section") := cat,
+          div(styleAttr := s"padding:8px 16px 3px;font-weight:600;font-size:10px;color:${Tokens.ink4};text-transform:uppercase;letter-spacing:.6px", cat),
+          rows.map { case (keys, desc) =>
+            div(styleAttr := "display:flex;align-items:center;justify-content:space-between;padding:4px 16px",
+              span(styleAttr := s"font-size:12px;color:${Tokens.ink2}", desc),
+              span(styleAttr := "display:flex;gap:4px;flex-shrink:0;margin-left:12px",
+                displayKeys(keys).map(k => span(styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;padding:1px 6px;border-radius:4px;background:${Tokens.panelAlt};border:1px solid ${Tokens.border};color:${Tokens.ink2};line-height:1.6;white-space:nowrap", k))))
+          })
+      })
 
   def helpOverlay(openVar: Var[Boolean]): Element =
     div(styleAttr := "display:contents",
@@ -183,26 +241,17 @@ object Chrome {
       if (!open) None
       else Some(
         div(dataAttr("help-overlay") := "1",
-          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.38);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:flex-start;padding-top:10vh;z-index:200",
+          styleAttr := "position:fixed;inset:0;background:rgba(20,20,18,0.38);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);display:flex;justify-content:center;align-items:flex-start;padding-top:8vh;z-index:200",
           onClick --> { _ => openVar.set(false) },
           div(cls := "scl-pop",
-            styleAttr := s"width:420px;max-width:90vw;background:color-mix(in srgb, ${Tokens.panel} 82%, transparent);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border:1px solid ${Tokens.border};border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px rgba(0,0,0,0.32);overflow:hidden",
+            styleAttr := s"width:720px;max-width:92vw;max-height:84vh;display:flex;flex-direction:column;background:color-mix(in srgb, ${Tokens.panel} 82%, transparent);-webkit-backdrop-filter:blur(26px) saturate(150%);backdrop-filter:blur(26px) saturate(150%);border:1px solid ${Tokens.border};border-radius:12px;box-shadow:0 1px 0 rgba(255,255,255,.06) inset,0 24px 60px rgba(0,0,0,0.32);overflow:hidden",
             onClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
-            div(styleAttr := s"display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid ${Tokens.borderSoft}",
-              span(styleAttr := s"font-weight:600;font-size:13px;color:${Tokens.ink}", "Keyboard shortcuts"),
+            div(styleAttr := s"display:flex;align-items:center;justify-content:space-between;padding:11px 16px;border-bottom:1px solid ${Tokens.borderSoft};flex-shrink:0",
+              span(styleAttr := s"font-weight:600;font-size:13px;color:${Tokens.ink}", "Mouse and keyboard"),
               button(styleAttr := s"border:none;background:transparent;cursor:pointer;color:${Tokens.ink3};font-family:${Tokens.mono};font-size:11px",
                 onClick --> { _ => openVar.set(false) }, "Esc")),
-            div(styleAttr := "padding:4px 0 8px",
-              shortcuts.map { case (cat, rows) =>
-                div(
-                  div(styleAttr := s"padding:8px 16px 3px;font-weight:600;font-size:10px;color:${Tokens.ink4};text-transform:uppercase;letter-spacing:.6px", cat),
-                  rows.map { case (keys, desc) =>
-                    div(styleAttr := "display:flex;align-items:center;justify-content:space-between;padding:4px 16px",
-                      span(styleAttr := s"font-size:12px;color:${Tokens.ink2}", desc),
-                      span(styleAttr := "display:flex;gap:4px;flex-shrink:0;margin-left:12px",
-                        displayKeys(keys).map(k => span(styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;padding:1px 6px;border-radius:4px;background:${Tokens.panelAlt};border:1px solid ${Tokens.border};color:${Tokens.ink2};line-height:1.6", k))))
-                  })
-              }))))
+            div(styleAttr := "padding:4px 0 8px;display:flex;flex-wrap:wrap;overflow-y:auto",
+              helpColumn(mouseHelp), helpColumn(keyHelp)))))
     })
 
   // ── Warnings banner ─────────────────────────────────────────────────────────

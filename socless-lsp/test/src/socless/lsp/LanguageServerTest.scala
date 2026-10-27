@@ -152,8 +152,9 @@ object LanguageServerTest extends TestSuite {
 
   // Shared by the tests below, which run in order: view, refresh, error, ...
   private lazy val fx = new Fixture()
+  // The opened panel URL without its query (`?panel=1`), to append paths to.
   private lazy val base: String = fx.client.documents.asScala.find(_.getExternal == true)
-    .map(_.getUri).getOrElse(sys.error("browser never opened"))
+    .map(_.getUri.takeWhile(_ != '?')).getOrElse(sys.error("browser never opened"))
 
   override def utestAfterAll(): Unit = fx.close()
 
@@ -275,7 +276,8 @@ object LanguageServerTest extends TestSuite {
       assert(st.test == "GCD computes gcd(48, 18)")
       val opened = fx.client.documents.asScala.filter(_.getExternal == true).toSeq
       assert(opened.size == 1)
-      assert(opened.head.getUri.matches("http://127\\.0\\.0\\.1:[0-9]+/"))
+      // the browser panel says it is an editor's (no tips, the hint bar not remembered)
+      assert(opened.head.getUri.matches("http://127\\.0\\.0\\.1:[0-9]+/\\?panel=1"))
       assert(fx.browser.isEmpty)
     }
     test("refresh on save") {
@@ -365,7 +367,7 @@ object LanguageServerTest extends TestSuite {
         f.cp = Left("nope")
         f.view(gcdArgs: _*)
         val url = eventually("openBrowser")(Option(f.browser.peek()))
-        assert(url.matches("http://127\\.0\\.0\\.1:[0-9]+/"))
+        assert(url.matches("http://127\\.0\\.0\\.1:[0-9]+/\\?panel=1"))
         f.view(gcdArgs: _*)
         eventually("second error")(Some(f.client.messages.size).filter(_ >= 2))
         assert(f.browser.size == 1)
@@ -448,7 +450,7 @@ object LanguageServerTest extends TestSuite {
       val f = new Fixture()
       try {
         f.view(gcdArgs: _*)
-        val b = eventually("browser url")(f.client.documents.asScala.find(_.getExternal == true).map(_.getUri))
+        val b = eventually("browser url")(f.client.documents.asScala.find(_.getExternal == true).map(_.getUri.takeWhile(_ != '?')))
         eventually("status ok")(Some(ide(b)).filter(_.status == "ok"))
         val good = get(b, "/design.json")
         assert(upickle.default.read[Design](good.body).top == "GCD")

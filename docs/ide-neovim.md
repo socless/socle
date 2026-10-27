@@ -100,7 +100,7 @@ vim.api.nvim_create_autocmd('CursorHold', {
    above the file).
 2. Put the cursor on the lens line and run it with `grx` (the 0.12 default
    mapping) or `:lua vim.lsp.codelens.run()`.
-3. The first view opens the panel at `http://127.0.0.1:<port>/` through
+3. The first view opens the panel at `http://127.0.0.1:<port>/?panel=1` through
    `vim.ui.open` (your desktop browser). The first run of a test module also
    compiles it with Mill, so it can take a while; later views take seconds.
    Until that first run succeeds the panel shows "waiting for the first design…".
@@ -120,7 +120,8 @@ The browser panel draws the same schematic as the VS Code panel: logic grouped
 into FSM, generator-loop and `logic` blocks, an FSM block's state diagram,
 folded generator copies and tied-port stubs. See
 [The schematic in the IDE view](ide-vscode.md#the-schematic-in-the-ide-view)
-in the VS Code guide.
+in the VS Code guide, and [Navigating the
+schematic](usage-ui.md#navigating-the-schematic) for the mouse and the keys.
 
 ## Simulate
 
@@ -204,7 +205,9 @@ comes from and how to rebuild it.
 
 In the browser panel the Waveform tab is always there. In `surfer` mode it
 says the waveforms are in the Surfer app, and how many of the module's
-signals the trace lacks.
+signals the trace lacks. With `surfer-panel`, the **● colours** chip beside
+Surfer's status says what each colour means
+([Waveform colours](usage-ui.md#waveform-colours)).
 
 ## How a view run is forked
 

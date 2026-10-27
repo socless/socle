@@ -49,6 +49,48 @@ const note = (design, where, msg) => {
 
 // Union of every data-symbol value seen across all designs/views (#203).
 const seenSymbolKinds = new Set();
+// Designs whose zoomed-in top view showed the minimap (its checks ran there).
+const minimapDesigns = new Set();
+// Designs whose top view had a visible top-level pin to rest on (highlight check).
+const pinRestDesigns = new Set();
+// Designs whose top view had a clickable bundle toggle / a drillable box for the
+// gesture checks (each must run on at least one design).
+const gestureToggleDesigns = new Set();
+const gestureDrillDesigns = new Set();
+const gestureBlockDesigns = new Set();
+const gestureNavDesigns = new Set();
+// Designs whose hovered box lit connected wires, whose box card gave instance
+// counts, and that had a drillable block for the cursor check (hover feedback).
+const hoverWireDesigns = new Set();
+const hoverCountDesigns = new Set();
+const cursorZoomDesigns = new Set();
+const cursorPointerDesigns = new Set();
+// Designs whose hint bar followed the target under the pointer (help).
+const hintDesigns = new Set();
+// Designs that walked the view history, flew to a block (in the module, from
+// another one), stopped a flight with a drag, and framed a selected wire.
+const historyDesigns = new Set();
+const flyDesigns = new Set();
+const flyCrossDesigns = new Set();
+const flightCancelDesigns = new Set();
+const zoomWireDesigns = new Set();
+// Designs that located a hierarchy row in its parent, picked an instance with
+// no editor open, and dropped a pending fly by a drag.
+const locateDesigns = new Set();
+const pickNoOpenDesigns = new Set();
+const stalePendingDesigns = new Set();
+// Designs that followed a net across levels, and whose resolution self-check
+// round-tripped at least one wire.
+const followDesigns = new Set();
+const followCheckDesigns = new Set();
+// Designs whose live reload kept the history and the followed net, and whose
+// fresh load cleared both (reload keeps navigation).
+const reloadNavDesigns = new Set();
+// Designs whose Esc closing the "?" card kept the followed net, and whose
+// interface pin dot toggled its bundle.
+const escCardDesigns = new Set();
+const pinDotDesigns = new Set();
+const fieldDotDesigns = new Set();
 
 const launchOpts = { args: ['--no-sandbox'] };
 if (EXEC) launchOpts.executablePath = EXEC;
@@ -67,11 +109,174 @@ console.log(`Designs: ${designs.join(', ')}`);
 // Each design runs in its own browser context (own page, routes and storage),
 // closed whatever happens.
 async function smokeDesign(design) {
+  if (design === designs[0]) await smokeHelpFirstRun(design);
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  // The first-time tips are seen: they would sit over the schematic on every
+  // first load (smokeHelpFirstRun checks them in a context of its own).
+  await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
   try {
     await smokeDesignIn(design, ctx);
   } finally {
     await ctx.close().catch(() => {});
+  }
+}
+
+// Help on a first visit, in a fresh context (empty storage): the first-time
+// tips show, Next moves on, Skip closes them for good; closing the hint bar
+// lasts across a reload, and the settings panel brings it back.
+async function smokeHelpFirstRun(design) {
+  const where = 'help first run';
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
+  try {
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    const load = async () => {
+      await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+      await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+      await page.waitForTimeout(300);
+    };
+    const dashes = /[\u2013\u2014]/;
+    const tips = page.locator('[data-first-tips]');
+    const bar = page.locator('[data-hint-bar]');
+    await load();
+    if (await tips.count() !== 1) note(design, where, 'no first-time tips on the first visit');
+    else {
+      const t1 = await page.locator('[data-first-tips-text]').textContent();
+      await page.locator('[data-first-tips-next]').click();
+      const t2 = await page.locator('[data-first-tips-text]').textContent().catch(() => null);
+      if (!t1 || !t2 || t1 === t2) note(design, where, `Next did not show another tip (${JSON.stringify(t1)} -> ${JSON.stringify(t2)})`);
+      if (dashes.test(t1 + t2)) note(design, where, `a tip has an en or em dash: ${t1} / ${t2}`);
+      await page.locator('[data-first-tips-skip]').click();
+      if (await tips.count()) note(design, where, 'Skip did not close the tips');
+    }
+    if (!await bar.isVisible()) note(design, where, 'no hint bar on the first visit');
+    else {
+      await page.locator('[data-hint-close]').click();
+      if (await bar.isVisible()) note(design, where, 'closing the hint bar did not hide it');
+    }
+    await load();
+    if (await tips.count()) note(design, where, 'the tips showed again after Skip and a reload');
+    if (await bar.isVisible()) note(design, where, 'the closed hint bar came back after a reload');
+    await page.locator('[data-settings-toggle]').click();
+    const tg = page.locator('[data-hint-toggle]');
+    if (!await tg.count()) note(design, where, 'no hint bar toggle in the settings panel');
+    else {
+      await tg.click();
+      await page.keyboard.press('Escape');
+      if (!await bar.isVisible()) note(design, where, 'the settings toggle did not bring the hint bar back');
+      await load();
+      if (!await bar.isVisible()) note(design, where, 'the hint bar turned back on was off again after a reload');
+    }
+    for (const e of errors) note(design, where, e);
+  } catch (e) {
+    note(design, where, (e && e.message) || String(e));
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
+// A live reload (a save in the editor) keeps the view history and the
+// followed net; a fresh load (here a dropped file) clears both and does not
+// seed the history with the path it leaves. On a page of its own: the dropped
+// file stops the live poller for the rest of that page.
+async function smokeReloadNav(design, ctx, top, W) {
+  const where = 'reload keeps navigation';
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  const fmt = JSON.stringify;
+  try {
+    await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+    const readView = () => page.evaluate(() => {
+      const t = document.querySelector('[data-content]')?.style.transform || '';
+      const m = t.match(/translate\(([-\d.e]+)px, ([-\d.e]+)px\) scale\(([-\d.e]+)\)/);
+      return m ? { x: +m[1], y: +m[2], z: +m[3] } : null;
+    });
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      let v = await readView();
+      for (let i = 0; i < 25; i++) {
+        await page.waitForTimeout(150);
+        const n = await readView();
+        if (fmt(n) === fmt(v)) break;
+        v = n;
+      }
+    };
+    const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+    const go = async (p) => { await page.locator(`[data-hier-path="${p}"]`).first().dispatchEvent('click'); await settle(); };
+    const hist = () => page.evaluate(() => window.__soclessHistory());
+    const follow = () => page.evaluate(() => window.__soclessFollow());
+    const sameNet = (a, b) => !!a && !!b && a.from === b.from && a.to === b.to && a.origin === b.origin;
+    await settle();
+    // Follow W with a real click on the wire.
+    const pt = await page.evaluate(([f, t]) => {
+      const el = document.querySelector(`path[data-wire="${f}"][data-wire-to="${t}"]`);
+      if (!el) return null;
+      const L = el.getTotalLength(); const m = el.getScreenCTM();
+      for (const k of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        const q = el.getPointAtLength(L * k);
+        const x = m.a * q.x + m.c * q.y + m.e, y = m.b * q.x + m.d * q.y + m.f;
+        const h = document.elementFromPoint(x, y);
+        if (h && (h === el || el.contains(h))) return { x, y };
+      }
+      return null;
+    }, W);
+    if (!pt) { note(design, where, `no visible wire ${W.join(' <= ')} to follow`); return; }
+    await page.mouse.click(pt.x, pt.y);
+    await page.waitForTimeout(150);
+    await go(`${top}/cluster0`);
+    await page.waitForTimeout(800); // past the settle delay: nothing pending
+    const h0 = await hist(); const f0 = await follow(); const c0 = await crumbs();
+    if (!f0 || !f0.net) { note(design, where, `no followed net before the reload: ${fmt(f0)}`); return; }
+    if (!h0 || h0.size < 2 || h0.index < 1) { note(design, where, `no Back entry before the reload: ${fmt(h0)}`); return; }
+
+    // The live reload: the served design, changed, under a later Last-Modified.
+    const served = JSON.parse(await page.evaluate(() => fetch('design.json', { cache: 'no-store' }).then((r) => r.text())));
+    served.sources = { ...(served.sources || {}), 'smoke/Reload.scala': '// a live reload\n' };
+    const body = JSON.stringify(served);
+    let gets = 0;
+    await page.route('**/design.json', (rt) => {
+      if (rt.request().method() === 'GET') gets++;
+      return rt.fulfill({ contentType: 'application/json', body, headers: { 'Last-Modified': 'Wed, 01 Jan 2031 00:00:00 GMT' } });
+    });
+    for (let t = 0; t < 10000 && gets === 0; t += 100) await page.waitForTimeout(100);
+    if (!gets) { note(design, where, 'the live poller never fetched the changed design'); return; }
+    await page.waitForTimeout(400);
+    await settle();
+    const h1 = await hist(); const f1 = await follow(); const c1 = await crumbs();
+    if (c1 !== c0) note(design, where, `the live reload moved the drill path: "${c0}" -> "${c1}"`);
+    if (!h1 || h1.size !== h0.size || h1.index !== h0.index)
+      note(design, where, `the live reload changed the history: ${fmt(h0)} -> ${fmt(h1)}`);
+    if (!f1 || !sameNet(f0.net, f1.net)) note(design, where, `the live reload dropped the followed net: ${fmt(f0 && f0.net)} -> ${fmt(f1 && f1.net)}`);
+    else if (!f1.wires.length) note(design, where, `after the live reload the followed net lights no wire in cluster0: ${fmt(f1)}`);
+    const litNow = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.follow').length);
+    if (!litNow) note(design, where, 'after the live reload no wire is drawn followed in cluster0');
+
+    // A fresh load (a dropped design file), still drilled into cluster0.
+    await page.unroute('**/design.json');
+    await page.evaluate((txt) => {
+      const dt = new DataTransfer();
+      dt.items.add(new File([txt], 'fresh.json', { type: 'application/json' }));
+      window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
+    }, body);
+    const dropped = await page.waitForSelector('[data-source="file"]', { timeout: 10000 }).then(() => true).catch(() => false);
+    if (!dropped) { note(design, where, 'the dropped design file never loaded'); return; }
+    await settle();
+    await page.waitForTimeout(300);
+    const h2 = await hist(); const f2 = await follow(); const c2 = await crumbs();
+    if (c2 !== top) note(design, where, `a fresh load did not reset to the top: "${c2}"`);
+    if (!h2 || h2.size > 1 || h2.entries.some((e) => e.path !== top))
+      note(design, where, `a fresh load kept or seeded the old history: ${fmt(h2 && h2.entries.map((e) => e.path))}`);
+    if (f2 && f2.net) note(design, where, `a fresh load kept the followed net: ${fmt(f2.net)}`);
+    if (!errors.length) reloadNavDesigns.add(design);
+  } catch (e) {
+    note(design, where, (e && e.message) || String(e));
+  } finally {
+    for (const e of errors) note(design, where, e);
+    await page.close().catch(() => {});
   }
 }
 
@@ -103,7 +308,16 @@ async function smokeDesignIn(design, ctx) {
     if (r.status() === 404 && !optional.some((s) => r.url().endsWith(s))) {
       errors.push('http 404: ' + r.url());
     }
+    if (/\/design\.json$/.test(r.url())) dj.push(`${r.request().method()} ${r.status()} ${r.headers()['last-modified'] || '-'} @${Date.now() - t0}ms`);
   });
+  // (Diagnostics: every design.json request and every design load of the page.)
+  const t0 = Date.now(), dj = [];
+  const loadLog = async () => {
+    const loads = await page.evaluate(() => JSON.stringify((window.__soclessLoads || []).map((l) => `${l.kind}@${Math.round(l.t)}`))).catch(() => '?');
+    const runs = await page.evaluate(() => JSON.stringify((window.__soclessEngineRuns || []).slice(-4).map((r) => `${r.key.slice(0, 120)} @${Math.round(r.t)} cache=${r.cached}`))).catch(() => '?');
+    const nRuns = await page.evaluate(() => (window.__soclessEngineRuns || []).length).catch(() => '?');
+    return `loads ${loads}, design.json [${dj.slice(-6).join('; ')}] (${dj.length}), engine misses ${nRuns}: ${runs}`;
+  };
 
   const drain = (where) => { while (errors.length) note(design, where, errors.shift()); };
 
@@ -247,6 +461,39 @@ async function smokeDesignIn(design, ctx) {
     for (const k of content.symbolKinds) seenSymbolKinds.add(k);
     drain(where);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__${path.replace(/[^\w.-]/g, '_')}.png` }).catch(() => {});
+  }
+
+  // Expansions are kept per module, and returning to a module never hangs its
+  // layout. In AXISystem, `mem` has an expandable `respQ.io.deq`: once a path of
+  // one module reached the top module's layout run, whose stale run then left
+  // "laying out..." on for good. Expand it in `mem`, go to the top (the layout
+  // must settle within 5 s), then come back: `respQ.io.deq` is still expanded.
+  if (design === 'axisystem') {
+    const where = 'expansions per module';
+    const top = paths[0].path;
+    const mem = `${top}/mem`;
+    const pin = 'respQ.io.deq';
+    const ready = () => page.waitForSelector('[data-layout-ready="1"]', { timeout: 5000 }).then(() => true).catch(() => false);
+    const mark = () => page.evaluate((p) => {
+      const e = document.querySelector(`[data-bundle-toggle="${p}"]`);
+      return e ? e.textContent.trim().charAt(0) : null;
+    }, pin);
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+    await ready();
+    await page.locator(`[data-hier-path="${mem}"]`).first().click().catch((e) => note(design, where, e.message));
+    if (!await ready()) note(design, where, `drill ${mem}: layout not ready within 5 s`);
+    await page.locator(`[data-bundle-toggle="${pin}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `expand ${pin}: ${e.message}`));
+    if (!await ready()) note(design, where, `expand ${pin}: layout not ready within 5 s`);
+    if (await mark() !== '−') note(design, where, `${pin} not expanded after its click (mark ${await mark()})`);
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+    if (!await ready()) note(design, where, `back to ${top}: "laying out..." stuck (data-layout-ready stays 0 after 5 s)`);
+    await page.locator(`[data-hier-path="${mem}"]`).first().click().catch((e) => note(design, where, e.message));
+    if (!await ready()) note(design, where, `return to ${mem}: layout not ready within 5 s`);
+    if (await mark() !== '−') note(design, where, `${pin} not kept expanded on return to ${mem} (mark ${await mark()})`);
+    // Collapse it again, so the later checks start from the default view.
+    await page.locator(`[data-bundle-toggle="${pin}"]`).first().click({ timeout: 3000 }).catch(() => {});
+    await ready();
+    drain(where);
   }
 
   // Generator copies fold into one box: in the captured DeepSoc, `cluster0`
@@ -875,10 +1122,14 @@ async function smokeDesignIn(design, ctx) {
         null, { timeout: 10000 }).then(() => true).catch(() => false);
       if (!closed) note(design, where, 'reload dropping the block: the diagram stayed open');
       drain(`${where} (reload dropping the block)`);
-      // Restore the served design for the later steps.
-      await serve(() => {});
-      await page.waitForSelector(`[data-fsm="${id}"]`, { timeout: 10000 }).catch(() => note(design, where, 'restore: the block never came back'));
+      // Restore the served design for the later steps: the poller sees the
+      // real file's stamp again and reloads it. Wait for that reload, or it
+      // (and its re-layout) lands in the middle of a later check.
+      const loadsBefore = await page.evaluate(() => (window.__soclessLoads || []).length);
       await page.unroute('**/design.json');
+      await page.waitForFunction((n) => (window.__soclessLoads || []).length > n, loadsBefore, { timeout: 10000 })
+        .catch(() => note(design, where, 'restore: the served design was never reloaded'));
+      await page.waitForSelector(`[data-fsm="${id}"]`, { timeout: 10000 }).catch(() => note(design, where, 'restore: the block never came back'));
       await settle();
     }
     drain(where);
@@ -888,6 +1139,1666 @@ async function smokeDesignIn(design, ctx) {
   if (paths.length) {
     await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});
     await page.waitForTimeout(150);
+  }
+
+  // Minimap (perf): zoomed in, it shows; panning moves only its viewport rect
+  // (its node rects are built once per geometry, never per pan), and a click or
+  // a drag in it moves the main view there.
+  await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+  {
+    const where = 'minimap';
+    const zoomIn = page.locator('button[title="Zoom in"]');
+    for (let i = 0; i < 5 && await page.locator('[data-minimap]').count() === 0; i++) {
+      await zoomIn.click().catch((e) => note(design, where, e.message));
+      await page.waitForTimeout(60);
+    }
+    if (await page.locator('[data-minimap]').count()) {
+      minimapDesigns.add(design);
+      await page.evaluate(() => {
+        const mm = document.querySelector('[data-minimap]');
+        const S = window.__mmSmoke = { el: mm, muts: 0, swaps: 0 };
+        S.obs = new MutationObserver((recs) => { for (const r of recs) if (r.type === 'childList') S.muts++; });
+        S.obs.observe(mm, { childList: true, subtree: true });
+        // (Diagnostics for a rebuild: how often the minimap left its parent,
+        // and the viewport size around the pan.)
+        const vpEl = document.querySelector('[data-content]').parentElement;
+        S.vp = () => `${vpEl.clientWidth}x${vpEl.clientHeight}`;
+        S.vp0 = S.vp();
+        S.pobs = new MutationObserver((recs) => {
+          for (const r of recs) for (const n of r.removedNodes) if (n === S.el) S.swaps++;
+        });
+        S.pobs.observe(mm.parentElement, { childList: true });
+        // A layout landing (data-layout-ready) or a content rebuild during the pan.
+        const ready = document.querySelector('[data-layout-ready]');
+        const content = document.querySelector('[data-content]');
+        S.ready0 = ready && ready.getAttribute('data-layout-ready');
+        S.readyFlips = 0; S.contentMuts = 0;
+        S.robs = new MutationObserver(() => S.readyFlips++);
+        if (ready) S.robs.observe(ready, { attributes: true, attributeFilter: ['data-layout-ready'] });
+        S.cobs = new MutationObserver(() => S.contentMuts++);
+        if (content) S.cobs.observe(content, { childList: true });
+      });
+      const rectOf = () => page.evaluate(() => {
+        const r = document.querySelector('[data-minimap-viewport]');
+        return r ? r.style.transform : null;
+      });
+      const rect0 = await rectOf();
+      const vp = await page.locator('[data-content]').first().evaluate((el) => {
+        const r = el.parentElement.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      });
+      await page.mouse.move(vp.x, vp.y);
+      await page.mouse.down({ button: 'middle' });
+      for (let i = 1; i <= 10; i++) { await page.mouse.move(vp.x - 6 * i, vp.y - 4 * i); await page.waitForTimeout(16); }
+      await page.mouse.up({ button: 'middle' });
+      await page.waitForTimeout(80);
+      const r = await page.evaluate(() => {
+        const S = window.__mmSmoke; S.obs.disconnect(); S.pobs.disconnect(); S.robs.disconnect(); S.cobs.disconnect();
+        return {
+          same: S.el.isConnected && document.querySelector('[data-minimap]') === S.el, muts: S.muts,
+          swaps: S.swaps, shown: !!document.querySelector('[data-minimap]'), vp: `${S.vp0} -> ${S.vp()}`,
+          ready: `${S.ready0}, ${S.readyFlips} flips`, contentMuts: S.contentMuts,
+        };
+      });
+      const rect1 = await rectOf();
+      if (!r.same) note(design, where, `panning rebuilt the minimap element (left its parent ${r.swaps}x, shown after: ${r.shown}, viewport ${r.vp}, layout-ready ${r.ready}, content rebuilds ${r.contentMuts}; ${await loadLog()})`);
+      else if (r.muts) note(design, where, `panning mutated the minimap's children (${r.muts} childList records)`);
+      if (rect0 === rect1) note(design, where, `panning did not move the minimap viewport rect (${rect0})`);
+      // A click in the minimap, then a drag in it, each move the main view.
+      const mmBox = await page.locator('[data-minimap]').first().boundingBox();
+      if (mmBox) {
+        const v0 = await readView();
+        await page.mouse.click(mmBox.x + mmBox.width * 0.85, mmBox.y + mmBox.height * 0.85);
+        await page.waitForTimeout(60);
+        const v1 = await readView();
+        if (!v0 || !v1 || (Math.abs(v1.x - v0.x) < 1 && Math.abs(v1.y - v0.y) < 1))
+          note(design, where, `a click in the minimap did not move the view (${JSON.stringify(v0)} -> ${JSON.stringify(v1)})`);
+        await page.mouse.move(mmBox.x + mmBox.width * 0.8, mmBox.y + mmBox.height * 0.8);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) { await page.mouse.move(mmBox.x + mmBox.width * (0.8 - 0.1 * i), mmBox.y + mmBox.height * (0.8 - 0.1 * i)); await page.waitForTimeout(16); }
+        await page.mouse.up();
+        await page.waitForTimeout(60);
+        const v2 = await readView();
+        if (!v1 || !v2 || (Math.abs(v2.x - v1.x) < 1 && Math.abs(v2.y - v1.y) < 1))
+          note(design, where, `a drag in the minimap did not move the view (${JSON.stringify(v1)} -> ${JSON.stringify(v2)})`);
+      }
+    }
+    // Leave a user-set view (1:1), as the drill back left it: an automatic fit
+    // here would refit on the bundle expansions below and trip the #207 check.
+    await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
+    await page.waitForTimeout(60);
+    drain(where);
+  }
+
+  // A point on the element's visible part where it is the topmost hit (the
+  // highlight and gesture checks below).
+  const pointOn = (sel) => page.evaluate((sel) => {
+    const hits = (el, x, y) => { const h = document.elementFromPoint(x, y); return h && (h === el || el.contains(h)); };
+    const vp = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+    const inside = (x, y) => x > vp.left + 4 && y > vp.top + 4 && x < vp.right - 4 && y < vp.bottom - 4;
+    for (const el of document.querySelectorAll(sel)) {
+      if (el instanceof SVGPathElement) {
+        const L = el.getTotalLength(); if (!L) continue;
+        const m = el.getScreenCTM();
+        for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+          const q = el.getPointAtLength(L * f);
+          const x = m.a * q.x + m.c * q.y + m.e, y = m.b * q.x + m.d * q.y + m.f;
+          if (inside(x, y) && hits(el, x, y)) return { x, y };
+        }
+      } else {
+        // The centre of its part inside the viewport.
+        const r = el.getBoundingClientRect();
+        const l = Math.max(r.left, vp.left + 5), t = Math.max(r.top, vp.top + 5);
+        const rr = Math.min(r.right, vp.right - 5), b = Math.min(r.bottom, vp.bottom - 5);
+        const x = (l + rr) / 2, y = (t + b) / 2;
+        if (rr > l && b > t && inside(x, y) && hits(el, x, y)) return { x, y };
+      }
+    }
+    return null;
+  }, sel);
+
+  // The tooltip card when shown (null when hidden): kind, fields, whether it
+  // sits inside the content layer (it must not).
+  const tipRead = () => page.evaluate(() => {
+    const t = document.querySelector('[data-tooltip]');
+    if (!t || getComputedStyle(t).display === 'none') return null;
+    const f = (k) => t.querySelector(`[data-tip-${k}]`)?.textContent || '';
+    return { kind: t.getAttribute('data-tip-kind'), name: f('name'), type: f('type'), detail: f('detail'),
+             actions: f('actions'), text: t.textContent, inContent: !!t.closest('[data-content]') };
+  });
+  const tipShown = async () => !!(await tipRead());
+
+  // Highlights are styling, never a rebuild (perf): resting the pointer on a
+  // wire, a box or a pin changes nothing in the schematic after it entered (a
+  // re-render under the pointer re-fired mouseenter and looped every frame),
+  // and a selection only toggles classes (no child list changes). Real pointer
+  // moves, so the browser's own enter/leave events run.
+  {
+    const where = 'highlight rest/select';
+    const watch = () => page.evaluate(() => {
+      const S = window.__hlSmoke = { child: 0, attrs: 0 };
+      S.obs = new MutationObserver((rs) => { for (const r of rs) { if (r.type === 'childList') S.child++; else S.attrs++; } });
+      S.obs.observe(document.querySelector('[data-content]'), { childList: true, subtree: true, attributes: true });
+    });
+    const unwatch = () => page.evaluate(() => { const S = window.__hlSmoke; S.obs.disconnect(); return { child: S.child, attrs: S.attrs }; });
+    const away = async () => { const vp = await page.locator('[data-content]').first().evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.right - 8, y: r.bottom - 8 }; }); await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80); };
+    // A wire and a box light on hover (`.hov`, the box's `.ohov` outline). The
+    // tooltip card appears inside the watched second (600 ms after the pointer
+    // stopped) and must change nothing in the content: it is checked shown at
+    // its end, so the guard provably spans it.
+    const targets = [
+      ['wire', 'path[data-wire]'],
+      ['box', '[data-box-inst]'],
+      ['block', '[data-block]'],
+      ['pin', '[data-pin]'],
+    ];
+    // What a click selects: a box's header, or a register / op symbol.
+    const selectTargets = [targets[0], ['box', '[data-box-inst] > div:first-child, [data-logic-node]']];
+    for (const [kind, sel] of targets) {
+      const pt = await pointOn(sel);
+      // Not every top view has a top-level pin (scattered bundles are all rows):
+      // the pin check must run on at least one design (summary below).
+      // Logic blocks exist only in captured views.
+      if (!pt) { if (kind !== 'pin' && kind !== 'block') note(design, where, `no visible ${kind} to rest on (${sel})`); continue; }
+      if (kind === 'pin') pinRestDesigns.add(design);
+      if (kind === 'block') console.log(`[${design}] rest on a logic block`);
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(200);
+      // The pointer really is on the wire: its hover lit (else the rest below
+      // would pass on a wire that never entered).
+      if (kind === 'wire' && !(await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.hov').length)))
+        note(design, where, 'resting on a wire did not light it (no .scl-w.hov)');
+      if (kind === 'box' && !(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-box-inst]')?.classList.contains('ohov'), [pt.x, pt.y])))
+        note(design, where, 'resting on a box did not outline it (no .ohov)');
+      await watch();
+      await page.waitForTimeout(1000);
+      const m = await unwatch();
+      if (m.child || m.attrs) note(design, where, `resting on a ${kind} for 1 s mutated the schematic (${m.child} childList, ${m.attrs} attribute records)`);
+      if (!(await tipShown())) note(design, where, `resting on a ${kind} for 1.2 s showed no tooltip card`);
+      await away();
+    }
+    // Select (and deselect) a wire, then a box: classes only.
+    for (const [kind, sel] of selectTargets) {
+      const pt = await pointOn(sel);
+      if (!pt) { note(design, where, `no visible ${kind} to select (${sel})`); continue; }
+      await watch();
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(150);
+      const lit = await page.evaluate(() => document.querySelectorAll('[data-content] .hl, [data-content] .sel').length);
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(150);
+      const m = await unwatch();
+      if (m.child) note(design, where, `selecting a ${kind} rebuilt the schematic (${m.child} childList records)`);
+      else if (!lit) note(design, where, `selecting a ${kind} lit nothing`);
+      await away();
+    }
+    // The indexed highlight matching agrees with a full scan on every key of
+    // this view (wire ends, pins, boxes and their prefixes).
+    const chk = await page.evaluate(() => window.__soclessHighlightCheck ? window.__soclessHighlightCheck() : null);
+    if (!chk) note(design, where, 'no window.__soclessHighlightCheck hook');
+    else if (chk.bad.length) note(design, where, `indexed matches differ from a scan for ${chk.bad.length}/${chk.keys} keys: ${chk.bad.slice(0, 5).join(', ')}`);
+    else if (!chk.keys) note(design, where, 'the highlight self-check saw no keys');
+    else console.log(`[${design}] highlight self-check: ${chk.keys} keys agree`);
+    drain(where);
+  }
+
+  // Hover feedback: a hovered box gets an outline and its connected wires are
+  // drawn thicker in the same colour, by classes only (no child list change);
+  // after 600 ms a tooltip card (outside the content layer) names what is under
+  // the pointer and what the mouse does there; leaving, a press that drags and
+  // the wheel hide it, and it never shows during a drag; the cursor is
+  // `zoom-in` over a block a double-click opens.
+  {
+    const where = 'hover feedback';
+    const away = async () => { const vp = await page.locator('[data-content]').first().evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.right - 8, y: r.bottom - 8 }; }); await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80); };
+    const dashes = /[\u2013\u2014]/;
+    const checkTip = (t, what) => {
+      if (!t) { note(design, where, `no tooltip card after resting on ${what}`); return false; }
+      if (t.inContent) note(design, where, `the tooltip card is inside the content layer (${what})`);
+      if (!t.name) note(design, where, `the tooltip card for ${what} has no name: ${JSON.stringify(t)}`);
+      if (dashes.test(t.text)) note(design, where, `the tooltip card for ${what} has an en or em dash: ${t.text}`);
+      return true;
+    };
+    // The box (or boundary stub) id a wire end belongs to: the path itself, its
+    // head, or the head of a logic node's synthetic pin (`x~q`, `x~in0`).
+    const lit = (pt) => page.evaluate(([x, y]) => {
+      const box = document.elementFromPoint(x, y)?.closest('[data-box-inst], [data-boundary-stub]');
+      if (!box) return null;
+      const id = box.getAttribute('data-box-inst') ?? box.getAttribute('data-boundary-stub');
+      const ids = new Set(Array.from(document.querySelectorAll('[data-content] [data-box-inst], [data-content] [data-boundary-stub]'))
+        .map((e) => e.getAttribute('data-box-inst') ?? e.getAttribute('data-boundary-stub')));
+      const owner = (p) => { if (ids.has(p)) return p; const h = p.split('.')[0]; return ids.has(h) || h.startsWith('const$') ? h : h.split('~')[0]; };
+      const wires = Array.from(document.querySelectorAll('[data-content] .scl-w'));
+      const want = wires.filter((w) => owner(w.getAttribute('data-from') || '') === id || owner(w.getAttribute('data-to') || '') === id);
+      const got = wires.filter((w) => w.classList.contains('ohov'));
+      const missing = want.filter((w) => !got.includes(w)).length, extra = got.filter((w) => !want.includes(w)).length;
+      const sw = (w) => parseFloat(getComputedStyle(w.querySelectorAll('path')[1]).strokeWidth);
+      const other = wires.find((w) => !w.classList.contains('ohov') && !w.classList.contains('fl'));
+      const thick = want.filter((w) => !w.classList.contains('fl')).every((w) => !other || sw(w) > sw(other));
+      const colour = getComputedStyle(box).outlineColor;
+      const same = got.every((w) => getComputedStyle(w.querySelectorAll('path')[1]).stroke === colour);
+      const label = box.querySelector(':scope > div:first-child')?.textContent || id;
+      return { id, label, outlined: box.classList.contains('ohov'), outline: getComputedStyle(box).outlineStyle,
+               want: want.length, missing, extra, thick, same, colour, boxesLit: document.querySelectorAll('[data-content] .ohov:not(.scl-w)').length,
+               drillable: box.getAttribute('data-box-drillable') === '1' && !box.hasAttribute('data-fold-group'),
+               folded: box.hasAttribute('data-fold-group') };
+    }, [pt.x, pt.y]);
+    const watchChild = () => page.evaluate(() => {
+      const S = window.__hfSmoke = { child: 0 };
+      S.obs = new MutationObserver((rs) => { for (const r of rs) if (r.type === 'childList') S.child++; });
+      S.obs.observe(document.querySelector('[data-content]'), { childList: true, subtree: true });
+    });
+    const unwatchChild = () => page.evaluate(() => { const S = window.__hfSmoke; S.obs.disconnect(); return S.child; });
+
+    // The hint bar: outside the content layer, one line that follows the
+    // target under the pointer.
+    const hintRead = () => page.evaluate(() => {
+      const b = document.querySelector('[data-hint-bar]');
+      const t = b && b.querySelector('[data-hint-text]');
+      const name = b && b.querySelector('[data-hint-name]');
+      return t ? { text: (name && name.textContent ? name.textContent + ' ' : '') + t.textContent, inContent: !!b.closest('[data-content]') } : null;
+    });
+    const hintBg = { text: '' };
+
+    // A box: prefer an instance (they carry data-box-drillable).
+    const boxSel = (await pointOn('[data-box-drillable]')) ? '[data-box-drillable]' : '[data-box-inst]';
+    const pt = await pointOn(boxSel);
+    if (!pt) note(design, where, `no visible box to hover (${boxSel})`);
+    else {
+      await away();
+      const hb0 = await hintRead();
+      if (!hb0) note(design, where, 'no hint bar text ([data-hint-bar] [data-hint-text])');
+      else {
+        hintBg.text = hb0.text;
+        if (hb0.inContent) note(design, where, 'the hint bar is inside the content layer');
+        if (!/Wheel: zoom/.test(hb0.text)) note(design, where, `the hint off any target does not say what the wheel does: ${hb0.text}`);
+      }
+      await watchChild();
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(200);
+      const h = await lit(pt);
+      const hb1 = await hintRead();
+      if (hb0 && hb1) {
+        if (hb1.text === hb0.text) note(design, where, `the hint did not change on box ${h && h.id}: ${hb1.text}`);
+        if (h && h.drillable && !/Double-click: open/.test(hb1.text)) note(design, where, `the hint on drillable box ${h.id} does not say how to open it: ${hb1.text}`);
+        if (/[\u2013\u2014]/.test(hb0.text + hb1.text)) note(design, where, `the hint has an en or em dash: ${hb1.text}`);
+      }
+      if (!h) note(design, where, 'no box under the pointer');
+      else {
+        if (!h.outlined || h.outline === 'none') note(design, where, `hovering box ${h.id} did not outline it (${JSON.stringify(h)})`);
+        if (h.boxesLit !== 1) note(design, where, `hovering box ${h.id} outlined ${h.boxesLit} boxes`);
+        if (h.missing || h.extra) note(design, where, `hovering box ${h.id}: ${h.missing} of its ${h.want} wires not lit, ${h.extra} other wires lit`);
+        if (!h.thick) note(design, where, `hovering box ${h.id} did not draw its wires thicker`);
+        if (!h.same) note(design, where, `hovering box ${h.id} drew its wires in another colour than its outline (${h.colour})`);
+        if (h.want) hoverWireDesigns.add(design);
+      }
+      const child = await unwatchChild();
+      if (child) note(design, where, `hovering a box changed the content's children (${child} childList records)`);
+      await page.waitForTimeout(800);
+      const t = await tipRead();
+      if (h && checkTip(t, `box ${h.id}`)) {
+        if (t.kind !== 'box') note(design, where, `the card on box ${h.id} is a ${t.kind} card`);
+        if (!t.name.startsWith(h.id) && !h.label.includes(t.name)) note(design, where, `the card on box ${h.id} (${h.label}) names ${t.name}`);
+        if (!t.type) note(design, where, `the card on box ${h.id} has no type`);
+        const opens = /Double-click: open/.test(t.actions);
+        if (opens !== h.drillable) note(design, where, `the card on box ${h.id} (drillable ${h.drillable}) says: ${t.actions}`);
+        if (h.folded && !/Double-click: unfold/.test(t.actions)) note(design, where, `the card on folded box ${h.id} says: ${t.actions}`);
+        if (!/Drag: pan/.test(t.actions)) note(design, where, `the card on box ${h.id} does not mention the drag: ${t.actions}`);
+        if (/instance/.test(t.detail)) hoverCountDesigns.add(design);
+        const hb = await hintRead();
+        if (hb && !hb.text.includes(t.actions)) note(design, where, `the hint on box ${h.id} (${hb.text}) does not give the card's actions (${t.actions})`);
+        else if (hb) hintDesigns.add(design);
+      }
+      // Leaving hides the card and the outline.
+      await away();
+      if (await tipShown()) note(design, where, 'the card stayed after the pointer left the box');
+      if (await page.evaluate(() => document.querySelectorAll('[data-content] .ohov').length)) note(design, where, 'the outline stayed after the pointer left the box');
+      // A press that drags hides the card at once, and nothing shows or lights during the drag.
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(900);
+      if (!await tipShown()) note(design, where, 'no card before the drag check');
+      await page.mouse.down();
+      await page.mouse.move(pt.x + 10, pt.y + 8);
+      await page.waitForTimeout(30);
+      if (await tipShown()) note(design, where, 'a drag did not hide the card');
+      for (let i = 1; i <= 4; i++) { await page.mouse.move(pt.x + 10 + 3 * i, pt.y + 8 + 2 * i); await page.waitForTimeout(40); }
+      await page.waitForTimeout(800);
+      if (await tipShown()) note(design, where, 'a card showed during a drag');
+      if (await page.evaluate(() => document.querySelectorAll('[data-content] .ohov').length)) note(design, where, 'something is outlined during a drag');
+      await page.mouse.up();
+      await page.waitForTimeout(60);
+      // The wheel hides it too.
+      const pt2 = await pointOn(boxSel);
+      if (pt2) {
+        await page.mouse.move(pt2.x, pt2.y);
+        await page.waitForTimeout(900);
+        if (await tipShown()) {
+          await page.mouse.wheel(0, 40);
+          await page.waitForTimeout(60);
+          if (await tipShown()) note(design, where, 'the wheel did not hide the card');
+        } else note(design, where, 'no card before the wheel check');
+      }
+      await away();
+      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
+      await page.waitForTimeout(60);
+    }
+
+    // A wire: the card names both ends.
+    {
+      const pw = await pointOn('path[data-wire]');
+      if (pw) {
+        const ends = await page.evaluate(([x, y]) => { const p = document.elementFromPoint(x, y).closest('path[data-wire]'); return [p.getAttribute('data-wire'), p.getAttribute('data-wire-to')]; }, [pw.x, pw.y]);
+        await page.mouse.move(pw.x, pw.y);
+        await page.waitForTimeout(900);
+        const t = await tipRead();
+        if (checkTip(t, `wire ${ends[0]}`)) {
+          if (t.kind !== 'wire') note(design, where, `the card on wire ${ends[0]} is a ${t.kind} card`);
+          // As the card writes a logic pin: `x~in0` is `x.in0`, `r~q` is `r`.
+          const pretty = (p) => p.replace(/^([^.]*?)~in(\d+)(?=\.|$)/, '$1.in$2').replace(/^([^.]*?)~q(?=\.|$)/, '$1');
+          if (!ends[1] || !t.detail.includes(pretty(ends[0])) || !t.detail.includes(pretty(ends[1]))) note(design, where, `the card on wire ${ends.join(' / ')} does not name both ends: ${t.text}`);
+        }
+        const hb = await hintRead();
+        if (hb && (!/^Wire/.test(hb.text) || !/Click: select and follow the net/.test(hb.text) || hb.text === hintBg.text)) note(design, where, `the hint on wire ${ends[0]} is: ${hb.text}`);
+        await away();
+      }
+    }
+    // A pin: direction (and width when known).
+    {
+      const pp = await pointOn('[data-pin]');
+      if (pp) {
+        await page.mouse.move(pp.x, pp.y);
+        await page.waitForTimeout(900);
+        const t = await tipRead();
+        if (checkTip(t, 'a pin')) {
+          if (t.kind !== 'pin') note(design, where, `the card on a pin is a ${t.kind} card`);
+          if (!/^(input|output|inout|master|slave)/.test(t.type)) note(design, where, `the card on a pin gives no direction: ${t.text}`);
+        }
+        await away();
+      }
+    }
+    // A logic block or an FSM (captured views): what it is.
+    for (const sel of ['[data-block]', '[data-fsm]']) {
+      const pb = await pointOn(sel);
+      if (!pb) continue;
+      await page.mouse.move(pb.x, pb.y);
+      await page.waitForTimeout(900);
+      const t = await tipRead();
+      if (checkTip(t, sel)) {
+        if (!t.type) note(design, where, `the card on ${sel} does not say what it is: ${t.text}`);
+        console.log(`[${design}] hover card on ${sel}: ${t.name} | ${t.type} | ${t.actions}`);
+      }
+      await away();
+    }
+
+    // The cursor says what a click does: zoom-in on a block a double-click opens
+    // (its title too), pointer on the title of one it does not and on what a
+    // click anywhere selects (a register or op symbol, a boundary stub).
+    {
+      const cur = (p) => page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h ? getComputedStyle(h).cursor : null; }, [p.x, p.y]);
+      const pd = await pointOn('[data-box-drillable="1"] > div:first-child');
+      if (pd) {
+        cursorZoomDesigns.add(design);
+        const c = await cur(pd);
+        if (c !== 'zoom-in') note(design, where, `the cursor on a drillable block's title is ${c}, not zoom-in`);
+        const pb = await pointOn('[data-box-drillable="1"]');
+        const onRow = pb && await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y).closest('[data-bundle-toggle], [data-pin], [data-fold-toggle]'), [pb.x, pb.y]);
+        if (pb && !onRow && await cur(pb) !== 'zoom-in') note(design, where, `the cursor on a drillable block is ${await cur(pb)}, not zoom-in`);
+      }
+      const pn = await pointOn('[data-box-drillable="0"]:not([data-fold-group]) > div:first-child');
+      if (pn && await cur(pn) !== 'pointer') note(design, where, `the cursor on a leaf block's title is ${await cur(pn)}, not pointer`);
+      // A register or op symbol, and a boundary stub, select on a click anywhere on them.
+      for (const [what, sel] of [['logic symbol', '[data-logic-node]'], ['boundary stub', '[data-boundary-stub]']]) {
+        const ps = await pointOn(sel);
+        if (!ps) continue;
+        cursorPointerDesigns.add(design);
+        const c = await cur(ps);
+        if (c !== 'pointer') note(design, where, `the cursor on a ${what} is ${c}, not pointer`);
+      }
+    }
+
+    // The tooltip content function on every box, wire and pin of this view.
+    const tc = await page.evaluate(() => window.__soclessTooltipCheck ? window.__soclessTooltipCheck() : null);
+    if (!tc) note(design, where, 'no window.__soclessTooltipCheck hook');
+    else if (tc.bad.length) note(design, where, `tooltip content is empty or has a dash for ${tc.bad.length}/${tc.n} targets: ${tc.bad.slice(0, 5).join(', ')}`);
+    else console.log(`[${design}] tooltip content: ${tc.n} targets`);
+    drain(where);
+  }
+
+  // Gestures: a drag from anywhere (a box, a wire, a title) pans the view once
+  // past 4 px, with the `grabbing` cursor, and selects, opens or expands
+  // nothing (no class toggles mid-drag either); a press that moves less is
+  // still a click (select, bundle toggle, double-click drill); a middle-button
+  // drag pans at once; the plain wheel zooms, Shift + wheel scrolls
+  // horizontally and Ctrl + wheel vertically (trackpads through the classify
+  // hook); the arrow, +, -, f and 0 keys act only with the focus on the body
+  // or the schematic.
+  await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+  {
+    const where = 'gestures';
+    // What a click selects: an instance's title, or a logic symbol (a view
+    // with no instances, like GCD's).
+    const titleSel = '[data-box-inst] > div:first-child, [data-logic-node]';
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForTimeout(150);
+    };
+    const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+    const isSelected = () => page.evaluate(() => document.querySelector('[data-content]').classList.contains('hl-sel'));
+    const vpRect = () => page.locator('[data-content]').first().evaluate((el) => {
+      const r = el.parentElement.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height };
+    });
+    // A background point: in the viewport, on no element of the schematic.
+    const bgPoint = () => page.evaluate(() => {
+      const vpEl = document.querySelector('[data-content]').parentElement; const vp = vpEl.getBoundingClientRect();
+      for (let fy = 0.1; fy < 0.95; fy += 0.08) for (let fx = 0.05; fx < 0.95; fx += 0.05) {
+        const x = vp.left + vp.width * fx, y = vp.top + vp.height * fy;
+        const h = document.elementFromPoint(x, y);
+        if (h && vpEl.contains(h) && !h.closest('[data-pan-block]')) return { x, y };
+      }
+      return null;
+    });
+    const jitterClick = async (pt, jx, jy) => {
+      await page.mouse.move(pt.x, pt.y);
+      await page.mouse.down();
+      await page.mouse.move(pt.x + jx, pt.y + jy);
+      await page.mouse.up();
+      await page.waitForTimeout(120);
+    };
+    const clearSel = async () => {
+      if (!await isSelected()) return;
+      const b = await bgPoint();
+      if (b) await jitterClick(b, 0, 0);
+    };
+    const hovCount = () => page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.hov').length);
+    // Records under the content layer, except its own (the transform moves every frame).
+    const watchDrag = () => page.evaluate(() => {
+      const content = document.querySelector('[data-content]');
+      const S = window.__gSmoke = { child: 0, attrs: 0 };
+      S.obs = new MutationObserver((rs) => { for (const r of rs) { if (r.type === 'childList') S.child++; else if (r.target !== content) S.attrs++; } });
+      S.obs.observe(content, { childList: true, subtree: true, attributes: true });
+    });
+    const unwatchDrag = () => page.evaluate(() => { const S = window.__gSmoke; S.obs.disconnect(); return { child: S.child, attrs: S.attrs }; });
+
+    // A drag of (40, 30) px in 5 steps from each kind of element.
+    for (const [kind, sel] of [['box', '[data-box-inst]'], ['wire', 'path[data-wire]'], ['title', titleSel]]) {
+      await clearSel();
+      const pt = await pointOn(sel);
+      if (!pt) { note(design, where, `no visible ${kind} to drag from (${sel})`); continue; }
+      const v0 = await readView(); const c0 = await crumbs();
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(60);
+      await page.mouse.down();
+      let cursor = null;
+      for (let i = 1; i <= 5; i++) {
+        const x = pt.x + 8 * i, y = pt.y + 6 * i;
+        await page.mouse.move(x, y);
+        await page.waitForTimeout(20);
+        if (i === 2) await watchDrag(); // the pan has started: nothing toggles from here on
+        if (i === 3) cursor = await page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h ? getComputedStyle(h).cursor : null; }, [x, y]);
+      }
+      const m = await unwatchDrag();
+      await page.mouse.up();
+      await page.waitForTimeout(100);
+      const v1 = await readView();
+      if (!v0 || !v1 || Math.abs(v1.x - v0.x - 40) > 1.5 || Math.abs(v1.y - v0.y - 30) > 1.5 || v1.z !== v0.z)
+        note(design, where, `a drag of (40, 30) from a ${kind} did not pan the view by it: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
+      if (await isSelected()) note(design, where, `a drag from a ${kind} selected something`);
+      const c1 = await crumbs();
+      if (c1 !== c0 || await page.locator('[data-fsm-diagram]').count()) note(design, where, `a drag from a ${kind} opened something (${c0} -> ${c1})`);
+      if (m.child) note(design, where, `a drag from a ${kind} rebuilt the schematic (${m.child} childList records: an expand, a fold or a drill)`);
+      if (m.attrs) note(design, where, `a drag from a ${kind} toggled classes or attributes mid-drag (${m.attrs} records)`);
+      if (cursor !== 'grabbing') note(design, where, `the cursor mid-drag from a ${kind} is ${cursor}, not grabbing`);
+      const txt = await page.evaluate(() => String(window.getSelection()));
+      if (txt) note(design, where, `a drag from a ${kind} selected text (${JSON.stringify(txt.slice(0, 40))})`);
+      // The hover follows the pointer again after the drag: ending off a wire leaves none lit.
+      const end = { x: pt.x + 41, y: pt.y + 31 };
+      await page.mouse.move(end.x, end.y);
+      await page.waitForTimeout(80);
+      const onWire = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('path[data-wire]'), [end.x, end.y]);
+      if (!onWire && await hovCount()) note(design, where, `a drag from a ${kind} ending off a wire left a wire hovered`);
+      // A drag from a wire ends on it (the content follows the pointer): its hover comes back.
+      if (kind === 'wire' && onWire) {
+        if (!await hovCount()) note(design, where, 'a drag from a wire ending on it left no wire hovered after a move');
+        else console.log(`[${design}] gestures: the wire hover is back after a drag from it`);
+      }
+    }
+
+    // A press that moves less than 4 px is a click: it selects, a second one
+    // deselects, and one on the background clears the selection.
+    {
+      await clearSel();
+      const pt = await pointOn(titleSel);
+      if (!pt) note(design, where, 'no visible title to click');
+      else {
+        for (const [jx, jy] of [[3, 0], [2, 2]]) {
+          await jitterClick(pt, jx, jy);
+          if (!await isSelected()) note(design, where, `a click with (${jx}, ${jy}) px of jitter on a title did not select`);
+          await jitterClick(pt, jx, jy);
+          if (await isSelected()) note(design, where, `a second click with (${jx}, ${jy}) px of jitter on a title did not deselect`);
+        }
+        await jitterClick(pt, 1, 1);
+        const b = await bgPoint();
+        if (b) {
+          await jitterClick(b, 2, 1);
+          if (await isSelected()) note(design, where, 'a click with jitter on the background did not clear the selection');
+        }
+      }
+    }
+
+    // A jittered click on a bundle toggle still toggles it (and back).
+    {
+      const pt = await pointOn('[data-bundle-toggle]');
+      if (pt) {
+        gestureToggleDesigns.add(design);
+        const key = await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('[data-bundle-toggle]').getAttribute('data-bundle-toggle'), [pt.x, pt.y]);
+        const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${k}"]`); return e ? e.textContent.trim().charAt(0) : null; }, key);
+        const m0 = await mark();
+        await jitterClick(pt, 3, 0);
+        await settle();
+        const m1 = await mark();
+        // An expanded Vec shows its elements' rows in place of its own (no toggle back).
+        const replaced = m1 === null && await page.evaluate((k) => !!document.querySelector(`[data-bundle-toggle^="${k}["]`), key);
+        if (m1 === m0) note(design, where, `a click with jitter on bundle toggle ${key} did not toggle it (${m0})`);
+        else if (replaced) console.log(`[${design}] gestures: ${key} expanded into its elements (no toggle back)`);
+        else {
+          const pt2 = await pointOn(`[data-bundle-toggle="${key}"]`);
+          if (pt2) { await jitterClick(pt2, 2, 2); await settle(); }
+          if (await mark() !== m0) note(design, where, `bundle toggle ${key} did not toggle back (${m0} -> ${m1} -> ${await mark()})`);
+        }
+      }
+    }
+
+    // The dot of an expandable pin toggles its bundle too, with a pointer
+    // cursor, and the hint bar (its card) says so: a top-level bundle's dot
+    // (data-pin) and a scattered field's (data-pin-field), each where a design has one.
+    for (const [attr, cls, set] of [['data-pin', 'scl-pin.if', pinDotDesigns], ['data-pin-field', 'scl-fpin', fieldDotDesigns]]) {
+      const key = await page.evaluate(([attr, cls]) => {
+        for (const d of document.querySelectorAll(`[data-content] .${cls}[${attr}]`)) {
+          const k = d.getAttribute(attr);
+          if (!k.includes('[') && d.parentElement.querySelector(`[data-bundle-toggle="${CSS.escape(k)}"]`)) return k;
+        }
+        return null;
+      }, [attr, cls]);
+      const dotSel = key && `.${cls}[${attr}="${key.replace(/["\\]/g, '\\$&')}"]`;
+      const pt = key && await pointOn(dotSel);
+      if (!pt) continue;
+      const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${CSS.escape(k)}"]`); return e ? e.textContent.trim().charAt(0) : null; }, key);
+      const cur = await page.evaluate((s) => getComputedStyle(document.querySelector(s)).cursor, dotSel);
+      if (cur !== 'pointer') note(design, where, `the expandable pin dot ${key} has cursor ${cur}, expected pointer`);
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(150);
+      const hint = await page.locator('[data-hint-text]').first().textContent().catch(() => '');
+      if (!/expand/.test(hint || '')) note(design, where, `resting on the pin dot of ${key}, the hint bar says ${JSON.stringify(hint)}, not expand`);
+      const m0 = await mark();
+      await page.mouse.click(pt.x, pt.y);
+      await settle();
+      const m1 = await mark();
+      // An expanded Vec shows its elements' rows in place of its own (no toggle back).
+      const replaced = m1 === null && await page.evaluate((k) => !!document.querySelector(`[data-bundle-toggle^="${CSS.escape(k)}["]`), key);
+      if (m1 === m0) note(design, where, `a click on the pin dot of ${key} did not toggle it (${m0})`);
+      else if (replaced) { set.add(design); console.log(`[${design}] gestures: the pin dot of ${key} expanded it into its elements (no toggle back)`); }
+      else {
+        set.add(design);
+        const pt2 = await pointOn(dotSel);
+        if (pt2) { await page.mouse.click(pt2.x, pt2.y); await settle(); }
+        if (await mark() !== m0) note(design, where, `the pin dot of ${key} did not toggle back (${m0} -> ${m1} -> ${await mark()})`);
+      }
+    }
+
+    // A double-click with 1 to 2 px of jitter on a drillable title drills in.
+    {
+      const pt = await pointOn('[data-box-inst][data-box-drillable="1"]:not([data-fold-group]) > div:first-child');
+      if (pt) {
+        gestureDrillDesigns.add(design);
+        const c0 = await crumbs();
+        await page.mouse.move(pt.x, pt.y);
+        await page.mouse.down();
+        await page.mouse.move(pt.x + 1, pt.y + 1);
+        await page.mouse.up();
+        await page.mouse.down({ clickCount: 2 });
+        await page.mouse.move(pt.x + 2, pt.y);
+        await page.mouse.up({ clickCount: 2 });
+        await settle();
+        const c1 = await crumbs();
+        if (c1 === c0) note(design, where, `a double-click with jitter on a drillable title did not drill (${c0})`);
+        else {
+          await page.locator('.scl-crumbs .scl-crumb').first().click().catch((e) => note(design, where, e.message));
+          await settle();
+          if (await crumbs() !== c0) note(design, where, `could not return to ${c0} after the drill (${await crumbs()})`);
+        }
+      }
+    }
+
+    // A jittered click on a logic block's header (captured views) selects it.
+    {
+      await clearSel();
+      const pt = await pointOn('[data-block] > div:first-child');
+      if (pt) {
+        gestureBlockDesigns.add(design);
+        await jitterClick(pt, 3, 0);
+        if (!await isSelected()) note(design, where, 'a click with (3, 0) px of jitter on a logic block did not select');
+        await clearSel();
+      }
+    }
+
+    // A navigation ends a drag in progress: the rest of that drag does not
+    // move the new module's view. Navigate by a script click on a hierarchy
+    // row (no pointer event), mid-drag.
+    {
+      await clearSel();
+      const child = paths.find((p) => p.path.startsWith(paths[0].path + '/'));
+      const b = await bgPoint();
+      if (child && b) {
+        gestureNavDesigns.add(design);
+        const c0 = await crumbs();
+        await page.mouse.move(b.x, b.y);
+        await page.mouse.down();
+        for (let i = 1; i <= 4; i++) { await page.mouse.move(b.x + 5 * i, b.y + 3 * i); await page.waitForTimeout(20); }
+        await page.evaluate((p) => document.querySelector(`[data-hier-path="${p}"]`).click(), child.path);
+        await settle();
+        await page.waitForTimeout(300);
+        const vNav = await readView(); const c1 = await crumbs();
+        for (let i = 1; i <= 5; i++) { await page.mouse.move(b.x + 20 + 6 * i, b.y + 12 + 4 * i); await page.waitForTimeout(20); }
+        await page.mouse.up();
+        await page.waitForTimeout(100);
+        const vEnd = await readView();
+        if (c1 === c0) note(design, where, `the mid-drag navigation to ${child.path} did not navigate`);
+        if (JSON.stringify(vNav) !== JSON.stringify(vEnd)) note(design, where, `a drag kept panning after navigating to ${child.path}: ${JSON.stringify(vNav)} -> ${JSON.stringify(vEnd)}`);
+        if (await isSelected()) note(design, where, `the drag across the navigation to ${child.path} selected something`);
+        await page.locator('.scl-crumbs .scl-crumb').first().click().catch((e) => note(design, where, e.message));
+        await settle();
+        if (await crumbs() !== c0) note(design, where, `could not return to ${c0} after the mid-drag navigation (${await crumbs()})`);
+      }
+    }
+
+    // A middle-button drag pans at once (3 px, under the left-button threshold).
+    {
+      await clearSel();
+      const pt = await pointOn(titleSel);
+      if (pt) {
+        const v0 = await readView();
+        await page.mouse.move(pt.x, pt.y);
+        await page.mouse.down({ button: 'middle' });
+        await page.mouse.move(pt.x + 3, pt.y + 2);
+        await page.waitForTimeout(60);
+        await page.mouse.up({ button: 'middle' });
+        await page.waitForTimeout(80);
+        const v1 = await readView();
+        if (!v0 || !v1 || Math.abs(v1.x - v0.x - 3) > 0.5 || Math.abs(v1.y - v0.y - 2) > 0.5)
+          note(design, where, `a 3 px middle-button drag did not pan at once: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
+        if (await isSelected()) note(design, where, 'a middle-button drag from a title selected it');
+      }
+    }
+
+    // Wheel: plain zooms at the cursor, Shift scrolls horizontally, Ctrl vertically.
+    {
+      const r = await vpRect();
+      const b = (await bgPoint()) || { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+      await page.mouse.move(b.x, b.y);
+      const v0 = await readView();
+      await page.mouse.wheel(0, 100);
+      await page.waitForTimeout(100);
+      const v1 = await readView();
+      if (!v0 || !v1 || !(v1.z < v0.z)) note(design, where, `a plain wheel down did not zoom out: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
+      await page.keyboard.down('Shift');
+      await page.mouse.wheel(0, 100);
+      await page.keyboard.up('Shift');
+      await page.waitForTimeout(100);
+      const v2 = await readView();
+      if (!v1 || !v2 || v2.z !== v1.z || Math.abs(v2.y - v1.y) > 0.5 || !(v2.x < v1.x - 50))
+        note(design, where, `Shift + wheel did not scroll horizontally: ${JSON.stringify(v1)} -> ${JSON.stringify(v2)}`);
+      await page.keyboard.down('Control');
+      await page.mouse.wheel(0, 100);
+      await page.keyboard.up('Control');
+      await page.waitForTimeout(100);
+      const v3 = await readView();
+      if (!v2 || !v3 || v3.z !== v2.z || Math.abs(v3.x - v2.x) > 0.5 || !(v3.y < v2.y - 50))
+        note(design, where, `Ctrl + wheel did not scroll vertically: ${JSON.stringify(v2)} -> ${JSON.stringify(v3)}`);
+      // The classifier, on what a mouse, a trackpad and Firefox report.
+      const cases = [
+        // [deltaX, deltaY, deltaMode, ctrl, shift, expected]
+        [0, 100, 0, false, false, 'zoom-'],       // a mouse notch
+        [0, -100, 0, false, false, 'zoom+'],
+        [0, 66.666, 0, false, false, 'zoom-'],    // a notch at a fractional scale
+        [0, 90.909, 0, false, false, 'zoom-'],
+        [0, 3, 1, false, false, 'zoom-'],         // Firefox, in lines
+        [0, 100, 0, true, false, 'pan:0,-100'],   // Ctrl + wheel: vertical scroll
+        [0, 3, 1, true, false, 'pan:0,-48'],
+        [0, 1.37, 0, true, false, 'zoom-'],       // a pinch (Ctrl, small fractional)
+        [0, -2.6, 0, true, false, 'zoom+'],
+        [100, 0, 0, false, true, 'pan:-100,0'],   // Shift + wheel, as Chrome reports it
+        [0, 100, 0, false, true, 'pan:-100,0'],
+        [4.2, 1.1, 0, false, false, 'pan:-4.2,-1.1'], // a two-finger swipe
+        [0, 2.5, 0, false, false, 'pan:0,-2.5'],
+        [-7, 0, 0, false, false, 'pan:7,0'],
+      ];
+      const got = await page.evaluate((cs) => {
+        const f = window.__soclessWheelClassify;
+        if (!f) return null;
+        return cs.map(([dx, dy, m, c, s]) => {
+          const o = f(dx, dy, m, c, s);
+          return o.kind === 'zoom' ? (o.log < 0 ? 'zoom-' : 'zoom+') : `pan:${o.dx + 0},${o.dy + 0}`;
+        });
+      }, cases);
+      if (!got) note(design, where, 'no window.__soclessWheelClassify hook');
+      else cases.forEach((c, i) => { if (got[i] !== c[5]) note(design, where, `wheel classify ${JSON.stringify(c.slice(0, 5))}: ${got[i]}, expected ${c[5]}`); });
+    }
+
+    // Keys, with the focus on the body: the arrows pan by 10% of the view
+    // (ArrowRight looks right, so the content moves left), + and - zoom, f and
+    // 0 fit as the Fit button does.
+    {
+      await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+      const { w, h } = await vpRect();
+      const press = async (k) => { await page.keyboard.press(k); await page.waitForTimeout(60); return readView(); };
+      const v0 = await readView();
+      const v1 = await press('ArrowRight');
+      if (!v0 || !v1 || Math.abs((v0.x - v1.x) - 0.1 * w) > 1.5 || Math.abs(v1.y - v0.y) > 0.5)
+        note(design, where, `ArrowRight (focus on the body) did not pan by 10% of the width ${w}: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
+      const v2 = await press('ArrowDown');
+      if (!v1 || !v2 || Math.abs((v1.y - v2.y) - 0.1 * h) > 1.5 || Math.abs(v2.x - v1.x) > 0.5)
+        note(design, where, `ArrowDown did not pan by 10% of the height ${h}: ${JSON.stringify(v1)} -> ${JSON.stringify(v2)}`);
+      await press('ArrowLeft');
+      const v3 = await press('ArrowUp');
+      if (!v0 || !v3 || Math.abs(v3.x - v0.x) > 0.5 || Math.abs(v3.y - v0.y) > 0.5)
+        note(design, where, `ArrowLeft and ArrowUp did not pan back: ${JSON.stringify(v0)} -> ${JSON.stringify(v3)}`);
+      const v4 = await press('+');
+      if (!v3 || !v4 || !(v4.z > v3.z)) note(design, where, `+ did not zoom in: ${JSON.stringify(v3)} -> ${JSON.stringify(v4)}`);
+      const v5 = await press('-');
+      if (!v4 || !v5 || !(v5.z < v4.z)) note(design, where, `- did not zoom out: ${JSON.stringify(v4)} -> ${JSON.stringify(v5)}`);
+      const vf = await press('f');
+      await page.locator('button[title="Fit to view"]').first().click().catch((e) => note(design, where, e.message));
+      await page.waitForTimeout(60);
+      const vfit = await readView();
+      if (JSON.stringify(vf) !== JSON.stringify(vfit)) note(design, where, `f did not fit: ${JSON.stringify(vf)}, Fit gives ${JSON.stringify(vfit)}`);
+      await press('ArrowRight');
+      const v0k = await press('0');
+      if (JSON.stringify(v0k) !== JSON.stringify(vfit)) note(design, where, `0 did not fit: ${JSON.stringify(v0k)}, Fit gives ${JSON.stringify(vfit)}`);
+      // Not from a field or a control outside the schematic.
+      for (const sel of ['[data-filter-input]', '[data-search-trigger]']) {
+        const el = page.locator(sel).first();
+        if (!await el.count()) continue;
+        await el.focus();
+        const a = await readView();
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('-');
+        await page.waitForTimeout(60);
+        const b = await readView();
+        if (JSON.stringify(a) !== JSON.stringify(b)) note(design, where, `keys moved the view with the focus on ${sel}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+        if (sel === '[data-filter-input]') await page.keyboard.press('Escape'); // clears and blurs the filter
+      }
+      // Nor after a click outside the schematic that leaves the focus on the
+      // body: a hierarchy row (the current module's), the inspector, the
+      // bottom panel.
+      for (const sel of [`[data-hier-path="${paths.length ? paths[0].path : ''}"]`, '[data-pane="inspector"]', '.scl-bottom-body']) {
+        const el = page.locator(sel).first();
+        if (!await el.count() || !await el.isVisible()) continue;
+        await el.click({ position: { x: 4, y: 4 } }).catch((e) => note(design, where, `click ${sel}: ${e.message}`));
+        await settle();
+        const a = await readView();
+        await page.keyboard.press('ArrowRight');
+        await page.keyboard.press('-');
+        await page.waitForTimeout(60);
+        const b = await readView();
+        if (JSON.stringify(a) !== JSON.stringify(b)) note(design, where, `keys moved the view after a click on ${sel}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+      }
+      // A click in the schematic gives it the focus back: the keys act again.
+      const bg = await bgPoint();
+      if (bg) {
+        await jitterClick(bg, 0, 0);
+        const a = await readView();
+        const b = await press('ArrowRight');
+        if (!a || !b || !(a.x - b.x > 1)) note(design, where, `after a click in the schematic, ArrowRight did not pan (focus on ${await page.evaluate(() => document.activeElement && document.activeElement.tagName)})`);
+        // Not behind the "?" card.
+        await page.keyboard.press('Shift+Slash');
+        await page.waitForTimeout(60);
+        if (!await page.locator('[data-help-overlay]').count()) note(design, where, '? did not open the help card');
+        else {
+          const c = await readView();
+          await page.keyboard.press('ArrowRight');
+          await page.keyboard.press('ArrowDown');
+          await page.keyboard.press('-');
+          await page.waitForTimeout(60);
+          const d = await readView();
+          if (JSON.stringify(c) !== JSON.stringify(d)) note(design, where, `keys moved the view behind the ? card: ${JSON.stringify(c)} -> ${JSON.stringify(d)}`);
+          await page.keyboard.press('/');
+          await page.waitForTimeout(60);
+          if (await page.evaluate(() => !!(document.activeElement && document.activeElement.matches('[data-filter-input]'))))
+            note(design, where, '/ focused the filter behind the ? card');
+          if (!await page.locator('[data-help-overlay]').count()) note(design, where, '/ closed the ? card');
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(60);
+          const e = await press('ArrowRight');
+          if (!d || !e || !(d.x - e.x > 1)) note(design, where, `ArrowRight did not pan once the ? card closed: ${JSON.stringify(d)} -> ${JSON.stringify(e)}`);
+        }
+      }
+    }
+
+    // Leave a user-set view (1:1) and no selection for the checks below.
+    await clearSel();
+    await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
+    await page.waitForTimeout(60);
+    drain(where);
+  }
+
+  // History, fly to and zoom to the selection. The stack model (a cap of 50,
+  // a new place after Back drops the forward entries) through a hook; on a
+  // hierarchical design, a walk: drill in, pan and let it settle, drill out,
+  // then Back, Back, Forward, Forward (Alt+Left / Alt+Right) each land on the
+  // view they name; a new place after Back leaves nothing to go forward to;
+  // the mouse's back and forward buttons walk it without leaving the page;
+  // Alt+Left in the filter does nothing; the palette has Back and Forward. A
+  // palette instance flies to its box (animated, ends centred), from another
+  // module too; with reduced motion it jumps; a drag during a flight stops
+  // it. `z` frames the selected box or wire, and does nothing with no selection.
+  {
+    const where = 'history';
+    const fmt = JSON.stringify;
+    // (No flight running and the view still for 150 ms: on a loaded runner one
+    // frame can outlast a shorter poll, which then read a flight as settled.)
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      let v = await readView();
+      for (let i = 0; i < 25; i++) {
+        await page.waitForTimeout(150);
+        const n = await readView();
+        if (fmt(n) === fmt(v)) break;
+        v = n;
+      }
+      return v;
+    };
+    const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+    const near = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
+    const focusSchematic = () => page.evaluate(() => document.querySelector('[data-content]').parentElement.focus({ preventScroll: true }));
+    const key = async (k) => { await focusSchematic(); await page.keyboard.press(k); return settle(); };
+    const hist = () => page.evaluate(() => (window.__soclessHistory ? window.__soclessHistory() : null));
+    const vpBox = () => page.evaluate(() => {
+      const r = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
+    });
+    const rectOf = (sel) => page.evaluate((sel) => {
+      const els = Array.from(document.querySelectorAll(sel));
+      if (!els.length) return null;
+      const rs = els.map((e) => e.getBoundingClientRect());
+      const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top));
+      const r = Math.max(...rs.map((q) => q.right)), b = Math.max(...rs.map((q) => q.bottom));
+      return { x: (l + r) / 2, y: (t + b) / 2, l, t, r, b, w: r - l, h: b - t };
+    }, sel);
+    const boxSel = (id) => `[data-box-inst="${id.replace(/["\\]/g, '\\$&')}"]`;
+    const offCentre = async (sel) => { const a = await rectOf(sel); const v = await vpBox(); return a ? Math.hypot(a.x - v.x, a.y - v.y) : null; };
+    // The distinct content transforms seen from now until `unwatchXform`.
+    const watchXform = () => page.evaluate(() => {
+      const c = document.querySelector('[data-content]');
+      const S = window.__flySmoke = { seen: new Set([c.style.transform]) };
+      S.obs = new MutationObserver(() => S.seen.add(c.style.transform));
+      S.obs.observe(c, { attributes: true, attributeFilter: ['style'] });
+    });
+    const unwatchXform = () => page.evaluate(() => { const S = window.__flySmoke; S.obs.disconnect(); return S.seen.size - 1; });
+    // Choose `label` in the command palette (false when it is not listed).
+    const pick = async (label) => {
+      await page.keyboard.press('Control+k');
+      const inp = page.locator('[data-cmd-input]');
+      if (!await inp.count()) return false;
+      await inp.fill(label);
+      await page.waitForTimeout(100);
+      const r = page.locator(`[data-cmd-result="${label.replace(/["\\]/g, '\\$&')}"]`).first();
+      if (!await r.count()) { await page.keyboard.press('Escape'); return false; }
+      await r.click();
+      return true;
+    };
+    const resetView = async () => {
+      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
+      await page.waitForTimeout(60);
+    };
+    const top = paths.length ? paths[0].path : null;
+    const toTop = async () => {
+      if (top && await crumbs() !== top) {
+        await page.locator(`[data-hier-path="${top}"]`).first().dispatchEvent('click').catch(() => {});
+        await settle();
+      }
+    };
+
+    // The stack model.
+    const model = await page.evaluate(() => {
+      const f = window.__soclessHistoryModel;
+      if (!f) return null;
+      return {
+        cap: f(Array(60).fill('p')),
+        drop: f(['p', 'p', 'p', 'p', 'p', 'b', 'b', 'p']),
+        ends: f(['p', 'b', 'b', 'f', 'f', 'f']),
+      };
+    });
+    if (!model) note(design, where, 'no window.__soclessHistoryModel hook');
+    else {
+      if (model.cap.size !== 50 || model.cap.index !== 49)
+        note(design, where, `60 places kept ${model.cap.size} entries at ${model.cap.index}, expected 50 at 49`);
+      if (model.drop.size !== 4 || model.drop.index !== 3 || model.drop.canForward)
+        note(design, where, `a new place after two Backs did not drop the forward entries: ${fmt(model.drop)}`);
+      if (model.ends.size !== 1 || model.ends.index !== 0)
+        note(design, where, `Back and Forward past the ends moved: ${fmt(model.ends)}`);
+    }
+
+    // The walk, on a design with a module to drill into from the top.
+    await toTop();
+    const child = await page.evaluate(() => {
+      const b = document.querySelector('[data-box-inst][data-box-drillable="1"]:not([data-fold-group])');
+      return b ? b.getAttribute('data-box-inst') : null;
+    });
+    if (top && child && await page.locator(`[data-hier-path="${top}/${child}"]`).count()) {
+      historyDesigns.add(design);
+      await settle();
+      await page.locator(`[data-hier-path="${top}/${child}"]`).first().dispatchEvent('click');
+      const C0 = await settle();
+      const cChild = await crumbs();
+      const vc = await vpBox();
+      await page.mouse.move(vc.x, vc.y);
+      await page.mouse.down();
+      for (let i = 1; i <= 4; i++) { await page.mouse.move(vc.x + 15 * i, vc.y + 10 * i); await page.waitForTimeout(16); }
+      await page.mouse.up();
+      await page.waitForTimeout(800); // the pan settles into an entry
+      const C1 = await readView();
+      await page.locator('.scl-crumbs .scl-crumb').first().click();
+      const T1 = await settle();
+      const cTop = await crumbs();
+      const steps = [
+        ['Alt+ArrowLeft', C1, cChild, 'Back to the drilled and panned view'],
+        ['Alt+ArrowLeft', C0, cChild, 'Back again to the drilled view'],
+        ['Alt+ArrowRight', C1, cChild, 'Forward to the drilled and panned view'],
+        ['Alt+ArrowRight', T1, cTop, 'Forward to the top'],
+      ];
+      for (const [k, want, wantCrumbs, what] of steps) {
+        const v = await key(k);
+        const c = await crumbs();
+        if (!near(v, want) || c !== wantCrumbs)
+          note(design, where, `${k}: ${what}: got ${fmt(v)} at "${c}", expected ${fmt(want)} at "${wantCrumbs}"`);
+      }
+      // A new place after Back drops the forward entries.
+      await key('Alt+ArrowLeft');
+      await page.locator('.scl-crumbs .scl-crumb').first().click();
+      await settle();
+      const h = await hist();
+      if (!h || h.index !== h.size - 1) note(design, where, `a drill out after Back left forward entries: ${fmt(h)}`);
+      const vN = await readView();
+      const vNF = await key('Alt+ArrowRight');
+      if (!near(vN, vNF) || await crumbs() !== cTop) note(design, where, `Forward moved after a new place: ${fmt(vN)} -> ${fmt(vNF)}`);
+      // The mouse's back and forward buttons, without leaving the page.
+      const url0 = page.url();
+      const cdp = await page.context().newCDPSession(page);
+      const side = async (button) => {
+        const p = await vpBox();
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y });
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button, buttons: button === 'back' ? 8 : 16, clickCount: 1 });
+        await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button, buttons: 0, clickCount: 1 });
+        await page.waitForTimeout(100);
+        return settle();
+      };
+      const mb = await side('back');
+      if (!near(mb, C1) || await crumbs() !== cChild) note(design, where, `the mouse back button did not go back: ${fmt(mb)} at "${await crumbs()}", expected ${fmt(C1)}`);
+      const mf = await side('forward');
+      if (!near(mf, vN) || await crumbs() !== cTop) note(design, where, `the mouse forward button did not go forward: ${fmt(mf)} at "${await crumbs()}", expected ${fmt(vN)}`);
+      if (page.url() !== url0) note(design, where, `the mouse buttons left the page: ${page.url()}`);
+      await cdp.detach().catch(() => {});
+      // Not from the filter input.
+      {
+        const h0 = await hist(); const v0 = await readView();
+        await page.locator('[data-filter-input]').first().focus();
+        await page.keyboard.press('Alt+ArrowLeft');
+        await page.waitForTimeout(200);
+        const h1 = await hist(); const v1 = await readView();
+        if (!near(v0, v1) || await crumbs() !== cTop || fmt(h0) !== fmt(h1)) note(design, where, `Alt+Left in the filter input moved: ${fmt(v0)} -> ${fmt(v1)}`);
+        await page.keyboard.press('Escape');
+        if (page.url() !== url0) note(design, where, `Alt+Left in the filter input left the page: ${page.url()}`);
+      }
+      // The palette's Back and Forward.
+      if (!await pick('Back')) note(design, where, 'no Back command in the palette');
+      else {
+        const v = await settle();
+        if (!near(v, C1) || await crumbs() !== cChild) note(design, where, `the palette's Back did not go back: ${fmt(v)} at "${await crumbs()}"`);
+        if (!await pick('Forward')) note(design, where, 'no Forward command in the palette');
+        else {
+          const w = await settle();
+          if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}"`);
+        }
+      }
+      if (!await page.evaluate(() => Array.isArray(window.__soclessHistory && window.__soclessHistory().entries))) note(design, where, 'no window.__soclessHistory hook');
+    }
+    drain(where);
+
+    // Fly to a block from the palette, on the top module: the instance box
+    // farthest from the centre after a zoom out.
+    await toTop();
+    const topMod = await page.getAttribute('[data-top]', 'data-top').catch(() => null);
+    // (`inView`: only a box wholly in the viewport, so its title can be clicked.)
+    const farthest = (inView = false) => page.evaluate((inView) => {
+      const vp = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+      const cx = vp.left + vp.width / 2, cy = vp.top + vp.height / 2;
+      let best = null, bd = -1;
+      for (const b of document.querySelectorAll('[data-box-inst][data-box-drillable]:not([data-fold-group])')) {
+        const r = b.getBoundingClientRect();
+        if (inView && (r.left < vp.left + 5 || r.top < vp.top + 5 || r.right > vp.right - 5 || r.bottom > vp.bottom - 5)) continue;
+        const d = Math.hypot(r.left + r.width / 2 - cx, r.top + r.height / 2 - cy);
+        if (d > bd) { bd = d; best = b.getAttribute('data-box-inst'); }
+      }
+      return best ? { id: best, d: bd } : null;
+    }, inView);
+    const zoomOut = async () => { await resetView(); await key('-'); await key('-'); };
+    const fly = async (label, id, what, minFrames, maxFrames) => {
+      await watchXform();
+      const ok = await pick(label);
+      if (!ok) { await unwatchXform(); note(design, where, `${what}: no "${label}" in the palette`); return; }
+      // A flight seen running counts as animated: a starved runner can paint
+      // all of its 250 ms in one or two frames.
+      let flew = false;
+      for (let i = 0; i < 50 && !flew; i++) {
+        flew = await page.evaluate(() => !!(window.__soclessFlying && window.__soclessFlying()));
+        if (!flew) await page.waitForTimeout(20);
+      }
+      await page.waitForTimeout(400);
+      await settle();
+      const n = await unwatchXform();
+      const d = await offCentre(boxSel(id));
+      if (d === null || d > 2) note(design, where, `${what}: ${label} did not end centred (${d === null ? 'no box' : d.toFixed(1) + ' px off'})`);
+      const animated = minFrames > 1;
+      if (animated ? !(flew || n >= minFrames) : (flew || n < minFrames || n > maxFrames))
+        note(design, where, `${what}: ${n} view changes${flew ? ' (a flight ran)' : ''}, expected ${animated ? 'a flight' : `${minFrames} to ${maxFrames}`} (${await loadLog()})`);
+    };
+    if (topMod) {
+      await zoomOut();
+      const far = await farthest();
+      if (far) {
+        flyDesigns.add(design);
+        await fly(`${topMod}.${far.id}`, far.id, 'fly to', 3, Infinity);
+        // With reduced motion it jumps.
+        await zoomOut();
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await fly(`${topMod}.${far.id}`, far.id, 'fly to with reduced motion', 1, 1);
+        await page.emulateMedia({ reducedMotion: null });
+        // From another module: shows the top, then flies.
+        // (Zoomed out first, so the top's restored view is not already the target.)
+        if (child && far.id !== child && await page.locator(`[data-hier-path="${top}/${child}"]`).count()) {
+          await zoomOut();
+          await page.locator(`[data-hier-path="${top}/${child}"]`).first().dispatchEvent('click');
+          await settle();
+          await fly(`${topMod}.${far.id}`, far.id, 'fly to from another module', 3, Infinity);
+          if (await crumbs() !== top) note(design, where, `fly to from another module did not show the top: "${await crumbs()}"`);
+          else flyCrossDesigns.add(design);
+        }
+        // A drag during a flight stops it where it is.
+        await zoomOut();
+        const far2 = await farthest();
+        if (far2 && far2.d > 60) {
+          const vc = await vpBox();
+          await page.mouse.move(vc.x, vc.y);
+          if (await pick(`${topMod}.${far2.id}`)) {
+            await page.mouse.move(vc.x, vc.y);
+            const flying = await page.evaluate(() => !!(window.__soclessFlying && window.__soclessFlying()));
+            await page.mouse.down();
+            for (let i = 1; i <= 3; i++) await page.mouse.move(vc.x + 10 * i, vc.y);
+            await page.mouse.up();
+            await page.waitForTimeout(400);
+            const a = await readView();
+            await page.waitForTimeout(150);
+            const b = await readView();
+            if (!flying) console.log(`[${design}] history: the flight was over before the drag (no cancel check)`);
+            else {
+              flightCancelDesigns.add(design);
+              const d = await offCentre(boxSel(far2.id));
+              if (!near(a, b)) note(design, where, `the view kept moving after a drag during a flight: ${fmt(a)} -> ${fmt(b)}`);
+              if (d !== null && d < 5) note(design, where, `a drag during a flight did not stop it (the box ended ${d.toFixed(1)} px from the centre)`);
+            }
+          }
+        }
+      }
+    }
+    drain(where);
+
+    // `z` frames the selection: a box (by its title), a wire; nothing with no selection.
+    await toTop();
+    {
+      const isSel = () => page.evaluate(() => document.querySelector('[data-content]').classList.contains('hl-sel'));
+      // Nothing selected: nothing happens.
+      if (await isSel()) await pick('Clear selection');
+      await zoomOut();
+      if (!await isSel()) {
+        const v0 = await readView();
+        const v1 = await key('z');
+        if (!near(v0, v1)) note(design, where, `z with nothing selected moved the view: ${fmt(v0)} -> ${fmt(v1)}`);
+      }
+      const framed = async (sel, what) => {
+        const v = await vpBox(); const r = await rectOf(sel);
+        if (!r) { note(design, where, `z: no ${what} after it`); return; }
+        const d = Math.hypot(r.x - v.x, r.y - v.y);
+        if (d > 2) note(design, where, `z did not centre the selected ${what} (${d.toFixed(1)} px off)`);
+        if (r.l < v.l - 1 || r.t < v.t - 1 || r.r > v.r + 1 || r.b > v.b + 1) {
+          // Bigger than the view only at the smallest zoom.
+          const z = (await readView())?.z;
+          if (z > 0.081) note(design, where, `z left the selected ${what} outside the view: ${fmt(r)} in ${fmt(v)}`);
+        }
+      };
+      const far = await farthest(true);
+      if (far) {
+        // Real clicks (a press and a release): a dispatched click after a
+        // drag is swallowed as the drag's own.
+        const pt = await pointOn(`${boxSel(far.id)} > div:first-child`);
+        if (pt) await page.mouse.click(pt.x, pt.y);
+        await page.waitForTimeout(80);
+        if (!pt || !await isSel()) note(design, where, `a click on ${far.id}'s title did not select it`);
+        else {
+          const h0 = await hist();
+          const vz = await key('z');
+          await framed(boxSel(far.id), 'box');
+          const h1 = await hist();
+          if (!h0 || !h1 || !(h1.index > h0.index)) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
+          const back = await key('Alt+ArrowLeft');
+          if (near(back, vz)) note(design, where, 'Back after z stayed on the framed view');
+        }
+      }
+      await zoomOut();
+      const wpt = await pointOn('path[data-wire]');
+      const from = wpt && await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-wire'), [wpt.x, wpt.y]);
+      if (from) {
+        await page.mouse.click(wpt.x, wpt.y);
+        await page.waitForTimeout(80);
+        if (await isSel()) {
+          zoomWireDesigns.add(design);
+          await key('z');
+          // With the box it starts from, when the wire's path is one (a
+          // boundary stub, a state machine).
+          const q = from.replace(/["\\]/g, '\\$&');
+          await framed(`[data-content] .scl-w[data-from="${q}"], [data-content] [data-boundary-stub="${q}"], [data-content] [data-box-inst="${q}"]`, 'wire');
+        }
+        await pick('Clear selection');
+      }
+    }
+    // Alt+Left in a field is neither the history nor the browser's Back: the
+    // page stays, and the key is consumed (not left to the browser).
+    await toTop();
+    {
+      const url0 = page.url(); const v0 = await readView(); const h0 = await hist();
+      await page.evaluate(() => {
+        window.__altSeen = null;
+        window.addEventListener('keydown', (e) => { if (e.altKey && e.key === 'ArrowLeft') window.__altSeen = e.defaultPrevented; });
+      });
+      await page.locator('[data-filter-input]').first().focus();
+      await page.keyboard.press('Alt+ArrowLeft');
+      await page.waitForTimeout(200);
+      const seen = await page.evaluate(() => window.__altSeen);
+      const v1 = await readView(); const h1 = await hist();
+      await page.keyboard.press('Escape');
+      if (page.url() !== url0) note(design, where, `Alt+Left in the filter input left the page: ${page.url()}`);
+      if (!near(v0, v1) || fmt(h0) !== fmt(h1)) note(design, where, `Alt+Left in the filter input moved the view or the history: ${fmt(v0)} -> ${fmt(v1)}`);
+      if (seen !== true) note(design, where, `Alt+Left in the filter input was left to the browser (defaultPrevented ${seen})`);
+    }
+
+    // The hierarchy's "Show in parent": from the row's own module, the parent
+    // is shown at the row's parent path with the instance's box centred and
+    // selected; the row itself does not open.
+    {
+      const nested = paths.map((p) => p.path).filter((p) => p.split('/').length >= 2);
+      const deep = nested.find((p) => p.split('/').length >= 3) || nested[0];
+      if (deep) {
+        const parentPath = deep.split('/').slice(0, -1).join('/');
+        const inst = deep.split('/').pop();
+        await page.locator(`[data-hier-path="${deep}"]`).first().dispatchEvent('click');
+        await settle();
+        const row = page.locator(`[data-hier-path="${deep}"]`).first();
+        await row.hover().catch(() => {});
+        const btn = row.locator('[data-hier-locate]');
+        if (!await btn.count()) note(design, where, `no "Show in parent" button on the row ${deep}`);
+        else {
+          if (await btn.getAttribute('title') !== 'Show in parent') note(design, where, 'the locate button is not titled "Show in parent"');
+          opened.length = 0;
+          await btn.click();
+          await page.waitForTimeout(400);
+          await settle();
+          const c = await crumbs();
+          if (c !== parentPath.split('/').join(' > ')) note(design, where, `Show in parent on ${deep} showed "${c}", expected the parent ${parentPath}`);
+          const d = await offCentre(boxSel(inst));
+          // A folded copy is shown unfolded; its own box is then the target.
+          if (d === null || d > 2) note(design, where, `Show in parent on ${deep}: the box ${inst} is not centred (${d === null ? 'no box' : d.toFixed(1) + ' px off'})`);
+          else locateDesigns.add(design);
+          const sel = await page.evaluate(() => document.querySelector('[data-content]').classList.contains('hl-sel'));
+          if (!sel) note(design, where, `Show in parent on ${deep} did not select ${inst}`);
+          if (opened.length) note(design, where, `Show in parent asked the editor to open a source: ${fmt(opened)}`);
+        }
+      }
+    }
+
+    // A palette pick does not ask the editor to open the instance's source
+    // (deepsoc-view stands in for the language server: selecting its blocks
+    // and instances opens them).
+    if (design === 'deepsoc-view' && topMod) {
+      await toTop();
+      const inst = await farthest();
+      if (inst) {
+        opened.length = 0;
+        if (await pick(`${topMod}.${inst.id}`)) {
+          await page.waitForTimeout(400);
+          await settle();
+          if (opened.length) note(design, where, `a palette pick asked the editor to open a source: ${fmt(opened)}`);
+          else pickNoOpenDesigns.add(design);
+        }
+        await pick('Clear selection');
+      }
+    }
+
+    // A fly still waiting for its module's view is dropped by a drag. The
+    // pick and the drag run in one task (the result's click, then a drag
+    // dispatched on the viewport), so the drag lands before the new module's
+    // view is fitted and the fly can start: deterministic. Afterwards the view
+    // stays where the drag left it.
+    if (child && topMod && await page.locator(`[data-hier-path="${top}/${child}"]`).count()) {
+      await page.locator(`[data-hier-path="${top}/${child}"]`).first().dispatchEvent('click');
+      await settle();
+      const label = `${topMod}.${child}`;
+      await page.keyboard.press('Control+k');
+      const inp = page.locator('[data-cmd-input]');
+      if (await inp.count()) {
+        await inp.fill(label);
+        await page.waitForTimeout(100);
+        const r = await page.evaluate((label) => {
+          const res = Array.from(document.querySelectorAll('[data-cmd-result]')).find((e) => e.getAttribute('data-cmd-result') === label);
+          if (!res) return null;
+          res.click(); // shows the top; the fly waits for its view
+          const vp = document.querySelector('[data-content]').parentElement;
+          const b = vp.getBoundingClientRect(); const x = b.left + b.width / 2, y = b.top + b.height / 2;
+          const ev = (type, dx) => new PointerEvent(type, { bubbles: true, pointerId: 7, button: 0, buttons: type === 'pointerup' ? 0 : 1, clientX: x + dx, clientY: y });
+          vp.dispatchEvent(ev('pointerdown', 0));
+          window.dispatchEvent(ev('pointermove', 30));
+          window.dispatchEvent(ev('pointerup', 30));
+          return true;
+        }, label);
+        if (!r) { note(design, where, `no "${label}" in the palette`); await page.keyboard.press('Escape'); }
+        else {
+          const a = await readView();
+          await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(800);
+          const b = await readView();
+          stalePendingDesigns.add(design);
+          if (!near(a, b)) note(design, where, `a fly waiting for its module's view still flew after a drag: ${fmt(a)} -> ${fmt(b)}`);
+        }
+      }
+      await settle();
+    }
+
+    await resetView();
+    drain(where);
+  }
+
+  // Follow a net through ports. A click on a wire follows it (its own state,
+  // apart from the selection): drilling into the instance at one end lights
+  // the child's wires on that boundary port, drilling out lights the original
+  // wire again, Back and Forward restore it, a sibling instance lights
+  // nothing, and Esc or a click on the background clears it; a drag does not.
+  // Classes only: following and clearing change no child list, and resting
+  // with a followed net mutates nothing. A collapsed and an expanded bundle pin
+  // both light. Everywhere: the pure resolution round-trips through every
+  // drawn port of an instance (hook).
+  {
+    const where = 'follow net';
+    const fmt = JSON.stringify;
+    const settle = async () => {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      let v = await readView();
+      for (let i = 0; i < 25; i++) {
+        await page.waitForTimeout(150);
+        const n = await readView();
+        if (fmt(n) === fmt(v)) break;
+        v = n;
+      }
+    };
+    const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+    const top = paths.length ? paths[0].path : null;
+    const go = async (p) => { await page.locator(`[data-hier-path="${p}"]`).first().dispatchEvent('click'); await settle(); };
+    const toTop = async () => { if (top && await crumbs() !== top) await go(top); };
+    const focusSchematic = () => page.evaluate(() => document.querySelector('[data-content]').parentElement.focus({ preventScroll: true }));
+    // A boundary-correct prefix test, both ways (`io.in` vs `io.in.valid`, never `io.inx`).
+    const ov = (a, b) => a === b || a.startsWith(b + '.') || a.startsWith(b + '[') || b.startsWith(a + '.') || b.startsWith(a + '[');
+    // The followed wires drawn now, as [from, to], and the other lit marks.
+    const lit = () => page.evaluate(() => ({
+      wires: Array.from(document.querySelectorAll('[data-content] .scl-w.follow')).map((g) => [g.getAttribute('data-from'), g.getAttribute('data-to')]),
+      // Top-level pin dots, and the dots of a scattered bundle's fields (DeepSoc's `io.in`).
+      pins: Array.from(document.querySelectorAll('[data-content] [data-pin].follow, [data-content] [data-pin-field].follow'))
+        .map((e) => e.getAttribute('data-pin') || e.getAttribute('data-pin-field')),
+      stubs: Array.from(document.querySelectorAll('[data-content] [data-boundary-stub].follow')).map((e) => e.getAttribute('data-boundary-stub')),
+      rows: document.querySelectorAll('[data-content] .scl-rl.follow').length,
+      any: document.querySelectorAll('[data-content] .follow').length,
+    }));
+    const wireLit = async (f, t) => (await lit()).wires.some(([a, b]) => a === f && b === t);
+    const watchChild = () => page.evaluate(() => {
+      const S = window.__folSmoke = { child: 0, attrs: 0 };
+      S.obs = new MutationObserver((rs) => { for (const r of rs) { if (r.type === 'childList') S.child++; else S.attrs++; } });
+      S.obs.observe(document.querySelector('[data-content]'), { childList: true, subtree: true, attributes: true });
+    });
+    const unwatchChild = () => page.evaluate(() => { const S = window.__folSmoke; S.obs.disconnect(); return { child: S.child, attrs: S.attrs }; });
+    const clickWire = async (f, t) => {
+      const pt = await pointOn(`path[data-wire="${f}"][data-wire-to="${t}"]`);
+      if (!pt) return false;
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(120);
+      return true;
+    };
+    // A point on the viewport's background (no element of the content under it).
+    const bgPoint = () => page.evaluate(() => {
+      const vp = document.querySelector('[data-content]').parentElement;
+      const r = vp.getBoundingClientRect();
+      for (let y = r.top + 12; y < r.bottom - 12; y += 17)
+        for (let x = r.left + 12; x < r.right - 12; x += 23) {
+          const h = document.elementFromPoint(x, y);
+          if (h && vp.contains(h) && !h.closest('[data-pan-block], [data-no-pan], button, input')) return { x, y };
+        }
+      return null;
+    });
+
+    // The pure resolution, on every design: following each wire with an end
+    // on an instance, the child's lit wires touch that port and following
+    // one of them back lights the original wire.
+    await toTop();
+    const chk = await page.evaluate(() => (window.__soclessFollowCheck ? window.__soclessFollowCheck() : null));
+    if (!chk) note(design, where, 'no window.__soclessFollowCheck hook');
+    else if (chk.bad.length) note(design, where, `follow resolution failed for ${chk.bad.length}/${chk.n} wires: ${chk.bad.slice(0, 4).join(' | ')}`);
+    else { if (chk.n) followCheckDesigns.add(design); console.log(`[${design}] follow self-check: ${chk.n} wires round-trip`); }
+
+    // The walk, on DeepSoc: cluster0.io.in <= io.in into cluster0, and back.
+    const W = ['cluster0.io.in', 'io.in'];
+    const other = ['pipe.io.enq', 'cluster0.io.out'];
+    if (top && await pointOn(`path[data-wire="${W[0]}"][data-wire-to="${W[1]}"]`)) {
+      followDesigns.add(design);
+      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
+      await page.locator('button[title="Fit to view"]').first().click().catch(() => {});
+      await settle();
+      await watchChild();
+      await clickWire(...W);
+      const m0 = await unwatchChild();
+      let L = await lit();
+      if (!await wireLit(...W)) note(design, where, `clicking ${W.join(' <= ')} did not follow it: ${fmt(L)}`);
+      if (L.wires.some(([f, t]) => f === other[0] && t === other[1])) note(design, where, `following ${W[0]} also lit ${other[0]}`);
+      if (!L.pins.includes(W[0])) note(design, where, `the followed wire's pin ${W[0]} is not lit: ${fmt(L.pins)}`);
+      if (m0.child) note(design, where, `following a wire changed the content's child list (${m0.child} records)`);
+      const st = await page.evaluate(() => (window.__soclessFollow ? window.__soclessFollow() : null));
+      if (!st || !st.net || st.net.from !== W[0] || st.net.to !== W[1] || st.net.origin !== top)
+        note(design, where, `window.__soclessFollow() does not name the clicked wire at ${top}: ${fmt(st)}`);
+      // The click both selects and follows (the net outlives the selection,
+      // which a drill clears).
+      const sel = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.hl').length);
+      if (!sel) note(design, where, 'the clicked wire is not selected too');
+
+      // Resting on a box with a followed net mutates nothing.
+      const bpt = await pointOn('[data-box-inst]');
+      if (bpt) {
+        await page.mouse.move(bpt.x, bpt.y);
+        await page.waitForTimeout(200);
+        await watchChild();
+        await page.waitForTimeout(1000);
+        const m = await unwatchChild();
+        if (m.child || m.attrs) note(design, where, `resting on a box with a followed net mutated the schematic (${m.child} childList, ${m.attrs} attribute records)`);
+      }
+      // A drag from the background pans and keeps the net.
+      const bg = await bgPoint();
+      if (!bg) note(design, where, 'no background point to drag from');
+      else {
+        await page.mouse.move(bg.x, bg.y);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) { await page.mouse.move(bg.x + 6 * i, bg.y + 4 * i); await page.waitForTimeout(16); }
+        await page.mouse.up();
+        await page.waitForTimeout(120);
+        if (!await wireLit(...W)) note(design, where, 'a drag from the background cleared the followed net');
+      }
+
+      // Into cluster0: the child's wires on io.in light, nothing else.
+      await go(`${top}/cluster0`);
+      L = await lit();
+      if (!L.wires.length) note(design, where, `drilling into cluster0 lit no wire on its io.in port: ${fmt(L)}`);
+      const stray = L.wires.filter(([f, t]) => !ov(f, 'io.in') && !ov(t, 'io.in'));
+      if (stray.length) note(design, where, `in cluster0, wires off the io.in port are lit: ${fmt(stray.slice(0, 4))}`);
+      if (!L.stubs.some((s) => ov(s, 'io.in')) && !L.pins.some((p) => ov(p, 'io.in')))
+        note(design, where, `in cluster0, no boundary pin of io.in is lit: ${fmt(L)}`);
+      const unlit = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w:not(.follow)').length);
+      if (!unlit) note(design, where, 'in cluster0 every wire is lit');
+      // cores_0's io.in is a scattered bundle: its field pins (dots of their
+      // own) light.
+      const fieldPins = await page.evaluate(() => Array.from(document.querySelectorAll('[data-content] [data-pin-field].follow')).map((e) => e.getAttribute('data-pin-field')));
+      if (!fieldPins.some((p) => p.startsWith('cores_0.io.in.'))) note(design, where, `no field pin of cores_0.io.in is lit: ${fmt(fieldPins)}`);
+
+      // Out again: the original wire.
+      await go(top);
+      if (!await wireLit(...W)) note(design, where, `drilling out did not light ${W.join(' <= ')} again: ${fmt(await lit())}`);
+      // Its bundle pin lights collapsed, and still lights (with its field
+      // rows) once expanded.
+      const pin = W[0];
+      if (!(await lit()).pins.includes(pin)) note(design, where, `the collapsed pin ${pin} is not lit`);
+      const tg = page.locator(`[data-bundle-toggle="${pin}"]`).first();
+      if (await tg.count()) {
+        await tg.click();
+        await settle();
+        const E = await lit();
+        if (!E.pins.includes(pin)) note(design, where, `the expanded pin ${pin} is not lit: ${fmt(E.pins)}`);
+        if (!E.rows) note(design, where, `no field row of the expanded ${pin} is lit`);
+        if (!E.wires.length) note(design, where, 'expanding a bundle unlit the followed wire');
+        await page.locator(`[data-bundle-toggle="${pin}"]`).first().click();
+        await settle();
+      } else note(design, where, `no bundle toggle on ${pin}`);
+      // Back (into cluster0) and Forward (the top) restore it.
+      await focusSchematic();
+      await page.keyboard.press('Alt+ArrowLeft');
+      await settle();
+      if (await crumbs() !== `${top} > cluster0`) note(design, where, `Back did not return to cluster0 (${await crumbs()})`);
+      else if (!(await lit()).wires.length) note(design, where, 'Back into cluster0 lit no wire');
+      await focusSchematic();
+      await page.keyboard.press('Alt+ArrowRight');
+      await settle();
+      if (!await wireLit(...W)) note(design, where, `Forward to the top did not light ${W.join(' <= ')}`);
+      // A sibling instance lights nothing (its io.in is another port).
+      await go(`${top}/cluster1`);
+      L = await lit();
+      if (L.any) note(design, where, `cluster1 lit ${L.any} elements for cluster0's net: ${fmt(L)}`);
+      await go(top);
+
+      // Esc clears it, by classes only.
+      await focusSchematic();
+      await watchChild();
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(80);
+      const mE = await unwatchChild();
+      L = await lit();
+      if (L.any) note(design, where, `Escape did not clear the followed net (${L.any} lit)`);
+      if (mE.child) note(design, where, `clearing the net changed the content's child list (${mE.child} records)`);
+
+      // An Esc that closes the "?" card is the card's: the net stays lit; the
+      // next Esc stops following.
+      if (await clickWire(...W)) {
+        await focusSchematic();
+        await page.keyboard.press('Shift+Slash');
+        await page.waitForTimeout(60);
+        if (!await page.locator('[data-help-overlay]').count()) note(design, where, '? did not open the card over a followed net');
+        else {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(80);
+          if (await page.locator('[data-help-overlay]').count()) note(design, where, 'Esc did not close the ? card');
+          if (!await wireLit(...W)) note(design, where, 'the Esc that closed the ? card also stopped following the net');
+          else escCardDesigns.add(design);
+          await focusSchematic();
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(80);
+          if ((await lit()).any) note(design, where, 'a second Esc did not stop following the net');
+        }
+      } else note(design, where, `no visible wire ${W.join(' <= ')} for the Esc-over-the-card check`);
+
+      // Up from a field: following io.in.bits.data in cluster0 lights the top
+      // wire and its collapsed bundle pin cluster0.io.in.
+      await go(`${top}/cluster0`);
+      if (await clickWire('cores_0.io.in.bits.data', 'io.in.bits.data')) {
+        await go(top);
+        if (!await wireLit(...W)) note(design, where, `following io.in.bits.data in cluster0 did not light ${W.join(' <= ')} at the top`);
+        if (!(await lit()).pins.includes(W[0])) note(design, where, `following a field did not light the collapsed pin ${W[0]}`);
+      } else { note(design, where, 'no visible wire cores_0.io.in.bits.data <= io.in.bits.data in cluster0'); await go(top); }
+      await focusSchematic();
+      await page.keyboard.press('Escape');
+
+      // The other end: pipe.io.enq <= cluster0.io.out lights io.out in cluster0, never io.in.
+      if (await clickWire(...other)) {
+        await go(`${top}/cluster0`);
+        L = await lit();
+        if (!L.wires.length) note(design, where, `following ${other.join(' <= ')} lit nothing in cluster0`);
+        const off = L.wires.filter(([f, t]) => !ov(f, 'io.out') && !ov(t, 'io.out'));
+        if (off.length) note(design, where, `following cluster0.io.out lit wires off io.out in cluster0: ${fmt(off.slice(0, 4))}`);
+        await go(top);
+      } else note(design, where, `no visible wire ${other.join(' <= ')}`);
+
+      // A click on the background clears it.
+      const bg2 = await bgPoint();
+      if (bg2) {
+        if (!(await lit()).any) await clickWire(...W);
+        await page.mouse.click(bg2.x, bg2.y);
+        await page.waitForTimeout(120);
+        L = await lit();
+        if (L.any) note(design, where, `a click on the background did not clear the net (${L.any} lit)`);
+      }
+      await focusSchematic();
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
+      await smokeReloadNav(design, ctx, top, W);
+    }
+    drain(where);
+  }
+
+  // The Source tab renders its file once (perf): a selection, or a drill to a
+  // module of the same file, only moves the highlighted lines. Count the nodes
+  // the change touches in the bottom panel's body (added, removed, or with a
+  // changed attribute); a rebuild of the file is thousands.
+  {
+    const where = 'source render-once';
+    const lines = await page.locator('.scl-bottom-body [data-line]').count();
+    if (lines) {
+      const watch = () => page.evaluate(() => {
+        const S = window.__srcSmoke = { nodes: new Set(), added: 0, removed: 0 };
+        S.obs = new MutationObserver((rs) => {
+          for (const r of rs) {
+            // A node and everything under it: replacing the tab is one record of thousands of nodes.
+            const size = (n) => 1 + (n.getElementsByTagName ? n.getElementsByTagName('*').length : 0);
+            if (r.type === 'childList') {
+              for (const n of r.addedNodes) S.added += size(n);
+              for (const n of r.removedNodes) S.removed += size(n);
+            }
+            else S.nodes.add(r.target);
+          }
+        });
+        S.obs.observe(document.querySelector('.scl-bottom-body'), { childList: true, subtree: true, attributes: true, characterData: true });
+      });
+      const unwatch = () => page.evaluate(() => {
+        const S = window.__srcSmoke; S.obs.disconnect();
+        return { touched: S.added + S.removed + S.nodes.size, added: S.added, removed: S.removed, attrs: S.nodes.size };
+      });
+      // Highlighted lines: their number cell has a background.
+      const lit = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-bottom-body [data-line]'))
+        .filter((el) => getComputedStyle(el).backgroundColor !== 'rgba(0, 0, 0, 0)').length);
+      const changes = [
+        ['selecting a wire', async () => { await page.locator('path[data-wire]').first().dispatchEvent('click'); }],
+        ['deselecting a wire', async () => { await page.locator('path[data-wire]').first().dispatchEvent('click'); }],
+        ['selecting a box', async () => { await page.locator('[data-box-inst] > div:first-child').first().dispatchEvent('click'); }],
+        ['deselecting a box', async () => { await page.locator('[data-box-inst] > div:first-child').first().dispatchEvent('click'); }],
+      ];
+      let most = 0;
+      for (const [what, act] of changes) {
+        if (/wire/.test(what) && !(await page.locator('path[data-wire]').count())) continue;
+        if (/box/.test(what) && !(await page.locator('[data-box-inst] > div:first-child').count())) continue;
+        await watch();
+        await act();
+        await page.waitForTimeout(250);
+        const m = await unwatch();
+        most = Math.max(most, m.touched);
+        if (m.touched > 50) note(design, where, `${what} touched ${m.touched} nodes of the Source tab (${m.added} added, ${m.removed} removed, ${m.attrs} attributes); expected at most 50`);
+        if (!(await lit())) note(design, where, `no highlighted line after ${what}`);
+      }
+      // A drill into a child module of the same file, and back.
+      const hier = await page.locator('[data-hier-path]').evaluateAll((els) => els.map((e) => e.getAttribute('data-hier-path')));
+      if (hier.length > 1) {
+        for (const p of [hier[1], hier[0]]) {
+          await watch();
+          await page.locator(`[data-hier-path="${p}"]`).first().click();
+          await page.waitForTimeout(400);
+          const m = await unwatch();
+          const n = await page.locator('.scl-bottom-body [data-line]').count();
+          if (n === lines) most = Math.max(most, m.touched);
+          if (n === lines && m.touched > 50) note(design, where, `drilling to ${p} touched ${m.touched} nodes of the Source tab (${m.added} added, ${m.removed} removed, ${m.attrs} attributes); expected at most 50`);
+          if (n && !(await lit())) note(design, where, `no highlighted line after drilling to ${p}`);
+        }
+      }
+      console.log(`[${design}] source render-once checked (${lines} lines, at most ${most} nodes touched)`);
+    }
+    drain(where);
+  }
+
+  // Export (SVG, PNG): the same with a selection as without (the selection is
+  // cleared for the capture, #131), and styled as on screen: the highlight
+  // styles live in a stylesheet now, which the export must carry.
+  {
+    const where = 'export';
+    const grab = async (btn) => {
+      const [dl] = await Promise.all([
+        page.waitForEvent('download', { timeout: 10000 }),
+        page.locator(btn).first().click(),
+      ]);
+      const p = await dl.path();
+      return (await import('node:fs')).readFileSync(p);
+    };
+    const wireSel = '[data-content] > svg > g';
+    if (await page.locator('[data-export-svg]').count() && await page.locator(wireSel).count()) {
+      try {
+        const svgPlain = (await grab('[data-export-svg]')).toString();
+        const pngPlain = await grab('[data-export-png]');
+        await page.locator('path[data-wire]').first().dispatchEvent('click');
+        await page.waitForTimeout(100);
+        const svgSel = (await grab('[data-export-svg]')).toString();
+        const pngSel = await grab('[data-export-png]');
+        await page.locator('path[data-wire]').first().dispatchEvent('click');
+        await page.waitForTimeout(100);
+        if (svgSel !== svgPlain) note(design, where, 'the SVG export with a selection differs from the one without');
+        if (!pngSel.equals(pngPlain)) note(design, where, 'the PNG export with a selection differs from the one without');
+        // Render the SVG on its own: a wire is drawn in ink2 at rest, its halo
+        // faint, and a box carries the theme border.
+        const look = async (svgText) => {
+          const p2 = await ctx.newPage();
+          try {
+            await p2.setContent(svgText);
+            return await p2.evaluate(() => {
+              const wrap = document.querySelector('foreignObject > div');
+              const probe = document.createElement('span');
+              wrap.appendChild(probe);
+              const col = (v) => { probe.style.color = `var(${v})`; return getComputedStyle(probe).color; };
+              const g = document.querySelector('[data-content] > svg > g');
+              const [halo, stroke] = g.querySelectorAll(':scope > path');
+              const box = document.querySelector('[data-box-inst]');
+              return { stroke: getComputedStyle(stroke).stroke, haloOp: getComputedStyle(halo).opacity,
+                ink2: col('--ink2'), border: col('--border'),
+                boxBorder: box ? getComputedStyle(box).borderTopColor : null,
+                boxIsSymbol: box ? box.hasAttribute('data-logic-node') || box.hasAttribute('data-fsm') : true };
+            });
+          } finally { await p2.close(); }
+        };
+        const L = await look(svgPlain);
+        if (L.stroke !== L.ink2) note(design, where, `exported wire stroke ${L.stroke}, expected ink2 ${L.ink2}`);
+        if (L.haloOp !== '0.07') note(design, where, `exported wire halo opacity ${L.haloOp}, expected 0.07`);
+        if (!L.boxIsSymbol && L.boxBorder !== L.border) note(design, where, `exported box border ${L.boxBorder}, expected ${L.border}`);
+        // Colorized wires export in their colors.
+        await page.locator('[data-settings-toggle]').first().click();
+        await page.waitForTimeout(80);
+        const cw = page.locator('[data-toggle-colorize-wires]').first();
+        if (await cw.count()) {
+          await cw.click();
+          await page.waitForTimeout(80);
+          const C = await look((await grab('[data-export-svg]')).toString());
+          if (C.stroke === C.ink2) note(design, where, 'with colorize wires on, the exported wire is still ink2');
+          await cw.click();
+          await page.waitForTimeout(80);
+        } else note(design, where, 'no [data-toggle-colorize-wires] in the settings panel');
+        await page.locator('[data-settings-toggle]').first().click().catch(() => {});
+        await page.waitForTimeout(80);
+      } catch (e) { note(design, where, e.message); }
+    }
+    drain(where);
   }
 
   // Expand every bundle port in the top view.
@@ -952,6 +2863,19 @@ async function smokeDesignIn(design, ctx) {
   if (await page.locator('[data-help-overlay]').count() === 0) {
     note(design, 'keyboard help', '? did not open the help overlay');
   } else {
+    // Mouse actions per element next to the keys, the navigation keys included.
+    const card = await page.evaluate(() => {
+      const o = document.querySelector('[data-help-overlay]');
+      return { sections: Array.from(o.querySelectorAll('[data-help-section]')).map((e) => e.getAttribute('data-help-section')),
+               text: o.innerText };
+    });
+    for (const s of ['Anywhere', 'Blocks', 'Wires', 'Pins', 'Logic blocks', 'Schematic'])
+      if (!card.sections.includes(s)) note(design, 'keyboard help', `no "${s}" section in the help card (${card.sections.join(', ')})`);
+    for (const k of ['Double-click', 'Click title', 'Middle drag', 'Shift + wheel', 'Ctrl + wheel', '+ / -', '0 / f', 'Zoom to the selection', 'Alt ←', 'Alt →', 'side buttons', 'in its parent', 'Select and follow the net', 'stop following a net'])
+      if (!card.text.includes(k)) note(design, 'keyboard help', `the help card does not mention "${k}"`);
+    if (/[\u2013\u2014]/.test(card.text)) note(design, 'keyboard help', 'the help card has an en or em dash');
+    const helpTitle = await page.locator('[data-help-trigger]').first().getAttribute('title').catch(() => null);
+    if (helpTitle && !/^Mouse and keyboard/.test(helpTitle)) note(design, 'keyboard help', `the ? button is titled ${JSON.stringify(helpTitle)}`);
     await page.keyboard.press('Escape');
     await page.waitForTimeout(100);
     if (await page.locator('[data-help-overlay]').count()) note(design, 'keyboard help', 'Escape did not close the overlay');
@@ -1036,6 +2960,7 @@ async function smokeDesignIn(design, ctx) {
     }
     drain('design picker');
   }
+  console.log(`[${design}] ${await loadLog()}`);
 }
 
 // A pool of CONCURRENCY workers takes the designs in manifest order. A throw
@@ -1065,6 +2990,44 @@ console.log(`Symbol families seen: ${Array.from(seenSymbolKinds).sort().join(', 
 const need = ['block', 'ff'];
 for (const k of need)
   if (!seenSymbolKinds.has(k)) note('(all)', 'symbol-family', `no node rendered data-symbol="${k}" in any design`);
+console.log(`Minimap checked on: ${Array.from(minimapDesigns).join(', ') || '(none)'}`);
+if (!ONLY && minimapDesigns.size === 0) note('(all)', 'minimap', 'no design showed the minimap when zoomed in');
+console.log(`Pin rest checked on: ${Array.from(pinRestDesigns).join(', ') || '(none)'}`);
+if (!ONLY && pinRestDesigns.size === 0) note('(all)', 'highlight rest/select', 'no design had a visible pin to rest on');
+console.log(`Gesture bundle toggle checked on: ${Array.from(gestureToggleDesigns).join(', ') || '(none)'}`);
+if (!ONLY && gestureToggleDesigns.size === 0) note('(all)', 'gestures', 'no design had a clickable bundle toggle');
+console.log(`Gesture double-click drill checked on: ${Array.from(gestureDrillDesigns).join(', ') || '(none)'}`);
+if (!ONLY && gestureDrillDesigns.size === 0) note('(all)', 'gestures', 'no design had a drillable box to double-click');
+console.log(`Gesture logic block click checked on: ${Array.from(gestureBlockDesigns).join(', ') || '(none)'}`);
+if (!ONLY && gestureBlockDesigns.size === 0) note('(all)', 'gestures', 'no design had a logic block to click');
+console.log(`Gesture drag across a navigation checked on: ${Array.from(gestureNavDesigns).join(', ') || '(none)'}`);
+if (!ONLY && gestureNavDesigns.size === 0) note('(all)', 'gestures', 'no design had a child module to navigate to mid-drag');
+console.log(`Hover box with wires checked on: ${Array.from(hoverWireDesigns).join(', ') || '(none)'}`);
+if (!ONLY && hoverWireDesigns.size === 0) note('(all)', 'hover feedback', 'no hovered box had a connected wire to light');
+console.log(`Hover card counts checked on: ${Array.from(hoverCountDesigns).join(', ') || '(none)'}`);
+if (!ONLY && hoverCountDesigns.size === 0) note('(all)', 'hover feedback', 'no box card gave instance counts');
+console.log(`Cursor zoom-in checked on: ${Array.from(cursorZoomDesigns).join(', ') || '(none)'}`);
+if (!ONLY && cursorZoomDesigns.size === 0) note('(all)', 'hover feedback', 'no design had a drillable block for the cursor check');
+console.log(`Cursor pointer on symbols and stubs checked on: ${Array.from(cursorPointerDesigns).join(', ') || '(none)'}`);
+if (!ONLY && cursorPointerDesigns.size === 0) note('(all)', 'hover feedback', 'no design had a logic symbol or a stub for the cursor check');
+
+console.log(`Hint bar checked on: ${Array.from(hintDesigns).join(', ') || '(none)'}`);
+if (!ONLY && hintDesigns.size === 0) note('(all)', 'hover feedback', 'no design checked the hint bar against a card');
+for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesigns], ['Fly to from another module', flyCrossDesigns],
+                           ['Drag during a flight', flightCancelDesigns], ['Zoom to a selected wire', zoomWireDesigns],
+                           ['Show in parent', locateDesigns], ['Palette pick without an editor open', pickNoOpenDesigns],
+                           ['Drag dropping a waiting fly', stalePendingDesigns]]) {
+  console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
+  if (!ONLY && set.size === 0) note('(all)', 'history', `no design ran the check: ${what}`);
+}
+for (const [what, set] of [['Follow a net', followDesigns], ['Follow resolution round trip', followCheckDesigns],
+                           ['Reload keeps navigation, a fresh load clears it', reloadNavDesigns],
+                           ['Esc closing the ? card keeps the net', escCardDesigns], ['Interface pin dot toggles', pinDotDesigns],
+                           ['Field pin dot toggles', fieldDotDesigns]]) {
+  console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
+  if (!ONLY && set.size === 0) note('(all)', 'follow net', `no design ran the check: ${what}`);
+}
+
 
 // Concurrent designs interleave their failures: list them in manifest order
 // (stable, so each design keeps its own order; '(all)' last).

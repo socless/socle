@@ -488,7 +488,9 @@ final class SoclessLanguageServer(
       if (port.isEmpty) port = Some(http.start())
       if (clientPanel) { sendOpenPanel(s"http://127.0.0.1:${port.get}/", test); None }
       else if (browserOpened) None
-      else { browserOpened = true; Some(s"http://127.0.0.1:${port.get}/") }
+      // `?panel=1`: the page knows it is an editor's panel (no first-time
+      // tips, the hint bar not remembered: its origin changes with the port).
+      else { browserOpened = true; Some(s"http://127.0.0.1:${port.get}/?panel=1") }
     }
     url.foreach { u =>
       val c = client

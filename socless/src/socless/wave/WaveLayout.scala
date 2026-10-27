@@ -15,8 +15,10 @@ case class WaveGroup(name: String, items: Seq[WaveItem], children: Seq[WaveGroup
 object WaveGroup { implicit val rw: ReadWriter[WaveGroup] = macroRW }
 
 /** The signal list of one module. `missing` counts the signals dropped because
-  * the trace does not hold them (optimised away). */
-case class WavePlan(groups: Seq[WaveGroup], missing: Int)
+  * the trace does not hold them (optimised away). `colorByDirection` is how its
+  * ports were coloured, for a viewer without the settings (the colours legend
+  * of the VS Code Surfer tab). */
+case class WavePlan(groups: Seq[WaveGroup], missing: Int, colorByDirection: Boolean = true)
 object WavePlan { implicit val rw: ReadWriter[WavePlan] = macroRW }
 
 /** The pure plan of a module's signals for the waveform viewer, shared by the
@@ -25,6 +27,24 @@ object WavePlan { implicit val rw: ReadWriter[WavePlan] = macroRW }
   * The order is the Chisel declaration order: clock and reset (when asked),
   * one group per port, then `Registers`, then `Wires`. */
 object WaveLayout {
+
+  /** The Surfer colour of each kind of signal, and the names of the signal
+    * groups: [[plan]] paints with them and the colours legend shows them. */
+  val InputColor     = "Blue"
+  val OutputColor    = "Green"
+  val RegisterColor  = "Orange"
+  val WireColor      = "Gray"
+  val RegistersGroup = "Registers"
+  val WiresGroup     = "Wires"
+
+  /** What each colour of a plan means: (signals, Surfer colour), in the plan's
+    * order. With colour by direction off, every port is [[InputColor]]. */
+  def legend(byDirection: Boolean): Seq[(String, String)] =
+    (if (byDirection) Seq("Inputs" -> InputColor, "Outputs" -> OutputColor) else Seq("Ports" -> InputColor)) ++
+      Seq(RegistersGroup -> RegisterColor, WiresGroup -> WireColor)
+
+  /** How a plan's groups are built, as the legend says it. */
+  val groupsNote: String = s"One group per port, its bundles nested, then $RegistersGroup, then $WiresGroup."
 
   private val Segment = """[^.\[\]]+|\[\d+\]""".r
 
@@ -96,7 +116,7 @@ object WaveLayout {
           val order = deeper.map(_._1.head).distinct
           val items = here.flatMap { l =>
             val label = segments(port.name, l.path).lastOption.getOrElse(port.name)
-            item(l.path, label, if (s.colorByDirection && l.dir.contains(PortDir.Out)) "Green" else "Blue", l.width)
+            item(l.path, label, if (s.colorByDirection && l.dir.contains(PortDir.Out)) OutputColor else InputColor, l.width)
           }
           val kids = order.map(o => build(o, deeper.filter(_._1.head == o).map { case (segs, l) => (segs.tail, l) }, port, nested = true))
           WaveGroup(name, items, kids.filter(g => g.items.nonEmpty || g.children.nonEmpty), folded = nested && s.foldBundles)
@@ -109,9 +129,9 @@ object WaveLayout {
         val (clockReset, others) = m.ports.partition(isClockReset)
         val portGroups  = (if (s.showClockReset) clockReset else Nil) ++ others
         val groups =
-          portGroups.map(portGroup) ++ Seq(signalGroup("Registers", "reg", "Orange")) ++
-            (if (s.showWires) Seq(signalGroup("Wires", "wire", "Gray")) else Nil)
-        WavePlan(groups.filter(g => g.items.nonEmpty || g.children.nonEmpty), missing)
+          portGroups.map(portGroup) ++ Seq(signalGroup(RegistersGroup, "reg", RegisterColor)) ++
+            (if (s.showWires) Seq(signalGroup(WiresGroup, "wire", WireColor)) else Nil)
+        WavePlan(groups.filter(g => g.items.nonEmpty || g.children.nonEmpty), missing, s.colorByDirection)
     }
 
   /** The paths of `traces` that Surfer added, matched to the names it shows for

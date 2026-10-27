@@ -2,7 +2,8 @@
 
 The Mill plugin is the smoothest Chisel integration: one task elaborates your
 design and serves the UI. It is one integration over the same viewer the
-[standalone app](usage-standalone.md) drives.
+[standalone app](usage-standalone.md) drives; [Using the UI](usage-ui.md) shows
+how to move around its schematic.
 
 Needs Chisel 7.16 or newer. Tested against Chisel 7.16.0 and Mill 1.1.6 (the
 latest in the 1.1.x line; anything `>= 1.1, <= 1.1.6` should work).

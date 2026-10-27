@@ -35,7 +35,7 @@ java -jar "$jar" serve --dir .              # serves design.json from . if prese
 `serve` extracts the bundled single-file UI, serves it on `127.0.0.1` (loopback
 only), and converts dropped `.fir` files in-process. Add `--dir <dir>` to also
 serve a `design.json` / `designs.json` from that directory so the UI auto-loads
-it.
+it. [Using the UI](usage-ui.md) shows how to move around the schematic.
 
 Once the artifact is published to a repository you can resolve, coursier runs the
 same main without building the jar (publish first with `mill socless.publishLocal`,

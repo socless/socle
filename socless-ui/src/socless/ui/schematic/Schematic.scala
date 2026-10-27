@@ -8,7 +8,9 @@ import com.raquo.laminar.codecs.StringAsIsCodec
 import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
+import scala.concurrent.Future
 import scala.util.{Success, Failure}
+import scala.util.control.NonFatal
 import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind, SourceRef}
 import socless.layout.{InstanceFold, LayoutCore}
 import socless.js.BrowserLayout
@@ -45,7 +47,9 @@ object Schematic {
     pathSig: Signal[List[String]],
     selectedVar: Var[Option[String]],
     hoveredVar: Var[Option[String]],
-    expandedPortsVar: Var[Set[String]],
+    // In-box expanded bundle pin paths per module name (App owns them); the
+    // module in view reads and toggles its own entry only.
+    expandedPortsVar: Var[Map[String, Set[String]]],
     drillInto: String => Unit,
     // Fold or unfold a generator-copy group of the module in view (App owns the state).
     toggleFold: String => Unit,
@@ -69,6 +73,17 @@ object Schematic {
     focusClassSig: Signal[String] = Signal.fromValue(""),
     // The HTML snapshot ("share") button; off when embedded in an editor.
     showShare: Boolean = true,
+    // The hint bar under the schematic (App mounts it): it follows the target
+    // under the pointer in this viewport.
+    hintBar: Option[socless.ui.panels.Help.HintBar] = None,
+    // An overlay over the page (the "?" card): the navigation keys do nothing.
+    keysBlocked: () => Boolean = () => false,
+    // Back, Forward, Zoom to selection and fly to, for the app (the palette);
+    // installed here.
+    history: ViewHistory.Commands = new ViewHistory.Commands,
+    // Show a drill path (Back / Forward, a fly to another module); false when
+    // it does not resolve in the design.
+    navigate: List[String] => Boolean = _ => false,
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -88,19 +103,66 @@ object Schematic {
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
+    // Hover, selection, dimming and colourization as styling on the elements
+    // `renderContent` builds, never a rebuild (perf; see Highlight).
+    val hl = new Highlight(selectedVar, hoveredVar)
+    // The hovered block's outline and the tooltip card (delegated listeners on
+    // the viewport, installed at mount).
+    val tooltip = new Tooltip(hl)
+    var tooltipOff: () => Unit = () => ()
+    var hintOff: () => Unit = () => ()
     val viewSizeVar = Var((0.0, 0.0))      // viewport client size (for the minimap)
 
     val viewState = scala.collection.mutable.Map.empty[String, (Double, (Double, Double))]
     var prevPathKey: String = null
     var viewportNode: dom.html.Element = null
+    var viewObserver: dom.ResizeObserver = null
     var contentNode: dom.html.Element = null   // the transformed content div, for export
     var curModName = ""                        // current module name, for export filenames
     var engineGen = 0
     var lastNonce = 0
+    // The path key whose view is in place (see `settle`); None before the first.
+    val settledPathVar = Var[Option[String]](None)
     var pendingFit = true   // armed on a real path change; performed once dims are known (issue #207)
     // The view is the automatic fit and the user has not panned or zoomed since:
     // a later relayout (auto-optimize landing after the baked first paint) refits.
     var autoFitted = false
+
+    // Drag, wheel and keys (Gestures), installed on the viewport at mount.
+    var gestures: Gestures.Controller = null
+    var gesturesOff: () => Unit = () => ()
+
+    // ── view history and flights (ViewHistory) ──
+    var hist = ViewHistory.Stack()
+    var curPath: List[String] = Nil
+    // A Back or Forward entry whose module is being shown: its view stands in
+    // for the fit (or the module's saved view) and is not pushed again.
+    var restoring = Option.empty[ViewHistory.Entry]
+    // A box to fly to, (path key, box id), once that module's layout is ready.
+    var flyPending = Option.empty[(String, String)]
+    // The user moved the view since the last entry; once it rests for
+    // SettleMs it becomes one.
+    var dirty = false
+    var settleTimer = 0
+    val flyer = new ViewHistory.Flyer(panVar, zoomVar, () => viewSizeVar.now())
+    def cancelSettle(): Unit = if (settleTimer != 0) { dom.window.clearTimeout(settleTimer); settleTimer = 0 }
+    // Push the view shown; not while the module's own view is still to come.
+    def pushView(): Unit = {
+      cancelSettle(); dirty = false
+      if (!pendingFit && curPath.nonEmpty) hist = hist.push(ViewHistory.Entry(curPath, panVar.now(), zoomVar.now()))
+    }
+    // A view left before it settled is still a place the user was: push it
+    // before the move that leaves it.
+    def commitDirty(): Unit = if (dirty) pushView()
+    def armSettle(): Unit = {
+      cancelSettle()
+      settleTimer = dom.window.setTimeout(() => {
+        settleTimer = 0
+        // A drag holding still is not a settled view.
+        if (gestures != null && gestures.busy) armSettle()
+        else if (dirty && !flyer.running && !pendingFit) pushView()
+      }, ViewHistory.SettleMs)
+    }
 
     def clamp(z: Double): Double = math.max(0.08, math.min(4.0, z))
 
@@ -171,8 +233,20 @@ object Schematic {
         .values.flatMap(br => (br.westRows ++ br.eastRows).filter(_.locked).map(_.path)).toSet
     }
 
+    // The expanded pins of the module in view: the geometry, the engine runs and
+    // the pin marks all read this one signal, so they never see another module's.
+    val expandedSig: Signal[Set[String]] =
+      Signal.combine(moduleSig, expandedPortsVar.signal).map {
+        case (Some(mod), e) => e.getOrElse(mod.name, Set.empty)
+        case _              => Set.empty
+      }
+    def togglePort(module: String, p: String): Unit = expandedPortsVar.update { e =>
+      val s = e.getOrElse(module, Set.empty)
+      e.updated(module, if (s(p)) s - p else s + p)
+    }
+
     val geomSig: Signal[Option[Geom]] =
-      Signal.combine(designSig, moduleSig, engineVar.signal, expandedPortsVar.signal).map {
+      Signal.combine(designSig, moduleSig, engineVar.signal, expandedSig).map {
         case (Some(d), Some(mod), engine, expanded) =>
           // Use the engine layout only when it was computed for THIS module of
           // THIS design; otherwise fall back to the baked layout for the current
@@ -186,7 +260,27 @@ object Schematic {
       }
 
     // ── in-process engine re-layout (issue #167) ──
-    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String]): Unit =
+    // The run whose layout is awaited (its generation), None when none is: the
+    // spinner shows exactly while one is. A run starts in an observer, so its
+    // writes to pendingVar and engineVar land in nested transactions, which can
+    // apply out of order: a stale run's "pending" once landed after the newer
+    // run's cache hit had cleared it, and the stale run's completion, superseded,
+    // never cleared it again (the stuck "laying out..."). So every write reads
+    // the state when it applies (Var.update), and only the latest run places.
+    var awaiting = Option.empty[Int]
+    // Smoke test hook: every engine run that missed the cache (key, time).
+    val engineRuns = js.Array[js.Dynamic]()
+    dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessEngineRuns")(engineRuns)
+    def syncPending(): Unit = pendingVar.update(_ => awaiting.isDefined)
+    def place(gen: Int, e: Option[(String, Design, LaidOut)]): Unit =
+      engineVar.update(cur => if (gen == engineGen) e else cur)
+
+    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String]): Unit = {
+      // Every run supersedes the one in flight, whatever it ends on.
+      engineGen += 1
+      val myGen = engineGen
+      awaiting = None
+      def done(e: Option[(String, Design, LaidOut)]): Unit = { place(myGen, e); syncPending() }
       (dO, mO) match {
         case (Some(d), Some(mod)) =>
           val hasExpansion = expanded.nonEmpty
@@ -195,9 +289,9 @@ object Schematic {
           val hasUnfolded = mod.children.exists(_.foldGroup.nonEmpty)
           // Declutter (#223) forces the engine too: the baked layout has every
           // node, so hiding kinds needs a re-layout over the visible subset.
-          if (!hasExpansion && !hasUnfolded && !optimize && hidden.isEmpty) { engineVar.set(None); return }
+          if (!hasExpansion && !hasUnfolded && !optimize && hidden.isEmpty) { done(None); return }
           baseOf(d, mod) match {
-            case None => engineVar.set(None)
+            case None => done(None)
             case Some(bl) =>
               val c    = Tokens.consts(d)
               val rows = RowModel.build(bl, mod, d, expanded, c.headerH, c.portPad, c.portStep)
@@ -210,75 +304,176 @@ object Schematic {
               val mode = if (optimize) "optimize" else "reroute"
               val tag  = viewTag(mod)
               val key  = engineKey(tag, mode, expanded, overrides, hidden)
-              engineGen += 1
-              val myGen = engineGen
               engineCache.get(key) match {
                 case Some(cached) =>
                   // Cache hit: place synchronously, no engine run, no spinner.
-                  engineVar.set(Some((tag, d, cached))); pendingVar.set(false)
+                  done(Some((tag, d, cached)))
                 case None =>
-                  pendingVar.set(true)
-                  BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden).onComplete {
-                    case Success(res) => if (myGen == engineGen) { engineCachePut(key, res); engineVar.set(Some((tag, d, res))); pendingVar.set(false) }
-                    case Failure(e)   => if (myGen == engineGen) {
-                      engineVar.set(None); pendingVar.set(false)
-                      dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
+                  engineRuns.push(js.Dynamic.literal(key = key, t = dom.window.performance.now(), cached = engineCache.size))
+                  awaiting = Some(myGen); syncPending()
+                  // runTyped prepares the graph before its Future exists: a throw
+                  // there is a failed run too, never a spinner left on.
+                  val laid = try BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden)
+                             catch { case NonFatal(e) => Future.failed(e) }
+                  laid.onComplete { r =>
+                    if (myGen == engineGen) {
+                      awaiting = None; syncPending()
+                      r match {
+                        case Success(res) => engineCachePut(key, res); done(Some((tag, d, res)))
+                        case Failure(e)   =>
+                          done(None)
+                          dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
+                      }
                     }
                   }
               }
           }
-        case _ => engineVar.set(None)
+        case _ => done(None)
       }
+    }
 
     // ── view fit / pan / zoom ──
-    def doFit(): Unit = {
-      if (viewportNode == null) return
+    // The viewport size comes from a ResizeObserver (`viewSizeVar`), never from
+    // a clientWidth/clientHeight read, which forced a reflow mid-update (perf).
+    // Pan and zoom always change in one transaction, so the transform (and the
+    // minimap's viewport rect) recompute once per gesture step.
+
+    // Fit the content to the viewport. False when a size is not known yet (the
+    // first ResizeObserver report has not landed), so an armed fit stays armed.
+    def doFit(): Boolean = {
       val tw = totalWVar.now(); val ch = canvasHVar.now()
-      val w = viewportNode.clientWidth.toDouble; val h = viewportNode.clientHeight.toDouble
-      if (tw <= 0 || ch <= 0 || w <= 0 || h <= 0) return
-      val margin = 40.0
-      val z = math.min(1.0, math.min((w - 2 * margin) / tw, (h - 2 * margin) / ch))
-      zoomVar.set(z); panVar.set(((w - tw * z) / 2, (h - ch * z) / 2))
-      autoFitted = true
+      val (w, h) = viewSizeVar.now()
+      if (tw <= 0 || ch <= 0 || w <= 0 || h <= 0) false
+      else {
+        val margin = 40.0
+        val z = math.min(1.0, math.min((w - 2 * margin) / tw, (h - 2 * margin) / ch))
+        Var.set(zoomVar -> z, panVar -> ((w - tw * z) / 2, (h - ch * z) / 2))
+        autoFitted = true
+        true
+      }
     }
 
+    // The automatic fit (or the restore of a module's saved view) runs in the
+    // next animation frame, once the geometry and the viewport size of this
+    // update have both landed. Any user pan or zoom cancels a scheduled one.
+    var fitFrame = 0 // the requestAnimationFrame handle, 0 = none scheduled
+    def cancelFit(): Unit = if (fitFrame != 0) { dom.window.cancelAnimationFrame(fitFrame); fitFrame = 0 }
+    def scheduleFit(): Unit = if (fitFrame == 0) fitFrame = dom.window.requestAnimationFrame { _ =>
+      fitFrame = 0
+      runFit()
+    }
+    // A new module's first view is an entry of the history, unless Back or
+    // Forward brought it (its entry is already there). A refit when a
+    // relayout lands only corrects the entry of the fit it replaces.
+    def runFit(): Unit = {
+      if (pendingFit) {
+        val back = restoring.filter(_.path.mkString("/") == prevPathKey)
+        restoring = None
+        back match {
+          case Some(e) => Var.set(zoomVar -> e.zoom, panVar -> e.pan); autoFitted = false; settle()
+          case None    => viewState.get(prevPathKey) match {
+            case Some((z, p)) => Var.set(zoomVar -> z, panVar -> p); autoFitted = false; settle(); pushView()
+            case None         => if (doFit()) { settle(); pushView() }
+          }
+        }
+      }
+      else if (autoFitted && doFit() && hist.current.exists(_.path == curPath))
+        hist = hist.replace(ViewHistory.Entry(curPath, panVar.now(), zoomVar.now()))
+    }
+    // The current module's view is in place (fitted, restored, or set by the
+    // user): disarm the fit and let the minimap show for this module. Until
+    // then the minimap stays hidden, so it is never built for the previous
+    // module's zoom while the fit is a frame away.
+    def settle(): Unit = {
+      pendingFit = false
+      if (!settledPathVar.now().contains(prevPathKey)) settledPathVar.set(Some(prevPathKey))
+    }
+    // The view is set from here on, not fitted automatically.
+    def takeView(): Unit = { autoFitted = false; cancelFit(); settle() }
+    // A user pan or zoom: the view is theirs from now on. It stops a flight
+    // (and drops one still waiting for its layout), and becomes an entry of
+    // the history once it settles.
+    def userView(): Unit = { flyer.cancel(); flyPending = None; dirty = true; takeView() }
 
     def zoomBy(factor: Double): Unit = {
-      autoFitted = false
+      userView()
       val z = zoomVar.now(); val newZ = clamp(z * factor)
-      if (viewportNode != null) {
-        val cx = viewportNode.clientWidth / 2.0; val cy = viewportNode.clientHeight / 2.0
-        val ratio = newZ / z; val (px, py) = panVar.now()
-        panVar.set((cx - (cx - px) * ratio, cy - (cy - py) * ratio))
-      }
-      zoomVar.set(newZ)
+      val (vw, vh) = viewSizeVar.now()
+      val cx = vw / 2.0; val cy = vh / 2.0
+      val ratio = newZ / z; val (px, py) = panVar.now()
+      Var.set(panVar -> (cx - (cx - px) * ratio, cy - (cy - py) * ratio), zoomVar -> newZ)
     }
 
-    val handlePanStart: dom.MouseEvent => Unit = (e) => {
-      val isMiddle = e.button == 1
-      val tgt = e.target.asInstanceOf[dom.Element]
-      val isLeftOnBg = e.button == 0 && (tgt == null || tgt.closest("[data-pan-block]") == null)
-      if (isMiddle || isLeftOnBg) {
-        e.preventDefault()
-        val (px, py) = panVar.now(); val sx = e.clientX; val sy = e.clientY
-        var moved = false
-        lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => {
-          if (math.abs(ev.clientX - sx) + math.abs(ev.clientY - sy) > 3) { moved = true; autoFitted = false }
-          panVar.set((px + (ev.clientX - sx), py + (ev.clientY - sy)))
-        }
-        lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
-          dom.window.removeEventListener("mousemove", moveL)
-          dom.window.removeEventListener("mouseup", upL)
-          // A left-click on empty canvas (no drag) clears the selection, so a
-          // selected wire/component can be unselected (issue #203 follow-up).
-          if (!moved && isLeftOnBg) selectedVar.set(None)
-        }
-        dom.window.addEventListener("mousemove", moveL)
-        dom.window.addEventListener("mouseup", upL)
+    // Fit now (the Fit button and the f and 0 keys).
+    def fitNow(): Unit = { flyer.cancel(); flyPending = None; commitDirty(); cancelFit(); if (doFit()) { settle(); pushView() } }
+
+    // Fly to a content rect: framed with `margin` px around it, at most
+    // `maxZoom`. The flight's end is an entry; the view it leaves too, if it
+    // had not settled yet.
+    def flyToRect(r: ViewHistory.Rect, margin: Double, maxZoom: Double): Unit = {
+      val (vw, vh) = viewSizeVar.now()
+      if (vw > 0 && vh > 0) {
+        commitDirty(); takeView()
+        flyer.fly(ViewHistory.frame(r, vw, vh, margin, maxZoom, clamp), () => pushView())
       }
     }
+    // `z`: frame the selection (a box, a wire, a pin). Nothing selected, or
+    // not in this view: nothing (false), the fit keys are there for that.
+    def zoomToSelection(): Boolean =
+      (for { s <- selectedVar.now(); g <- Option(hl.geom); r <- ViewHistory.selectionRect(g, s) } yield r) match {
+        case Some(r) => flyToRect(r, 40, 2.0); true
+        case None    => false
+      }
+    // The pending fly to a box, once its module's view is in place and laid out.
+    def tryFly(): Unit = flyPending.foreach { case (pk, id) =>
+      if (prevPathKey == pk && settledPathVar.now().contains(pk) && !pendingVar.now())
+        Option(hl.geom).filter(_.boxById.contains(id)).flatMap(ViewHistory.selectionRect(_, id)).foreach { r =>
+          flyPending = None
+          flyToRect(r, 60, 1.0)
+        }
+    }
+    // Back or Forward: the entry's module first (its view replaces the fit),
+    // or just its view in the module shown. Entries whose path no longer
+    // resolves are skipped, so the walk never gets stuck on one.
+    def walk(step: ViewHistory.Stack => ViewHistory.Stack): Unit = {
+      flyer.cancel(); flyPending = None; commitDirty()
+      val from = hist
+      var next = step(from)
+      var landed = false
+      while (!landed && next.index != from.index && next.current.isDefined) {
+        val e = next.current.get
+        if (e.path == curPath) {
+          hist = next; landed = true
+          if (pendingFit) restoring = Some(e)
+          else { restoring = None; Var.set(zoomVar -> e.zoom, panVar -> e.pan); takeView() }
+        } else {
+          hist = next; restoring = Some(e)
+          if (navigate(e.path)) landed = true
+          else {
+            hist = from; restoring = None
+            val further = step(next)
+            next = if (further.index == next.index) from else further // the end: stay
+          }
+        }
+      }
+    }
+    history.back = () => walk(_.back)
+    history.forward = () => walk(_.forward)
+    history.zoomToSelection = () => zoomToSelection()
+    // A fresh load: forget the history, any pending flight or settle, and the
+    // followed net. Called before the new design's path is set, so the view
+    // it leaves is not pushed and the new path's fit is the first entry.
+    history.reset = () => {
+      flyer.cancel(); cancelSettle(); dirty = false
+      hist = ViewHistory.Stack(); restoring = None; flyPending = None
+      hl.follow(None)
+    }
+    history.flyTo = (path, id) => {
+      flyPending = Some((path.mkString("/"), id))
+      if (path == curPath) tryFly() else if (!navigate(path)) flyPending = None
+    }
 
-    // ── content (boxes + wires), rebuilt on geom / selection / hover ──
+    // ── content (boxes + wires), rebuilt on geometry (and the layers toggle) only ──
     def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
     // A value stub at a pin: a short wire out of the port ending in a
@@ -303,12 +498,13 @@ object Schematic {
       )
     }
 
-    def renderContent(g: Geom, sel: Option[String], hov: Option[String], filter: String,
-                      showLayers: Boolean, colorBoxes: Boolean, colorWires: Boolean,
-                      focusClass: String): Seq[ReactiveElement.Base] = {
-      // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216);
-      // colorBoxes (#266) flows in per-render so the toggle re-tints live.
-      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedPortsVar, colorBoxes, id => fsmOpenVar.set(Some(id)))
+    def renderContent(g: Geom, showLayers: Boolean, path: List[String]): Seq[ReactiveElement.Base] = {
+      // Every element a highlight touches registers here as it is built; the
+      // current hover, selection, dimming and followed net are applied to it
+      // at the end (the net for the drill path `g` is shown at).
+      val reg = new Highlight.Registry(g, path)
+      // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216).
+      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedSig, p => togglePort(g.mod.name, p), reg, id => fsmOpenVar.set(Some(id)))
       // Verification-layer nodes (issue #212) and their wires are hidden unless
       // "show layers" is on. layerIds empty for a design with no layer content.
       // A wire's fromInst/toInst is a raw pin head (`L~in<i>`, `L~q`); resolve it
@@ -318,49 +514,6 @@ object Schematic {
       val hideLayer = !showLayers && layerIds.nonEmpty
       val visWires = if (hideLayer) g.wires.filterNot(w => LayoutCore.isLayerHead(w.fromInst, layerIds) || LayoutCore.isLayerHead(w.toInst, layerIds)) else g.wires
       val c = g.c
-      val selInst  = sel.map(s => ownerBoxId(g.boxById, s)).getOrElse("")
-      val selClock = g.mod.children.find(_.name == selInst).map(_.clock).getOrElse("")
-
-      // Filter dimming (issue #121): fuzzy-match boxes on inst+type; matches AND
-      // their direct wire neighbors stay lit, everything else dims. None = no filter.
-      val filterActive: Option[Set[String]] = {
-        val q = filter.trim.toLowerCase
-        if (q.isEmpty) None
-        else {
-          val matched = g.layout.nodes.iterator.map(_.id).filter { inst =>
-            val hay = (inst + " " + g.mod.children.find(_.name == inst).map(_.`type`).getOrElse("")).toLowerCase
-            fuzzyHas(hay, q)
-          }.toSet
-          val act = scala.collection.mutable.Set.empty[String] ++= matched
-          g.wires.foreach { w =>
-            val a = ownerBoxId(g.boxById, w.fromPath); val b = ownerBoxId(g.boxById, w.toPath)
-            if (matched(a)) act += b
-            if (matched(b)) act += a
-          }
-          Some(act.toSet)
-        }
-      }
-      // Editor-cursor focus (plan 2): light exactly the instances whose module
-      // was generated by `focusClass` and dim the rest, through the same dim path
-      // as the filter. Ignored while the user has a selection or a filter, and
-      // when nothing in this view matches (no all-dimmed view).
-      val focusActive: Option[Set[String]] =
-        if (focusClass.isEmpty || sel.isDefined || filterActive.isDefined) None
-        else {
-          val classOf = g.design.modules.iterator.map(m => m.name -> m.scalaClass).toMap
-          val hits = g.mod.children.iterator
-            .filter(ch => classOf.get(ch.`type`).contains(focusClass)).map(_.name).toSet
-          if (hits.isEmpty) None else Some(hits)
-        }
-      val dimSet = filterActive.orElse(focusActive)
-      def boxActive(inst: String): Boolean = dimSet.forall(_.contains(inst))
-      def wireActive(w: Wire): Boolean =
-        dimSet.forall(s => s.contains(ownerBoxId(g.boxById, w.fromPath)) || s.contains(ownerBoxId(g.boxById, w.toPath)))
-
-      // Wire highlight predicates (JS WireVisualLayer).
-      def isHl(w: Wire): Boolean = sel.exists(s =>
-        w.fromPath.startsWith(s) || w.toPath.startsWith(s) || s.startsWith(w.fromPath) || s.startsWith(w.toPath))
-      def isHov(w: Wire): Boolean = hov.exists(s => w.fromPath.startsWith(s) || w.toPath.startsWith(s))
 
       // ── hit layer (transparent fat paths, captures clicks) ──
       val hit = svg.svg(
@@ -369,13 +522,18 @@ object Schematic {
           svg.path(
             sa("d") := routePath(w.points),
             sa("data-wire") := w.fromPath,
+            sa("data-wire-to") := w.toPath,
             sa("data-pan-block") := "1",
+            // The tooltip card names the bundle, both ends and the width (#276).
             sa("style") := "stroke:transparent;stroke-width:14;fill:none;cursor:pointer;pointer-events:stroke",
-            // Native hover tooltip: bundle + endpoints + direction (#276).
-            svg.titleTag((if (w.bundle.nonEmpty) w.bundle + "  " else "") + w.fromPath + (if (w.bidir) "  <->  " else "  ->  ") + w.toPath),
-            onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, w.fromPath) },
-            onMouseEnter --> { (_: dom.MouseEvent) => hoveredVar.set(Some(w.fromPath)) },
-            onMouseLeave --> { (_: dom.MouseEvent) => hoveredVar.set(None) },
+            // A click selects the wire and follows its net across levels
+            // (NetFollow); a click that deselects it stops following it.
+            onClick --> { (_: dom.MouseEvent) =>
+              toggleSelect(selectedVar, w.fromPath)
+              hl.clickWire(w.fromPath, w.toPath, selectedVar.now().contains(w.fromPath))
+            },
+            onMouseEnter --> { (_: dom.MouseEvent) => hl.enter(w.fromPath) },
+            onMouseLeave --> { (_: dom.MouseEvent) => hl.leave(w.fromPath) },
           )
         },
       )
@@ -389,7 +547,7 @@ object Schematic {
         val sinkPath = cn.id.stripPrefix("const$")
         val raw = if (cn.label.nonEmpty) cn.label else cn.id
         val value = raw.indexOf(": ") match { case i if i > 0 => raw.take(i); case _ => raw }
-        g.layout.nodes.iterator.flatMap(b => b.ports.find(_.path == sinkPath).map(p => (b, p))).toSeq.headOption.map { case (b, p) =>
+        g.pinOwner.get(sinkPath).map { case (b, p) =>
           val shift  = g.boxShift.shift.getOrElse(b.id, 0.0)
           val py     = p.y + shift
           val lblBase = s"font-family:${Tokens.mono};font-size:9px;font-weight:600;color:${Tokens.ink2};white-space:nowrap"
@@ -441,36 +599,40 @@ object Schematic {
 
       // ── boxes ──
       val boxEls: Seq[ReactiveElement.Base] = g.layout.nodes.filterNot(n => n.kind == NodeKind.Const || (hideLayer && layerIds.contains(n.id))).map { n =>
-        val child = g.mod.children.find(_.name == n.id)
+        val child = g.childByName.get(n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top)
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
-        else if (n.kind == NodeKind.Op) SchematicBoxes.opBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Op) SchematicBoxes.opBox(boxCtx, g, n, top)
         // A collapsed FSM (issue #210): an instance-style box with boundary pins,
         // but non-drillable and tinted to read as a state machine. Intercepted
         // before the childless-boundary arm since it has no `children` entry.
-        else if (n.kind == NodeKind.Fsm) SchematicBoxes.fsmBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Fsm) SchematicBoxes.fsmBox(boxCtx, g, n, top)
         // A logic or generator block (captured view): FSM-shaped, no `children` entry.
-        else if (n.kind == NodeKind.Block) SchematicBoxes.blockBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Block) SchematicBoxes.blockBox(boxCtx, g, n, top)
         // A memory node (issue #205): instance-style box with a memory glyph and a
         // RAM/SRAM depth×elem tag. Has no `children` entry, so it must be
         // intercepted before the childless-boundary arm like reg/op/fsm.
-        else if (n.kind == NodeKind.Mem) SchematicBoxes.memBox(boxCtx, g, n, top, boxActive(n.id), sel, hov)
+        else if (n.kind == NodeKind.Mem) SchematicBoxes.memBox(boxCtx, g, n, top)
         // Any childless node (a boundary stub, or any non-instance kind without a
         // child entry) renders as a stub; only a node with a child uses the
         // instance box below (which needs the child for its type/drilldown).
-        else if (child.isEmpty || n.kind == NodeKind.Boundary) SchematicBoxes.boundaryStub(boxCtx, g, n, top, boxActive(n.id))
+        else if (child.isEmpty || n.kind == NodeKind.Boundary) SchematicBoxes.boundaryStub(boxCtx, g, n, top)
         else {
           val ch         = child.get
-          val childMod   = g.design.modules.find(_.name == ch.`type`)
-          val isBlackbox = childMod.exists(m => m.kind == ModuleKind.External || m.kind == ModuleKind.Intrinsic)
+          // A folded group of generator copies stands for several instances:
+          // not drillable, its double-click unfolds it instead.
+          val info       = g.instInfo(ch)
+          val childMod   = info.mod
+          val isBlackbox = info.blackbox
           val extLabel: String = childMod.map(m => if (m.kind == ModuleKind.Intrinsic) "intrinsic" else "ext").getOrElse("ext")
-          // A folded group of generator copies (foldCount > 0) stands for several
-          // instances: not drillable, its double-click unfolds it instead.
-          val isFolded   = ch.foldCount > 0
-          val drillable  = !isFolded && childMod.exists(m => !isBlackbox && m.children.nonEmpty)
+          val isFolded   = info.folded
+          val drillable  = info.drillable
+          // The cursor says what a click does: zoom-in where a double-click
+          // opens (or unfolds), else the title's pointer selects.
+          val opens      = drillable || isFolded
           // Generator signature of a captured module; empty from CHIRRTL.
           val sigFull    = childMod.filter(_.scalaClass.nonEmpty).map(ScalaClassLabel.signature).getOrElse("")
           // Clock/reset are filtered from the wire graph (no laid pin, see
@@ -479,14 +641,13 @@ object Schematic {
           // reset ring bottom-right (issue #188 follow-up).
           val hasClock = childMod.exists(_.ports.exists(_.bundle == "Clock"))
           val hasReset = childMod.exists(_.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset"))
-          val selectedHere = sel.exists(s => s == n.id || s.startsWith(n.id + "."))
-          val isClockPeer  = selClock.nonEmpty && n.id != selInst && child.exists(_.clock == selClock)
           val boxInfo    = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
-          val borderCol  = if (selectedHere) Tokens.accent else if (isClockPeer) Tokens.accentLine else Tokens.border
-          val boxShadow0 = if (selectedHere) s"0 0 0 3px ${Tokens.accentBg}"
-                           else if (isClockPeer) s"0 0 0 2px ${Tokens.accentLine}" else "0 1px 2px rgba(0,0,0,.04)"
-          // Stacked edge: a folded box reads as several copies.
-          val boxShadow  = if (isFolded) s"$boxShadow0, 4px 4px 0 ${Tokens.borderSoft}" else boxShadow0
+          // Selected, clock peer (of the selected instance) and resting looks
+          // are classes over these values (Highlight.css). Stacked edge: a
+          // folded box reads as several copies, in every state.
+          val stacked    = if (isFolded) s", 4px 4px 0 ${Tokens.borderSoft}" else ""
+          val looks      = SchematicBoxes.boxVars(n.kind, Tokens.border, SchematicBoxes.RestShadow + stacked,
+                             s"0 0 0 2px ${Tokens.accentLine}$stacked", SchematicBoxes.SelShadow + stacked, Tokens.panel)
           // `+` on a folded box unfolds its group, `−` on a copy folds it back.
           val foldGroup  = if (isFolded) n.id else ch.foldGroup
           def foldToggle(glyph: String, tip: String) =
@@ -496,10 +657,12 @@ object Schematic {
               onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); toggleFold(foldGroup) },
               onDblClick --> { (e: dom.MouseEvent) => e.stopPropagation() },
               glyph)
-          div(
+          val box = div(
+            cls := "scl-b",
             dataAttr("box-inst") := n.id,
             dataAttr("box-drillable") := (if (drillable) "1" else "0"),
-            dataAttr("box-focus") := (if (focusActive.exists(_.contains(n.id))) "1" else "0"),
+            // Editor focus (plan 2) test hook, kept up to date by Highlight.
+            dataAttr("box-focus") := "0",
             Option.when(isFolded)(dataAttr("fold-group") := n.id),
             Option.when(ch.foldGroup.nonEmpty)(dataAttr("fold-member") := ch.foldGroup),
             // Test hook: how far the renderer pushed this box down to make room
@@ -507,17 +670,16 @@ object Schematic {
             dataAttr("box-shift") := shift.toString,
             dataAttr("pan-block") := "1",
             styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
-              s"opacity:${if (boxActive(n.id)) "1" else "0.18"};" +
-              s"background:${if (colorBoxes) SchematicColors.boxFill(n.kind) else Tokens.panel};border:1px ${if (isBlackbox) "dashed" else "solid"} $borderCol;border-radius:6px;" +
-              s"box-shadow:$boxShadow;cursor:${if (drillable) "pointer" else "default"};overflow:visible;" +
+              looks + s"border-width:1px;border-style:${if (isBlackbox) "dashed" else "solid"};border-radius:6px;" +
+              s"cursor:${if (opens) "zoom-in" else "default"};overflow:visible;" +
               "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
             onDblClick --> { (_: dom.MouseEvent) => if (isFolded) toggleFold(n.id) else if (drillable) drillInto(n.id) },
             // header
             div(
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
-                s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+                s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
               onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-              span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${if (selectedHere) Tokens.accent else Tokens.ink3};font-size:10px", Glyphs.of(g.design, ch.`type`)),
+              span(cls := "scl-glyph", styleAttr := "width:12px;display:inline-flex;justify-content:center;font-size:10px", Glyphs.of(childMod)),
               // A fold box's name (and count) never shrinks: only the signature ellipsizes.
               span(dataAttr("box-name") := n.id,
                 styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" +
@@ -534,7 +696,7 @@ object Schematic {
                 if (sigFull.isEmpty)
                   span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80px", ch.`type`)
                 else
-                  span(dataAttr("box-class") := n.id, title := sigFull,
+                  span(dataAttr("box-class") := n.id,
                     styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0",
                     ScalaClassLabel.truncate(sigFull, ScalaClassLabel.HeaderMax)),
                 opt(drillable)(span(styleAttr := s"font-family:${Tokens.mono};font-size:9px;color:${Tokens.accent}", "↵")),
@@ -544,8 +706,8 @@ object Schematic {
               opt(ch.foldGroup.nonEmpty)(foldToggle("−", "Fold the copies back")),
             ),
             // port rows
-            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West, sel, hov),
-            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East, sel, hov),
+            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West),
+            SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East),
             // clock-input notch (bottom-left) and reset ring (bottom-right)
             opt(hasClock)(div(
               dataAttr("clk-cue") := n.id, title := "clock input",
@@ -558,6 +720,8 @@ object Schematic {
                 s"font-family:${Tokens.mono};font-size:7.5px;line-height:1;color:${Tokens.ink4};pointer-events:none",
               span("rst"), span(styleAttr := "font-size:8px", "○"))),
           )
+          reg.box(n.id, Highlight.BoxKind.Instance, box.ref)
+          box
         }
       }
 
@@ -586,36 +750,31 @@ object Schematic {
       val vis = svg.svg(
         sa("style") := s"position:absolute;top:0;left:0;width:${g.layout.w}px;height:${g.canvasH}px;pointer-events:none;overflow:visible",
         visWires.map { w =>
-          val hl  = isHl(w)
-          val hov2 = isHov(w) && !hl
-          val dim = sel.isDefined && !hl
-          // Colorize wires (#266) only in the plain resting state: selection
-          // (accent), hover (ink) and dim (ink4) keep their emphasis colors, and
-          // when the toggle is off the stroke is exactly the prior ink2.
-          val resting = !dim && !hl && !hov2
-          val stroke =
-            if (colorWires && resting) SchematicColors.wireStroke(w.bundle, w.toPath)
-            else if (dim) Tokens.ink4 else if (hl) Tokens.accent else if (hov2) Tokens.ink else Tokens.ink2
+          // Stroke, width, halo and opacity are classes over custom properties
+          // (Highlight.css): selected, hovered, dimmed by a selection, by the
+          // filter or the editor focus, and colorized at rest (#266) from the
+          // wire's own `--wc`, computed here once.
           val isField = fieldLevelWires.contains((w.fromPath, w.toPath))
-          val sw     = if (isField) 1.0 else if (hl) 4 else if (hov2) 3.5 else 3
-          val halo   = if (hl) Tokens.accent else if (hov2) Tokens.ink else if (colorWires && resting) stroke else Tokens.ink2
-          val haloOp = if (hl) 0.18 else if (hov2) 0.10 else 0.07
-          val groupOp = if (!wireActive(w)) 0.12 else if (dim) 0.32 else 1.0
           val d = routePath(w.points)
           // Dangling wires (no routed ELK edge, issue #188 follow-up 2a) render
           // dashed with a small open circle at the unresolved (sink) end, so an
           // unrouted connection reads as visibly incomplete rather than absent.
           val dashStyle = if (w.dangling) ";stroke-dasharray:5 4" else ""
-          svg.g(
-            sa("style") := s"opacity:$groupOp;transition:opacity .15s",
-            svg.path(sa("d") := d, sa("style") := s"stroke:$halo;stroke-width:${sw + 6};fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:$haloOp"),
-            svg.path(sa("d") := d, sa("style") := s"stroke:$stroke;stroke-width:$sw;fill:none;stroke-linecap:round;stroke-linejoin:round$dashStyle"),
+          val el = svg.g(
+            sa("class") := (if (isField) "scl-w fl" else "scl-w"),
+            // Test hooks: the wire's ends (the hover outline lights a box's wires).
+            sa("data-from") := w.fromPath, sa("data-to") := w.toPath,
+            sa("style") := s"--wc:${SchematicColors.wireStroke(w.bundle, w.toPath)};transition:opacity .15s",
+            svg.path(sa("d") := d, sa("style") := "stroke:var(--whk);stroke-width:calc(var(--wsw) + 6px);fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:var(--who)"),
+            svg.path(sa("d") := d, sa("style") := s"stroke:var(--wk);stroke-width:var(--wsw);fill:none;stroke-linecap:round;stroke-linejoin:round$dashStyle"),
             if (w.dangling)
               svg.circle(sa("cx") := w.x2.toString, sa("cy") := w.y2.toString, sa("r") := "3.5",
-                sa("style") := s"fill:${Tokens.bg};stroke:$stroke;stroke-width:1.5",
+                sa("style") := s"fill:${Tokens.bg};stroke:var(--wk);stroke-width:1.5",
                 svg.titleTag(s"unrouted wire: ${w.fromPath} ↔ ${w.toPath}"))
-            else if (w.bidir) SchematicBoxes.bidirGlyph(w.points, stroke) else emptyNode,
+            else if (w.bidir) SchematicBoxes.bidirGlyph(w.points, "var(--wk)") else emptyNode,
           )
+          reg.wire(w, el.ref)
+          el
         },
         fanOut.map { case (x, y, count) =>
           svg.circle(sa("data-junction") := "1", sa("cx") := x.toString, sa("cy") := y.toString, sa("r") := "3.5",
@@ -629,6 +788,7 @@ object Schematic {
         },
       )
 
+      hl.install(reg)
       // Constant annotations render after the wire layer so their labels sit on
       // top of crossing wires instead of being covered (#229).
       ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls ++ tiedEls
@@ -636,10 +796,13 @@ object Schematic {
 
 
     // Run `capture` with selection/hover highlight cleared, then restore it, so a
-    // selected net doesn't export a washed-out one-net view (issue #131). Laminar
-    // applies the Var change synchronously, so the cloned DOM is already cleared.
-    def withCleared(capture: () => Unit): Unit = {
+    // selected net doesn't export a washed-out one-net view (issue #131). The
+    // Var change applies synchronously (Highlight's observers toggle the classes),
+    // so the cloned DOM is already cleared.
+    // The followed net is left out too, so an export looks as it did before.
+    def withCleared(capture: () => Unit): Unit = hl.withoutFollow { () =>
       val ps = selectedVar.now(); val ph = hoveredVar.now()
+      hl.clearBox()
       if (ps.isEmpty && ph.isEmpty) capture()
       else { selectedVar.set(None); hoveredVar.set(None); capture(); selectedVar.set(ps); hoveredVar.set(ph) }
     }
@@ -652,10 +815,10 @@ object Schematic {
         s"position:absolute;left:0;top:0;width:${w}px;height:${h}px;transform:translate(${px}px,${py}px) scale($z);transform-origin:0 0;transition:width .3s,height .3s"
     }
 
-    // Debounce the filter so each keystroke does not rebuild every box + wire and
-    // re-run the fuzzy match: the input itself stays responsive (it binds
-    // `filterVar` directly in the chrome), only the dim recompute waits for a
-    // brief pause in typing (perf).
+    // Debounce the filter so each keystroke does not re-run the fuzzy match and
+    // re-dim: the input itself stays responsive (it binds `filterVar` directly
+    // in the chrome), only the dim recompute waits for a brief pause in typing
+    // (perf).
     val filterDimSig: Signal[String] = filterVar.signal.composeChanges(_.debounce(140))
 
     // Matched/total box count for the filter chip (#276): None when no filter.
@@ -664,22 +827,31 @@ object Schematic {
         case (Some(g), f) if f.trim.nonEmpty =>
           val q = f.trim.toLowerCase
           val matched = g.layout.nodes.count(n =>
-            fuzzyHas((n.id + " " + g.mod.children.find(_.name == n.id).map(_.`type`).getOrElse("")).toLowerCase, q))
+            fuzzyHas((n.id + " " + g.childByName.get(n.id).map(_.`type`).getOrElse("")).toLowerCase, q))
           Some((matched, g.layout.nodes.size))
         case _ => None
       }
 
+    // The content is rebuilt on a geometry change (module, design, engine
+    // layout, expansion, fold) and the layers toggle, which adds or removes
+    // elements. Hover, selection, filter, editor focus, colourization and the
+    // followed net are styling (Highlight) and never rebuild it. The path
+    // changes with the geometry (in the same transaction): it tags the
+    // registry with the level it shows.
     val contentSig: Signal[Seq[ReactiveElement.Base]] =
-      Signal.combine(geomSig, selectedVar.signal, hoveredVar.signal, filterDimSig, showLayersVar.signal,
-                     colorBoxesVar.signal, colorWiresVar.signal, focusClassSig.distinct).map {
-        case (Some(g), sel, hov, filter, showLayers, colorBoxes, colorWires, focusClass) =>
-          renderContent(g, sel, hov, filter, showLayers, colorBoxes, colorWires, focusClass)
-        case _ => Nil
+      Signal.combine(geomSig, showLayersVar.signal, pathSig).map {
+        case (Some(g), showLayers, path) => renderContent(g, showLayers, path)
+        // No content: drop the previous view's elements from the highlight.
+        case _                           => hl.install(Highlight.Registry.empty); Nil
       }
+
+    // The minimap's viewport rect inputs: pan, zoom and the viewport size.
+    val minimapViewSig: Signal[((Double, Double), Double, (Double, Double))] =
+      Signal.combine(panVar.signal, zoomVar.signal, viewSizeVar.signal)
 
     // Recenter the main view on a content-space point (used by the minimap).
     def centerOnContent(cx: Double, cy: Double): Unit = {
-      autoFitted = false
+      userView()
       val (vw, vh) = viewSizeVar.now(); val z = zoomVar.now()
       panVar.set((vw / 2 - cx * z, vh / 2 - cy * z))
     }
@@ -694,9 +866,9 @@ object Schematic {
       showLayersVar = showLayersVar,
       zoomSig       = zoomVar.signal,
       onOptimize    = () => optNonceVar.update(_ + 1),
-      onFit         = () => doFit(),
+      onFit         = () => fitNow(),
       zoomBy        = (f: Double) => zoomBy(f),
-      onResetView   = () => { autoFitted = false; zoomVar.set(1.0); panVar.set((40.0, 40.0)) },
+      onResetView   = () => { userView(); Var.set(zoomVar -> 1.0, panVar -> (40.0, 40.0)) },
       onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
       onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
       onShare       = Option.when(showShare)(() => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) }),
@@ -708,34 +880,101 @@ object Schematic {
       dataAttr("layout-ready") <-- pendingVar.signal.map(p => if (p) "0" else "1"),
       cls := "scl-pane scl-pane-schematic",
       styleAttr := "flex:1;position:relative;overflow:hidden",
+      styleTag(Highlight.css),
+      hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig),
       div(
-        styleAttr := "position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none",
-        onMouseDown --> handlePanStart,
-        onMountCallback { ctx =>
-          viewportNode = ctx.thisNode.ref
-          Var.set(totalWVar -> 1.0, canvasHVar -> 1.0)
-          // Track viewport size for the minimap (initial + on window resize).
-          def measure(): Unit = viewSizeVar.set((viewportNode.clientWidth.toDouble, viewportNode.clientHeight.toDouble))
-          measure()
-          dom.window.addEventListener("resize", (_: dom.Event) => measure())
-          // wheel-to-zoom, non-passive so preventDefault works
-          val onWheel: js.Function1[dom.WheelEvent, Unit] = (e) => {
-            e.preventDefault()
-            autoFitted = false
-            val rect = viewportNode.getBoundingClientRect()
-            val mx = e.clientX - rect.left; val my = e.clientY - rect.top
-            val z = zoomVar.now(); val newZ = clamp(z * math.exp(-e.deltaY * 0.0015))
-            val ratio = newZ / z; val (px, py) = panVar.now()
-            panVar.set((mx - (mx - px) * ratio, my - (my - py) * ratio))
-            zoomVar.set(newZ)
-          }
-          // Register non-passively (via js.Dynamic to pass {passive:false}) so
-          // preventDefault stops the page scrolling under the schematic.
-          viewportNode.asInstanceOf[js.Dynamic].addEventListener("wheel", onWheel, js.Dynamic.literal(passive = false))
-        },
+        // Focusable (not by Tab), so the navigation keys act after a click here.
+        tabIndex := -1,
+        styleAttr := "position:absolute;inset:0;overflow:hidden;cursor:grab;touch-action:none;outline:none",
+        onMountUnmountCallback(
+          mount = { ctx =>
+            viewportNode = ctx.thisNode.ref
+            Var.set(totalWVar -> 1.0, canvasHVar -> 1.0)
+            // The viewport size (fit, zoom buttons, minimap), whatever changes it
+            // (window, side panels, bottom panel). Reported after layout, so no
+            // forced reflow; the first report arrives before the first paint.
+            viewObserver = new dom.ResizeObserver((entries, _) => entries.lastOption.foreach { en =>
+              viewSizeVar.set((en.contentRect.width, en.contentRect.height))
+            })
+            viewObserver.observe(viewportNode)
+            // Smoke test hook: the highlight's indexed matching against a full
+            // scan on the view shown ({keys, bad}).
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHighlightCheck")((() => {
+              val (n, bad) = hl.selfCheck()
+              js.Dynamic.literal(keys = n, bad = js.Array(bad: _*))
+            }): js.Function0[js.Dynamic])
+            // Smoke test hook: the wheel classification on raw values.
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessWheelClassify")(
+              ((dx: Double, dy: Double, mode: Int, ctrl: Boolean, shift: Boolean) =>
+                Gestures.classifyDebug(dx, dy, mode, ctrl, shift)): js.Function5[Double, Double, Int, Boolean, Boolean, js.Dynamic])
+            // Drag to pan from anywhere, the wheel, the navigation keys.
+            gestures = new Gestures.Controller(viewportNode, Gestures.View(
+              panVar         = panVar,
+              zoomVar        = zoomVar,
+              viewSize       = () => viewSizeVar.now(),
+              clamp          = clamp,
+              userView       = () => userView(),
+              zoomBy         = zoomBy,
+              fit            = () => fitNow(),
+              // A click on the background also stops following a net.
+              clearSelection = () => { selectedVar.set(None); hl.follow(None) },
+              clearFollow    = () => hl.follow(None),
+              keysBlocked    = () => fsmOpenVar.now().isDefined || keysBlocked(),
+              back           = () => walk(_.back),
+              forward        = () => walk(_.forward),
+              zoomToSelection = () => zoomToSelection(),
+            ), hl)
+            gesturesOff = gestures.install()
+            tooltipOff = tooltip.install(viewportNode)
+            hintOff = hintBar.fold(() => ())(_.install(viewportNode, hl))
+            // Smoke test hooks: the view history ({size, index, entries}), the
+            // stack model on scripted pushes, whether a flight is running.
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHistory")((() =>
+              js.Dynamic.literal(size = hist.entries.size, index = hist.index,
+                entries = js.Array(hist.entries.map(e =>
+                  js.Dynamic.literal(path = e.path.mkString("/"), x = e.pan._1, y = e.pan._2, z = e.zoom)): _*))
+            ): js.Function0[js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessHistoryModel")(
+              ((ops: js.Array[String]) => ViewHistory.modelDebug(ops)): js.Function1[js.Array[String], js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessFlying")((() => flyer.running): js.Function0[Boolean])
+            // Smoke test hook: the tooltip card of every box, wire and pin of the view ({n, bad}).
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessTooltipCheck")((() => {
+              val (n, bad) = Tooltip.selfCheck(hl.geom)
+              js.Dynamic.literal(n = n, bad = js.Array(bad: _*))
+            }): js.Function0[js.Dynamic])
+            // Smoke test hooks: NetFollow.resolve round trips through every
+            // instance port of the view ({n, bad}); the followed net and what
+            // it lights here.
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessFollowCheck")((() => {
+              val (n, bad) = Option(hl.geom).fold((0, Seq.empty[String]))(g =>
+                NetFollow.selfCheck(g.design, hl.path, g.wires.map(w => (w.fromPath, w.toPath))))
+              js.Dynamic.literal(n = n, bad = js.Array(bad: _*))
+            }): js.Function0[js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessFollow")((() => {
+              val l = hl.followedLit
+              js.Dynamic.literal(
+                net = hl.followed.fold[js.Any](null)(n => js.Dynamic.literal(origin = n.origin.mkString("/"), from = n.from, to = n.to)),
+                path = hl.path.mkString("/"),
+                wires = js.Array(l.wires.toSeq.map { case (f, t) => js.Array(f, t) }: _*),
+                ends = js.Array(l.ends.toSeq: _*))
+            }): js.Function0[js.Dynamic])
+          },
+          unmount = { _ =>
+            if (viewObserver != null) viewObserver.disconnect()
+            viewObserver = null
+            gesturesOff(); gesturesOff = () => (); gestures = null
+            tooltipOff(); tooltipOff = () => ()
+            hintOff(); hintOff = () => ()
+            cancelFit(); flyer.cancel(); cancelSettle()
+          }),
         div(styleAttr <-- transformSig, children <-- contentSig,
           dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
+          // View-wide highlight state the rules of Highlight.css key on; on this
+          // element so an export's clone carries it.
+          cls("hl-sel") <-- selectedVar.signal.map(_.isDefined),
+          cls("hl-cw") <-- colorWiresVar.signal,
+          cls("hl-cb") <-- colorBoxesVar.signal,
           onMountCallback { ctx => contentNode = ctx.thisNode.ref }),
         // empty / missing notices
         child.maybe <-- Signal.combine(geomSig, designSig).map {
@@ -745,8 +984,14 @@ object Schematic {
                 "This module has no instances, ports, or wires to display.")))
           case _ => None
         },
+        // Shown over the content while panning (Gestures): the grabbing cursor
+        // and no text selection wherever the pointer goes, without restyling
+        // the content's elements.
+        div(dataAttr("pan-overlay") := "1",
+          styleAttr := "position:absolute;inset:0;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
       ),
       SchematicChrome.controls(ctrlCtx),
+      tooltip.el,
       // Non-blocking "laying out…" badge while the in-browser engine runs, so a
       // re-layout reads as progress instead of a freeze (perf feedback). Click-
       // through (pointer-events:none); the last-good schematic stays interactive.
@@ -764,48 +1009,80 @@ object Schematic {
       }.distinct.map(_.map { case (id, fsm) => FsmDiagramView.render(id, fsm, openSource) }),
       // Drop the memoized engine layouts when the design itself changes (live
       // reload / picker switch): a reused module name can describe new internals.
+      // The history and the followed net stay across a live reload (Back skips
+      // entries that no longer resolve, a vanished net lights nothing); a fresh
+      // load clears them (`history.reset`, from App).
       designSig.changes --> { _ => engineCache.clear() },
       // Minimap, shown only when content overflows the viewport at this zoom.
-      child.maybe <-- Signal.combine(geomSig, panVar.signal, zoomVar.signal, viewSizeVar.signal).map {
-        case (Some(g), (px, py), z, (vw, vh))
-          if g.layout.nodes.nonEmpty && vw > 0 && (g.layout.w * z > vw + 1 || g.canvasH * z > vh + 1) =>
-          Some(SchematicChrome.minimap(g, px, py, z, vw, vh, centerOnContent))
+      // Its node rects are built once per geometry (the element is rebuilt only
+      // when the geometry changes or it shows or hides); pan and zoom move just
+      // its viewport rect, through `minimapViewSig`. Hidden until the module's
+      // view is in place (`settledPathVar`).
+      child.maybe <-- Signal.combine(geomSig, zoomVar.signal, viewSizeVar.signal, pathSig.map(_.mkString("/")), settledPathVar.signal).map {
+        case (Some(g), z, (vw, vh), pk, settled)
+          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (g.layout.w * z > vw + 1 || g.canvasH * z > vh + 1) => Some(g)
         case _ => None
-      },
+      }.distinctByFn {
+        case (Some(a), Some(b)) => a eq b
+        case (a, b)             => a.isEmpty && b.isEmpty
+      }.map(_.map(g => SchematicChrome.minimap(g, minimapViewSig, centerOnContent))),
       // keep totalW/canvasH mirrors + current module name in sync with geometry.
       // Both dims are set in ONE transaction: two separate sets made the armed fit
       // below run on the new width paired with the previous (placeholder) height.
       geomSig --> { (gO: Option[Geom]) => gO.foreach { g => Var.set(totalWVar -> g.layout.w.toDouble, canvasHVar -> g.canvasH); curModName = g.mod.name } },
       // Clear the filter on navigation (JS clears it per path change).
-      pathSig.map(_.mkString("/")).changes --> { _ => filterVar.set("") },
+      // A drag in progress ends there too, so a stale drag cannot undo the new
+      // module's fit.
+      // The tooltip and the box outline go too (the box is gone).
+      pathSig.map(_.mkString("/")).changes --> { _ =>
+        filterVar.set(""); if (gestures != null) gestures.cancel(); tooltip.hide(); hl.clearBox()
+      },
+      // A rebuild replaces what the card describes; a pan or zoom moves it away
+      // from the pointer.
+      geomSig.changes --> { _ => tooltip.hide() },
+      // A user's pan or zoom becomes a history entry once it rests.
+      Signal.combine(panVar.signal, zoomVar.signal).changes --> { _ => tooltip.hide(); if (dirty) armSettle() },
       // Track the current module path; arm a fit/restore only on a real path
       // change. Stash the view of the module being left so returning restores it.
       // Bundle expansion grows the box (changes totalW/canvasH) but does NOT
       // change the path, so it must not re-fit the view (issue #207).
-      pathSig.map(_.mkString("/")) --> { pk =>
-        if (prevPathKey != null && prevPathKey != pk)
-          viewState(prevPathKey) = (zoomVar.now(), panVar.now())
-        if (prevPathKey != pk) pendingFit = true
-        prevPathKey = pk
+      pathSig --> { p =>
+        val pk = p.mkString("/")
+        if (prevPathKey != null && prevPathKey != pk) {
+          flyer.cancel()
+          // While a fit is still pending, the view shown is not that module's yet
+          // (the fit runs a frame later): do not save it as that module's view.
+          if (!pendingFit) {
+            commitDirty() // the view left, before the new module's entry
+            viewState(prevPathKey) = (zoomVar.now(), panVar.now())
+          }
+          cancelSettle(); dirty = false
+        }
+        if (prevPathKey != pk) {
+          pendingFit = true
+          if (flyPending.exists(_._1 != pk)) flyPending = None
+        }
+        prevPathKey = pk; curPath = p
       },
+      // A fly to a box waits for its module's view and layout.
+      Signal.combine(settledPathVar.signal, pendingVar.signal) --> { _ => tryFly() },
       // Perform the armed fit/restore once the geometry dimensions are known,
       // then disarm. Later dimension changes (expansion, Optimize, the engine
       // relayout landing) refit only while the view is still the automatic fit;
       // once the user pans or zooms, their view is left untouched.
+      // The fit itself runs in the next animation frame (scheduleFit); a pending
+      // one also waits for the first viewport size report.
       Signal.combine(totalWVar.signal, canvasHVar.signal) --> { (t: (Double, Double)) =>
         val (tw, ch) = t
-        if (pendingFit && viewportNode != null && tw > 0 && ch > 0) {
-          viewState.get(prevPathKey) match {
-            case Some((z, p)) => zoomVar.set(z); panVar.set(p); autoFitted = false
-            case None         => doFit()
-          }
-          pendingFit = false
-        } else if (autoFitted) doFit()
+        if (viewportNode != null && tw > 0 && ch > 0 && (pendingFit || autoFitted)) scheduleFit()
       },
+      // A size report comes after layout and before paint: run a pending fit
+      // right away, so the first view never paints unfitted for a frame.
+      viewSizeVar.signal.changes --> { _ => if (pendingFit) { cancelFit(); runFit() } },
       // in-process engine re-layout on module / expansion / Optimize / declutter /
       // auto-optimize. When auto-optimize (#209) is on, every view runs the
       // optimize pass so the initial render matches Optimize (off-thread).
-      Signal.combine(designSig, moduleSig, expandedPortsVar.signal, optNonceVar.signal, hiddenKindsVar.signal, autoOptimizeVar.signal) --> {
+      Signal.combine(designSig, moduleSig, expandedSig, optNonceVar.signal, hiddenKindsVar.signal, autoOptimizeVar.signal) --> {
         (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String], Boolean)) =>
           val manualOpt = t._4 != lastNonce
           lastNonce = t._4

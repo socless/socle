@@ -171,8 +171,12 @@ const REMOVED = {
   inspectorToggle: '[data-toggle-pane="inspector"]',
 };
 
-async function open(url) {
+// A standalone page's first-time tips are marked seen (they would sit over the
+// schematic), unless `fresh` asks for an empty storage (check 1 shows them).
+async function open(url, { fresh = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
+  if (!fresh && !url.includes('host=vscode'))
+    await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -183,6 +187,28 @@ async function open(url) {
 const count = (frame, sel) => frame.locator(sel).count();
 const theme = (frame) => frame.evaluate(() => document.documentElement.getAttribute('data-theme'));
 
+// The waveform colours chip next to Surfer's status: hovering it opens its legend.
+// Returns the legend's rows (`<signals> <colour>`, from their data attributes, each
+// checked against the text shown) and its text, or null when there is no chip.
+async function legendRead(frame) {
+  const chip = frame.locator('[data-wave-legend]').first();
+  if (!(await chip.isVisible().catch(() => false))) return null;
+  await chip.hover();
+  await frame.locator('[data-wave-legend-card]').first().waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+  return frame.evaluate(() => {
+    const c = document.querySelector('[data-wave-legend-card]');
+    if (!c || c.offsetParent === null && getComputedStyle(c).position !== 'fixed') return null;
+    const rows = Array.from(c.querySelectorAll('[data-wave-legend-row]')).map((e) => {
+      const r = `${e.getAttribute('data-wave-legend-row')} ${e.getAttribute('data-wave-color')}`;
+      return e.innerText.replace(/\s+/g, ' ').trim() === r ? r : `shown as ${JSON.stringify(e.innerText)}`;
+    });
+    return { rows, text: c.innerText.replace(/\s+/g, ' ') };
+  });
+}
+const LEGEND = ['Inputs Blue', 'Outputs Green', 'Registers Orange', 'Wires Gray'];
+const LEGEND_OFF = ['Ports Blue', 'Registers Orange', 'Wires Gray'];
+const GROUPS = /per port.*bundles nested.*Registers.*Wires/;
+
 async function waitLoaded(frame) {
   await frame.waitForSelector('[data-design-loaded="true"]', { timeout: 30000 });
   await frame.waitForSelector('[data-design-picker], [data-pane="schematic"]', { timeout: 30000 });
@@ -191,13 +217,48 @@ async function waitLoaded(frame) {
 
 // 1. Normal mode (regression): everything present, bottom panel open.
 {
-  const { ctx, page, errors } = await open('/');
+  const { ctx, page, errors } = await open('/', { fresh: true });
   await waitLoaded(page);
   for (const [k, sel] of Object.entries(REMOVED)) check('normal', (await count(page, sel)) > 0, `${k} present`);
   check('normal', (await count(page, '[data-bottom-panel]')) === 1, 'bottom panel open');
+  // First visit: the tips show one at a time; the last one's button closes them for good.
+  check('normal', (await count(page, '[data-first-tips]')) === 1, 'first-time tips on the first visit');
+  const seen = [];
+  for (let i = 0; i < 8 && (await count(page, '[data-first-tips]')); i++) {
+    seen.push(await page.locator('[data-first-tips-text]').textContent());
+    await page.click('[data-first-tips-next]');
+  }
+  check('normal', seen.length === 4 && new Set(seen).size === 4, `four tips, then closed (${JSON.stringify(seen)})`);
+  check('normal', (await page.evaluate(() => localStorage.getItem('socless-tips'))) === 'done', 'tips remembered as seen');
+  await page.reload();
+  await waitLoaded(page);
+  check('normal', (await count(page, '[data-first-tips]')) === 0, 'no tips after a reload');
   await page.click('[data-settings-toggle]');
   check('normal', (await count(page, '[data-theme-option]')) > 0, 'theme gallery in settings');
   check('normal', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 1b. The language server's browser panel (`?panel=1`, Neovim and other
+// editors): the standalone page, all its chrome kept, but its origin changes
+// with each server port, so the tips never show and closing the hint bar lasts
+// for the page's life only (nothing stored), as in the VS Code panel.
+{
+  const { ctx, page, errors } = await open('/?panel=1', { fresh: true });
+  await waitLoaded(page);
+  for (const [k, sel] of Object.entries(REMOVED)) check('editor panel', (await count(page, sel)) > 0, `${k} present`);
+  check('editor panel', (await count(page, '[data-bottom-panel]')) === 1, 'bottom panel open');
+  check('editor panel', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips on a first visit');
+  check('editor panel', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
+  await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
+  check('editor panel', !(await page.locator('[data-hint-bar]').isVisible()), 'hint bar closed');
+  check('editor panel', (await page.evaluate(() => [localStorage.getItem('socless-hints'), localStorage.getItem('socless-tips')])).every((v) => v === null),
+    'nothing stored for the hint bar or the tips');
+  await page.reload();
+  await waitLoaded(page);
+  check('editor panel', await page.locator('[data-hint-bar]').isVisible(), 'hint bar back after a reload');
+  check('editor panel', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips after a reload');
+  check('editor panel', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
 }
 
@@ -215,6 +276,18 @@ async function waitLoaded(frame) {
   check('embedded', dropCancelled.every(Boolean), `dragover/drop cancelled (no navigation) ${dropCancelled}`);
   check('embedded', (await theme(page)) === 'dark', 'data-theme=dark from ?theme=dark');
   check('embedded', (await page.evaluate(() => localStorage.getItem('socless-theme'))) === null, 'theme not persisted');
+  // Help: the hint bar shows, the first-time tips never do; closing the bar
+  // lasts for the page's life only.
+  check('embedded', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
+  check('embedded', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips');
+  await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
+  check('embedded', !(await page.locator('[data-hint-bar]').isVisible()), 'hint bar closed');
+  check('embedded', (await page.evaluate(() => [localStorage.getItem('socless-hints'), localStorage.getItem('socless-tips')])).every((v) => v === null),
+    'nothing stored for the hint bar or the tips');
+  await page.reload();
+  await waitLoaded(page);
+  check('embedded', await page.locator('[data-hint-bar]').isVisible(), 'hint bar back after a reload');
+  check('embedded', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips after a reload');
   for (const sel of ['[data-search-trigger]', '[data-help-trigger]', '[data-toggle-pane="bottom"]', '[data-settings-toggle]'])
     check('embedded', (await count(page, sel)) === 1, `${sel} kept`);
   await page.click('[data-toggle-pane="bottom"]');
@@ -311,6 +384,25 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   check('side', (await states()).length === n1 + 1, `one state for a drill-and-select navigate (${(await states()).length - n1})`);
   check('side', (await crumb()) === 'DeepSoc', 'navigate back to the top');
   check('side', !!sel && sel.data.details.name === 'pipe' && sel.data.details.module === 'Queue4_Token', `details of the selected instance ${JSON.stringify(sel && sel.data.details).slice(0, 200)}`);
+
+  // Hover feedback, embedded: resting on a box outlines it and, after 600 ms,
+  // shows its tooltip card; neither posts a state to the side panel.
+  {
+    const nh = (await states()).length;
+    const bb = await f.locator('[data-box-inst="cluster1"]').first().boundingBox();
+    await page.mouse.move(bb.x + 20, bb.y + 3);
+    await page.waitForTimeout(900);
+    const h = await f.evaluate(() => {
+      const t = document.querySelector('[data-tooltip]');
+      return { outlined: document.querySelector('[data-box-inst="cluster1"]').classList.contains('ohov'),
+               tip: t && getComputedStyle(t).display !== 'none' ? t.textContent : null };
+    });
+    check('side', h.outlined, 'resting on a box outlines it');
+    check('side', !!h.tip && h.tip.startsWith('cluster1') && /Double-click: open/.test(h.tip), `resting on a box shows its card (${h.tip})`);
+    await page.mouse.move(2, 2);
+    await page.waitForTimeout(150);
+    check('side', (await states()).length === nh, 'hovering posts no state');
+  }
 
   // The box header (its centre can be a port row, which expands instead of selecting).
   await f.locator('[data-box-inst="cluster1"]').first().click({ position: { x: 20, y: 3 } });
@@ -411,6 +503,24 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const label = (t) => (items.find((i) => i.trace === t) || {}).name;
   check('wave', label(P('io_in_valid')) === 'valid' && label(P('io_out_bits_result')) === 'result [15:0]' && label(P('x')) === 'x [15:0]',
     `short labels (${label(P('io_in_valid'))}, ${label(P('io_out_bits_result'))}, ${label(P('x'))})`);
+  // The colours chip beside Surfer's status: hovering it says what each colour
+  // means and how the groups are built; the keyboard reaches it too.
+  {
+    const leg = await legendRead(page);
+    check('wave', !!leg && JSON.stringify(leg.rows) === JSON.stringify(LEGEND) && GROUPS.test(leg.text),
+      `the colours chip's legend ${JSON.stringify(leg)}`);
+    await page.mouse.move(5, 5);
+    await page.waitForTimeout(300);
+    check('wave', !(await page.locator('[data-wave-legend-card]').first().isVisible().catch(() => false)), 'the legend closes when the pointer leaves');
+    await page.locator('[data-wave-legend]').first().focus().catch(() => {});
+    await page.keyboard.press('Enter');
+    const byKey = await page.locator('[data-wave-legend-card]').first().isVisible().catch(() => false);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    const closed = !(await page.locator('[data-wave-legend-card]').first().isVisible().catch(() => false));
+    check('wave', byKey && closed, `the chip opens by keyboard and Esc closes it (open ${byKey}, closed ${closed})`);
+    await page.evaluate(() => document.activeElement && document.activeElement.blur());
+  }
   if (SHOTS) {
     // a taller panel, so every signal shows
     const h = await page.locator('[data-bottom-resize]').boundingBox();
@@ -481,6 +591,16 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await setIde({ waveSettings: SETTINGS });
   await waitSnap('the unfolded plan', (s) => s.idle);
 
+  // Colour by direction off: the legend says the ports are all one colour.
+  await setIde({ waveSettings: { ...SETTINGS, colorByDirection: false } });
+  await waitSnap('the plan in one port colour', (s) => s.idle);
+  const legOff = await legendRead(page);
+  check('wave', !!legOff && JSON.stringify(legOff.rows) === JSON.stringify(LEGEND_OFF) && /ports are all Blue/.test(legOff.text),
+    `colour by direction off: the legend says ports are all Blue ${JSON.stringify(legOff)}`);
+  await page.mouse.move(5, 5);
+  await setIde({ waveSettings: SETTINGS });
+  await waitSnap('the plan coloured by direction', (s) => s.idle);
+
   // A burst of selections: only the last one reaches Surfer (debounced, one exchange at a time).
   const burst0 = (await snap()).focusCount;
   await page.evaluate(() => ['io.in.valid', 'io.in.ready', 'io.out.valid', 'io.in.bits.b'].forEach((x) => window.__soclessWave.select(x)));
@@ -538,6 +658,37 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   check('wave', regs3.includes(P('x')) && regs3.includes(P('busy')) && !regs3.includes(P('y')) && !regs3.includes(null),
     `the dropped register's group keeps its other signals, each matched ${JSON.stringify(regs3.slice(-3))}`);
   await focusAfter('register busy beside a dropped one', () => page.evaluate(() => window.__soclessWave.select('busy')), P('busy'));
+
+  // The schematic's navigation keys never act from the Surfer canvas, and do
+  // with the focus on the body (Surfer loaded, so its own key handling is live).
+  {
+    const view = () => page.evaluate(() => document.querySelector('[data-content]')?.style.transform || '');
+    const keys = async () => { for (const k of ['ArrowRight', 'ArrowDown', '-', 'f']) await page.keyboard.press(k); await page.waitForTimeout(100); };
+    const focused = await page.evaluate(() => {
+      const c = document.querySelector('[data-surfer-pane] canvas');
+      if (!c) return 'no canvas';
+      c.focus();
+      return document.activeElement === c ? 'canvas' : `not focusable (${document.activeElement && document.activeElement.tagName})`;
+    });
+    if (focused !== 'canvas') {
+      // Not focusable by script: a click in it is how a user gives it the focus.
+      const box = await page.locator('[data-surfer-pane] canvas').first().boundingBox().catch(() => null);
+      if (box) await page.mouse.click(box.x + box.width - 20, box.y + box.height - 20);
+    }
+    const inCanvas = await page.evaluate(() => !!document.activeElement && !!document.activeElement.closest('[data-surfer-pane]'));
+    check('wave', inCanvas, `the Surfer canvas takes the focus (${focused})`);
+    const a = await view();
+    await keys();
+    const b = await view();
+    check('wave', a !== '' && a === b, `keys in the Surfer canvas leave the schematic alone (${a} -> ${b})`);
+    await page.evaluate(() => document.activeElement && document.activeElement.blur());
+    await page.keyboard.press('ArrowRight');
+    await page.waitForTimeout(100);
+    const c = await view();
+    check('wave', c !== b, `ArrowRight with the focus on the body pans the schematic (${b} -> ${c})`);
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(100);
+  }
 
   // Following off: selections do nothing.
   await setIde({ waveSettings: { ...SETTINGS, followSelection: false } });
@@ -677,6 +828,19 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     if (s.idle && s.lastFocus) focus = s.lastFocus; else await page.waitForTimeout(200);
   }
   check('tab', !!focus && focus.trace === P('busy') && focus.ok, `Focus reaches Surfer ${JSON.stringify(focus)}`);
+
+  // The colours chip in the status line: the legend of the plan shown, which says
+  // how it was coloured (the page has no settings of its own).
+  const leg = await legendRead(f);
+  check('tab', !!leg && JSON.stringify(leg.rows) === JSON.stringify(LEGEND) && GROUPS.test(leg.text), `the colours chip's legend ${JSON.stringify(leg)}`);
+  await page.mouse.move(5, 5);
+  const blue = (gr) => ({ ...gr, items: gr.items.map((i) => ({ ...i, color: 'Blue' })), children: gr.children.map(blue) });
+  await cmd({ $type: 'Show', seq: 2, plan: { ...plan, groups: [blue(plan.groups[0]), plan.groups[1]], colorByDirection: false }, path: ['GCD'], trace: TRACE });
+  await waitStatus('the shown seq 2', (s) => s.shownSeq === 2, 30000);
+  const legOff = await legendRead(f);
+  check('tab', !!legOff && JSON.stringify(legOff.rows) === JSON.stringify(LEGEND_OFF) && /ports are all Blue/.test(legOff.text),
+    `a plan coloured without direction: ports are all Blue ${JSON.stringify(legOff)}`);
+  await page.mouse.move(5, 5);
   check('tab', wave.tabFetches.length === 0, `no design or /ide.json fetched ${JSON.stringify(wave.tabFetches)}`);
   // Surfer (egui) focuses its hidden text input; Chromium refuses that in a cross-origin
   // frame (as the VS Code webview is) and logs it as an error: not a page fault.
@@ -889,6 +1053,8 @@ let seq1 = -1;
   const pane = await page.waitForSelector('[data-surfer-pane]', { state: 'attached', timeout: 10000 }).then(() => true).catch(() => false);
   check('browser', pane, 'the Waveform tab mounts Surfer');
   check('browser', (await count(page, '[data-show-surfer]')) === 0, 'no Show Surfer button');
+  const chip = await page.waitForSelector('[data-wave-legend]', { timeout: 10000 }).then(() => true).catch(() => false);
+  check('browser', chip, 'the colours chip shows beside the Surfer status');
   check('browser', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
   wave.ide = null;

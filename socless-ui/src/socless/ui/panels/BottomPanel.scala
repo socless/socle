@@ -1,11 +1,12 @@
 package socless.ui.panels
 
 import com.raquo.laminar.api.L._
+import com.raquo.laminar.nodes.ChildNode
 import org.scalajs.dom
 import scala.scalajs.js
 import socless.schema.{Design, ModuleDef, PortDir}
 import socless.ui.theme._
-import socless.ui.wave.{RemotePane, SurferPane, WaveFollow}
+import socless.ui.wave.{ColorLegend, RemotePane, SurferPane, WaveFollow}
 
 /** The bottom panel under the schematic (epic #172 Phase 3 follow-up): a tabbed
   * Source / Waveform / Ports view. Behavioral port of the JS `BenchBottomPanel`
@@ -15,7 +16,8 @@ import socless.ui.wave.{RemotePane, SurferPane, WaveFollow}
   *                `ModuleDef.source.file`) with line numbers, target-line +
   *                selected-signal highlighting, auto-scroll, and a lightweight
   *                Scala tokenizer whose instance names drill in. Falls back to a
-  *                locator notice when no source was embedded.
+  *                locator notice when no source was embedded. Each file renders
+  *                once; a selection or module change only moves the highlight.
   *   - Waveform : the embedded Surfer ([[socless.ui.wave.SurferPane]]) when the
   *                language server's viewer is `surfer-panel` and a trace exists,
   *                following the selection ([[socless.ui.wave.WaveFollow]]);
@@ -112,20 +114,36 @@ object BottomPanel {
         onClick --> { _ => tabVar.set(id) },
         span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink4}", icon), label)
 
-    val infoSig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
+    val infoSig: Signal[ChildNode.Base] =
       Signal.combine(shownTabSig, moduleSig, designSig).map {
         case ("source", Some(mod), Some(d)) => sourcePathChip(mod.source.file, mod.source.line, d)
-        case ("wave", _, _)                 => span(child.text <-- waveInfo(wave))
+        case ("wave", _, _)                 => span(styleAttr := "display:inline-flex;align-items:center;gap:8px",
+          span(child.text <-- waveInfo(wave)),
+          // The colours chip, beside Surfer's status.
+          child.maybe <-- wave.fold[Signal[Option[Element]]](Val(None))(w => surferShown(w).map(on =>
+            Option.when(on)(ColorLegend.chip(w.colorByDirectionSig)))))
         case ("ports", Some(mod), _)        => span(s"${mod.children.length} instances")
         case _                              => emptyNode
       }
 
-    val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
+    // The Ports tab is rebuilt per module and selection, only while it shows.
+    val portsSig: Signal[ChildNode.Base] =
       Signal.combine(shownTabSig, moduleSig, selectedVar.signal, designSig).map {
-        case ("source", Some(mod), sel, Some(d)) => sourceView(mod, d, sel, drillInto)
-        case ("ports", Some(mod), _, Some(d))    => portsView(mod, d, setSel)
-        case _                                   => emptyNode // the Waveform pane is not per selection
+        case ("ports", Some(mod), sel, Some(d)) => Some((mod, sel, d))
+        case _                                  => None
+      }.distinctByFn {
+        case (Some((m1, s1, d1)), Some((m2, s2, d2))) => (m1 eq m2) && s1 == s2 && (d1 eq d2)
+        case (a, b)                                   => a.isEmpty && b.isEmpty
+      }.map {
+        case Some((mod, _, d)) => portsView(mod, d, setSel)
+        case None              => emptyNode // the Source and Waveform panes are not rebuilt per selection
       }
+    // The Source tab renders a file once and moves its highlight: mounted only
+    // while it shows (never when embedded, where the tab is hidden).
+    val source: Option[SourcePane] =
+      Option.when(!embedded)(new SourcePane(moduleSig, selectedVar.signal, designSig, drillInto))
+    val sourceSig: Signal[ChildNode.Base] =
+      shownTabSig.map(_ == "source").distinct.map(on => source.filter(_ => on).fold[ChildNode.Base](emptyNode)(_.root))
 
     div(
       cls := "scl-bottom", dataAttr("bottom-panel") := "1",
@@ -140,7 +158,7 @@ object BottomPanel {
         div(styleAttr := s"display:flex;align-items:center;gap:6px;padding:0 12px;font-size:11px;font-family:${Tokens.mono};color:${Tokens.ink4};overflow:hidden;white-space:nowrap;max-width:50%",
           child <-- infoSig),
       ),
-      div(cls := "scl-bottom-body", child <-- bodySig,
+      div(cls := "scl-bottom-body", child <-- sourceSig, child <-- portsSig,
         waveformPane(wave, waveViewSig, shownTabSig.map(_ == "wave"))),
     )
   }
@@ -183,95 +201,215 @@ object BottomPanel {
   }
 
   // ── Source ──────────────────────────────────────────────────────────────────
-  // Scroll the target line into view only when the module/file changes (not on
-  // every selection-driven rebuild).
-  private var scrolledFor: String = null
+  /** The Source tab. A file is tokenized and rendered once, then kept in a small
+    * cache keyed by its path and text (a live reload brings new text for the
+    * same path). A selection or a module change rewrites only one stylesheet:
+    * the lit lines, the selected instance's name and the current module's
+    * children as drill links. Every colour is a theme variable, so a theme
+    * change needs no render. The pane is mounted only while its tab shows. */
+  private final class SourcePane(
+    moduleSig: Signal[Option[ModuleDef]],
+    selectedSig: Signal[Option[String]],
+    designSig: Signal[Option[Design]],
+    drillInto: String => Unit,
+  ) {
+    private final class FileView(val file: String, val text: String, val lines: Array[String], val grid: ChildNode.Base)
+    private val CacheSize = 4
+    private var cache: List[FileView] = Nil // the most recent first
+    private val blank: ChildNode.Base = emptyNode
+    private val contentVar = Var[ChildNode.Base](blank)
+    private var shown: ChildNode.Base = blank
+    private var noticeKey: String = null
+    private var notice: ChildNode.Base = blank
+    // The shown module's instance names: the words that drill in.
+    private var children: Set[String] = Set.empty
+    private val hlStyle = styleTag()
+    private var hlCss = ""
+    // The file:line last scrolled to; reset when the pane leaves the page (a
+    // new mount starts at the top, so it scrolls to the target again).
+    private var scrolledFor: String = null
+    private var scrollSeq = 0
+    // The module the grid last showed: a new one scrolls to its declaration.
+    private var shownModule: String = null
 
-  private def sourceView(mod: ModuleDef, d: Design, selected: Option[String], drillInto: String => Unit): Element = {
-    val file       = mod.source.file
-    // Jump to the SELECTED component's source line when it lives in this file
-    // (#228): look the selection up among instances / logic nodes / wires. Fall
-    // back to the module declaration line.
-    val selLine: Option[Int] = selected.flatMap { s =>
-      val head = s.split('.').head
-      mod.children.find(_.name == head).map(_.source)
-        .orElse(mod.logic.find(_.id == head).map(_.source))
-        .orElse(mod.wires.find(w => w.from == s || w.to == s).map(_.source))
-        .filter(r => r.line > 0 && r.file == file).map(_.line)
+    val root: Element = div(cls := "scl-src", dataAttr("source-view") := "1", styleAttr := "height:100%;overflow:auto",
+      styleTag(SourceCss), hlStyle,
+      child <-- contentVar.signal,
+      // A child's name drills in; the selected instance's name does nothing.
+      onClick --> { (e: dom.MouseEvent) => wordOf(e).filter(children).foreach(drillInto) },
+      onMouseOver --> { (e: dom.MouseEvent) =>
+        wordOf(e).foreach { w =>
+          val el = e.target.asInstanceOf[dom.Element]
+          if (children(w)) el.setAttribute("title", s"Open $w")
+          else if (el.hasAttribute("title")) el.removeAttribute("title")
+        }
+      },
+      onUnmountCallback(_ => scrolledFor = null),
+      Signal.combine(moduleSig, selectedSig, designSig) --> { case (m, s, d) => update(m, s, d) },
+    )
+
+    private def wordOf(e: dom.Event): Option[String] = e.target match {
+      case el: dom.Element if el.hasAttribute("data-w") => Some(el.getAttribute("data-w"))
+      case _                                            => None
     }
-    val targetLine = selLine.getOrElse(mod.source.line)
-    val fileText   = if (file.nonEmpty) d.sources.get(file) else None
 
-    fileText match {
-      case None =>
-        div(styleAttr := s"padding:20px 22px;font-size:12px;color:${Tokens.ink2};line-height:1.55;max-width:520px",
-          div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink};margin-bottom:6px",
-            s"${if (file.nonEmpty) file else "(no source recorded)"}${if (targetLine > 0) s":$targetLine" else ""}"),
-          div(styleAttr := s"color:${Tokens.ink3}",
-            "Source text was not embedded in design.json. Re-run elaboration with --source-root (or use the Mill plugin) so the exporter includes the files."))
-      case Some(text) =>
-        val selInst = selected.map(_.split('.').head)
-        val selPort = selected.map(_.split('.').toSeq.take(2).mkString("."))
-        val childNames = mod.children.map(_.name).toSet
-        val lines = text.split("\n", -1).toSeq
-        val key = s"$file:$targetLine"
-        div(styleAttr := "height:100%;overflow:auto",
-          onMountCallback { ctx =>
-            val parent = ctx.thisNode.ref
-            // Defer one frame: onMount fires before the grid is laid out, and a
-            // rebuild (e.g. a selection change) may replace this node before then.
-            // Gate inside the frame on the LIVE, connected node so only it scrolls,
-            // and only once per file:line (not on every selection-driven rebuild).
-            // Scroll on navigating to a new module (its decl line) or selecting a
-            // component; not on merely deselecting, which would yank back up.
-            val fileChanged  = scrolledFor == null || !scrolledFor.startsWith(s"$file:")
-            val shouldScroll = selLine.isDefined || fileChanged
-            if (targetLine > 0 && shouldScroll) dom.window.requestAnimationFrame { _ =>
-              if (dom.document.contains(parent) && key != scrolledFor) {
-                scrolledFor = key
-                val el = parent.querySelector(s"""[data-line="$targetLine"]""").asInstanceOf[dom.html.Element]
-                if (el != null) {
-                  val delta = el.getBoundingClientRect().top - parent.getBoundingClientRect().top
-                  parent.scrollTop = math.max(0.0, parent.scrollTop + delta - parent.clientHeight / 4.0)
+    // A new content starts at the top: forget the last scroll, so the next
+    // target scrolls into view even if it is the same file:line as before.
+    private def show(n: ChildNode.Base): Unit = if (n ne shown) { shown = n; scrolledFor = null; contentVar.set(n) }
+
+    private def setHighlight(css: String): Unit = if (css != hlCss) { hlCss = css; hlStyle.ref.textContent = css }
+
+    private def update(mod: Option[ModuleDef], selected: Option[String], design: Option[Design]): Unit =
+      (mod, design) match {
+        case (Some(m), Some(d)) =>
+          val file = m.source.file
+          // Jump to the SELECTED component's source line when it lives in this file
+          // (#228): look the selection up among instances / logic nodes / wires. Fall
+          // back to the module declaration line.
+          val selLine: Option[Int] = selected.flatMap { s =>
+            val head = s.split('.').head
+            m.children.find(_.name == head).map(_.source)
+              .orElse(m.logic.find(_.id == head).map(_.source))
+              .orElse(m.wires.find(w => w.from == s || w.to == s).map(_.source))
+              .filter(r => r.line > 0 && r.file == file).map(_.line)
+          }
+          val targetLine = selLine.getOrElse(m.source.line)
+          (if (file.nonEmpty) d.sources.get(file) else None) match {
+            case None =>
+              setHighlight("")
+              val key = s"$file:$targetLine"
+              if (key != noticeKey) { noticeKey = key; notice = noticeView(file, targetLine) }
+              show(notice)
+            case Some(text) =>
+              val f = fileView(file, text)
+              children = m.children.map(_.name).toSet
+              show(f.grid)
+              setHighlight(highlightCss(f, selected, targetLine))
+              // Scroll on navigating to a new module (its decl line) or selecting a
+              // component; not on merely deselecting, which would yank back up. Once
+              // per file:line, a frame later (the grid is laid out by then), and only
+              // for the latest update.
+              val key           = s"$file:$targetLine"
+              val fileChanged   = scrolledFor == null || !scrolledFor.startsWith(s"$file:")
+              val moduleChanged = m.name != shownModule
+              shownModule = m.name
+              if (targetLine > 0 && (selLine.isDefined || fileChanged || moduleChanged)) {
+                scrollSeq += 1
+                val seq = scrollSeq
+                dom.window.requestAnimationFrame { _ =>
+                  val parent = root.ref
+                  if (seq == scrollSeq && dom.document.contains(parent) && key != scrolledFor) {
+                    scrolledFor = key
+                    val el = parent.querySelector(s"""[data-line="$targetLine"]""").asInstanceOf[dom.html.Element]
+                    if (el != null) {
+                      val delta = el.getBoundingClientRect().top - parent.getBoundingClientRect().top
+                      parent.scrollTop = math.max(0.0, parent.scrollTop + delta - parent.clientHeight / 4.0)
+                    }
+                  }
                 }
               }
-            }
-          },
-          div(styleAttr := s"font-family:${Tokens.mono};font-size:11.5px;line-height:1.6;padding:8px 0;display:grid;grid-template-columns:auto 1fr;column-gap:12px",
-            lines.zipWithIndex.flatMap { case (line, i) =>
-              val lineNo = i + 1
-              val matchInst = selInst.exists(s => s.nonEmpty && line.contains(s))
-              val matchPort = selPort.exists(s => s.nonEmpty && line.contains(s))
-              val isTarget  = lineNo == targetLine
-              val hl = matchInst || matchPort || isTarget
-              val bg = if (hl) Tokens.accentBg else "transparent"
-              Seq[Element](
-                div(dataAttr("line") := lineNo.toString,
-                  styleAttr := s"text-align:right;padding:0 4px;user-select:none;color:${if (hl) Tokens.accent else Tokens.ink4};background:$bg;font-variant-numeric:tabular-nums;font-weight:${if (isTarget) 600 else 400}", lineNo.toString),
-                div(styleAttr := s"padding:0 14px 0 6px;background:$bg;border-left:2px solid ${if (hl) Tokens.accent else "transparent"};white-space:pre;color:${Tokens.ink2}",
-                  tokenize(line, selInst, childNames, setSel = (p) => (), drillInto)),
-              )
-            }))
+          }
+        case _ =>
+          setHighlight("")
+          show(blank)
+      }
+
+    private def fileView(file: String, text: String): FileView =
+      cache.find(v => v.file == file && v.text == text) match {
+        case Some(v) =>
+          cache = v :: cache.filterNot(_ eq v)
+          v
+        case None =>
+          val v = render(file, text)
+          cache = (v :: cache).take(CacheSize)
+          v
+      }
+
+    /** The file as a two-column grid (line number, code), built with the DOM
+      * directly: it is static, so it needs no Laminar element per token. The
+      * identifiers carry `data-w`, which the highlight rules and the clicks key on. */
+    private def render(file: String, text: String): FileView = {
+      val doc   = dom.document
+      val lines = text.split("\n", -1)
+      val grid  = doc.createElement("div").asInstanceOf[dom.html.Element]
+      grid.className = "scl-src-grid"
+      lines.indices.foreach { i =>
+        val n = doc.createElement("div")
+        n.setAttribute("class", "scl-src-n")
+        n.setAttribute("data-line", (i + 1).toString)
+        n.textContent = (i + 1).toString
+        val c = doc.createElement("div")
+        c.setAttribute("class", "scl-src-c")
+        TokRe.findAllIn(lines(i)).foreach(p => c.appendChild(token(p)))
+        grid.appendChild(n)
+        grid.appendChild(c)
+      }
+      new FileView(file, text, lines, foreignHtmlElement(grid))
+    }
+
+    private def token(p: String): dom.Node = {
+      def styled(style: String): dom.Node = {
+        val s = dom.document.createElement("span")
+        s.setAttribute("style", style)
+        s.textContent = p
+        s
+      }
+      if (p.trim.isEmpty || p.length == 1 && "(){}.,;".contains(p)) dom.document.createTextNode(p)
+      else if (Keywords.contains(p)) styled(s"color:$KwCol;font-weight:500")
+      else if (Types.contains(p)) styled(s"color:$TyCol")
+      else if (p == "true" || p == "false" || p.forall(_.isDigit)) styled(s"color:$LitCol")
+      else if (p.startsWith("//")) styled(s"color:${Tokens.ink4};font-style:italic")
+      else {
+        val s = dom.document.createElement("span")
+        s.setAttribute("data-w", p)
+        s.textContent = p
+        s
+      }
+    }
+
+    /** The rules for the current module and selection: the lines that mention the
+      * selected instance or port, plus the target line; the selected instance's
+      * name; the module's children as drill links (they win over the selection). */
+    private def highlightCss(f: FileView, selected: Option[String], targetLine: Int): String = {
+      val selInst = selected.map(_.split('.').head).filter(_.nonEmpty)
+      val selPort = selected.map(_.split('.').toSeq.take(2).mkString(".")).filter(_.nonEmpty)
+      val lit = f.lines.indices.collect {
+        case i if i + 1 == targetLine || selInst.exists(f.lines(i).contains(_)) || selPort.exists(f.lines(i).contains(_)) => i + 1
+      }
+      def esc(w: String): String = js.Dynamic.global.CSS.applyDynamic("escape")(w).asInstanceOf[String]
+      def words(ws: Iterable[String]): String = ws.map(w => s""".scl-src [data-w="${esc(w)}"]""").mkString(",")
+      val sb = new StringBuilder
+      if (lit.nonEmpty) {
+        sb ++= lit.map(l => s""".scl-src [data-line="$l"]""").mkString(",")
+        sb ++= s"{color:${Tokens.accent};background:${Tokens.accentBg}}"
+        sb ++= lit.map(l => s""".scl-src [data-line="$l"]+div""").mkString(",")
+        sb ++= s"{background:${Tokens.accentBg};border-left-color:${Tokens.accent}}"
+      }
+      if (targetLine > 0) sb ++= s""".scl-src [data-line="$targetLine"]{font-weight:600}"""
+      selInst.foreach { s =>
+        sb ++= words(Seq(s))
+        sb ++= s"{background:${Tokens.linkSelBg};border-radius:2px;padding:0 1px;cursor:pointer;color:${Tokens.ink}}"
+      }
+      if (children.nonEmpty) {
+        sb ++= words(children.toSeq.sorted)
+        sb ++= s"{background:${Tokens.linkChildBg};color:${Tokens.linkChildFg};border-radius:2px;padding:0 2px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}"
+      }
+      sb.result()
     }
   }
 
-  private def tokenize(line: String, selInst: Option[String], childNames: Set[String],
-                       setSel: String => Unit, drillInto: String => Unit): Seq[Element] =
-    TokRe.findAllIn(line).toSeq.map { p =>
-      if (p.trim.isEmpty || p.length == 1 && "(){}.,;".contains(p)) span(p)
-      else if (Keywords.contains(p)) span(styleAttr := s"color:$KwCol;font-weight:500", p)
-      else if (Types.contains(p)) span(styleAttr := s"color:$TyCol", p)
-      else if (p == "true" || p == "false" || p.forall(_.isDigit)) span(styleAttr := s"color:$LitCol", p)
-      else if (p.startsWith("//")) span(styleAttr := s"color:${Tokens.ink4};font-style:italic", p)
-      else if (childNames.contains(p))
-        span(title := s"Open $p",
-          styleAttr := s"background:${Tokens.linkChildBg};color:${Tokens.linkChildFg};border-radius:2px;padding:0 2px;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px",
-          onClick --> { _ => drillInto(p) }, p)
-      else if (selInst.contains(p))
-        span(styleAttr := s"background:${Tokens.linkSelBg};border-radius:2px;padding:0 1px;cursor:pointer;color:${Tokens.ink}",
-          onClick --> { _ => setSel(p) }, p)
-      else span(p)
-    }
+  // The Source tab's fixed rules; the lit lines and words come per selection.
+  private val SourceCss: String =
+    s".scl-src-grid{font-family:${Tokens.mono};font-size:11.5px;line-height:1.6;padding:8px 0;display:grid;grid-template-columns:auto 1fr;column-gap:12px}" +
+    s".scl-src-n{text-align:right;padding:0 4px;user-select:none;color:${Tokens.ink4};font-variant-numeric:tabular-nums}" +
+    s".scl-src-c{padding:0 14px 0 6px;border-left:2px solid transparent;white-space:pre;color:${Tokens.ink2}}"
+
+  private def noticeView(file: String, targetLine: Int): Element =
+    div(styleAttr := s"padding:20px 22px;font-size:12px;color:${Tokens.ink2};line-height:1.55;max-width:520px",
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink};margin-bottom:6px",
+        s"${if (file.nonEmpty) file else "(no source recorded)"}${if (targetLine > 0) s":$targetLine" else ""}"),
+      div(styleAttr := s"color:${Tokens.ink3}",
+        "Source text was not embedded in design.json. Re-run elaboration with --source-root (or use the Mill plugin) so the exporter includes the files."))
 
   // ── Waveform ────────────────────────────────────────────────────────────────
   /** The Waveform tab's body, built once: the notes (paused, missing signals),
@@ -311,12 +449,16 @@ object BottomPanel {
     )
   }
 
+  /** Whether the Waveform tab's header shows Surfer's status (Surfer has a trace). */
+  private def surferShown(w: WaveFollow): Signal[Boolean] =
+    w.viewSig.map(v => v.viewer == WaveFollow.Panel && v.trace.nonEmpty).distinct
+
   /** The Waveform tab's header text: Surfer's status, or "no trace". */
   private def waveInfo(wave: Option[WaveFollow]): Signal[String] = wave match {
     case None => Val("no trace")
-    case Some(w) => Signal.combine(w.viewSig, w.pane.statusVar.signal).map {
-      case (v, st) if v.viewer == WaveFollow.Panel && v.trace.nonEmpty => s"Surfer: $st"
-      case _ => "no trace"
+    case Some(w) => Signal.combine(surferShown(w), w.pane.statusVar.signal).map {
+      case (true, st) => s"Surfer: $st"
+      case _          => "no trace"
     }
   }
 

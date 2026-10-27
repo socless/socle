@@ -55,7 +55,9 @@ object Inspector {
       expandedBundlesVar.update(s => if (on) s ++ paths else s -- paths)
 
     val sigSig: Signal[Option[String]] =
-      Signal.combine(selectedVar.signal, hoveredVar.signal).map { case (s, h) => s.orElse(h) }
+      // Distinct: the body rebuilds only when what it shows changes (a hover
+      // while something is selected changes nothing here).
+      Signal.combine(selectedVar.signal, hoveredVar.signal).map { case (s, h) => s.orElse(h) }.distinct
 
     val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
       Signal.combine(moduleSig, sigSig, expandedBundlesVar.signal, designSig).map {

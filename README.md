@@ -28,6 +28,10 @@ There are three ways in, all front doors to the same UI:
   [socless.nvim](https://github.com/e-ban/socless.nvim) plugin sets it up).
   Your tests are never modified.
 
+However you open it, [docs/usage-ui.md](docs/usage-ui.md) shows how to move
+around the schematic (mouse, keyboard, history, following a net) and what the
+waveform colours mean.
+
 ## Features
 
 - **Navigate** the hierarchy tree or the schematic; double-click a box to drill
@@ -44,7 +48,8 @@ There are three ways in, all front doors to the same UI:
 - **Inspect** any wire or module (types, widths, registers/memories, source
   location) and **jump to the source** in your editor (VS Code / IntelliJ).
 - **Command palette** (Ctrl/Cmd-K): fuzzy search over modules, instances, and
-  pins, plus actions (theme, panels, optimize); `?` lists keyboard shortcuts.
+  pins, plus actions (theme, panels, optimize); `?` lists the mouse actions
+  and keys ([docs/usage-ui.md](docs/usage-ui.md)).
 - **Filter** the schematic with a live match count; a **sortable, filterable
   ports** table; a **Source** tab showing the Chisel behind each module.
 - **Themes**: nine cohesive palettes (including an on-brand Blueprint) and a

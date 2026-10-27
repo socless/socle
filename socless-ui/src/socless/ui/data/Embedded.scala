@@ -16,6 +16,13 @@ object Embedded {
 
   val on: Boolean = params.get("host") == "vscode"
 
+  /** An editor's panel: the VS Code one, or the language server's browser
+    * panel (`?panel=1`, Neovim and other editors), which is otherwise the
+    * standalone page. Its origin changes with each server port, so nothing is
+    * remembered: the first-time tips never show and closing the hint bar lasts
+    * for the page's life. */
+  val editorPanel: Boolean = on || params.get("panel") == "1"
+
   /** The VS Code Surfer tab page (`view=surfer`): only Surfer, driven by
     * `socless-surfer-cmd` messages from the parent ([[socless.ui.wave.SurferTab]]). */
   val surferView: Boolean = on && params.get("view") == "surfer"

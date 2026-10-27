@@ -24,22 +24,28 @@ object Export {
   }
 
   /** Serialize `node` into a standalone SVG string sized `w` x `h`. The UI styles
-    * everything inline, so a foreignObject wrapper preserves appearance; every
-    * `var(--x)` referenced is resolved from the live theme and re-declared on the
-    * wrapper (a detached SVG cannot see :root). */
+    * everything inline, except the highlight looks, which are classes: their
+    * rules ([[Highlight.css]]) go in with it. So a foreignObject wrapper
+    * preserves appearance; every `var(--x)` referenced is resolved from the live
+    * theme and re-declared on the wrapper (a detached SVG cannot see :root).
+    * Per-element custom properties (a wire's `--wc`, ...) have no theme value
+    * and are left to their elements. */
   private def buildSvg(node: dom.html.Element, w: Int, h: Int): String = {
     val clone = node.cloneNode(true).asInstanceOf[dom.html.Element]
     clone.style.transform = "none"
     clone.style.transition = "none"
     clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml")
     val xhtml = new dom.XMLSerializer().serializeToString(clone)
+    val css = Highlight.css
     val rootStyle = dom.window.getComputedStyle(dom.document.documentElement)
-    val varDecls = VarRe.findAllMatchIn(xhtml).map(_.group(1)).toSet.toSeq
-      .map((v: String) => s"$v: ${rootStyle.getPropertyValue(v).trim};").mkString(" ")
+    val varDecls = VarRe.findAllMatchIn(xhtml + css).map(_.group(1)).toSet.toSeq
+      .map((v: String) => v -> rootStyle.getPropertyValue(v).trim).filter(_._2.nonEmpty)
+      .map { case (v, value) => s"$v: $value;" }.mkString(" ")
     val bg = { val b = rootStyle.getPropertyValue("--bg").trim; if (b.nonEmpty) b else "#fbfbfa" }
     s"""<svg xmlns="http://www.w3.org/2000/svg" width="$w" height="$h" viewBox="0 0 $w $h">""" +
       s"""<rect width="100%" height="100%" fill="$bg"/>""" +
       s"""<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="$varDecls position: relative; width: ${w}px; height: ${h}px; font-family: ui-monospace, monospace;">""" +
+      s"<style>$css</style>" +
       xhtml +
       "</div></foreignObject></svg>"
   }

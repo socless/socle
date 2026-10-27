@@ -21,6 +21,10 @@
     --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.96 0.02 250);
     --accentLine: oklch(0.55 0.16 250 / 0.18);
     --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
+    /* Hover outline + connected wires (schematic), apart from the accent. */
+    --hov: oklch(0.60 0.13 175);
+    /* The followed net (schematic), apart from the accent and the hover. */
+    --fol: oklch(0.56 0.21 335);
     --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
     /* Schematic label sizes (#follow-up): centralized so the "Label size" setting
@@ -55,6 +59,8 @@
     --ink: #e6edf3; --ink2: #c9d1d9; --ink3: #8b949e; --ink4: #6e7681;
     --accent: #1f6feb; --accentBg: #11213a; --accentLine: rgba(56,139,253,0.4);
     --hi: rgba(56,139,253,0.15); --ok: #3fb950; --warn: #d29922;
+    --hov: oklch(0.76 0.13 175);
+    --fol: oklch(0.74 0.18 335);
     /* Dark variants of the #220 accent palette: accents lifted in lightness to
        read on the dark surfaces, badge backgrounds darkened with light text. */
     --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
@@ -85,6 +91,8 @@
      :root (light themes) or :root[data-mode="dark"] (dark themes), which the app
      sets alongside data-theme. The set-before-paint script applies both. */
   :root[data-mode="dark"] {
+    --hov: oklch(0.76 0.13 175);
+    --fol: oklch(0.74 0.18 335);
     --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
     --chan-w: oklch(0.72 0.15 170); --chan-r: oklch(0.75 0.15 50);
     --chan-b: oklch(0.68 0.17 25);
@@ -133,6 +141,8 @@
     --ink:#ffffff; --ink2:#d6d6d6; --ink3:#9a9a9a; --ink4:#7a7a7a;
     --accent:#ffd400; --accentBg:#2a2600; --accentLine:rgba(255,212,0,.4);
     --hi:rgba(255,212,0,.16); --ok:#3fff6a; --warn:#ffae00;
+    --hov:#00e5ff;
+    --fol:#ff5cf0;
   }
   /* Light themes: core only; secondary palette inherits the light :root. */
   :root[data-theme="solarized"] {
@@ -301,6 +311,13 @@
   .scl-hier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .scl-hier-type { margin-left: auto; color: var(--ink3); font-size: 10.5px;
     max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* "Show in parent": flies to the instance's box in its parent module. Shown
+     on the hovered and the active row, and when focused (keyboard). */
+  .scl-hier-locate { flex-shrink: 0; border: none; background: transparent; color: var(--ink3);
+    cursor: pointer; padding: 0 3px; font-size: 11px; line-height: 1; opacity: 0; }
+  .scl-hier-row:hover .scl-hier-locate, .scl-hier-row.active .scl-hier-locate,
+  .scl-hier-locate:focus-visible { opacity: 1; }
+  .scl-hier-locate:hover, .scl-hier-locate:focus-visible { color: var(--accent); }
   /* Center column = schematic + bottom panel (#172 Phase 3). */
   .scl-center { flex: 1; display: flex; flex-direction: column; min-width: 0;
     border-left: 1px solid var(--border); border-right: 1px solid var(--border); }

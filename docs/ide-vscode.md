@@ -144,7 +144,11 @@ only to a client that hosts the panel (VS Code), so Neovim sees no change.
 ## The schematic in the IDE view
 
 A design viewed from a test is drawn with a few extras over the classic
-CHIRRTL view. They are the same in the Neovim browser panel.
+CHIRRTL view. They are the same in the Neovim browser panel. Moving around it
+(drag, wheel, keys, Back and Forward, following a net) is described in
+[Navigating the schematic](usage-ui.md#navigating-the-schematic); in the panel,
+Alt + ← / Alt + → and the mouse's side buttons may be kept by VS Code, so the
+panel's own command palette (its search box) has **Back** and **Forward** too.
 
 **Folded copies.** Generator copies (`Seq.fill(n)(Module(...))`) show folded:
 one box titled `<name> × <n>` stands for the n copies, and the wires into and
@@ -293,7 +297,10 @@ With the two Surfer viewers:
   reset when `socless.wavesShowClockReset` is on, then its ports in
   declaration order, its registers, and its wires and named nodes.
 - Inputs are blue, outputs green, registers orange and wires gray. With
-  `socless.wavesColorByDirection` off, all ports are blue.
+  `socless.wavesColorByDirection` off, all ports are blue. In the panel's
+  Surfer (the Waveform tab, or the Surfer tab's status line) the
+  **● colours** chip beside Surfer's status says so: hover or click it (see
+  [Waveform colours](usage-ui.md#waveform-colours)).
 - A smaller selection moves Surfer's focus to one signal:
   - a port or bundle pin: its first field;
   - a wire: its end in the module;

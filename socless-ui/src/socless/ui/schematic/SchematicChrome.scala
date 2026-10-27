@@ -113,36 +113,54 @@ private[schematic] object SchematicChrome {
   // ── minimap (issue #5) ──
   // Overview + draggable viewport rect; the caller decides when to show it (only
   // when content overflows the viewport at the current zoom) and supplies
-  // `centerOnContent` to recenter the main view on a content-space point.
-  def minimap(g: Geom, px: Double, py: Double, z: Double, vw: Double, vh: Double,
+  // `centerOnContent` to recenter the main view on a content-space point. The
+  // node rects are built once per call (once per geometry); only the viewport
+  // rect follows `viewSig` (pan, zoom, viewport size), so panning or zooming
+  // never rebuilds the overview (perf).
+  def minimap(g: Geom, viewSig: Signal[((Double, Double), Double, (Double, Double))],
               centerOnContent: (Double, Double) => Unit): Element = {
     val maxW = 190.0; val maxH = 140.0
     val s = math.min(maxW / g.layout.w, maxH / g.canvasH)
     val w = math.max(1.0, g.layout.w * s); val h = math.max(1.0, g.canvasH * s)
-    val rx = (-px / z) * s; val ry = (-py / z) * s
-    val rw = (vw / z) * s;  val rh = (vh / z) * s
     def centerAt(clientX: Double, clientY: Double, rect: dom.DOMRect): Unit = {
       val mx = math.max(0.0, math.min(w, clientX - rect.left))
       val my = math.max(0.0, math.min(h, clientY - rect.top))
       centerOnContent(mx / s, my / s)
     }
-    div(dataAttr("minimap") := "1", dataAttr("pan-block") := "1", title := "Click or drag to pan",
+    div(dataAttr("minimap") := "1", dataAttr("pan-block") := "1", dataAttr("no-pan") := "1", title := "Click or drag to pan",
       styleAttr := s"position:absolute;bottom:12px;left:12px;z-index:3;width:${w}px;height:${h}px;background:color-mix(in srgb, ${Tokens.panel} 80%, transparent);-webkit-backdrop-filter:blur(14px) saturate(140%);backdrop-filter:blur(14px) saturate(140%);border:1px solid ${Tokens.border};border-radius:7px;cursor:pointer;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,.2)",
       onMouseDown --> { (e: dom.MouseEvent) =>
         if (e.button == 0) {
           e.preventDefault(); e.stopPropagation()
           val rect = e.currentTarget.asInstanceOf[dom.html.Element].getBoundingClientRect()
           centerAt(e.clientX, e.clientY, rect)
-          lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => centerAt(ev.clientX, ev.clientY, rect)
+          // Apply the latest drag point once per animation frame (flushed on mouseup).
+          var next: Option[(Double, Double)] = None
+          var frame = 0
+          def flush(): Unit = {
+            if (frame != 0) dom.window.cancelAnimationFrame(frame)
+            frame = 0; next.foreach { case (x, y) => centerAt(x, y, rect) }; next = None
+          }
+          lazy val moveL: js.Function1[dom.MouseEvent, Unit] = (ev) => {
+            next = Some((ev.clientX, ev.clientY))
+            if (frame == 0) frame = dom.window.requestAnimationFrame { _ => frame = 0; flush() }
+          }
           lazy val upL: js.Function1[dom.MouseEvent, Unit] = (_) => {
             dom.window.removeEventListener("mousemove", moveL); dom.window.removeEventListener("mouseup", upL)
+            flush()
           }
           dom.window.addEventListener("mousemove", moveL); dom.window.addEventListener("mouseup", upL)
         }
       },
       g.layout.nodes.map(n => div(styleAttr := s"position:absolute;left:${n.x * s}px;top:${n.y * s}px;width:${math.max(1.0, n.w * s)}px;height:${math.max(1.0, n.h * s)}px;background:${Tokens.ink4};opacity:0.45;border-radius:1px")),
+      // Moved by a transform (no layout per pan step); its size changes only
+      // with the zoom or the viewport.
       div(dataAttr("minimap-viewport") := "1",
-        styleAttr := s"position:absolute;left:${rx}px;top:${ry}px;width:${rw}px;height:${rh}px;border:1.5px solid ${Tokens.accent};background:${Tokens.accentLine};box-sizing:border-box;pointer-events:none"),
+        styleAttr <-- viewSig.map { case ((px, py), z, (vw, vh)) =>
+          val rx = (-px / z) * s; val ry = (-py / z) * s
+          val rw = (vw / z) * s;  val rh = (vh / z) * s
+          s"position:absolute;left:0;top:0;transform:translate(${rx}px,${ry}px);width:${rw}px;height:${rh}px;border:1.5px solid ${Tokens.accent};background:${Tokens.accentLine};box-sizing:border-box;pointer-events:none"
+        }),
     )
   }
 }

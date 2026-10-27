@@ -115,6 +115,7 @@ private[schematic] object FsmDiagramView {
       dataAttr("fsm-diagram") := blockId,
       dataAttr("fsm-ready") <-- layoutVar.signal.map(l => if (l.exists(_.isRight)) "1" else "0"),
       dataAttr("pan-block") := "1",
+      dataAttr("no-pan") := "1", // keeps its own scroll and pan
       styleAttr := s"position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:${Tokens.bg};cursor:default",
       onMountCallback { _ =>
         BrowserLayout.layoutDiagram(nodes, edges).onComplete {

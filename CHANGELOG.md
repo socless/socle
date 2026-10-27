@@ -14,6 +14,46 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   installs SoCLess from lazy.nvim / LazyVim, `vim.pack`, mini.deps, packer or
   vim-plug (it fetches the server jar of a pinned release; configurable);
   docs/ide-neovim.md leads with it and keeps the manual setup.
+- Schematic navigation: a drag pans from anywhere (a block, a wire, a pin or
+  the background; a press that barely moves is still a click), as does a
+  middle-button drag. The wheel zooms at the pointer, Shift + wheel and
+  Ctrl + wheel scroll, and a trackpad swipe pans and a pinch zooms. The arrow
+  keys pan, `+` and `-` zoom, `0` or `f` fits and `z` zooms to the selection.
+  The new docs/usage-ui.md lists every gesture and key.
+- Hover feedback: a hovered block gets a coloured outline and its wires are
+  drawn thicker; resting on a block, a wire or a pin shows a card with what it
+  is and what a click does there, and the cursor shows what a press will do.
+- Help in the UI: a hint bar under the schematic says what the mouse does on
+  what is under it (Settings > Hint bar), the "?" card (now "Mouse and
+  keyboard") lists the mouse actions per element next to the keys, and four
+  first-time tips greet a first visit in the browser.
+- Back and forward through the views, like a browser: Alt + ← / Alt + →, the
+  mouse's side buttons, or the palette's **Back** and **Forward**. Choosing an
+  instance in the search flies to it (a short animation), the hierarchy's ◎
+  shows an instance in its parent, and `z` (or **Zoom to selection**) frames the
+  selection.
+- Follow a net across levels: clicking a wire keeps its net lit through
+  instance ports while drilling in and out; Esc or a click on the background
+  clears it.
+- Waveform colours: a **● colours** chip beside Surfer's status (the Waveform
+  tab, and VS Code's Surfer tab) says what each colour means (inputs Blue,
+  outputs Green, registers Orange, wires Gray; ports all Blue with
+  `socless.wavesColorByDirection` off) and how the signal groups are built.
+
+### Changed
+
+- The schematic no longer rebuilds on hover, selection, the filter or
+  colourization, only on a new layout, an expansion or a fold, and the Source
+  tab renders a file once and moves its highlight. On a large design
+  (TensorGemm, 4x CPU slowdown) resting on a wire for a second went from 19
+  frames and 40 280 rebuilt nodes to 60 frames and none, and hovering wires
+  from 1 963 ms of work to 368 ms.
+
+### Fixed
+
+- The "laying out..." spinner no longer stays on after expanding a bundle in a
+  drilled module and returning to the top: each module now keeps its own
+  expanded bundles, and returning to a module shows it as it was left.
 
 ## [0.17.0] - 2026-10-26
 

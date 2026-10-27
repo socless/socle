@@ -1,10 +1,10 @@
 package socless.ui.schematic
 
 import org.scalajs.dom
-import socless.schema.{Design, ModuleDef}
+import socless.schema.{Design, ModuleDef, InstanceDef, LogicNodeDef, ModuleKind}
 import socless.ui.theme.Tokens
 import socless.ui.model.RowModel
-import socless.js.BrowserLayout.{LaidOut, LaidNodeR}
+import socless.js.BrowserLayout.{LaidOut, LaidNodeR, LaidPortR}
 import socless.layout.LayoutCore
 
 /** The pure geometry/model layer of the schematic (#216): the wire/box value
@@ -25,13 +25,50 @@ private[schematic] object SchematicGeom {
     def x2: Double = points.last._1; def y2: Double = points.last._2
   }
 
+  /** Index `xs` by `key`, keeping the first element of each key. */
+  private def firstBy[A](xs: Iterable[A])(key: A => String): Map[String, A] = {
+    val b = scala.collection.mutable.LinkedHashMap.empty[String, A]
+    for (x <- xs) { val k = key(x); if (!b.contains(k)) b(k) = x }
+    b.toMap
+  }
+
+  final case class InstInfo(mod: Option[ModuleDef], blackbox: Boolean, folded: Boolean, drillable: Boolean)
+
   final case class BoxShift(shift: Map[String, Double], shiftAt: Double => Double, total: Double)
 
   final case class Geom(
     layout: LaidOut, mod: ModuleDef, design: Design,
     rows: Map[String, RowModel.BoxRows], wires: Seq[Wire], boxShift: BoxShift,
     canvasH: Double, c: Tokens.Consts, boxById: Map[String, LaidNodeR],
-  )
+  ) {
+    // Lookups the render does per node, built once per geometry (perf: they
+    // replace linear scans inside rendering).
+    /** A child instance by name: the first one with that name, like the
+      * `children.find` it replaced. */
+    lazy val childByName: Map[String, InstanceDef] = firstBy(mod.children)(_.name)
+    /** A module by name: the LAST one with that name, matching how
+      * `App.currentModule` resolves a module (its `toMap` keeps the last). */
+    lazy val moduleByName: Map[String, ModuleDef] = design.modules.iterator.map(m => m.name -> m).toMap
+    /** A logic node by id: the first one with that id, like the `logic.find` it replaced. */
+    lazy val logicById: Map[String, LogicNodeDef] = firstBy(mod.logic)(_.id)
+    /** What an instance box stands for and what a double-click on it does:
+      * the module it instantiates, an external or intrinsic module (no
+      * internals), a folded group of generator copies (double-click unfolds),
+      * drillable (double-click opens). Shared by the box and its tooltip. */
+    def instInfo(ch: InstanceDef): InstInfo = {
+      val m        = moduleByName.get(ch.`type`)
+      val blackbox = m.exists(x => x.kind == ModuleKind.External || x.kind == ModuleKind.Intrinsic)
+      val folded   = ch.foldCount > 0
+      InstInfo(m, blackbox, folded, !folded && m.exists(x => !blackbox && x.children.nonEmpty))
+    }
+    /** The laid box and pin for a pin path: the first box in layout order, then
+      * its first pin with that path (two pins can share a path, #237). */
+    lazy val pinOwner: Map[String, (LaidNodeR, LaidPortR)] = {
+      val b = scala.collection.mutable.LinkedHashMap.empty[String, (LaidNodeR, LaidPortR)]
+      for (n <- layout.nodes; p <- n.ports if !b.contains(p.path)) b(p.path) = (n, p)
+      b.toMap
+    }
+  }
 
   /** Drawable connections for the current module. Delegates to the shared
     * [[LayoutCore.displayWires]] so the schematic's wire set is folded by the
