@@ -222,6 +222,23 @@ object ModelToDesignTest extends TestSuite {
       check(d.modules.flatMap(_.children).forall(_.foldGroup.isEmpty), "CHIRRTL view has a fold group")
     }
 
+    test("block pins show their source path, not the lowered name (#333)") {
+      val d     = ModelToDesign.design(gcd)
+      val ports = d.regions("blk$GCD$logic").ports
+      // The pin id stays lowered (paths address it as <block>.<pin>); its label is the source path.
+      val bitsA = ports.find(_.name == "io_in_bits_a").get
+      assert(bitsA.label == "io.in.bits.a")
+      val top    = d.modules.find(_.name == "GCD").get
+      val labels = LayoutCore.prepare(top, d).nodes.find(_.id == "blk$GCD$logic").get.pins.map(_.label)
+      assert(labels.contains("io.in.bits.a") && !labels.exists(_.contains("io_in")))
+    }
+
+    test("captured modules carry their register and memory counts (#333)") {
+      val d = ModelToDesign.design(gcd)
+      val m = d.modules.find(_.name == "GCD").get.metrics
+      assert(m.registers == 3 && m.lines > 0)
+    }
+
     test("layouts bake") {
       for ((label, cm) <- Seq("gcd" -> gcd, "rvpipeline" -> rvpipeline, "deepsoc" -> deepsoc)) {
         val design = ModelToDesign.design(cm)

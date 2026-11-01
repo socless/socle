@@ -58,7 +58,7 @@ object LogicBlocks {
       val members = g.members.intersect(logic.iterator.map(_.id).toSet)
       if (members.nonEmpty) {
         val boxes = logic.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
-        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes))
+        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes), boxes)
         bodies(g.id) = body
         logic = nextLogic
         wires = nextWires
@@ -73,6 +73,7 @@ object LogicBlocks {
     logic:   Seq[LogicNodeDef],
     wires:   Seq[WireDef],
     pinOf:   (String, String) => (String, String),
+    boxes:   Set[String],
   ): (ModuleDef, Seq[LogicNodeDef], Seq[WireDef]) = {
     // Exact id first (a const id carries its `~in<i>` suffix), then the head base.
     def inMember(endpoint: String): Boolean =
@@ -89,7 +90,11 @@ object LogicBlocks {
         case None =>
           val name = (base #:: LazyList.from(2).map(n => s"${base}_$n")).find(!taken(_)).get
           taken += name
-          pins(key) = PortDef(name = name, dir = dir, bundle = "", doc = "", source = SourceRef.unknown)
+          // Shown by its source path (#333): the key, below a box's id for a box pin.
+          val h     = key.takeWhile(c => c != '.' && c != '[')
+          val label = if (boxes(h) && key.length > h.length + 1) key.drop(h.length + 1) else key
+          pins(key) = PortDef(name = name, dir = dir, bundle = "", doc = "", source = SourceRef.unknown,
+            label = if (label == name) "" else label)
         case Some(p) if p.dir != dir => pins(key) = p.copy(dir = PortDir.Inout)
         case Some(_) =>
       }

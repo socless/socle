@@ -6,7 +6,7 @@ import org.eclipse.elk.core.RecursiveGraphLayoutEngine
 import org.eclipse.elk.core.data.LayoutMetaDataService
 import org.eclipse.elk.core.options.{CoreOptions, Direction, EdgeRouting, PortConstraints, PortSide}
 import org.eclipse.elk.core.util.BasicProgressMonitor
-import org.eclipse.elk.alg.layered.options.{LayerConstraint, LayeredMetaDataProvider, LayeredOptions}
+import org.eclipse.elk.alg.layered.options.{LayerConstraint, LayeredMetaDataProvider, LayeredOptions, NodePlacementStrategy}
 import org.eclipse.elk.graph.{ElkNode, ElkPort}
 import org.eclipse.elk.graph.util.ElkGraphUtil
 
@@ -48,6 +48,11 @@ object Layout {
     // constraints (issue #163) produce a single leftmost/rightmost column for the
     // whole module, not one per disconnected component.
     root.setProperty(CoreOptions.SEPARATE_CONNECTED_COMPONENTS, java.lang.Boolean.FALSE)
+    // The optimize pass (BrowserLayout's "optimize" mode, the UI's default
+    // auto-optimize): baked with it, a first view needs no browser re-layout (#335).
+    root.setProperty(LayeredOptions.NODE_PLACEMENT_STRATEGY, NodePlacementStrategy.NETWORK_SIMPLEX)
+    root.setProperty(LayeredOptions.NODE_PLACEMENT_FAVOR_STRAIGHT_EDGES, java.lang.Boolean.TRUE)
+    root.setProperty(LayeredOptions.THOROUGHNESS, Integer.valueOf(12))
     root
   }
 
@@ -127,6 +132,17 @@ object Layout {
     // All engine-independent prep (resolve, vote, geometry, anti-parallel
     // collapse) is shared with the browser engine (issue #167).
     val prep = LayoutCore.prepare(InstanceFold.fold(module, Set.empty), design, Set.empty)
+    val first = layoutPrepared(prep)
+    // A logic or FSM block's pins follow their peers (#334): a second pass with
+    // them reordered within their side by where pass one put the other ends.
+    if (!prep.nodes.exists(n => NodeKind.isBox(n.kind))) first
+    else {
+      val portY = first.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
+      layoutPrepared(LayoutCore.reorderBoxPins(prep, LayoutCore.peerYOf(prep, portY)))
+    }
+  }
+
+  private def layoutPrepared(prep: LayoutCore.Prepared): ModuleLayout = {
     val root = newGraph()
 
     // Build ELK nodes + ports from the prepared geometry. Track handles by path.
@@ -162,7 +178,9 @@ object Layout {
         n.pins.foreach { p =>
           val port = ElkGraphUtil.createPort(node)
           port.setWidth(6); port.setHeight(6)
-          port.setX(p.x); port.setY(p.y)
+          // The port's centre is the pin (#334): the router ends a wire on the
+          // pin's row, so the UI never bends its last segment onto the pin.
+          port.setX(p.x); port.setY(p.y - 3)
           port.setProperty(CoreOptions.PORT_SIDE, if (p.side == PinSide.East) PortSide.EAST else PortSide.WEST)
           elkPort(p.path) = port
         }
@@ -185,7 +203,7 @@ object Layout {
       val nx = node.getX; val ny = node.getY
       val laidPorts = n.pins.map { p =>
         val ep = elkPort(p.path)
-        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY).toInt, p.side, p.interface, p.label, p.bundle, p.expandable)
+        LaidPort(p.path, (nx + ep.getX).toInt, (ny + ep.getY + ep.getHeight / 2).toInt, p.side, p.interface, p.label, p.bundle, p.expandable)
       }
       LaidNode(n.id, n.kind, nx.toInt, ny.toInt, node.getWidth.toInt, node.getHeight.toInt, laidPorts)
     }
@@ -295,6 +313,6 @@ object Layout {
     }
     if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
     design.copy(layouts = layouts.toMap, layoutOf = layoutOf.toMap, layoutConsts = LayoutCore.consts,
-      layoutModel = LayoutCore.LayoutModel)
+      layoutModel = LayoutCore.LayoutModel, layoutOptimized = true)
   }
 }

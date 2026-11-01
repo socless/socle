@@ -324,8 +324,8 @@ object LayoutCore {
   }
 
   /** A row's pin label: indented under its parent, with its type as [[pinLabel]] does. */
-  private def rowLabel(r: PortModel.Row): String =
-    ("  " * r.depth) + pinLabel("", r.label, Some(r.bundle))
+  private def rowLabel(r: PortModel.Row, design: Design): String =
+    ("  " * r.depth) + pinLabel("", r.label, Some(BundleTree.displayName(r.bundle, design)))
 
   /** Resolve a module into an engine-agnostic graph: nodes with sizes + per-pin
     * coordinates, and anti-parallel-collapsed edges. This is the entire pure
@@ -485,12 +485,18 @@ object LayoutCore {
 
     // 4. Compute node geometry + per-pin coordinates (pure; no engine objects).
     val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
+      // A logic block's or FSM's pin by its source path (`io.in.bits.a`), not its lowered id (#333).
+      def boxPinLabel(p: PinSpec): Option[String] =
+        if (!NodeKind.isBox(kind)) None
+        else design.regions.get(id).flatMap(_.ports.find(q => p.path == s"$id.${q.name}")).map(_.label).filter(_.nonEmpty)
       def lblOf(p: PinSpec): String =
         if (kind == NodeKind.Mem) memPinLabel(module, id, p.path)
+        else if (boxPinLabel(p).isDefined) boxPinLabel(p).get
         // A stub's top row keeps its full path ("io.in: Decoupled"), as before #332.
         else if (rowOf.get((id, kind, p.path)).exists(r => kind != NodeKind.Boundary || r.depth > 0))
-          rowLabel(rowOf((id, kind, p.path)))
-        else pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
+          rowLabel(rowOf((id, kind, p.path)), design)
+        // The type at Chisel's level (#333): a class or a known shape, never a hash.
+        else pinLabel(id, p.path, Some(BundleTree.displayName(p.bundle, design)))
       // Const nodes share the boundary stub's compact geometry (a single small
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
       // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
@@ -547,7 +553,17 @@ object LayoutCore {
         val fold         = module.children.find(_.name == id)
         val headerText   = fold.filter(_.foldCount > 0).fold(id)(c => s"$id × ${c.foldCount}")
         val toggleW      = if (fold.exists(c => c.foldCount > 0 || c.foldGroup.nonEmpty)) 30.0 else 0.0
-        val headerTextPx = headerText.length * 6.5 + 24.0 + toggleW
+        // The clock and reset marks in the header (#334), as the UI draws them.
+        val ports        = fold.flatMap(c => modulesByName.get(c.`type`)).fold(Seq.empty[PortDef])(_.ports)
+        val cueW         = (if (ports.exists(_.bundle == "Clock")) 14.0 else 0.0) +
+                           (if (ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset")) 14.0 else 0.0)
+        // The header's right group too: the type label (capped at 80px by the UI)
+        // and the open mark, so the name keeps its room (#334).
+        // The name is drawn at about 8px a character; the glyph, padding and gaps take about 50px.
+        val typeW        = if (kind == NodeKind.Inst) math.min(80.0, fold.fold(0)(_.`type`.length) * 6.5) + 24.0 else 0.0
+        val headerTextPx =
+          if (kind == NodeKind.Inst) headerText.length * 8.0 + 50.0 + toggleW + cueW + typeW
+          else headerText.length * 6.5 + 24.0 + toggleW
         // Op/reg logic nodes render as a compact symbol (no header, short or no
         // pin labels), so they use a small fixed width; real instances size to
         // their header + label columns (issue #203).
@@ -620,6 +636,48 @@ object LayoutCore {
 
     Prepared(nodes, edges)
   }
+
+  /** Where a bundle wire carries its type label (#334): the middle of the
+    * longest horizontal segment of its drawn route, or None when that segment
+    * is shorter than the label (`labelW`) plus a margin. */
+  def wireLabelAt(points: Seq[(Double, Double)], labelW: Double): Option[(Double, Double)] =
+    points.sliding(2).collect { case Seq(a, b) if a._2 == b._2 => (a, b) }
+      .maxByOption { case (a, b) => math.abs(b._1 - a._1) }
+      .filter { case (a, b) => math.abs(b._1 - a._1) >= labelW + 8 }
+      .map { case (a, b) => ((a._1 + b._1) / 2, a._2) }
+
+  // ── Logic block pin order (#334) ─────────────────────────────────────────────
+
+  /** For every pin of a logic or FSM block, the mean y (in `portY`, absolute)
+    * of the other ends of its edges; a pin with no laid peer is absent. */
+  def peerYOf(prep: Prepared, portY: Map[String, Double]): Map[String, Double] = {
+    val boxPins = prep.nodes.iterator.filter(n => NodeKind.isBox(n.kind)).flatMap(_.pins.map(_.path)).toSet
+    val ys = mutable.Map.empty[String, mutable.ArrayBuffer[Double]]
+    prep.edges.foreach { e =>
+      if (boxPins(e.fromPath)) portY.get(e.toPath).foreach(y => ys.getOrElseUpdate(e.fromPath, mutable.ArrayBuffer.empty) += y)
+      if (boxPins(e.toPath))   portY.get(e.fromPath).foreach(y => ys.getOrElseUpdate(e.toPath, mutable.ArrayBuffer.empty) += y)
+    }
+    ys.iterator.map { case (p, v) => p -> v.sum / v.size }.toMap
+  }
+
+  /** A logic or FSM block's pins reordered within their side by `peerY`, on the
+    * side's own y slots: each pin sits across from the box it connects to, inputs
+    * still West and outputs East (#334). A pin with no peer keeps its slot.
+    * Other nodes are returned unchanged. */
+  def reorderBoxPins(prep: Prepared, peerY: Map[String, Double]): Prepared =
+    prep.copy(nodes = prep.nodes.map { n =>
+      if (!NodeKind.isBox(n.kind)) n
+      else {
+        // Only pins with a peer move, onto the slots the peered pins hold: a pin
+        // with none keeps its slot (peer ys are absolute, pin ys box-relative).
+        val moved = Seq(PinSide.West, PinSide.East).flatMap { side =>
+          val peered = n.pins.filter(p => p.side == side && peerY.contains(p.path))
+          val slots  = peered.map(_.y).sorted
+          peered.sortBy(p => peerY(p.path)).zip(slots).map { case (p, y) => p.path -> y }
+        }.toMap
+        n.copy(pins = n.pins.map(p => moved.get(p.path).fold(p)(y => p.copy(y = y))))
+      }
+    })
 
   // ── Display wires: the schematic's drawable connection list ─────────────────
 

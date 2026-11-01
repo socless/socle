@@ -189,7 +189,8 @@ object ModelToDesign {
         children   = c.instances.map(i => InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module),
           foldGroup = foldGroups.getOrElse(i.name, ""))),
         wires      = wires,
-        metrics    = Metrics(0, 0, 0),
+        // The CHIRRTL walk's counts (registers, connects, lines, memories), when the capture has it (#333).
+        metrics    = irModule.map(_.metrics).getOrElse(Metrics(0, 0, 0)),
         parameters = params(c.name),
         scalaClass = c.scalaClass,
         parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),

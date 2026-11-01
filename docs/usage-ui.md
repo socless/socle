@@ -57,11 +57,28 @@ Decoupled starts closed, as one row.
   `ready` points out). A row never changes side. A click again closes it,
   whatever was opened under it; what was open under it is open again when
   you reopen it.
+- **A Decoupled's `bits`** is one row until opened, with its fields summed up
+  (`pc 32b, inst 32b`).
 - **Wires** end on the deepest row shown: on `in` while it is closed, on
-  `in.bits.a` once it is open.
+  `in.bits.a` once `in` and `bits` are open. A bundle wire is thick and carries
+  its type once (`AXI4`); a signal wire is thin and carries its width when it
+  has more than one bit.
 - **The module's own ports** (the stubs at the edges, inputs on the left and
   outputs on the right) work the same way: one stub per port, opened in
   place with its + or −.
+
+### Pins and the overview
+
+- **Pins:** a signal pin is a triangle on the box edge pointing the way data
+  flows; a bundle pin is a blue tab (pointing out: closed, pointing down: open);
+  a Vec of signals is two stacked tabs. Clock and reset are the two small marks
+  in a box's header.
+- **Overview:** zoomed out so far that pin names would be too small to read
+  (under about 7px), the schematic shows each box's name at a readable size
+  and hides pin names; zoom in and the detail comes back. A title or a pin can
+  still be clicked in the overview.
+- **Logic blocks:** their pins are ordered within each side by where their
+  wires go, inputs on the left and outputs on the right.
 
 ### Keyboard
 

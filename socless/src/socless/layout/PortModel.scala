@@ -39,6 +39,16 @@ object PortModel {
       node.path -> emit(node, label, 0, mirror(side), expanded)
     }
 
+  /** A Vec whose elements are signals, however deeply nested (`Vec[UInt<8>, 4]`,
+    * `Vec[Vec[UInt<1>, 2], 3]`), not of bundles: drawn as stacked tabs (#334). */
+  def isVecOfSignals(typeKey: String, design: Design): Boolean = typeKey match {
+    case VecKey(inner) =>
+      val i = inner.trim
+      if (i.startsWith("Vec[")) isVecOfSignals(i, design) else !BundleTree.isAggregateType(i, design)
+    case _ => false
+  }
+  private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
+
   /** Every wire end path of `module`, for `wireEnds`. */
   def wireEndsOf(module: ModuleDef): Set[String] =
     module.wires.iterator.flatMap(w => Iterator(w.from, w.to)).toSet

@@ -615,7 +615,7 @@ async function smokeDesignIn(design, ctx) {
     const ready = () => page.waitForSelector('[data-layout-ready="1"]', { timeout: 5000 }).then(() => true).catch(() => false);
     const mark = () => page.evaluate((p) => {
       const e = document.querySelector(`[data-bundle-toggle="${p}"]`);
-      return e ? e.textContent.trim().charAt(0) : null;
+      return e ? (e.getAttribute('data-open') === '1' ? '\u2212' : '+') : null;
     }, pin);
     await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
     await ready();
@@ -1253,7 +1253,16 @@ async function smokeDesignIn(design, ctx) {
       drain(`${where} (wide)`);
 
       // A reload that drops the block closes the diagram.
-      await serve((d) => { for (const m of d.modules) m.logic = (m.logic || []).filter((n) => n.id !== id); });
+      // The block leaves the baked layouts too, as an export would leave it: an
+      // optimized bake is drawn as is, with no re-layout (#335).
+      await serve((d) => {
+        for (const m of d.modules) m.logic = (m.logic || []).filter((n) => n.id !== id);
+        for (const l of Object.values(d.layouts || {})) {
+          const gone = new Set((l.nodes.find((n) => n.id === id)?.ports || []).map((p) => p.path));
+          l.nodes = l.nodes.filter((n) => n.id !== id);
+          l.edges = l.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to));
+        }
+      });
       const closed = await page.waitForFunction(() => !document.querySelector('[data-fsm-diagram]') && !document.querySelector('[data-fsm]'),
         null, { timeout: 10000 }).then(() => true).catch(() => false);
       if (!closed) note(design, where, 'reload dropping the block: the diagram stayed open');
@@ -1522,7 +1531,9 @@ async function smokeDesignIn(design, ctx) {
       const missing = want.filter((w) => !got.includes(w)).length, extra = got.filter((w) => !want.includes(w)).length;
       const sw = (w) => parseFloat(getComputedStyle(w.querySelectorAll('path')[1]).strokeWidth);
       const other = wires.find((w) => !w.classList.contains('ohov') && !w.classList.contains('fl'));
-      const thick = want.filter((w) => !w.classList.contains('fl')).every((w) => !other || sw(w) > sw(other));
+      // Thicker than an unlit wire of its own kind: a bundle wire is thick at rest (#334).
+      const restOf = (w) => wires.find((x) => !x.classList.contains('ohov') && !x.classList.contains('fl') && x.classList.contains('bw') === w.classList.contains('bw'));
+      const thick = want.filter((w) => !w.classList.contains('fl')).every((w) => { const o = restOf(w); return !o || sw(w) > sw(o); });
       const colour = getComputedStyle(box).outlineColor;
       const same = got.every((w) => getComputedStyle(w.querySelectorAll('path')[1]).stroke === colour);
       const label = box.querySelector(':scope > div:first-child')?.textContent || id;
@@ -1782,7 +1793,13 @@ async function smokeDesignIn(design, ctx) {
         await page.mouse.move(x, y);
         await page.waitForTimeout(20);
         if (i === 2) await watchDrag(); // the pan has started: nothing toggles from here on
-        if (i === 3) cursor = await page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h ? getComputedStyle(h).cursor : null; }, [x, y]);
+        // The cursor over the schematic: a drag that leaves it (onto the hint
+        // bar below a small design) is not covered by the pan overlay.
+        if (i === 3) cursor = await page.evaluate(([x, y]) => {
+          const vp = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+          if (x < vp.left || x > vp.right || y < vp.top || y > vp.bottom) return 'grabbing';
+          const h = document.elementFromPoint(x, y); return h ? getComputedStyle(h).cursor : null;
+        }, [x, y]);
       }
       const m = await unwatchDrag();
       await page.mouse.up();
@@ -1839,7 +1856,7 @@ async function smokeDesignIn(design, ctx) {
       if (pt) {
         gestureToggleDesigns.add(design);
         const key = await page.evaluate(([x, y]) => document.elementFromPoint(x, y).closest('[data-bundle-toggle]').getAttribute('data-bundle-toggle'), [pt.x, pt.y]);
-        const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${k}"]`); return e ? e.textContent.trim().charAt(0) : null; }, key);
+        const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${k}"]`); return e ? (e.getAttribute('data-open') === '1' ? '\u2212' : '+') : null; }, key);
         const m0 = await mark();
         await jitterClick(pt, 3, 0);
         await settle();
@@ -1885,7 +1902,7 @@ async function smokeDesignIn(design, ctx) {
       const dotSel = key && `.${cls}[${attr}="${key.replace(/["\\]/g, '\\$&')}"]`;
       const pt = key && await pointOn(dotSel);
       if (!pt) continue;
-      const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${CSS.escape(k)}"]`); return e ? e.textContent.trim().charAt(0) : null; }, key);
+      const mark = () => page.evaluate((k) => { const e = document.querySelector(`[data-bundle-toggle="${CSS.escape(k)}"]`); return e ? (e.getAttribute('data-open') === '1' ? '\u2212' : '+') : null; }, key);
       const cur = await page.evaluate((s) => getComputedStyle(document.querySelector(s)).cursor, dotSel);
       if (cur !== 'pointer') note(design, where, `the expandable pin dot ${key} has cursor ${cur}, expected pointer`);
       await page.mouse.move(pt.x, pt.y);
@@ -2486,7 +2503,8 @@ async function smokeDesignIn(design, ctx) {
           // With the box it starts from, when the wire's path is one (a
           // boundary stub, a state machine).
           const q = from.replace(/["\\]/g, '\\$&');
-          await framed(`[data-content] .scl-w[data-from="${q}"], [data-content] [data-boundary-stub="${q}"], [data-content] [data-box-inst="${q}"]`, 'wire');
+          // The wire's route (its paths), not its type label (#334).
+          await framed(`[data-content] .scl-w[data-from="${q}"] > path, [data-content] [data-boundary-stub="${q}"], [data-content] [data-box-inst="${q}"]`, 'wire');
         }
         await pick('Clear selection');
       }
@@ -2748,14 +2766,19 @@ async function smokeDesignIn(design, ctx) {
       const pin = W[0];
       if (!(await lit()).pins.includes(pin)) note(design, where, `the collapsed pin ${pin} is not lit`);
       const tg = page.locator(`[data-bundle-toggle="${pin}"]`).first();
+      // An earlier step may have left it open: start from it closed.
+      const fieldRows = () => page.evaluate((p) => document.querySelectorAll(`[data-row^="${CSS.escape(p)}."]`).length, pin);
+      // The pin opens it, in the overview too (a faded label takes no clicks, #334).
+      const tgPin = page.locator(`[data-pin="${pin}"]`).first();
+      if (await tg.count() && await fieldRows()) { await tgPin.click(); await settle(); }
       if (await tg.count()) {
-        await tg.click();
+        await tgPin.click();
         await settle();
         const E = await lit();
         if (!E.pins.includes(pin)) note(design, where, `the expanded pin ${pin} is not lit: ${fmt(E.pins)}`);
         if (!E.rows) note(design, where, `no field row of the expanded ${pin} is lit`);
         if (!E.wires.length) note(design, where, 'expanding a bundle unlit the followed wire');
-        await page.locator(`[data-bundle-toggle="${pin}"]`).first().click();
+        await tgPin.click();
         await settle();
       } else note(design, where, `no bundle toggle on ${pin}`);
       // Back (into cluster0) and Forward (the top) restore it.
@@ -2986,6 +3009,81 @@ async function smokeDesignIn(design, ctx) {
   // declared fields on their own sides, once each, with no group labels and no
   // replicated bundle on the peers. The `scatter` design's producer `p.io`
   // is the case: outputs a, b EAST, input c WEST.
+  // #334: an overview at fit. Box names readable (at least 12px on screen),
+  // pin labels hidden; at 1:1 the detail is back; fit again, the overview.
+  if (design === 'rvpipeline' || design === 'bigarray') {
+    const where = 'overview at fit (#334)';
+    const click = (t) => page.locator(`button[title="${t}"]`).first().click().catch(() => {});
+    const state = () => page.evaluate(() => {
+      const c = document.querySelector('[data-content]');
+      const z = parseFloat((c.style.transform.match(/scale\(([-\d.e]+)\)/) || [])[1] || '1');
+      const names = Array.from(document.querySelectorAll('[data-box-overview-name]')).filter((e) => getComputedStyle(e).display !== 'none');
+      const px = names.length ? parseFloat(getComputedStyle(names[0]).fontSize) * z : 0;
+      const overflow = names.filter((e) => e.scrollWidth > e.clientWidth + 1).length;
+      const label = document.querySelector('.scl-rlab');
+      return { ov: c.classList.contains('ov'), names: names.length, px, overflow, labelShown: !!label && getComputedStyle(label).opacity !== '0' };
+    });
+    await click('Fit to view'); await page.waitForTimeout(400);
+    const a = await state();
+    if (!a.ov) note(design, where, `at fit, no overview: ${JSON.stringify(a)}`);
+    else {
+      // Readable where the boxes have room (BigArray's are smaller than the text).
+      if (!a.names || (design === 'rvpipeline' && a.px < 12)) note(design, where, `at fit, box names not readable: ${JSON.stringify(a)}`);
+      if (a.overflow) note(design, where, `at fit, ${a.overflow} box names overflow their box`);
+      if (a.labelShown) note(design, where, 'at fit, pin labels still shown');
+    }
+    // An export from the overview has the full detail (no overview class, no --z).
+    if (a.ov && await page.locator('[data-export-svg]').count()) {
+      const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.locator('[data-export-svg]').first().click()]);
+      const svg = (await import('node:fs')).readFileSync(await dl.path()).toString();
+      if (/class="[^"]*\bov\b/.test(svg) || /--z:/.test(svg)) note(design, where, 'an SVG exported from the overview keeps the overview (pin text faded)');
+    }
+    // In the overview, a faded label does not take clicks: a click on a box's
+    // name never opens a bundle the user cannot see.
+    if (a.ov && design === 'rvpipeline') {
+      const pe = await page.evaluate(() => { const l = document.querySelector('[data-box-inst="decode"] .scl-rlab'); return l ? getComputedStyle(l).pointerEvents : null; });
+      if (pe !== 'none') note(design, where, `a faded row label takes clicks in the overview (pointer-events ${pe})`);
+    }
+    await click('Reset to 100%'); await page.waitForTimeout(400);
+    const b = await state();
+    if (b.ov || !b.labelShown) note(design, where, `at 1:1, the detail is not back: ${JSON.stringify(b)}`);
+    await click('Fit to view'); await page.waitForTimeout(400);
+    if (!(await state()).ov) note(design, where, 'lod toggles back: fit again shows no overview');
+    // Leave a view the user set, as the checks below expect (an automatic fit
+    // refits when a bundle grows the canvas, #207).
+    await click('Reset to 100%'); await page.waitForTimeout(300);
+  }
+  // #334: a box's anatomy. No + or − text, clock and reset in the header, and
+  // an open bundle's fields hang from a guide line.
+  if (design === 'rvpipeline') {
+    const where = 'box anatomy (#334)';
+    const a = await page.evaluate(() => {
+      const b = document.querySelector('[data-box-inst="decode"]');
+      if (!b) return null;
+      const texts = Array.from(b.querySelectorAll('*')).filter((e) => e.children.length === 0).map((e) => e.textContent.trim());
+      const clk = b.querySelector('[data-clk-cue]');
+      return { pm: texts.filter((t) => t === '+' || t === '−').length, clkInHeader: !!clk && b.firstElementChild.contains(clk) };
+    });
+    if (!a) note(design, where, 'no decode box');
+    else {
+      if (a.pm) note(design, where, `decode shows ${a.pm} + or − marks`);
+      if (!a.clkInHeader) note(design, where, 'the clock mark is not in the header');
+      const t = page.locator('[data-bundle-toggle="decode.io.in"]').first();
+      const guides = () => page.locator('[data-box-inst="decode"] [data-row-guide]').count();
+      if (await t.count()) {
+        if (!(await guides())) {
+          await t.dispatchEvent('click');
+          await page.waitForTimeout(400);
+          await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+          await page.waitForTimeout(300);
+        }
+        if (!(await guides())) note(design, where, 'an open decode.io.in draws no guide line');
+        await t.dispatchEvent('click');
+        await page.waitForTimeout(400);
+        await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      } else note(design, where, 'no toggle on decode.io.in');
+    }
+  }
   if (design === 'scatter') {
     const pRows = await page.$$eval('[data-box-inst="p"] [data-row]', (els) =>
       els.map((e) => e.getAttribute('data-row-side') + ':' + e.getAttribute('data-row')));
@@ -2995,6 +3093,11 @@ async function smokeDesignIn(design, ctx) {
     if (await page.locator('[data-bundle-group]').count())
       note(design, 'scattered fields (#237)', 'a [data-bundle-group] row is still drawn');
     if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
+  }
+  // #334: a bundle wire carries its type once.
+  if (design === 'axisystem') {
+    const labels = await page.$$eval('[data-wire-label]', (els) => els.map((e) => e.getAttribute('data-wire-label')));
+    if (!labels.includes('AXI4')) note(design, 'wire labels (#334)', `no AXI4 wire label, got ${JSON.stringify(labels)}`);
   }
   // #207: expanding a bundle must NOT reset the view (pan/zoom). Record the
   // content layer's transform before any expand and compare after: the box

@@ -132,6 +132,10 @@ case class Design(
   // an older design.json, whose pins were wire ends rather than declared port
   // rows (#332); the UI lays such a bake out again. Additive, last.
   layoutModel: Int = 0,
+  // The baked `layouts` were made with the optimize pass (the UI's default,
+  // auto-optimize), so a first view needs no browser re-layout (#335).
+  // Additive, last.
+  layoutOptimized: Boolean = false,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 
@@ -222,6 +226,10 @@ case class PortDef(
   // unconnected - the UI flags those so a port is never shown as unconnected
   // unless it truly is (issue #74). Default true keeps existing JSON terse.
   connected: Boolean = true,
+  // How the port is shown when its name is not its source name: a logic
+  // block's pin is named `io_in_bits_a` (paths address it as `<block>.<pin>`)
+  // and labelled `io.in.bits.a` (#333). Empty: shown by `name`. Additive, last.
+  label: String = "",
 )
 object PortDef { implicit val rw: ReadWriter[PortDef] = macroRW }
 

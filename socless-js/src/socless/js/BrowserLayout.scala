@@ -112,7 +112,8 @@ object BrowserLayout {
     * with its top-level pins at their shifted rows, so elkjs re-routes cleanly
     * to the moved pins (this is what removes the up-then-down kink, issue #164). */
   private def buildGraph(prep: LayoutCore.Prepared, mode: String,
-                         overrides: Map[String, BoxOverride]): js.Dynamic = {
+                         overrides: Map[String, BoxOverride],
+                         previous: Map[String, (Double, Double)] = Map.empty): js.Dynamic = {
     val children = prep.nodes.map { n =>
       val ov     = overrides.get(n.id)
       val height = ov.flatMap(_.height).getOrElse(n.height)
@@ -121,7 +122,8 @@ object BrowserLayout {
         val py = pinYOv.getOrElse(p.path, p.y)
         js.Dynamic.literal(
           id = p.path,
-          x = p.x, y = py, width = 6, height = 6,
+          // The port's centre is the pin (#334), as in the JVM engine.
+          x = p.x, y = py - 3, width = 6, height = 6,
           layoutOptions = js.Dynamic.literal("elk.port.side" -> (if (p.side == PinSide.East) "EAST" else "WEST")),
         )
       }.toJSArray
@@ -135,12 +137,14 @@ object BrowserLayout {
       // the JVM backend (LayoutCore sets layerConstraint), applied as the elkjs
       // option here so the two engines stay in sync.
       n.layerConstraint.foreach(lc => nodeOpts.updateDynamic("elk.layered.layering.layerConstraint")(lc))
-      js.Dynamic.literal(
+      val node = js.Dynamic.literal(
         id = synthId(n),
         width = n.width, height = height,
         layoutOptions = nodeOpts,
         ports = ports,
       )
+      previous.get(n.id).foreach { case (x, y) => node.updateDynamic("x")(x); node.updateDynamic("y")(y) }
+      node
     }.toJSArray
 
     // Edge: source = toPath (driver), target = fromPath (sink), matching the
@@ -173,6 +177,13 @@ object BrowserLayout {
       opts.updateDynamic("elk.layered.nodePlacement.strategy")("NETWORK_SIMPLEX")
       opts.updateDynamic("elk.layered.nodePlacement.favorStraightEdges")("true")
       opts.updateDynamic("elk.layered.thoroughness")("12")
+    }
+    if (previous.nonEmpty) {
+      // Re-layout from the layout shown (#335): its layers and order are kept,
+      // so boxes stay where they were and the crossing passes are cheap.
+      opts.updateDynamic("elk.layered.layering.strategy")("INTERACTIVE")
+      opts.updateDynamic("elk.layered.crossingMinimization.strategy")("INTERACTIVE")
+      opts.updateDynamic("elk.layered.cycleBreaking.strategy")("INTERACTIVE")
     }
     js.Dynamic.literal(id = "root", layoutOptions = opts, children = children, edges = edges)
   }
@@ -208,7 +219,7 @@ object BrowserLayout {
         LaidPortR(
           p.path,
           (nx + px).toInt,
-          (ny + py).toInt,
+          (ny + py + ph / 2.0).toInt,
           p.side, p.interface, p.label, p.bundle, p.expandable,
         )
       }
@@ -285,9 +296,30 @@ object BrowserLayout {
     * main thread when available (see [[engine]]). Callers pass the module
     * already folded (App's `currentModuleSig`), while the JVM `Layout.layout`
     * folds internally, so both engines get the same input. */
+  /** Start the engine (its worker) and warm its code on a tiny graph, once, so
+    * the first real re-layout (a bundle opened) does not pay for it (#335): a
+    * first view is baked and no longer runs the engine. */
+  private var warmed = false
+  def warmUp(): Unit = if (!warmed) {
+    warmed = true
+    import LayoutCore._
+    def pin(path: String, side: String, x: Double, y: Double) = PreparedPin(path, side, false, "", path, x, y, false)
+    val prep = Prepared(
+      Seq(
+        PreparedNode("a", NodeKind.Inst, 100, 60, Seq(pin("a.o", PinSide.East, 100, 40))),
+        PreparedNode("b", NodeKind.Inst, 100, 60, Seq(pin("b.i", PinSide.West, 0, 40), pin("b.o", PinSide.East, 100, 40))),
+        PreparedNode("c", NodeKind.Boundary, 16, 28, Seq(pin("c", PinSide.West, 0, 0)), Some("LAST_SEPARATE")),
+      ),
+      Seq(PreparedEdge("b.i", "a.o", ""), PreparedEdge("c", "b.o", "")))
+    Seq("optimize", "reroute").foreach { mode =>
+      try engine.layout(buildGraph(prep, mode, Map.empty)) catch { case _: Throwable => () }
+    }
+  }
+
   def runTyped(module: ModuleDef, design: Design, mode: String,
                overrides: Map[String, BoxOverride], expanded: Set[String],
-               hidden: Set[String] = Set.empty): Future[LaidOut] = {
+               hidden: Set[String] = Set.empty,
+               previous: Option[LaidOut] = None): Future[LaidOut] = {
     val prep0 = LayoutCore.prepare(module, design, expanded)
     // Declutter (#223): drop nodes of hidden kinds and any edge that touches one,
     // then re-lay-out the visible subset. Wires that targeted a now-absent node
@@ -300,9 +332,22 @@ object BrowserLayout {
         prep0.nodes.filterNot(n => hidden.contains(n.kind)),
         prep0.edges.filterNot(e => hiddenPaths.contains(e.fromPath) || hiddenPaths.contains(e.toPath)))
     }
-    val graph = buildGraph(prep, mode, overrides)
-    val laid: Future[js.Dynamic] = engine.layout(graph).asInstanceOf[js.Promise[js.Dynamic]]
-    laid.map(res => extractTyped(prep, res))
+    val prev = previous.fold(Map.empty[String, (Double, Double)])(_.nodes.map(n => n.id -> ((n.x.toDouble, n.y.toDouble))).toMap)
+    def run(p: LayoutCore.Prepared): Future[LaidOut] = {
+      val laid: Future[js.Dynamic] = engine.layout(buildGraph(p, mode, overrides, prev)).asInstanceOf[js.Promise[js.Dynamic]]
+      laid.map(res => extractTyped(p, res))
+    }
+    // A logic or FSM block's pins follow their peers (#334), as in the JVM bake.
+    // A relayout from the layout shown takes the peers from it: one run.
+    if (!prep.nodes.exists(n => NodeKind.isBox(n.kind))) run(prep)
+    else if (previous.isDefined) {
+      val portY = previous.get.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
+      run(LayoutCore.reorderBoxPins(prep, LayoutCore.peerYOf(prep, portY)))
+    }
+    else run(prep).flatMap { first =>
+      val portY = first.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
+      run(LayoutCore.reorderBoxPins(prep, LayoutCore.peerYOf(prep, portY)))
+    }
   }
 
   // ── State diagrams (FSM) ───────────────────────────────────────────────────

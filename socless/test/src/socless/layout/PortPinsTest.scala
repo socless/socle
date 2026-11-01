@@ -69,7 +69,7 @@ object PortPinsTest extends TestSuite {
       assert(closed.map(_.id) == Seq("io.in", "io.out"))
       assert(closed.forall(_.pins.length == 1))
       val open = node(LayoutCore.prepare(m, gcd, Set("io.in")), "io.in")
-      assert(open.pins.map(_.path) == Seq("io.in", "io.in.valid", "io.in.ready", "io.in.bits.a", "io.in.bits.b"))
+      assert(open.pins.map(_.path) == Seq("io.in", "io.in.valid", "io.in.ready", "io.in.bits"))
       val ys = open.pins.map(_.y)
       assert(ys == ys.sorted && ys.distinct.length == ys.length)
       assert(ys.forall(y => y > 0 && y < open.height))
@@ -91,6 +91,21 @@ object PortPinsTest extends TestSuite {
       assert(rv.layoutModel == 0)
       assert(Layout.withLayouts(rv).layoutModel == LayoutCore.LayoutModel)
       assert(LayoutCore.LayoutModel >= 1)
+    }
+
+    test("pin labels name types at Chisel's level (#333)") {
+      val labels = node(LayoutCore.prepare(top(rv), rv), "decode").pins.map(_.label)
+      assert(labels == Seq("in: Decoupled", "out: Decoupled", "rf"))
+      val stubs = LayoutCore.prepare(top(gcd), gcd).nodes.filter(_.kind == NodeKind.Boundary).flatMap(_.pins.map(_.label))
+      assert(stubs == Seq("io.in: Decoupled", "io.out: Decoupled"))
+      assert(node(LayoutCore.prepare(top(axi), axi), "cpu").pins.map(_.label) == Seq("io: AXI4"))
+    }
+
+    test("a bake is the optimize pass the UI would run (#335)") {
+      // The UI's default (auto-optimize) re-laid every first view out in the
+      // browser; a bake already in that mode needs no run.
+      assert(!rv.layoutOptimized)
+      assert(Layout.withLayouts(rv).layoutOptimized)
     }
 
     test("display wires use the same rows") {

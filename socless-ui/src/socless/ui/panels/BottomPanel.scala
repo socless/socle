@@ -515,7 +515,7 @@ object BottomPanel {
         td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", r.tpe),
         td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.port),
         td(styleAttr := "padding:6px 12px", span(styleAttr := s"padding:1px 6px;border-radius:2px;background:$dirBg;color:$dirCol;font-size:10px", r.dir)),
-        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", r.bundle),
+        td(styleAttr := s"padding:6px 12px;color:${Tokens.ink2}", Inspector.typeName(r.bundle, d)),
         td(styleAttr := s"padding:6px 12px;color:${Tokens.ink3}", s"${Inspector.totalWidth(r.bundle, d)}b"),
         td(styleAttr := s"padding:6px 12px;color:${Tokens.ink4};font-size:11px",
           if (!r.connected) span(title := "This port is not referenced anywhere in the source (genuinely unconnected).",

@@ -191,7 +191,7 @@ object Tooltip {
   private def typed(g: Geom, key0: String, known: Int = 0): String = {
     val key = if (key0 == "Wire") "" else key0
     val n = if (known > 0) known else if (key.isEmpty) 0 else Inspector.totalWidth(key, g.design)
-    (Seq(key) ++ Option.when(n > 0)(if (n == 1) "1 bit" else s"$n bits")).filter(_.nonEmpty).mkString(", ")
+    (Seq(if (key.isEmpty) "" else Inspector.typeName(key, g.design)) ++ Option.when(n > 0)(if (n == 1) "1 bit" else s"$n bits")).filter(_.nonEmpty).mkString(", ")
   }
 
   /** The card for a target of the view `g` (None when it is not in it). */

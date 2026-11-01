@@ -34,6 +34,9 @@ object Export {
     val clone = node.cloneNode(true).asInstanceOf[dom.html.Element]
     clone.style.transform = "none"
     clone.style.transition = "none"
+    // The full detail, whatever the zoom: no overview (#334).
+    clone.classList.remove("ov")
+    clone.style.removeProperty("--z")
     clone.setAttribute("xmlns", "http://www.w3.org/1999/xhtml")
     val xhtml = new dom.XMLSerializer().serializeToString(clone)
     val css = Highlight.css

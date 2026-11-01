@@ -42,11 +42,16 @@ object PortModelTest extends TestSuite {
     test("opening a consumer Decoupled") {
       val rs = rows(rv, "decode", "Decode", Set("decode.io.in"))
       assert(rs.head.path == "decode.io.in" && rs.head.open)
-      val kids = rs.slice(1, 5)
-      assert(kids.map(_.label) == Seq("valid", "ready", "bits.pc", "bits.inst"))
-      assert(kids.map(_.dir) == Seq(Some(PortDir.In), Some(PortDir.Out), Some(PortDir.In), Some(PortDir.In)))
-      assert(kids.forall(r => r.side == PinSide.West && r.depth == 1 && !r.expandable))
-      assert(rs.drop(5).map(_.path) == Seq("decode.io.out", "decode.io.rf"))
+      val kids = rs.slice(1, 4)
+      assert(kids.map(_.label) == Seq("valid", "ready", "bits"))
+      assert(kids.map(_.dir) == Seq(Some(PortDir.In), Some(PortDir.Out), None))
+      assert(kids.forall(r => r.side == PinSide.West && r.depth == 1))
+      assert(kids.last.expandable && !kids.head.expandable)
+      assert(rs.drop(4).map(_.path) == Seq("decode.io.out", "decode.io.rf"))
+      // bits opens to its fields
+      val open = rows(rv, "decode", "Decode", Set("decode.io.in", "decode.io.in.bits"))
+      assert(open.filter(_.depth == 2).map(_.label) == Seq("pc", "inst"))
+      assert(PortModel.attach("decode.io.in.bits.pc", rs) == Some("decode.io.in.bits"))
     }
 
     test("MemPort is a master by its request") {
@@ -108,7 +113,7 @@ object PortModelTest extends TestSuite {
       assert(stubs.map(_._1) == Seq("io.in", "io.out"))
       assert(stubs.map(_._2.map(_.side)) == Seq(Seq(PinSide.East), Seq(PinSide.West)))
       val open = PortModel.boundaryStubs(mod(gcd, "GCD"), gcd, Set("io.in")).toMap
-      assert(open("io.in").map(_.label) == Seq("in", "valid", "ready", "bits.a", "bits.b"))
+      assert(open("io.in").map(_.label) == Seq("in", "valid", "ready", "bits"))
       assert(open("io.in").forall(_.side == PinSide.East))
     }
 
@@ -117,7 +122,7 @@ object PortModelTest extends TestSuite {
       assert(PortModel.attach("decode.io.in.bits.pc", closed) == Some("decode.io.in"))
       assert(PortModel.attach("decode.io.in", closed) == Some("decode.io.in"))
       assert(PortModel.attach("decode.io.inx", closed).isEmpty)
-      val open = rows(rv, "decode", "Decode", Set("decode.io.in"))
+      val open = rows(rv, "decode", "Decode", Set("decode.io.in", "decode.io.in.bits"))
       assert(PortModel.attach("decode.io.in.bits.pc", open) == Some("decode.io.in.bits.pc"))
       val axiOpen = rows(axi, "xbar", "AXICrossbar", Set("xbar.io.in"))
       assert(PortModel.attach("xbar.io.in[0].aw.valid", axiOpen) == Some("xbar.io.in[0]"))
@@ -162,6 +167,13 @@ object PortModelTest extends TestSuite {
       // Any other one-way bundle port is an interface: one row.
       val other = d.copy(modules = d.modules.map(_.copy(ports = Seq(PortDef("stats", PortDir.Out, "IoS", "", SourceRef.unknown)))))
       assert(sides(rows(other, "s", "Src")) == Seq("s.stats" -> PinSide.East))
+    }
+
+    test("a Vec of signals is told apart from a Vec of bundles (#334 glyphs)") {
+      assert(PortModel.isVecOfSignals("Vec[UInt<8>, 4]", axi))
+      assert(PortModel.isVecOfSignals("Vec[Vec[UInt<1>, 2], 3]", axi))
+      assert(!PortModel.isVecOfSignals("Vec[AXI4, 2]", axi))
+      assert(!PortModel.isVecOfSignals("UInt<8>", axi))
     }
 
     test("a module missing from the design has no rows") {

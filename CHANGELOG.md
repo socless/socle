@@ -18,6 +18,27 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   Decoupled channels. The module's own ports are one stub per port instead of
   one per signal. docs/usage-ui.md has the rules. An older `design.json` is
   laid out again when it opens (its baked pins follow the old model).
+- Types are shown by their Chisel-level name: a captured design's bundle class
+  (`DecoupledIO`, `GCDInput`), else a shape SoCLess recognises (`AXI4`,
+  `Decoupled`), never a structural hash such as `Io_284312`; an anonymous
+  bundle shows no type next to its port's name (`Bundle` in the type columns).
+  A logic block's pins are labelled by their source path (`io.in.bits.a`), not
+  the lowered name (`io_in_bits_a`).
+- Schematic visual pass (#334). Pins are glyphs: a triangle pointing the way a
+  signal flows, a tab for a bundle (its chevron opens it). Boxes lose their
+  footer (clock and reset are marks in the header) and their `+`/`−` marks;
+  open fields hang from a guide line, and a Decoupled's `bits` is one row until
+  opened. Bundle wires are thick and carry their type once; signal wires are
+  thin. Zoomed out past readable pin text, the schematic shows an overview with
+  box names at a readable size. A logic block's pins follow the boxes they
+  connect to (routes up to 9% shorter on the VTA captures). The fan-out and
+  fan-in dots are gone: they sat on the pins and read as port marks.
+- Faster schematic (#335). The export bakes its layouts with the optimize
+  pass the UI applies by default, so a first view is final at once instead of
+  being laid out again in the browser (TensorGemm's top: about 560 to 290 ms;
+  BigArray: 650 to 300 ms). Opening or closing a bundle lays out again from the
+  layout shown, keeping its columns and order (TensorGemm's top: 290 to 160 ms),
+  and the layout engine starts while the first view is idle.
 
 ### Fixed
 
@@ -25,6 +46,12 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
   then have no way to close; every bundle now has one row and closes again.
 - The direction arrows of a consumer's Decoupled `valid` and `ready` were
   swapped (#313).
+- The IDE view's Inspector showed 0 registers, connects and lines for every
+  module; it now has the CHIRRTL walk's counts.
+- Wires bent into a small bump just before each pin: the layout ended them
+  3px off the pin. They now end straight on it.
+- A first view could stay a few pixels off its fit when a bar appeared under
+  the schematic while it loaded; it now refits while it is still the automatic fit.
 
 ## [0.18.0] - 2026-10-27
 

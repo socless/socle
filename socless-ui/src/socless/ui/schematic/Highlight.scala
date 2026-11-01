@@ -466,18 +466,22 @@ object Highlight {
     * `--sym`. Pins (`.scl-pin`): selected accent, hovered ink, interface accent,
     * else ink3. Nothing here may use `<` or `&` (it is serialized as XHTML). */
   val css: String = Seq(
-    ".scl-w{--wk:var(--ink2);--wsw:3px;--whk:var(--ink2);--who:.07;opacity:1}",
-    ".scl-w.hov{--wk:var(--ink);--wsw:3.5px;--whk:var(--ink);--who:.1}",
-    ".scl-w.hl{--wk:var(--accent);--wsw:4px;--whk:var(--accent);--who:.18}",
+    // A signal wire is thin, a bundle wire thick (#334); the lit states add to
+    // the wire's own width (`--wb`), so a lit bundle stays thicker than a signal.
+    ".scl-w{--wb:1.2px;--wk:var(--ink2);--wsw:var(--wb);--whk:var(--ink2);--who:.07;opacity:1}",
+    ".scl-w.bw{--wb:5px}",
+    ".scl-w.hov{--wk:var(--ink);--wsw:calc(var(--wb) + .5px);--whk:var(--ink);--who:.1}",
+    ".scl-w.hl{--wk:var(--accent);--wsw:calc(var(--wb) + 1px);--whk:var(--accent);--who:.18}",
+    s".scl-wl{font-family:${Tokens.mono};font-size:10px;fill:${Tokens.ink2};paint-order:stroke;stroke:${Tokens.bg};stroke-width:3px;stroke-linejoin:round}",
     ".scl-w.fl{--wsw:1px}",
     // A hovered block's wires: thicker, in its outline colour, over a selection's dim.
-    s".scl-w.ohov{--wk:${Tokens.hov};--wsw:4.5px;--whk:${Tokens.hov};--who:.2}",
+    s".scl-w.ohov{--wk:${Tokens.hov};--wsw:calc(var(--wb) + 1.5px);--whk:${Tokens.hov};--who:.2}",
     ".scl-w.fl.ohov{--wsw:2px}",
     ".hl-cw:not(.hl-sel) .scl-w:not(.hov):not(.ohov):not(.follow){--wk:var(--wc);--whk:var(--wc)}",
     ".hl-sel .scl-w:not(.hl):not(.ohov):not(.follow){--wk:var(--ink4);opacity:.32}",
     // The followed net, over a selection's dim and the colourization; the
     // selected wire keeps the accent, a hovered block's wires the hover colour.
-    s".scl-w.follow:not(.ohov){--wk:${Tokens.fol};--wsw:4px;--whk:${Tokens.fol};--who:.2}",
+    s".scl-w.follow:not(.ohov){--wk:${Tokens.fol};--wsw:calc(var(--wb) + 1px);--whk:${Tokens.fol};--who:.2}",
     ".scl-w.fl.follow:not(.ohov){--wsw:2px}",
     ".scl-w.follow.hl:not(.ohov){--wk:var(--accent);--whk:var(--accent);--who:.18}",
     ".scl-w.off,.hl-sel .scl-w.off{opacity:.12}",
@@ -497,6 +501,22 @@ object Highlight {
     ".scl-pin{background:var(--ink3)}",
     ".scl-pin.if{background:var(--accent)}",
     ".scl-fpin{background:var(--ink3)}",
+    // Pin glyphs (#334): the shape is a clip-path, the colour stays the classes above.
+    ".sig.r{clip-path:polygon(0 0,100% 50%,0 100%)}",
+    ".sig.l{clip-path:polygon(100% 0,0 50%,100% 100%)}",
+    ".bun.w{clip-path:polygon(40% 0,100% 0,100% 100%,40% 100%,0 50%)}",
+    ".bun.e{clip-path:polygon(0 0,60% 0,100% 50%,60% 100%,0 100%)}",
+    ".bun.open{clip-path:polygon(0 0,100% 0,100% 55%,50% 100%,0 55%)}",
+    ".scl-fpin.bun{background:var(--accent)}",
+    ".vec{border-radius:2px;box-shadow:2px -2px 0 0 var(--ink4)}",
+    // The overview (#334): names at a fixed screen size, no pin text.
+    s".scl-ovn{display:none;position:absolute;inset:28px 12px 0 12px;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;white-space:nowrap;font-family:${Tokens.mono};font-weight:700;color:${Tokens.ink}}",
+    ".ov .scl-ovn{display:flex}",
+    // Faded, not hidden: a title or a row stays clickable in the overview.
+    ".ov .scl-hd > *, .ov .scl-rlab, .ov [data-row-guide], .ov .scl-wl.sig{opacity:0}",
+    // Faded actions take no clicks: a click on the name never opens a bundle,
+    // unfolds copies or opens a diagram the user cannot see.
+    ".ov .scl-rlab, .ov [data-fsm-open], .ov [data-fold-toggle]{pointer-events:none !important}",
     // A declared port no wire ends on (#332).
     ".scl-nc{opacity:.45}",
     s".scl-pin.follow,.scl-fpin.follow{background:${Tokens.fol}}",

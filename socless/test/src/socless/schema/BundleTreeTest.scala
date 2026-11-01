@@ -111,6 +111,61 @@ object BundleTreeTest extends TestSuite {
       assert(BundleTree.resolvePinDir("Top", "top.bus",       design).contains("out"))
     }
 
+    test("displayName: the Chisel-level name of a type, never a structural hash") {
+      def dn(key: String, bundles: Map[String, BundleDef]) =
+        BundleTree.displayName(key, Design("T", bundles, Nil))
+      val classic = Map(
+        "AXI4" -> BundleDef("AXI4", "Bundle"),
+        "Decoupled_out_0112bf" -> BundleDef("Decoupled_out_0112bf", "Decoupled"),
+        "ReadyValid_x" -> BundleDef("ReadyValid_x", "Bundle"),
+        "Io_284312" -> BundleDef("Io_284312", "Bundle"),
+        "Rf" -> BundleDef("Rf", "Bundle"),
+      )
+      assert(dn("AXI4", classic) == "AXI4")
+      assert(dn("Decoupled_out_0112bf", classic) == "Decoupled")
+      assert(dn("ReadyValid_x", classic) == "ReadyValid")
+      // A classic key named after its port is anonymous: no type shown.
+      assert(dn("Io_284312", classic) == "")
+      assert(dn("Rf", classic) == "")
+      assert(dn("Vec[AXI4, 2]", classic) == "Vec[AXI4, 2]")
+      assert(dn("Vec[Io_284312, 2]", classic) == "Vec[2]")
+      assert(dn("UInt<8>", classic) == "UInt<8>")
+      assert(dn("Vec[UInt<1>, 3]", classic) == "Vec[UInt<1>, 3]")
+      // A captured design names the Scala class; an anonymous class is no name.
+      val captured = Map(
+        "chisel3.util.DecoupledIO_d565d6" -> BundleDef("chisel3.util.DecoupledIO_d565d6", "Decoupled", scalaClass = "chisel3.util.DecoupledIO"),
+        "gcd.GCDInput" -> BundleDef("gcd.GCDInput", "Bundle", scalaClass = "gcd.GCDInput"),
+        "GCD.io" -> BundleDef("GCD.io", "Bundle", scalaClass = "gcd.GCD$$anon$1"),
+        "x.Outer$Inner" -> BundleDef("x.Outer$Inner", "Bundle", scalaClass = "x.Outer$Inner"),
+      )
+      assert(dn("chisel3.util.DecoupledIO_d565d6", captured) == "DecoupledIO")
+      assert(dn("gcd.GCDInput", captured) == "GCDInput")
+      assert(dn("GCD.io", captured) == "")
+      assert(dn("x.Outer$Inner", captured) == "Inner")
+    }
+
+    test("Decoupled with two fields has a bits node") {
+      val d2 = design.copy(bundles = design.bundles + ("Decoupled_X2" -> BundleDef("Decoupled_X2", "Decoupled",
+        fields = Seq(FieldDef("a", 8, "out"), FieldDef("b", 4, "out")))))
+      val c = BundleTree.portTree("Decoupled_X2", Some("out"), "p.io", d2).children
+      assert(c.map(_.name) == Seq("valid", "ready", "bits"))
+      val bits = c.last
+      assert(bits.isExpandable && bits.path == "p.io.bits")
+      assert(bits.children.map(_.path) == Seq("p.io.bits.a", "p.io.bits.b"))
+      assert(bits.children.map(_.name) == Seq("a", "b"))
+      assert(BundleTree.bitsSummary(bits) == "a 8b, b 4b")
+      assert(BundleTree.displayName(bits.bundleKey, d2) == "")
+      assert(!BundleTree.isAggregateType(bits.bundleKey, d2))
+    }
+
+    test("nested bits fields") {
+      val d3 = design.copy(bundles = design.bundles + ("Decoupled_req" -> BundleDef("Decoupled_req", "Decoupled",
+        fields = Seq(FieldDef("ctrl.addr", 32, "out"), FieldDef("ctrl.opcode", 4, "out"), FieldDef("data.mask", 8, "out")))))
+      val bits = BundleTree.portTree("Decoupled_req", Some("in"), "q.io.enq", d3).children.last
+      assert(bits.children.map(_.name) == Seq("ctrl.addr", "ctrl.opcode", "data.mask"))
+      assert(bits.children.map(_.path).head == "q.io.enq.bits.ctrl.addr")
+    }
+
     test("resolvePinDir returns None for unknown module/port") {
       assert(BundleTree.resolvePinDir("Ghost", "g.x", design).isEmpty)
       assert(BundleTree.resolvePinDir("Top", "top.nope", design).isEmpty)

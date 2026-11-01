@@ -403,7 +403,7 @@ comes from and how to rebuild it.
 | `socless.schematicColorizeWires` | `false` | Colour the wires by bundle type. |
 | `socless.schematicDensity` | `comfortable` | `compact`, `comfortable` or `comfy` panel chrome. |
 | `socless.schematicLabelSize` | `normal` | `normal`, `large` or `xl` port labels and box names. |
-| `socless.schematicAutoOptimize` | `true` | Lay every view out with the optimize pass. |
+| `socless.schematicAutoOptimize` | `true` | Lay every view out with the optimize pass. A design exported by this version is baked with it, so a first view shows at once. |
 | `socless.schematicHintBar` | `true` | The hint bar under the schematic. |
 | `socless.schematicShowLayers` | `false` | Draw verification layers. |
 | `socless.schematicHide` | `[]` | Node kinds to leave out: `op`, `reg`, `const`, `mem`, `fsm`, `block`. |

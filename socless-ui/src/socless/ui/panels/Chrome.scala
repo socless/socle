@@ -36,8 +36,8 @@ object Chrome {
           inst = Some((m.name, c.name)))
       }
       m.ports.foreach { p =>
-        out += Item("port", s"${m.name}:${p.name}", s"${p.dir} ${p.bundle}", List(m.name))
-        def addSub(name: String, key: String): Unit = out += Item("port", s"${m.name}:$name", key, List(m.name))
+        out += Item("port", s"${m.name}:${p.name}", s"${p.dir} ${Inspector.typeName(p.bundle, d)}", List(m.name))
+        def addSub(name: String, key: String): Unit = out += Item("port", s"${m.name}:$name", Inspector.typeName(key, d), List(m.name))
         d.bundles.get(p.bundle) match {
           case Some(b) if b.kind == BundleKind.Bundle =>
             b.channels.foreach { ch =>

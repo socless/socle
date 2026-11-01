@@ -76,7 +76,14 @@ object BundleTree {
               PortNode(name, parentPath + "." + name, "UInt<" + f.width + ">",
                 isExpandable = false, Some(d), f.width, Nil)
             }
-            valid +: ready +: bits
+            // Two or more fields: one `bits` row until opened (#334). Its key is
+            // synthetic (`<key>#bits`), never a design bundle; paths do not change.
+            if (bits.size < 2) valid +: ready +: bits
+            else {
+              val fields = bits.map(n => n.copy(name = n.name.stripPrefix("bits.")))
+              Seq(valid, ready, PortNode("bits", parentPath + ".bits", bundleKey + "#bits", isExpandable = true,
+                fields.headOption.flatMap(_.dir), 0, fields))
+            }
           }
           else Nil
         PortNode("", parentPath, bundleKey, isExpandable = true, baseDir, 0, children)
@@ -122,6 +129,34 @@ object BundleTree {
     }
     Some(dir)
   }
+
+  /** The name a type key is shown by, at Chisel's level (#333): a captured
+    * bundle's Scala class (`DecoupledIO`, `GCDInput`), a shape the CHIRRTL walk
+    * recognises (`AXI4`, `Decoupled`, `ReadyValid`), a ground type as is, a Vec
+    * with its element's name. "" for an anonymous bundle (`new Bundle {...}`,
+    * or a CHIRRTL key named after its port, `Io_284312`): the port's own name
+    * says it. Never a structural hash. */
+  def displayName(typeKey: String, design: Design): String = if (typeKey.contains('#')) "" else typeKey match {
+    case VecRe(inner, n) =>
+      val e = displayName(inner.trim, design)
+      if (e.isEmpty) s"Vec[$n]" else s"Vec[$e, $n]"
+    case _ =>
+      design.bundles.get(typeKey) match {
+        case None => typeKey
+        case Some(b) if b.scalaClass.nonEmpty =>
+          val simple = b.scalaClass.substring(b.scalaClass.lastIndexOf('.') + 1)
+          if (simple.contains("$anon")) "" else simple.substring(simple.lastIndexOf('$') + 1)
+        case Some(_) =>
+          if (typeKey == "AXI4") "AXI4"
+          else if (typeKey.startsWith("Decoupled_")) "Decoupled"
+          else if (typeKey.startsWith("ReadyValid_")) "ReadyValid"
+          else ""
+      }
+  }
+
+  /** A closed `bits` row's fields, `name width` joined (`pc 32b, inst 32b`). */
+  def bitsSummary(node: PortNode): String =
+    node.children.map(c => s"${c.name} ${c.width}b").mkString(", ")
 
   private def flip(d: String): String = if (d == PortDir.Out) PortDir.In else PortDir.Out
 }

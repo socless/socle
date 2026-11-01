@@ -26,6 +26,14 @@ object Inspector {
   private val VecRe    = """^Vec\[(.+),\s*(\d+)\]$""".r
   private val GroundRe = """^(?:UInt|SInt)<(\d+)>$""".r
 
+  /** How a type key is shown (#333): its Chisel-level name, or `Bundle` for an
+    * anonymous bundle; never a structural hash. Shared with the Ports table,
+    * the palette and the pin cards. */
+  def typeName(key: String, d: Design): String = {
+    val n = BundleTree.displayName(key, d)
+    if (n.isEmpty && BundleTree.isAggregateType(key, d)) "Bundle" else n
+  }
+
   /** Total bit width of a bundle/Vec/ground key (ports the JS totalWidth).
     * Shared with the Ports table in [[BottomPanel]]. */
   def totalWidth(key: String, d: Design): Int =
@@ -34,6 +42,8 @@ object Inspector {
       case Some(b) if b.kind == BundleKind.Decoupled => b.fields.map(_.width).sum + 2 // + valid/ready
       case Some(_)                          => 0
       case None => key match {
+        // A Decoupled's `bits` row (#334): its fields.
+        case k if k.endsWith("#bits") => d.bundles.get(k.stripSuffix("#bits")).fold(0)(_.fields.map(_.width).sum)
         case VecRe(inner, n) => totalWidth(inner.trim, d) * n.toInt
         case GroundRe(w)     => w.toInt
         case _               => 0
@@ -209,7 +219,7 @@ object Inspector {
       if (isReg) {
         div(sectionTitle("Registered type"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
-            span(styleAttr := s"color:${Tokens.ink3}", if (ln.bundle.nonEmpty) ln.bundle else "—"),
+            span(styleAttr := s"color:${Tokens.ink3}", if (ln.bundle.nonEmpty) typeName(ln.bundle, d) else "-"),
             if (ln.bundle.nonEmpty) span(styleAttr := s"color:${Tokens.ink2}", s"${totalWidth(ln.bundle, d)} bits") else emptyNode))
       } else if (isOp) {
         div(
@@ -278,7 +288,7 @@ object Inspector {
           span("↓"), span(title := wire.to, styleAttr := "flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", wire.to),
           copyBtn(wire.to))),
       div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
-        span(styleAttr := s"color:${Tokens.ink3}", wire.bundle),
+        span(styleAttr := s"color:${Tokens.ink3}", typeName(wire.bundle, d)),
         span(styleAttr := s"color:${Tokens.ink2}", s"${totalWidth(wire.bundle, d)} bits")),
       div(styleAttr := "display:flex;align-items:center;justify-content:space-between",
         sectionTitle("Fields"),
@@ -288,10 +298,10 @@ object Inspector {
             onClick --> { _ => bulkBundle(allPaths, !allOpen) },
             if (allOpen) "collapse all" else "expand all")
         else emptyNode),
-      div(tree.children.map(c => treeNode(c, 0, sig, expanded, setSel, toggleBundle))),
+      div(tree.children.map(c => treeNode(c, 0, sig, expanded, setSel, toggleBundle, d))),
       div(styleAttr := "margin-top:14px", sectionTitle("Source")),
       div(styleAttr := s"background:${Tokens.panelAlt};padding:6px 10px;border-radius:5px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
-        span(if (wire.label.nonEmpty) wire.label else wire.bundle),
+        span(if (wire.label.nonEmpty) wire.label else typeName(wire.bundle, d)),
         if (wire.source.file.nonEmpty)
           span(title := wire.source.file, styleAttr := s"color:${Tokens.ink4}",
             s" · ${wire.source.file.split('/').lastOption.getOrElse(wire.source.file)}:${wire.source.line}")
@@ -300,7 +310,7 @@ object Inspector {
   }
 
   private def treeNode(node: BundleTree.PortNode, depth: Int, sig: String, expanded: Set[String],
-                       setSel: String => Unit, toggleBundle: String => Unit): Element = {
+                       setSel: String => Unit, toggleBundle: String => Unit, d: Design): Element = {
     val isOpen = expanded.contains(node.path)
     val isSel  = sig == node.path
     val indent = depth * 14
@@ -312,11 +322,11 @@ object Inspector {
           onClick --> { _ => toggleBundle(node.path) },
           color.map(c => span(styleAttr := s"width:7px;height:7px;border-radius:4px;background:$c;flex-shrink:0")).getOrElse(emptyNode),
           span(styleAttr := s"font-weight:600;color:${if (isSel) Tokens.accent else Tokens.ink2}", node.name),
-          span(styleAttr := s"color:${Tokens.ink4};font-size:9.5px", node.bundleKey),
+          span(styleAttr := s"color:${Tokens.ink4};font-size:9.5px", typeName(node.bundleKey, d)),
           node.dir.map(dd => span(styleAttr := s"color:${Tokens.ink4};font-size:9px", if (dd == PortDir.Out) "→" else "←")).getOrElse(emptyNode),
           span(styleAttr := s"margin-left:auto;color:${Tokens.ink4};font-size:10px", s"${node.children.length} fields"),
           span(styleAttr := s"color:${Tokens.ink4};font-size:9px;display:inline-block;transition:transform .12s;transform:${if (isOpen) "rotate(90deg)" else "none"}", "▶")),
-        if (isOpen) div(node.children.map(c => treeNode(c, depth + 1, sig, expanded, setSel, toggleBundle))) else emptyNode,
+        if (isOpen) div(node.children.map(c => treeNode(c, depth + 1, sig, expanded, setSel, toggleBundle, d))) else emptyNode,
       )
     } else {
       val bg = if (isSel) s"background:${Tokens.accentBg};" else ""

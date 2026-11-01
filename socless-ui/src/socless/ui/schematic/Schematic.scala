@@ -11,7 +11,8 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
 import scala.util.control.NonFatal
-import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind, SourceRef}
+import socless.schema.{Design, ModuleDef, NodeKind, PinSide, ModuleKind, SourceRef, BundleTree}
+import socless.ui.panels.Inspector
 import socless.layout.{InstanceFold, LayoutCore}
 import socless.js.BrowserLayout
 import socless.js.BrowserLayout.{LaidOut, LaidNodeR, LaidPortR, BoxOverride}
@@ -244,7 +245,8 @@ object Schematic {
     def place(gen: Int, e: Option[(String, Design, LaidOut, Set[String])]): Unit =
       engineVar.update(cur => if (gen == engineGen) e else cur)
 
-    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String]): Unit = {
+    def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String],
+                  manual: Boolean = false): Unit = {
       // Every run supersedes the one in flight, whatever it ends on.
       engineGen += 1
       val myGen = engineGen
@@ -261,7 +263,10 @@ object Schematic {
           val oldBake = d.layoutModel < LayoutCore.LayoutModel
           // Declutter (#223) forces the engine too: the baked layout has every
           // node, so hiding kinds needs a re-layout over the visible subset.
-          if (!hasExpansion && !hasUnfolded && !oldBake && !optimize && hidden.isEmpty) { done(None); return }
+          // A bake made with the optimize pass is what auto-optimize would lay out
+          // (#335): only a manual Optimize runs it again.
+          val bakedAsAsked = !optimize || (d.layoutOptimized && !manual)
+          if (!hasExpansion && !hasUnfolded && !oldBake && bakedAsAsked && hidden.isEmpty) { done(None); return }
           baseOf(d, mod) match {
             case None => done(None)
             case Some(_) =>
@@ -276,17 +281,27 @@ object Schematic {
                   // Cache hit: place synchronously, no engine run, no spinner.
                   done(Some((tag, d, cached, expanded)))
                 case None =>
-                  engineRuns.push(js.Dynamic.literal(key = key, t = dom.window.performance.now(), cached = engineCache.size))
+                  val run = js.Dynamic.literal(key = key, t = dom.window.performance.now(), cached = engineCache.size)
+                  engineRuns.push(run)
                   awaiting = Some(myGen); syncPending()
                   // runTyped prepares the graph before its Future exists: a throw
                   // there is a failed run too, never a spinner left on.
-                  val laid = try BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden)
+                  // A bundle opened or closed re-lays out from the layout shown, so
+                  // the boxes stay put (#335); Optimize, an unfold and declutter lay
+                  // out afresh.
+                  val previous =
+                    if (manual || hasUnfolded || hidden.nonEmpty) None
+                    else engineVar.now().collect { case (t, ed, l, _) if t == tag && (ed eq d) => l }.orElse(bakedOf(d, mod))
+                  val laid = try BrowserLayout.runTyped(mod, d, mode, overrides, expanded, hidden, previous)
                              catch { case NonFatal(e) => Future.failed(e) }
                   laid.onComplete { r =>
                     if (myGen == engineGen) {
                       awaiting = None; syncPending()
                       r match {
-                        case Success(res) => engineCachePut(key, res); done(Some((tag, d, res, expanded)))
+                        case Success(res) =>
+                          // Smoke hook: how long the run took (#335).
+                          run.updateDynamic("ms")(dom.window.performance.now() - run.t.asInstanceOf[Double])
+                          engineCachePut(key, res); done(Some((tag, d, res, expanded)))
                         case Failure(e)   =>
                           done(None)
                           dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
@@ -596,6 +611,7 @@ object Schematic {
             onDblClick --> { (_: dom.MouseEvent) => if (isFolded) toggleFold(n.id) else if (drillable) drillInto(n.id) },
             // header
             div(
+              cls := "scl-hd",
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
               onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
@@ -611,6 +627,11 @@ object Schematic {
               // CHIRRTL designs (no scalaClass) keep the exact markup below.
               div(styleAttr := (if (sigFull.isEmpty) "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px"
                                 else "margin-left:auto;flex-shrink:1000;min-width:0;display:flex;align-items:center;gap:6px"),
+                // Clock and reset: two small marks in the header, not a footer (#334).
+                opt(hasClock)(span(dataAttr("clk-cue") := n.id, title := "clock input",
+                  styleAttr := s"flex-shrink:0;font-size:8px;line-height:1;color:${Tokens.ink4};pointer-events:none", "▷")),
+                opt(hasReset)(span(dataAttr("rst-cue") := n.id, title := "reset input",
+                  styleAttr := s"flex-shrink:0;font-size:8px;line-height:1;color:${Tokens.ink4};pointer-events:none", "○")),
                 opt(isBlackbox)(span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px dashed ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px",
                   extLabel)),
                 if (sigFull.isEmpty)
@@ -628,45 +649,30 @@ object Schematic {
             // port rows
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West),
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East),
-            // clock-input notch (bottom-left) and reset ring (bottom-right)
-            opt(hasClock)(div(
-              dataAttr("clk-cue") := n.id, title := "clock input",
-              styleAttr := s"position:absolute;left:7px;bottom:3px;display:flex;align-items:center;gap:2px;" +
-                s"font-family:${Tokens.mono};font-size:7.5px;line-height:1;color:${Tokens.ink4};pointer-events:none",
-              span(styleAttr := "font-size:8px", "▷"), span("clk"))),
-            opt(hasReset)(div(
-              dataAttr("rst-cue") := n.id, title := "reset input",
-              styleAttr := s"position:absolute;right:7px;bottom:3px;display:flex;align-items:center;gap:2px;" +
-                s"font-family:${Tokens.mono};font-size:7.5px;line-height:1;color:${Tokens.ink4};pointer-events:none",
-              span("rst"), span(styleAttr := "font-size:8px", "○"))),
+            // The name drawn at a fixed screen size in the overview (#334); last,
+            // so the header stays the box's first child.
+            SchematicBoxes.overviewName(n.id, if (isFolded) s"${n.id} × ${ch.foldCount}" else n.id, n.w.toDouble),
           )
           reg.box(n.id, Highlight.BoxKind.Instance, box.ref)
           box
         }
       }
 
-      // ── junctions (fan-out filled / fan-in hollow, issue #166; #247) ──
-      // Fan-out: many wires share ONE driver (fromPath) -> dot where routes
-      // diverge. Fan-in: many wires share ONE sink (toPath) -> dot where routes
-      // converge. Fall back to the shared endpoint when routes diverge
-      // immediately (no shared interior point).
-      val fanOut = visWires.groupBy(_.fromPath).values.filter(_.length > 1).map { ws =>
-        val pt = SchematicBoxes.branchPoint(ws.map(_.points).toSeq, fromStart = true)
-          .getOrElse((ws.head.x1, ws.head.y1))
-        (pt._1, pt._2, ws.length)
-      }.toSeq
-      val fanIn = visWires.groupBy(_.toPath).values.filter(_.length > 1).map { ws =>
-        val pt = SchematicBoxes.branchPoint(ws.map(_.points).toSeq, fromStart = false)
-          .getOrElse((ws.head.x2, ws.head.y2))
-        (pt._1, pt._2, ws.length)
-      }.toSeq
 
       // Field-level (split) wires render thinner so a scattered bundle reads as
       // many fine wires vs one bold bundle wire (issue #182).
       val fieldLevelWires: Set[(String, String)] =
         g.mod.wires.iterator.filter(_.fieldLevel).map(w => (w.from, w.to)).toSet
 
-      // ── visual layer (stroke + halo + junctions) ──
+      // ── visual layer (stroke + halo) ──
+      // Wires that share a run share their label: one per place (#334).
+      val placedLabels = scala.collection.mutable.HashMap.empty[(String, Long), scala.collection.mutable.ArrayBuffer[(Double, Double)]]
+      def freeLabelSpot(t: String, x: Double, y: Double): Boolean = {
+        // Indexed by text and 8px row band (and its neighbours), not a scan of every label.
+        val band = math.floor(y / 8).toLong
+        val near = (band - 1 to band + 1).exists(b => placedLabels.get((t, b)).exists(_.exists { case (px, py) => math.abs(px - x) < 40 && math.abs(py - y) < 8 }))
+        if (near) false else { placedLabels.getOrElseUpdate((t, band), scala.collection.mutable.ArrayBuffer.empty) += ((x, y)); true }
+      }
       val vis = svg.svg(
         sa("style") := s"position:absolute;top:0;left:0;width:${g.layout.w}px;height:${g.canvasH}px;pointer-events:none;overflow:visible",
         visWires.map { w =>
@@ -680,8 +686,22 @@ object Schematic {
           // dashed with a small open circle at the unresolved (sink) end, so an
           // unrouted connection reads as visibly incomplete rather than absent.
           val dashStyle = if (w.dangling) ";stroke-dasharray:5 4" else ""
+          // A bundle wire is thick and carries its type once; a signal wire is
+          // thin and carries its width when it has more than one bit (#334).
+          val isBundle = BundleTree.isAggregateType(w.bundle, g.design)
+          val labelText =
+            if (isBundle) BundleTree.displayName(w.bundle, g.design)
+            else { val n = Inspector.totalWidth(w.bundle, g.design); if (n > 1) s"${n}b" else "" }
+          val label = Option.when(labelText.nonEmpty && !isField)(labelText).flatMap { t =>
+            LayoutCore.wireLabelAt(w.points, t.length * 6.0)
+              .filter { case (lx, ly) => freeLabelSpot(t, lx, ly) }
+              .map { case (lx, ly) =>
+              svg.text(sa("data-wire-label") := t, sa("class") := (if (isBundle) "scl-wl" else "scl-wl sig"),
+                sa("x") := lx.toString, sa("y") := (ly - 5).toString, sa("text-anchor") := "middle", t)
+            }
+          }
           val el = svg.g(
-            sa("class") := (if (isField) "scl-w fl" else "scl-w"),
+            sa("class") := (if (isField) "scl-w fl" else if (isBundle) "scl-w bw" else "scl-w"),
             // Test hooks: the wire's ends (the hover outline lights a box's wires).
             sa("data-from") := w.fromPath, sa("data-to") := w.toPath,
             sa("style") := s"--wc:${SchematicColors.wireStroke(w.bundle, w.toPath)};transition:opacity .15s",
@@ -692,19 +712,10 @@ object Schematic {
                 sa("style") := s"fill:${Tokens.bg};stroke:var(--wk);stroke-width:1.5",
                 svg.titleTag(s"unrouted wire: ${w.fromPath} ↔ ${w.toPath}"))
             else if (w.bidir) SchematicBoxes.bidirGlyph(w.points, "var(--wk)") else emptyNode,
+            label.getOrElse(emptyNode),
           )
           reg.wire(w, el.ref)
           el
-        },
-        fanOut.map { case (x, y, count) =>
-          svg.circle(sa("data-junction") := "1", sa("cx") := x.toString, sa("cy") := y.toString, sa("r") := "3.5",
-            sa("style") := s"fill:${Tokens.ink2};stroke:${Tokens.bg};stroke-width:1.5",
-            svg.titleTag(s"$count-way fan-out"))
-        },
-        fanIn.map { case (x, y, count) =>
-          svg.circle(sa("data-fanin") := "1", sa("cx") := x.toString, sa("cy") := y.toString, sa("r") := "3.5",
-            sa("style") := s"fill:${Tokens.bg};stroke:${Tokens.ink2};stroke-width:1.75",
-            svg.titleTag(s"$count-way fan-in"))
         },
       )
 
@@ -732,7 +743,7 @@ object Schematic {
 
     val transformSig = Signal.combine(panVar.signal, zoomVar.signal, totalWVar.signal, canvasHVar.signal).map {
       case ((px, py), z, w, h) =>
-        s"position:absolute;left:0;top:0;width:${w}px;height:${h}px;transform:translate(${px}px,${py}px) scale($z);transform-origin:0 0;transition:width .3s,height .3s"
+        s"position:absolute;left:0;top:0;width:${w}px;height:${h}px;transform:translate(${px}px,${py}px) scale($z);transform-origin:0 0;transition:width .3s,height .3s;--z:$z"
     }
 
     // Debounce the filter so each keystroke does not re-run the fuzzy match and
@@ -885,13 +896,20 @@ object Schematic {
             cancelFit(); history.stop()
           }),
         div(styleAttr <-- transformSig, children <-- contentSig,
+          // The overview (#334): below a zoom where pin text is unreadable. One
+          // class, flipped only when the zoom crosses the threshold.
+          cls("ov") <-- zoomVar.signal.map(z => z * SchematicBoxes.labelPx() < SchematicBoxes.OverviewPx).distinct,
           dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
           // View-wide highlight state the rules of Highlight.css key on; on this
           // element so an export's clone carries it.
           cls("hl-sel") <-- selectedVar.signal.map(_.isDefined),
           cls("hl-cw") <-- colorWiresVar.signal,
           cls("hl-cb") <-- colorBoxesVar.signal,
-          onMountCallback { ctx => contentNode = ctx.thisNode.ref }),
+          onMountCallback { ctx =>
+            contentNode = ctx.thisNode.ref
+            // Off the first view's path: the engine's first run is a bundle opened.
+            dom.window.setTimeout(() => BrowserLayout.warmUp(), 400)
+          }),
         // empty / missing notices
         child.maybe <-- Signal.combine(geomSig, designSig).map {
           case (Some(g), _) if g.layout.nodes.isEmpty && g.mod.children.isEmpty =>
@@ -989,7 +1007,9 @@ object Schematic {
       },
       // A size report comes after layout and before paint: run a pending fit
       // right away, so the first view never paints unfitted for a frame.
-      viewSizeVar.signal.changes --> { _ => if (pendingFit) { cancelFit(); runFit() } },
+      // A later size change (a bar shown under the view on load) refits while the
+      // view is still the automatic fit: the fit may have read the old size (#335).
+      viewSizeVar.signal.changes --> { _ => if (pendingFit) { cancelFit(); runFit() } else if (autoFitted) scheduleFit() },
       // in-process engine re-layout on module / expansion / Optimize / declutter /
       // auto-optimize. When auto-optimize (#209) is on, every view runs the
       // optimize pass so the initial render matches Optimize (off-thread).
@@ -997,7 +1017,7 @@ object Schematic {
         (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String], Boolean)) =>
           val manualOpt = t._4 != lastNonce
           lastNonce = t._4
-          runEngine(t._1, t._2, t._3, manualOpt || t._6, t._5)
+          runEngine(t._1, t._2, t._3, manualOpt || t._6, t._5, manual = manualOpt)
       },
     )
   }
