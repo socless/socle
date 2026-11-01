@@ -8,6 +8,8 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-02
+
 ### Changed
 
 - Blocks and the module's own ports show the ports Chisel declares, as trees:
