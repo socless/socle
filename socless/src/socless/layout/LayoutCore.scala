@@ -40,6 +40,10 @@ object LayoutCore {
   val HeaderH: Double  = 28.0
   /** The header/port-row layout constants, packaged for the schema (issue #38). */
   val consts: LayoutConsts = LayoutConsts(HeaderH, PortStep, PortPad)
+  /** The pin model `prepare` lays out, stamped on a bake (`Design.layoutModel`):
+    * 1 since pins are the declared port rows (#332). Bump it when a bake's pins
+    * change meaning, so the UI lays older bakes out again. */
+  val LayoutModel: Int = 1
   val BoundaryW: Double = 16.0
   val BoundaryH: Double = 28.0
   val LabelGap: Double  = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -295,82 +299,33 @@ object LayoutCore {
 
   case class Prepared(nodes: Seq[PreparedNode], edges: Seq[PreparedEdge])
 
-  private val VecKeyN = """^Vec\[(.+),\s*(\d+)\]$""".r
+  /** The shown port rows of a module's instance boxes and edge stubs under an
+    * expansion set ([[PortModel]], #332), and the row each wire end lands on. */
+  private final class PortRows(module: ModuleDef, design: Design,
+                               modulesByName: Map[String, ModuleDef], expanded: Set[String]) {
+    private val ends = PortModel.wireEndsOf(module)
+    val inst: Map[String, Seq[PortModel.Row]] = module.children.iterator.flatMap { c =>
+      modulesByName.get(c.`type`).map(m => c.name -> PortModel.instanceRows(c.name, m, design, expanded, ends))
+    }.toMap
+    val stubs: Seq[(String, Seq[PortModel.Row])] = PortModel.boundaryStubs(module, design, expanded, ends)
+    private val stubRows = stubs.flatMap(_._2)
+    /** The stub id of each stub row's path. */
+    val stubOf: Map[String, String] = stubs.iterator.flatMap { case (id, rs) => rs.map(_.path -> id) }.toMap
+    private val portNames = module.ports.iterator.map(_.name).toSet
 
-  /** For [[Design.showUnwiredPorts]] (probe-captured designs): show the full
-    * interface of the module's boundary and of every child instance box, even
-    * where no wire was kept.
-    *
-    * Each port starts as one stub, split per channel when its type is a Bundle
-    * (`io.in`, `io.out`), the granularity IrWalk coalesces wires at. A stub no
-    * wired pin overlaps is added as is; one a wired pin covers (same path or a
-    * prefix of it) is skipped; one only partly covered by deeper wired pins is
-    * refined into its children (Bundle channels; a Decoupled's `valid`, `ready`
-    * and `bits.<field>` leaves; Vec elements), recursively, so exactly the
-    * uncovered parts get a stub. Each stub sits on the declared side of its own
-    * direction (port direction composed with flips; `ready` runs against
-    * `valid`). Clock/reset ports stay hidden, as their wires do: by type, or by
-    * name for a ground port (a top module's implicit reset is a Bool). */
-  private def addUnwiredPorts(
-    module:        ModuleDef,
-    design:        Design,
-    modulesByName: Map[String, ModuleDef],
-    pinOrder:      mutable.LinkedHashMap[(String, String), mutable.LinkedHashSet[String]],
-    declaredOf:    mutable.Map[(String, String, String), String],
-    ifaceOf:       mutable.Map[(String, String, String), Boolean],
-    bundleOf:      mutable.Map[(String, String, String), String],
-  ): Unit = {
-    def overlaps(a: String, b: String): Boolean =
-      a == b || a.startsWith(b + ".") || a.startsWith(b + "[") || b.startsWith(a + ".") || b.startsWith(a + "[")
-    def covers(w: String, path: String): Boolean =
-      path == w || path.startsWith(w + ".") || path.startsWith(w + "[")
-    def flipDir(d: String) = if (d == PortDir.Out) PortDir.In else PortDir.Out
-    def hidden(p: PortDef): Boolean =
-      ClockResetBundles.contains(p.bundle) ||
-        ((p.name == "clock" || p.name == "reset") && !BundleTree.isAggregateType(p.bundle, design))
-    // (path, dir, type key) of the parts one level below `path`.
-    def children(path: String, dir: String, key: String): Seq[(String, String, String)] =
-      design.bundles.get(key) match {
-        case Some(b) if b.kind == BundleKind.Bundle =>
-          b.channels.map(ch => (s"$path.${ch.name}", if (ch.flip) flipDir(dir) else dir, ch.`type`))
-        case Some(b) if b.kind == BundleKind.Decoupled =>
-          Seq((s"$path.valid", dir, "UInt<1>"), (s"$path.ready", flipDir(dir), "UInt<1>")) ++
-            b.fields.map(f => (s"$path.bits.${f.name}", dir, s"UInt<${f.width}>"))
-        case Some(_) => Nil
-        case None => key match {
-          case VecKeyN(inner, n) => (0 until n.toInt).map(i => (s"$path[$i]", dir, inner.trim))
-          case _                 => Nil
-        }
-      }
-    // Add stubs for the parts of the subtree at `path` that no wired pin covers.
-    def refine(wired: Seq[String], path: String, dir: String, key: String)(add: (String, String, String) => Unit): Unit =
-      if (!wired.exists(overlaps(_, path))) add(path, dir, key)
-      else if (!wired.exists(covers(_, path)))
-        children(path, dir, key).foreach { case (cp, cd, ck) => refine(wired, cp, cd, ck)(add) }
-    def stubsOf(ports: Seq[PortDef], prefix: String, wired: Seq[String])(add: (String, String, String) => Unit): Unit =
-      for (p <- ports if !hidden(p)) {
-        val dir = if (p.dir == PortDir.Out || p.dir == PortDir.Master) PortDir.Out else PortDir.In
-        val start = design.bundles.get(p.bundle) match {
-          case Some(b) if b.kind == BundleKind.Bundle && b.channels.nonEmpty => children(prefix + p.name, dir, p.bundle)
-          case _                                                             => Seq((prefix + p.name, dir, p.bundle))
-        }
-        start.foreach { case (path, d, key) => refine(wired, path, d, key)(add) }
-      }
-    def record(nodeId: String, kind: String, path: String, dir: String, key: String): Unit = {
-      val k = (nodeId, kind, path)
-      pinOrder.getOrElseUpdate((nodeId, kind), mutable.LinkedHashSet.empty) += path
-      declaredOf(k) = sideFor(kind, dir)
-      ifaceOf(k) = isInterfaceBundle(key, design)
-      bundleOf(k) = key
-    }
-
-    val boundaryWired = pinOrder.iterator.collect { case ((_, NodeKind.Boundary), paths) => paths }.flatten.toSeq
-    stubsOf(module.ports, "", boundaryWired) { (path, dir, key) => record(path, NodeKind.Boundary, path, dir, key) }
-    for (c <- module.children; child <- modulesByName.get(c.`type`)) {
-      val wired = pinOrder.get((c.name, NodeKind.Inst)).map(_.toSeq).getOrElse(Nil)
-      stubsOf(child.ports, c.name + ".", wired) { (path, dir, key) => record(c.name, NodeKind.Inst, path, dir, key) }
+    /** The deepest shown row containing `path`; a path no row contains (an
+      * instance with no module, an undeclared or hidden port, a logic node)
+      * keeps its Vec group path, so no wire is ever dropped. */
+    def group(path: String): String = {
+      val head = pathHead(path)
+      val rows = inst.getOrElse(head, if (portNames(head)) stubRows else Nil)
+      PortModel.attach(path, rows).getOrElse(groupPath(path, expanded))
     }
   }
+
+  /** A row's pin label: indented under its parent, with its type as [[pinLabel]] does. */
+  private def rowLabel(r: PortModel.Row): String =
+    ("  " * r.depth) + pinLabel("", r.label, Some(r.bundle))
 
   /** Resolve a module into an engine-agnostic graph: nodes with sizes + per-pin
     * coordinates, and anti-parallel-collapsed edges. This is the entire pure
@@ -398,9 +353,12 @@ object LayoutCore {
     // leave each Vec-sibling leaf as a distinct node. Regroup BOUNDARY `nodeId`
     // to the group path too, so all siblings dedup into one node. Instance
     // endpoints already share a node id (the instance name), so leave theirs.
+    // Instance and boundary ends land on the deepest shown declared row (#332):
+    // a stub row's node is its stub, not the path.
+    val portRows = new PortRows(module, design, modulesByName, expanded)
     def regroup(ep: Endpoint): Endpoint = {
-      val gp = groupPath(ep.path, expanded)
-      if (ep.kind == NodeKind.Boundary) ep.copy(path = gp, nodeId = gp)
+      val gp = portRows.group(ep.path)
+      if (ep.kind == NodeKind.Boundary) ep.copy(path = gp, nodeId = portRows.stubOf.getOrElse(gp, gp))
       else ep.copy(path = gp)
     }
     val grouped: Seq[E] = resolved.map(e => e.copy(from = regroup(e.from), to = regroup(e.to)))
@@ -427,6 +385,15 @@ object LayoutCore {
         bundleOf(k) = ep.bundle
       pinOrder.getOrElseUpdate((ep.nodeId, ep.kind), mutable.LinkedHashSet.empty) += ep.path
     }
+    // Every shown declared row is a pin, in declaration order, on its own side,
+    // wired or not (#332). Wire ends no row contains are added after, by vote.
+    val rowOf = mutable.Map.empty[(String, String, String), PortModel.Row]
+    def seed(nodeId: String, kind: String, rows: Seq[PortModel.Row]): Unit = {
+      val order = pinOrder.getOrElseUpdate((nodeId, kind), mutable.LinkedHashSet.empty)
+      rows.foreach { r => order += r.path; rowOf((nodeId, kind, r.path)) = r }
+    }
+    portRows.stubs.foreach { case (id, rows) => seed(id, NodeKind.Boundary, rows) }
+    module.children.foreach(c => portRows.inst.get(c.name).foreach(seed(c.name, NodeKind.Inst, _)))
     // e.to is SOURCE; e.from is SINK.
     grouped.foreach { e =>
       vote(e.to,   isSource = true)
@@ -436,7 +403,6 @@ object LayoutCore {
     module.children.foreach { c =>
       pinOrder.getOrElseUpdate((c.name, NodeKind.Inst), mutable.LinkedHashSet.empty)
     }
-    if (design.showUnwiredPorts) addUnwiredPorts(module, design, modulesByName, pinOrder, declaredOf, ifaceOf, bundleOf)
 
     // Build nodePins from the vote tallies.
     val nodePins = mutable.LinkedHashMap.empty[(String, String), PinMap]
@@ -445,15 +411,18 @@ object LayoutCore {
       paths.foreach { path =>
         val k = (nodeId, kind, path)
         val side =
-          if (eastVotes(k) > westVotes(k)) PinSide.East
+          if (rowOf.contains(k)) rowOf(k).side
+          else if (eastVotes(k) > westVotes(k)) PinSide.East
           else if (westVotes(k) > eastVotes(k)) PinSide.West
           else if (kind == NodeKind.Boundary) declaredOf.getOrElse(k, PinSide.East)
           // An unwired instance stub (showUnwiredPorts) has no vote at all and
           // takes its declared side; a wired pin always carries a vote.
           else if (eastVotes(k) == 0 && westVotes(k) == 0) declaredOf.getOrElse(k, PinSide.East)
           else PinSide.East
-        val bundle = bundleOf.get(k)
-        pins(path) = PinSpec(path, side, ifaceOf(k), bundle.getOrElse(""))
+        rowOf.get(k) match {
+          case Some(r) => pins(path) = PinSpec(path, side, isInterfaceBundle(r.bundle, design), r.bundle)
+          case None    => pins(path) = PinSpec(path, side, ifaceOf(k), bundleOf.getOrElse(k, ""))
+        }
       }
       nodePins((nodeId, kind)) = pins
     }
@@ -510,10 +479,17 @@ object LayoutCore {
     val edgeSources = edges.iterator.map(_.toPath).toSet
     val edgeSinks   = edges.iterator.map(_.fromPath).toSet
 
+    // A declared row is expandable when it has children; any other pin by its type.
+    def expandableOf(id: String, kind: String, p: PinSpec): Boolean =
+      rowOf.get((id, kind, p.path)).fold(BundleTree.isAggregateType(p.bundle, design))(_.expandable)
+
     // 4. Compute node geometry + per-pin coordinates (pure; no engine objects).
     val nodes: Seq[PreparedNode] = nodePins.map { case ((id, kind), pins) =>
       def lblOf(p: PinSpec): String =
         if (kind == NodeKind.Mem) memPinLabel(module, id, p.path)
+        // A stub's top row keeps its full path ("io.in: Decoupled"), as before #332.
+        else if (rowOf.get((id, kind, p.path)).exists(r => kind != NodeKind.Boundary || r.depth > 0))
+          rowLabel(rowOf((id, kind, p.path)))
         else pinLabel(id, p.path, if (p.bundle.nonEmpty) Some(p.bundle) else None)
       // Const nodes share the boundary stub's compact geometry (a single small
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
@@ -533,9 +509,15 @@ object LayoutCore {
           case None    => pins.values.map(p => labelPx(lblOf(p))).maxOption.getOrElse(0.0)
         }
         val bw = math.max(BoundaryW, maxLabelPx)
-        val laidPins = pins.values.toSeq.map { p =>
-          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), 0.0, 0.0,
-            BundleTree.isAggregateType(p.bundle, design))
+        // A stub with one pin lets the engine place it on its side; an open stub
+        // stacks its rows like a box does, at fixed positions (#332).
+        val stacked = pins.size > 1
+        val laidPins = pins.values.toSeq.zipWithIndex.map { case (p, i) =>
+          val (x, y) =
+            if (!stacked) (0.0, 0.0)
+            else (if (p.side == PinSide.East) bw else 0.0, PortPad + i * PortStep + PortStep / 2)
+          PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), x, y,
+            expandableOf(id, kind, p))
         }
         // An EAST boundary pin drives into the design (a source): pin it to the
         // first column. A WEST one receives (a sink): pin it to the last column.
@@ -551,7 +533,8 @@ object LayoutCore {
           else if (side == PinSide.East && !anyIncoming) Some("FIRST_SEPARATE")
           else if (side == PinSide.West && !anyOutgoing) Some("LAST_SEPARATE")
           else                                     None
-        PreparedNode(id, kind, bw, BoundaryH, laidPins, lc)
+        val bh = if (stacked) 2 * PortPad + pins.size * PortStep else BoundaryH
+        PreparedNode(id, kind, bw, bh, laidPins, lc)
       } else {
         // Instance component: reserve HeaderH at top, ports in rows below.
         val west = pins.values.count(_.side == PinSide.West)
@@ -626,7 +609,7 @@ object LayoutCore {
             else rowY(rowIdx.toDouble)
           val portX = if (p.side == PinSide.East) w else 0.0
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), portX, portY,
-            BundleTree.isAggregateType(p.bundle, design))
+            expandableOf(id, kind, p))
         }
         val laidPins =
           westPins.zipWithIndex.map { case (p, i) => lay(p, i) } ++
@@ -670,7 +653,8 @@ object LayoutCore {
     * Clock/reset wires and const-driver wires are excluded: they have no laid
     * pin to attach to (clock/reset distribution is implicit; a const renders as
     * a small value stub at its sink, issue #203). */
-  def displayWires(module: ModuleDef, expanded: Set[String] = Set.empty): Seq[DisplayWire] = {
+  def displayWires(module: ModuleDef, design: Design, expanded: Set[String] = Set.empty): Seq[DisplayWire] = {
+    val portRows = new PortRows(module, design, design.modules.iterator.map(m => m.name -> m).toMap, expanded)
     val seen = mutable.LinkedHashMap.empty[(String, String), Int] // pin-pair -> index in out
     val out  = mutable.ArrayBuffer.empty[DisplayWire]
     def pairKey(a: String, b: String): (String, String) = if (a <= b) (a, b) else (b, a)
@@ -678,12 +662,11 @@ object LayoutCore {
       .filterNot(isClockReset)
       .filterNot(_.to.startsWith("const$"))
       .foreach { w =>
-        // Vec grouping (issue #260): collapse each endpoint to its group path
-        // under the current expansion set so sibling Vec-index wires fold onto
-        // the same pin pair, exactly as `prepare` collapses the layout edges.
+        // Each end lands on its deepest shown declared row (#332), or its Vec
+        // group path (#260), exactly as `prepare` collapses the layout edges.
         // Clock/reset and const filtering above still key on the ORIGINAL `w`.
-        val gf = groupPath(w.from, expanded)
-        val gt = groupPath(w.to, expanded)
+        val gf = portRows.group(w.from)
+        val gt = portRows.group(w.to)
         val a = gf.split('.').headOption.getOrElse("")
         val b = gt.split('.').headOption.getOrElse("")
         if (a.isEmpty || b.isEmpty || a == b)

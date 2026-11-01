@@ -128,6 +128,10 @@ case class Design(
   // wiring keeps port-to-port wires only, so a port fed through internal logic
   // would otherwise vanish from the schematic. Additive, last.
   showUnwiredPorts: Boolean = false,
+  // The pin model the baked `layouts` follow (`LayoutCore.LayoutModel`): 0 for
+  // an older design.json, whose pins were wire ends rather than declared port
+  // rows (#332); the UI lays such a bake out again. Additive, last.
+  layoutModel: Int = 0,
 )
 object Design { implicit val rw: ReadWriter[Design] = macroRW }
 

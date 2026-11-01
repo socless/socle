@@ -46,7 +46,7 @@ object LayerWireTest extends TestSuite {
       val layerIds = mod.logic.iterator.filter(_.layer).map(_.id).toSet
       assert(layerIds.nonEmpty) // fixture really has layer content
 
-      val dws = LayoutCore.displayWires(mod)
+      val dws = LayoutCore.displayWires(mod, design)
       // The UI hide rule, with the resolver under test.
       def hidden(w: LayoutCore.DisplayWire) =
         LayoutCore.isLayerHead(head(w.from), layerIds) || LayoutCore.isLayerHead(head(w.to), layerIds)

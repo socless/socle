@@ -13,10 +13,10 @@ layout LayeredCounter
   node const$_count_T_2~in1 kind=const pins=const$_count_T_2~in1:EAST
   node const$_count_T~in1 kind=const pins=const$_count_T~in1:EAST
   node count kind=reg pins=count:WEST,count~q:EAST
-  node io.count kind=boundary pins=io.count:WEST:iface
-  node io.en kind=boundary pins=io.en:EAST:iface
-  node io.limit kind=boundary pins=io.limit:EAST:iface
-  node io.wrap kind=boundary pins=io.wrap:WEST:iface
+  node io.count kind=boundary pins=io.count:WEST
+  node io.en kind=boundary pins=io.en:EAST
+  node io.limit kind=boundary pins=io.limit:EAST
+  node io.wrap kind=boundary pins=io.wrap:WEST
   node mux$count kind=op pins=mux$count:EAST,mux$count~in0:WEST,mux$count~in1:WEST,mux$count~in2:WEST
   node reset kind=boundary pins=reset:EAST
   node wrap kind=op pins=wrap:EAST,wrap~in0:WEST,wrap~in1:WEST

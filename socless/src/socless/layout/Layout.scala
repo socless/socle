@@ -130,21 +130,24 @@ object Layout {
     val root = newGraph()
 
     // Build ELK nodes + ports from the prepared geometry. Track handles by path.
-    //   Boundary nodes are compact stubs (FIXED_SIDE, ports placed by ELK).
+    //   Boundary nodes are compact stubs (FIXED_SIDE, ports placed by ELK); an
+    //   open stub stacks its rows at fixed positions like an instance (#332).
     //   Instance nodes use FIXED_POS: each port sits at its precomputed (x, y)
     //   so the header band never overlaps a pin (issue #28).
     val elkPort = scala.collection.mutable.HashMap.empty[String, ElkPort]
     val elkNode = scala.collection.mutable.LinkedHashMap.empty[(String, String), ElkNode]
+    // Pin boundary stubs into their own first/last layer so external I/O
+    // forms two aligned columns flanking the instances (issue #163).
+    def constrain(n: LayoutCore.PreparedNode, node: ElkNode): Unit =
+      n.layerConstraint.foreach {
+        case "FIRST_SEPARATE" => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.FIRST_SEPARATE)
+        case "LAST_SEPARATE"  => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.LAST_SEPARATE)
+        case _                => ()
+      }
     prep.nodes.foreach { n =>
-      if (n.kind == NodeKind.Boundary) {
+      if (n.kind == NodeKind.Boundary && n.pins.length <= 1) {
         val node = addNode(root, n.width, n.height)
-        // Pin boundary stubs into their own first/last layer so external I/O
-        // forms two aligned columns flanking the instances (issue #163).
-        n.layerConstraint.foreach {
-          case "FIRST_SEPARATE" => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.FIRST_SEPARATE)
-          case "LAST_SEPARATE"  => node.setProperty(LayeredOptions.LAYERING_LAYER_CONSTRAINT, LayerConstraint.LAST_SEPARATE)
-          case _                => ()
-        }
+        constrain(n, node)
         elkNode((n.id, n.kind)) = node
         n.pins.foreach { p =>
           val side = if (p.side == PinSide.East) PortSide.EAST else PortSide.WEST
@@ -154,6 +157,7 @@ object Layout {
         val node = ElkGraphUtil.createNode(root)
         node.setWidth(n.width); node.setHeight(n.height)
         node.setProperty(CoreOptions.PORT_CONSTRAINTS, PortConstraints.FIXED_POS)
+        constrain(n, node)
         elkNode((n.id, n.kind)) = node
         n.pins.foreach { p =>
           val port = ElkGraphUtil.createPort(node)
@@ -290,6 +294,7 @@ object Layout {
       }
     }
     if (failed > 0) Console.err.println(s"[socless] $failed module(s) had no layout")
-    design.copy(layouts = layouts.toMap, layoutOf = layoutOf.toMap, layoutConsts = LayoutCore.consts)
+    design.copy(layouts = layouts.toMap, layoutOf = layoutOf.toMap, layoutConsts = LayoutCore.consts,
+      layoutModel = LayoutCore.LayoutModel)
   }
 }

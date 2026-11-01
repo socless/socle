@@ -497,6 +497,8 @@ object Highlight {
     ".scl-pin{background:var(--ink3)}",
     ".scl-pin.if{background:var(--accent)}",
     ".scl-fpin{background:var(--ink3)}",
+    // A declared port no wire ends on (#332).
+    ".scl-nc{opacity:.45}",
     s".scl-pin.follow,.scl-fpin.follow{background:${Tokens.fol}}",
     s".scl-rl.follow{color:${Tokens.fol};font-weight:600}",
     ".scl-pin.hov{background:var(--ink)}",

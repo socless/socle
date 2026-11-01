@@ -80,13 +80,14 @@ object VecGroupTest extends TestSuite {
         Seq(InstanceDef("p", "P", "", SourceRef.unknown), InstanceDef("s", "S", "", SourceRef.unknown)),
         (0 until 4).map(i => WireDef(s"s.v[$i]", s"p.v[$i]", "UInt<8>", "", SourceRef.unknown)),
         Metrics(0,0,0))
+      val design = Design("Top", Map.empty, Seq(top, producer, sink))
       // Collapsed: the 4 leaf wires fold to ONE display wire s.v <- p.v.
-      val collapsed = LayoutCore.displayWires(top, Set.empty)
+      val collapsed = LayoutCore.displayWires(top, design, Set.empty)
       val vecWires = collapsed.filter(d => d.from.startsWith("s.v") && d.to.startsWith("p.v"))
       assert(vecWires.size == 1)
       assert(vecWires.head.from == "s.v" && vecWires.head.to == "p.v")
       // Expanded: the 4 leaves reappear as 4 display wires.
-      val expanded = LayoutCore.displayWires(top, Set("s.v", "p.v"))
+      val expanded = LayoutCore.displayWires(top, design, Set("s.v", "p.v"))
       assert(expanded.count(d => d.from.startsWith("s.v[") && d.to.startsWith("p.v[")) == 4)
     }
 
@@ -108,10 +109,10 @@ object VecGroupTest extends TestSuite {
       assert(ioBoundaries.size == 1)
       assert(ioBoundaries.head.id == "io")
 
-      // Expanded: the 4 element boundary nodes reappear.
+      // Expanded: the 4 elements open in place inside the one stub (#332).
       val expanded = LayoutCore.prepare(top, design, Set("io"))
       val ioExpanded = expanded.nodes.filter(n => n.kind == NodeKind.Boundary && n.id.startsWith("io"))
-      assert(ioExpanded.size == 4)
+      assert(ioExpanded.map(_.pins.map(_.path)) == Seq(Seq("io", "io[0]", "io[1]", "io[2]", "io[3]")))
     }
   }
 }

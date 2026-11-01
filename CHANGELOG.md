@@ -8,6 +8,24 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+### Changed
+
+- Blocks and the module's own ports show the ports Chisel declares, as trees:
+  one row per port, in declaration order, wired or not (a port with no wire is
+  faint), every bundle opening in place on its own side with its fields' own
+  directions. A module's `io` is shown as its fields; a Decoupled port sits on
+  the side of its `valid`, and a mixed bundle on the side of most of its
+  Decoupled channels. The module's own ports are one stub per port instead of
+  one per signal. docs/usage-ui.md has the rules. An older `design.json` is
+  laid out again when it opens (its baked pins follow the old model).
+
+### Fixed
+
+- A bundle could show the same fields on both sides of a block, or open and
+  then have no way to close; every bundle now has one row and closes again.
+- The direction arrows of a consumer's Decoupled `valid` and `ready` were
+  swapped (#313).
+
 ## [0.18.0] - 2026-10-27
 
 ### Added

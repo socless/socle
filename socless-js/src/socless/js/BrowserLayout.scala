@@ -127,7 +127,8 @@ object BrowserLayout {
       }.toJSArray
       // Boundary stubs let elkjs place ports on their side; instance nodes pin
       // each port at its precomputed (x, y) so the header never overlaps a pin.
-      val portConstraints = if (n.kind == NodeKind.Boundary) "FIXED_SIDE" else "FIXED_POS"
+      // An open stub stacks its rows at fixed positions like a box (#332).
+      val portConstraints = if (n.kind == NodeKind.Boundary && n.pins.length <= 1) "FIXED_SIDE" else "FIXED_POS"
       val nodeOpts = js.Dynamic.literal("elk.portConstraints" -> portConstraints)
       // Pin boundary stubs into their own first/last layer so external I/O forms
       // two aligned columns flanking the instances (issue #163). Same policy as

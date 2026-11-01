@@ -119,8 +119,114 @@ async function smokeDesign(design) {
   await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
   try {
     await smokeDesignIn(design, ctx);
+    await smokeToggles(design, ctx);
   } finally {
     await ctx.close().catch(() => {});
+  }
+}
+
+// Bundle toggles (#331): in the first modules of the design, on every
+// instance box and edge stub, no port path shows twice (on either side), and
+// each bundle toggle opens and then closes back to the rows it had, also after
+// one of its children was opened; the opened row must keep a toggle to close
+// it with. Each problem is a key `design|kind|module|box|path`. A known one
+// (KNOWN_TOGGLE) is reported, not failed; a new one fails, and so does a known
+// one that no longer happens (remove it from the list), so the list only
+// shrinks. The port model (#332) emptied it.
+const KNOWN_TOGGLE = new Set([]);
+const toggleSeen = new Set();
+const toggleDesigns = new Set();
+async function smokeToggles(design, ctx) {
+  const where = 'bundle toggles';
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const problem = (key, msg) => {
+    toggleSeen.add(key);
+    if (KNOWN_TOGGLE.has(key)) console.log(`  known [${design}] ${where}: ${msg} (#332)`);
+    else note(design, where, `${msg} [${key}]`);
+  };
+  try {
+    await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-layout-ready="1"]', { timeout: 30000 });
+    const ready = async () => {
+      await page.waitForTimeout(150);
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 30000 }).catch(() => {});
+      await page.waitForTimeout(100);
+    };
+    // A box's (or an edge stub's) rows, in order: `side:path`.
+    const rows = (box) => page.evaluate((id) => {
+      const b = document.querySelector(`[data-box-inst="${CSS.escape(id)}"],[data-boundary-stub="${CSS.escape(id)}"]`);
+      return b ? [...b.querySelectorAll('[data-row]')].map((e) => `${e.getAttribute('data-row-side')}:${e.getAttribute('data-row')}`) : null;
+    }, box);
+    const toggles = (box) => page.evaluate((id) => {
+      const b = document.querySelector(`[data-box-inst="${CSS.escape(id)}"],[data-boundary-stub="${CSS.escape(id)}"]`);
+      return b ? [...new Set([...b.querySelectorAll('[data-bundle-toggle]')].map((e) => e.getAttribute('data-bundle-toggle')))] : [];
+    }, box);
+    const click = async (box, path) => {
+      const ok = await page.evaluate(([id, p]) => {
+        const b = document.querySelector(`[data-box-inst="${CSS.escape(id)}"],[data-boundary-stub="${CSS.escape(id)}"]`);
+        const t = b && b.querySelector(`[data-bundle-toggle="${CSS.escape(p)}"]`);
+        if (!t) return false;
+        t.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        return true;
+      }, [box, path]);
+      if (ok) await ready();
+      return ok;
+    };
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    const modules = (await page.evaluate(() => [...document.querySelectorAll('[data-hier-path]')].map((e) => e.getAttribute('data-hier-path')))).slice(0, 6);
+    let checked = 0;
+    for (const mod of modules) {
+      await page.locator(`[data-hier-path="${mod}"]`).first().dispatchEvent('click');
+      await ready();
+      const boxes = await page.evaluate(() => [...document.querySelectorAll('[data-box-inst],[data-boundary-stub]')]
+        .map((e) => e.getAttribute('data-box-inst') || e.getAttribute('data-boundary-stub')));
+      for (const box of boxes) {
+        const base = await rows(box);
+        if (!base) continue;
+        const paths = base.map((r) => r.slice(r.indexOf(':') + 1));
+        for (const d of new Set(paths.filter((x, i) => paths.indexOf(x) !== i)))
+          problem(`${design}|twice|${mod}|${box}|${d}`, `${mod}: ${d} shows twice on ${box}`);
+        for (const t of await toggles(box)) {
+          checked++;
+          await click(box, t);
+          const opened = await rows(box);
+          if (same(opened, base)) problem(`${design}|inert|${mod}|${box}|${t}`, `${mod}: opening ${t} on ${box} added no row`);
+          const kid = (await toggles(box)).find((k) => k !== t && (k.startsWith(t + '.') || k.startsWith(t + '[')));
+          if (kid) await click(box, kid);
+          if (!(await click(box, t))) {
+            problem(`${design}|noclose|${mod}|${box}|${t}`, `${mod}: once open, ${t} on ${box} has no toggle to close it`);
+            // put the box back for the next toggle: a reload of the module
+            await page.reload({ waitUntil: 'networkidle' });
+            await ready();
+            await page.locator(`[data-hier-path="${mod}"]`).first().dispatchEvent('click');
+            await ready();
+            continue;
+          }
+          const closed = await rows(box);
+          if (!same(closed, base))
+            problem(`${design}|stuck|${mod}|${box}|${t}`, `${mod}: ${t} on ${box} opened${kid ? ` (and ${kid})` : ''} then closed left ${closed.length} rows, not ${base.length}`);
+          if (kid && !same(closed, base)) {
+            // the child kept open under the closed parent: close it too
+            await click(box, kid);
+          }
+          if (!same(await rows(box), base)) {
+            await page.reload({ waitUntil: 'networkidle' });
+            await ready();
+            await page.locator(`[data-hier-path="${mod}"]`).first().dispatchEvent('click');
+            await ready();
+          }
+        }
+      }
+    }
+    toggleDesigns.add(design);
+    console.log(`[${design}] ${where}: ${checked} toggles on ${modules.length} modules`);
+  } catch (e) {
+    note(design, where, (e && e.message) || String(e));
+  } finally {
+    for (const e of errors) note(design, where, e);
+    await page.close().catch(() => {});
   }
 }
 
@@ -602,12 +708,8 @@ async function smokeDesignIn(design, ctx) {
         note(design, where, `${step}: copies laid out at their old height, renderer shifted ${shifts.join(', ')}`);
     };
     if (!(await bt.count())) {
-      // Locked scattered groups (cores_0.io feeds both the logic block and the
-      // io port): nothing to expand, but the copy's locked group rows must
-      // still be sized by the engine, so no copy is shifted.
-      if (!(await count('[data-box-inst="cores_0"] [data-bundle-group]')))
-        note(design, where, 'cores_0 has neither a [data-bundle-toggle] nor a locked [data-bundle-group] row');
-      await expectUnshifted('locked groups');
+      // Every declared bundle port is a closed row with a toggle (#332).
+      note(design, where, 'cores_0 has no [data-bundle-toggle]');
     }
     else if (!before[0] || !before[1]) note(design, where, 'before expand: a copy box is missing');
     else {
@@ -703,7 +805,8 @@ async function smokeDesignIn(design, ctx) {
       if (!b || !op.r || op.r.right > b.left + 1 || op.r.bottom < b.top || op.r.top > b.bottom)
         note(design, where, `alu.io.op label ${JSON.stringify(op.r)} not beside alu ${JSON.stringify(b)}`);
     }
-    for (const [pin, v] of [['rf.io.raddr', '0'], ['rf.io.waddr', '0'], ['io.out.bits.valid', '1']])
+    // io.out.bits.valid lands on the closed io.out stub (#332).
+    for (const [pin, v] of [['rf.io.raddr', '0'], ['rf.io.waddr', '0'], ['io.out', '1']])
       if (!r0.tied.some((t) => t.pin === pin && t.label === v)) note(design, where, `no [data-tied="${pin}"] stub reading ${v}`);
     // `when` defaults next to another driver are not ties.
     for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen'])
@@ -750,7 +853,7 @@ async function smokeDesignIn(design, ctx) {
       expect('alu.io.op', '2 tied', ['alu.io.op = 0', 'alu.io.op = 3']);
       expect('rf.io.waddr', '2 tied', ['rf.io.waddr = 0', 'rf.io.waddr.x = 1']);
       expect('rf.io.raddr', '0', ['tied to 0', 'rf.io.raddr', 'rf.io.raddr[3]', ...Array.from({ length: 8 }, (_, i) => `rf.io.raddr.g${i}`), '… and 3 more']);
-      expect('io.out.bits.valid', '13 tied', ['io.out.bits.valid = 1', ...Array.from({ length: 9 }, (_, i) => `io.out.bits.valid.f${i} = ${i}`), '… and 3 more']);
+      expect('io.out', '13 tied', ['io.out.bits.valid = 1', ...Array.from({ length: 9 }, (_, i) => `io.out.bits.valid.f${i} = ${i}`), '… and 3 more']);
       if (tied.length !== r0.tied.length) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length}`);
     }
     // Back to the served design for the checks below.
@@ -1382,7 +1485,20 @@ async function smokeDesignIn(design, ctx) {
   // `zoom-in` over a block a double-click opens.
   {
     const where = 'hover feedback';
-    const away = async () => { const vp = await page.locator('[data-content]').first().evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.right - 8, y: r.bottom - 8 }; }); await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80); };
+    // Off every target: the bottom-right corner, or the nearest empty spot to it
+    // (a wire may run through the corner).
+    const away = async () => {
+      const vp = await page.locator('[data-content]').first().evaluate((el) => {
+        const vpEl = el.parentElement, r = vpEl.getBoundingClientRect();
+        for (let d = 8; d < Math.min(r.width, r.height) / 2; d += 10)
+          for (const [x, y] of [[r.right - d, r.bottom - 8], [r.right - 8, r.bottom - d], [r.right - d, r.bottom - d]]) {
+            const h = document.elementFromPoint(x, y);
+            if (h && vpEl.contains(h) && !h.closest('[data-pan-block], .scl-w, path, button')) return { x, y };
+          }
+        return { x: r.right - 8, y: r.bottom - 8 };
+      });
+      await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80);
+    };
     const dashes = /[\u2013\u2014]/;
     const checkTip = (t, what) => {
       if (!t) { note(design, where, `no tooltip card after resting on ${what}`); return false; }
@@ -1742,15 +1858,30 @@ async function smokeDesignIn(design, ctx) {
 
     // The dot of an expandable pin toggles its bundle too, with a pointer
     // cursor, and the hint bar (its card) says so: a top-level bundle's dot
-    // (data-pin) and a scattered field's (data-pin-field), each where a design has one.
+    // (data-pin) and an open bundle's expandable field's (data-pin-field), each
+    // where a design has one.
     for (const [attr, cls, set] of [['data-pin', 'scl-pin.if', pinDotDesigns], ['data-pin-field', 'scl-fpin', fieldDotDesigns]]) {
-      const key = await page.evaluate(([attr, cls]) => {
+      const find = () => page.evaluate(([attr, cls]) => {
         for (const d of document.querySelectorAll(`[data-content] .${cls}[${attr}]`)) {
           const k = d.getAttribute(attr);
           if (!k.includes('[') && d.parentElement.querySelector(`[data-bundle-toggle="${CSS.escape(k)}"]`)) return k;
         }
         return null;
       }, [attr, cls]);
+      let key = await find();
+      // A field row shows once its parent is open (#332): open top-level
+      // bundles, one at a time, until one has an expandable field.
+      if (!key && attr === 'data-pin-field') {
+        const tops = await page.evaluate(() => Array.from(document.querySelectorAll('[data-content] .scl-pin.if[data-pin]'))
+          .map((d) => d.getAttribute('data-pin')).filter((k) => !k.includes('[')).slice(0, 8));
+        for (const t of tops) {
+          await page.locator(`[data-bundle-toggle="${t.replace(/["\\]/g, '\\$&')}"]`).first().dispatchEvent('click');
+          await settle();
+          if ((key = await find())) break;
+          await page.locator(`[data-bundle-toggle="${t.replace(/["\\]/g, '\\$&')}"]`).first().dispatchEvent('click');
+          await settle();
+        }
+      }
       const dotSel = key && `.${cls}[${attr}="${key.replace(/["\\]/g, '\\$&')}"]`;
       const pt = key && await pointOn(dotSel);
       if (!pt) continue;
@@ -2157,8 +2288,13 @@ async function smokeDesignIn(design, ctx) {
         if (!near(v, want) || c !== wantCrumbs)
           note(design, where, `${k}: ${what}: got ${fmt(v)} at "${c}", expected ${fmt(want)} at "${wantCrumbs}"; history ${fmt(await hist())}`);
       }
-      // A new place after Back drops the forward entries.
+      // A new place after Back drops the forward entries. Back has landed once
+      // the child shows (on a slow runner its drill can outlast settle's wait):
+      // a click on the top crumb before that is a no-op, and Back then lands.
       await key('Alt+ArrowLeft');
+      await page.waitForFunction((c) => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > ') === c,
+        cChild, { timeout: 15000 }).catch(() => {});
+      await settle();
       await page.locator('.scl-crumbs .scl-crumb').first().click();
       await settle();
       const h = await hist();
@@ -2601,10 +2737,8 @@ async function smokeDesignIn(design, ctx) {
         note(design, where, `in cluster0, no boundary pin of io.in is lit: ${fmt(L)}`);
       const unlit = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w:not(.follow)').length);
       if (!unlit) note(design, where, 'in cluster0 every wire is lit');
-      // cores_0's io.in is a scattered bundle: its field pins (dots of their
-      // own) light.
-      const fieldPins = await page.evaluate(() => Array.from(document.querySelectorAll('[data-content] [data-pin-field].follow')).map((e) => e.getAttribute('data-pin-field')));
-      if (!fieldPins.some((p) => p.startsWith('cores_0.io.in.'))) note(design, where, `no field pin of cores_0.io.in is lit: ${fmt(fieldPins)}`);
+      // cores_0's io.in is one closed row (#332): its pin lights.
+      if (!L.pins.some((p) => ov(p, 'cores_0.io.in'))) note(design, where, `no pin of cores_0.io.in is lit: ${fmt(L.pins)}`);
 
       // Out again: the original wire.
       await go(top);
@@ -2670,14 +2804,14 @@ async function smokeDesignIn(design, ctx) {
         }
       } else note(design, where, `no visible wire ${W.join(' <= ')} for the Esc-over-the-card check`);
 
-      // Up from a field: following io.in.bits.data in cluster0 lights the top
-      // wire and its collapsed bundle pin cluster0.io.in.
+      // Up a level: following io.in in cluster0 lights the top wire and its
+      // collapsed bundle pin cluster0.io.in.
       await go(`${top}/cluster0`);
-      if (await clickWire('cores_0.io.in.bits.data', 'io.in.bits.data')) {
+      if (await clickWire('cores_0.io.in', 'io.in')) {
         await go(top);
-        if (!await wireLit(...W)) note(design, where, `following io.in.bits.data in cluster0 did not light ${W.join(' <= ')} at the top`);
-        if (!(await lit()).pins.includes(W[0])) note(design, where, `following a field did not light the collapsed pin ${W[0]}`);
-      } else { note(design, where, 'no visible wire cores_0.io.in.bits.data <= io.in.bits.data in cluster0'); await go(top); }
+        if (!await wireLit(...W)) note(design, where, `following io.in in cluster0 did not light ${W.join(' <= ')} at the top`);
+        if (!(await lit()).pins.includes(W[0])) note(design, where, `following io.in did not light the collapsed pin ${W[0]}`);
+      } else { note(design, where, 'no visible wire cores_0.io.in <= io.in in cluster0'); await go(top); }
       await focusSchematic();
       await page.keyboard.press('Escape');
 
@@ -2848,17 +2982,18 @@ async function smokeDesignIn(design, ctx) {
   // Expand every bundle port in the top view.
   const toggles = await page.locator('[data-bundle-toggle]').all();
   console.log(`[${design}] ${toggles.length} bundle toggles in top view`);
-  // #237: a scattered bundle (fields wired to different peers) must render as
-  // locked in/out groups on the owning box, NOT as a replicated expandable
-  // bundle on every peer. The `scatter` design's producer `p.io` is the case:
-  // it should show an `in` group + an `out` group and zero bundle-toggles.
+  // #237, #332: a bundle whose fields are wired to different peers shows its
+  // declared fields on their own sides, once each, with no group labels and no
+  // replicated bundle on the peers. The `scatter` design's producer `p.io`
+  // is the case: outputs a, b EAST, input c WEST.
   if (design === 'scatter') {
-    const groups = await page.$$eval('[data-bundle-group]', (els) =>
-      els.map((e) => e.getAttribute('data-bundle-group') + ':' + e.getAttribute('data-bundle-group-dir')));
-    const hasIn = groups.includes('p.io:in');
-    const hasOut = groups.includes('p.io:out');
-    if (!hasIn || !hasOut) note(design, 'scattered-groups (#237)', `expected p.io in+out bundle groups, got ${JSON.stringify(groups)}`);
-    else console.log(`[${design}] bundle groups: ${groups.join(', ')}`);
+    const pRows = await page.$$eval('[data-box-inst="p"] [data-row]', (els) =>
+      els.map((e) => e.getAttribute('data-row-side') + ':' + e.getAttribute('data-row')));
+    const want = ['EAST:p.io.a', 'EAST:p.io.b', 'WEST:p.io.c'];
+    if (JSON.stringify([...pRows].sort()) !== JSON.stringify(want))
+      note(design, 'scattered fields (#237)', `expected p rows ${JSON.stringify(want)}, got ${JSON.stringify(pRows)}`);
+    if (await page.locator('[data-bundle-group]').count())
+      note(design, 'scattered fields (#237)', 'a [data-bundle-group] row is still drawn');
     if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
   }
   // #207: expanding a bundle must NOT reset the view (pan/zoom). Record the
@@ -3165,6 +3300,14 @@ for (const [what, set] of [['Follow a net', followDesigns], ['Follow resolution 
   if (!ONLY && set.size === 0) note('(all)', 'follow net', `no design ran the check: ${what}`);
 }
 
+
+// The known toggle problems that no longer happen: the list must shrink with them.
+if (!ONLY) for (const key of KNOWN_TOGGLE) {
+  const d = key.slice(0, key.indexOf('|'));
+  if (toggleDesigns.has(d) && !toggleSeen.has(key))
+    note(d, 'bundle toggles', `fixed: remove ${key} from KNOWN_TOGGLE`);
+}
+console.log(`Bundle toggles checked on: ${Array.from(toggleDesigns).join(', ') || '(none)'}`);
 
 // Concurrent designs interleave their failures: list them in manifest order
 // (stable, so each design keeps its own order; '(all)' last).

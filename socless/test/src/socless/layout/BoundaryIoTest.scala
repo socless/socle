@@ -159,8 +159,9 @@ object BoundaryIoTest extends TestSuite {
 
     test("Decoupled boundary output breaks the vote tie toward WEST (output side)") {
       val L = Layout.layout(tieMod, tieDesign)
-      val out = L.nodes.find(_.id == "io.out").get
-      assert(out.ports.head.side == "WEST")
+      // `io` is the Decoupled itself: one stub, its pin facing the design (#332).
+      val out = L.nodes.find(_.id == "io").get
+      assert(out.ports.map(_.side) == Seq("WEST"))
     }
 
     // An AXI slave port at the module boundary comes from `input io` (dir

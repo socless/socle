@@ -65,13 +65,15 @@ object BundleTree {
               PortNode(ch.name, childPath, ch.`type`, isAggregateType(ch.`type`, design), childDir, sub.width, sub.children)
             }
           else if (b.kind == BundleKind.Decoupled) {
-            // valid (out from producer), ready (in to producer), then each bits field.
-            val valid = PortNode("valid", parentPath + ".valid", "Bool", isExpandable = false, Some(PortDir.Out), 1, Nil)
-            val ready = PortNode("ready", parentPath + ".ready", "Bool", isExpandable = false, Some(PortDir.In), 1, Nil)
+            // valid goes the port's way, ready the other way (#313), then each bits field.
+            val valid = PortNode("valid", parentPath + ".valid", "Bool", isExpandable = false, baseDir, 1, Nil)
+            val ready = PortNode("ready", parentPath + ".ready", "Bool", isExpandable = false, baseDir.map(flip), 1, Nil)
             val bits  = b.fields.map { f =>
               // Flip field directions only for a consumer-side port (baseDir "in").
               val d = if (baseDir.contains(PortDir.In)) flip(f.dir) else f.dir
-              PortNode("bits." + f.name, parentPath + ".bits." + f.name, "UInt<" + f.width + ">",
+              // A Decoupled of a ground type (Queue[UInt]) has one unnamed field: `bits` itself.
+              val name = if (f.name.isEmpty) "bits" else "bits." + f.name
+              PortNode(name, parentPath + "." + name, "UInt<" + f.width + ">",
                 isExpandable = false, Some(d), f.width, Nil)
             }
             valid +: ready +: bits

@@ -297,7 +297,7 @@ object Tooltip {
       }
       val what = (Seq(dir) :+ typed(g, r.bundleKey, r.width)).filter(_.nonEmpty).mkString(", ")
       Content("pin", name, what, Option.when(name != plain)(plain).toSeq,
-        if (r.isExpandable && !r.locked) acts("Click: expand or collapse") else acts())
+        if (r.isExpandable) acts("Click: expand or collapse") else acts())
     }
 
   private val Dash = "[\u2013\u2014]".r
@@ -309,7 +309,7 @@ object Tooltip {
       g.layout.nodes.filter(_.kind != NodeKind.Const).map(n => s"box ${n.id}" -> Target.Box(n.id)) ++
       g.wires.map(w => s"wire ${w.fromPath}" -> Target.Wire(w.fromPath, w.toPath)) ++
       g.rows.toSeq.flatMap { case (b, br) =>
-        (br.westRows ++ br.eastRows).filter(r => !r.isGroupHeader && (r.isTopLevel || r.isExpandable))
+        (br.westRows ++ br.eastRows).filter(r => r.isTopLevel || r.isExpandable)
           .map(r => s"pin ${r.path}" -> Target.Pin(r.path, b))
       }
     val bad = targets.collect {

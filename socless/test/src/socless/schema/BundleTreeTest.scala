@@ -69,6 +69,17 @@ object BundleTreeTest extends TestSuite {
       assert(d.children.find(_.name == "ready").get.dir.contains("in"))
     }
 
+    // #313: a consumer (Flipped(Decoupled)) port receives valid and drives ready.
+    test("consumer Decoupled: valid in, ready out") {
+      def dirs(base: Option[String]) = {
+        val c = BundleTree.portTree("Decoupled_X", base, "x.io.in", design).children
+        (c.find(_.name == "valid").get.dir, c.find(_.name == "ready").get.dir)
+      }
+      assert(dirs(Some("in")) == ((Some("in"), Some("out"))))
+      assert(dirs(Some("out")) == ((Some("out"), Some("in"))))
+      assert(dirs(None) == ((None, None)))
+    }
+
     // Regression guard for issue 1 ("weird recursive thing"): a Decoupled port
     // must expand exactly ONE level into valid / ready / bits.* leaves, with NO
     // child re-expanding into the same valid/ready set. The trigger would be a

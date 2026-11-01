@@ -509,7 +509,9 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     return null;
   };
   const P = (leaf) => `${PREFIX}.${leaf}`;
-  const stub = (id) => page.locator(`[data-boundary-stub="${id}"]`).first().click();
+  // GCD's edge stubs are its ports `io.in` and `io.out` (#332): a click on a
+  // field's port selects that port.
+  const stub = (id) => page.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first().click();
 
   // No trace yet: the Waveform tab is there and explains how to get one; selecting is harmless.
   await page.click('[data-toggle-pane="bottom"]'); // embedded, the bottom panel starts closed
@@ -578,7 +580,10 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     const s = await waitSnap(`the focus of ${what}`, (x) => x.idle && x.focusCount > before && x.lastFocus);
     check('wave', !!s && s.lastFocus.trace === trace && s.lastFocus.ok, `${what} focuses ${trace} (${JSON.stringify(s && s.lastFocus)})`);
   };
-  await focusAfter('port io.out.bits.result', () => stub('io.out.bits.result'), P('io_out_bits_result'));
+  // A click on the io.out stub focuses the port's first field; a field (a row
+  // of the stub, no node of its own) through the hook.
+  await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
+  await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__soclessWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
   await focusAfter('wire from blk$GCD$logic.io_in_bits_a', () => page.locator('[data-wire="blk$GCD$logic.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
   await focusAfter('bundle io.out', () => page.evaluate(() => window.__soclessWave.select('io.out')), P('io_out_valid'));
@@ -610,7 +615,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await page.click('[data-toggle-pane="bottom"]');
   await page.click('[data-bottom-tab="ports"]');
   await page.click('[data-bottom-tab="wave"]');
-  await focusAfter('port io.in.bits.a after closing the panel', () => stub('io.in.bits.a'), P('io_in_bits_a'));
+  await focusAfter('port io.in.bits.a after closing the panel', () => page.evaluate(() => window.__soclessWave.select('io.in.bits.a')), P('io_in_bits_a'));
 
   // Surfer's right-click actions (WCP events; the hook stands in for its menu):
   // Go to declaration of a register selects its logic block and opens its source,
@@ -644,7 +649,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const foldedItems = await visible();
   const wantFolded = ['group io', 'group io.in', 'group io.out', 'group Registers', P('x'), P('y'), P('busy')];
   check('wave', JSON.stringify(foldedItems) === JSON.stringify(wantFolded), `bundle groups folded ${JSON.stringify(foldedItems)}`);
-  await focusAfter('port io.in.bits.a in a folded bundle', () => stub('io.in.bits.b').then(() => stub('io.in.bits.a')), P('io_in_bits_a'));
+  await focusAfter('port io.in.bits.a in a folded bundle', () => page.evaluate(() => window.__soclessWave.select('io.in.bits.a')), P('io_in_bits_a'));
   const unfolded = await visible();
   check('wave', unfolded.includes(P('io_in_bits_a')) && unfolded.includes(P('io_in_bits_b')) && !unfolded.includes(P('io_out_valid')),
     `the focus unfolded its groups only ${JSON.stringify(unfolded)}`);
@@ -761,7 +766,8 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   // `surfer` (the app): the UI only POSTs the selection, with the trace's test and the module path.
   await setIde({ waveViewer: 'surfer' });
   wave.posts = [];
-  await stub('io.in.bits.b');
+  // A field has no node of its own to click (it is a row of the io.in stub).
+  await page.evaluate(() => window.__soclessWave.select('io.in.bits.b'));
   await page.waitForTimeout(800);
   const want2 = { traceTest: TRACE_TEST, instPath: ['GCD'], selection: 'io.in.bits.b' };
   const bodies = wave.posts.map((x) => JSON.parse(x.body));
@@ -965,7 +971,7 @@ let seq1 = -1;
   };
   const toUi = (m) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage(x, '*'), m);
   const status = (s) => toUi({ type: 'socless-surfer-status', status: s });
-  const stub = (id) => f.locator(`[data-boundary-stub="${id}"]`).first().click();
+  const stub = (id) => f.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first().click();
 
   await f.waitForTimeout(500);
   const hello = await waitMsgs('the Hello', 0, (xs) => xs.length > 0, 5000);
@@ -1041,7 +1047,7 @@ let seq1 = -1;
 
   // A selection: Focus with its trace, no new plan.
   const n1 = (await msgs()).length;
-  await stub('io.out.bits.result');
+  await f.evaluate(() => window.__soclessWave.select('io.out.bits.result'));
   const foc = await waitMsgs('the Focus', n1, (ys) => ys.some((m) => kind(m) === 'Focus'));
   await page.waitForTimeout(400);
   const ys = await after(n1);

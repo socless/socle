@@ -18,34 +18,25 @@ layout AXIMaster
   node const$txQ_io_enq_bits kind=const pins=const$txQ_io_enq_bits:EAST
   node const$txQ_io_enq_valid kind=const pins=const$txQ_io_enq_valid:EAST
   node idCnt kind=reg pins=idCnt:WEST,idCnt~q:EAST
-  node io.ar.bits.addr kind=boundary pins=io.ar.bits.addr:WEST:iface
-  node io.ar.bits.burst kind=boundary pins=io.ar.bits.burst:WEST:iface
-  node io.ar.bits.cache kind=boundary pins=io.ar.bits.cache:WEST:iface
-  node io.ar.bits.id kind=boundary pins=io.ar.bits.id:WEST:iface
-  node io.ar.bits.len kind=boundary pins=io.ar.bits.len:WEST:iface
-  node io.ar.bits.prot kind=boundary pins=io.ar.bits.prot:WEST:iface
-  node io.ar.bits.size kind=boundary pins=io.ar.bits.size:WEST:iface
-  node io.ar.ready kind=boundary pins=io.ar.ready:EAST:iface
-  node io.ar.valid kind=boundary pins=io.ar.valid:WEST:iface
+  node io.ar kind=boundary pins=io.ar:WEST:iface
   node io.aw kind=boundary pins=io.aw:WEST:iface
-  node io.b kind=boundary pins=io.b:WEST:iface
-  node io.r kind=boundary pins=io.r:WEST:iface
+  node io.b kind=boundary pins=io.b:EAST:iface
+  node io.r kind=boundary pins=io.r:EAST:iface
   node io.w kind=boundary pins=io.w:WEST:iface
   node mux$idCnt kind=op pins=mux$idCnt:EAST,mux$idCnt~in0:WEST,mux$idCnt~in1:WEST,mux$idCnt~in2:WEST
-  node txQ kind=inst pins=txQ.io.deq.bits:EAST:iface,txQ.io.deq.ready:WEST:iface,txQ.io.deq.valid:EAST:iface,txQ.io.enq.bits:WEST:iface,txQ.io.enq.valid:WEST:iface
-  edge _T~in0 -> io.ar.ready
-  edge _T~in1 -> io.ar.valid
+  node txQ kind=inst pins=txQ.io.count:EAST,txQ.io.deq:EAST:iface,txQ.io.enq:WEST:iface
+  edge _T~in0 -> io.ar
+  edge _T~in1 -> io.ar
   edge _idCnt_T~in0 -> idCnt~q
   edge _idCnt_T~in1 -> const$_idCnt_T~in1
   edge idCnt -> mux$idCnt
-  edge io.ar.bits.addr -> txQ.io.deq.bits
-  edge io.ar.bits.burst -> const$io_ar_bits_burst
-  edge io.ar.bits.cache -> const$io_ar_bits_cache
-  edge io.ar.bits.id -> idCnt~q
-  edge io.ar.bits.len -> const$io_ar_bits_len
-  edge io.ar.bits.prot -> const$io_ar_bits_prot
-  edge io.ar.bits.size -> const$io_ar_bits_size
-  edge io.ar.valid -> txQ.io.deq.valid
+  edge io.ar -> const$io_ar_bits_burst
+  edge io.ar -> const$io_ar_bits_cache
+  edge io.ar -> const$io_ar_bits_len
+  edge io.ar -> const$io_ar_bits_prot
+  edge io.ar -> const$io_ar_bits_size
+  edge io.ar -> idCnt~q
+  edge io.ar -> txQ.io.deq
   edge io.aw -> const$io_aw_valid
   edge io.b -> const$io_b_ready
   edge io.r -> const$io_r_ready
@@ -53,9 +44,8 @@ layout AXIMaster
   edge mux$idCnt~in0 -> _T
   edge mux$idCnt~in1 -> _idCnt_T
   edge mux$idCnt~in2 -> idCnt~q
-  edge txQ.io.deq.ready -> io.ar.ready
-  edge txQ.io.enq.bits -> const$txQ_io_enq_bits
-  edge txQ.io.enq.valid -> const$txQ_io_enq_valid
+  edge txQ.io.enq -> const$txQ_io_enq_bits
+  edge txQ.io.enq -> const$txQ_io_enq_valid
 layout AXISlave
   node const$io_aw_ready kind=const pins=const$io_aw_ready:EAST
   node const$io_b_valid kind=const pins=const$io_b_valid:EAST
@@ -63,24 +53,20 @@ layout AXISlave
   node const$respQ_io_enq_bits_data kind=const pins=const$respQ_io_enq_bits_data:EAST
   node const$respQ_io_enq_bits_last kind=const pins=const$respQ_io_enq_bits_last:EAST
   node const$respQ_io_enq_bits_resp kind=const pins=const$respQ_io_enq_bits_resp:EAST
-  node io.ar.bits.id kind=boundary pins=io.ar.bits.id:EAST:iface
-  node io.ar.ready kind=boundary pins=io.ar.ready:WEST:iface
-  node io.ar.valid kind=boundary pins=io.ar.valid:EAST:iface
-  node io.aw kind=boundary pins=io.aw:WEST:iface
+  node io.ar kind=boundary pins=io.ar:EAST:iface
+  node io.aw kind=boundary pins=io.aw:EAST:iface
   node io.b kind=boundary pins=io.b:WEST:iface
-  node io.r kind=boundary pins=io.r:EAST:iface
-  node io.w kind=boundary pins=io.w:WEST:iface
-  node respQ kind=inst pins=respQ.io.deq:EAST:iface,respQ.io.enq.bits.data:WEST:iface,respQ.io.enq.bits.id:WEST:iface,respQ.io.enq.bits.last:WEST:iface,respQ.io.enq.bits.resp:WEST:iface,respQ.io.enq.ready:EAST:iface,respQ.io.enq.valid:WEST:iface
-  edge io.ar.ready -> respQ.io.enq.ready
+  node io.r kind=boundary pins=io.r:WEST:iface
+  node io.w kind=boundary pins=io.w:EAST:iface
+  node respQ kind=inst pins=respQ.io.count:EAST,respQ.io.deq:EAST:iface,respQ.io.enq:WEST:iface
   edge io.aw -> const$io_aw_ready
   edge io.b -> const$io_b_valid
   edge io.w -> const$io_w_ready
   edge respQ.io.deq -> io.r
-  edge respQ.io.enq.bits.data -> const$respQ_io_enq_bits_data
-  edge respQ.io.enq.bits.id -> io.ar.bits.id
-  edge respQ.io.enq.bits.last -> const$respQ_io_enq_bits_last
-  edge respQ.io.enq.bits.resp -> const$respQ_io_enq_bits_resp
-  edge respQ.io.enq.valid -> io.ar.valid
+  edge respQ.io.enq -> const$respQ_io_enq_bits_data
+  edge respQ.io.enq -> const$respQ_io_enq_bits_last
+  edge respQ.io.enq -> const$respQ_io_enq_bits_resp
+  edge respQ.io.enq -> io.ar
 layout AXISystem
   node cpu kind=inst pins=cpu.io:EAST:iface
   node dma kind=inst pins=dma.io:EAST:iface
@@ -123,13 +109,9 @@ layout Queue4_R
   node empty kind=op pins=empty:EAST,empty~in0:WEST,empty~in1:WEST
   node enq_ptr_value kind=reg pins=enq_ptr_value:WEST,enq_ptr_value~q:EAST
   node full kind=op pins=full:EAST,full~in0:WEST,full~in1:WEST
-  node io.count kind=boundary pins=io.count:WEST:iface
-  node io.deq.bits kind=boundary pins=io.deq.bits:WEST:iface
-  node io.deq.ready kind=boundary pins=io.deq.ready:EAST:iface
-  node io.deq.valid kind=boundary pins=io.deq.valid:WEST:iface
-  node io.enq.bits kind=boundary pins=io.enq.bits:EAST:iface
-  node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
-  node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
+  node io.count kind=boundary pins=io.count:WEST
+  node io.deq kind=boundary pins=io.deq:WEST:iface
+  node io.enq kind=boundary pins=io.enq:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
   node mux$deq_ptr_value kind=op pins=mux$deq_ptr_value:EAST,mux$deq_ptr_value~in0:WEST,mux$deq_ptr_value~in1:WEST,mux$deq_ptr_value~in2:WEST
   node mux$deq_ptr_value$1 kind=op pins=mux$deq_ptr_value$1:EAST,mux$deq_ptr_value$1~in0:WEST,mux$deq_ptr_value$1~in1:WEST,mux$deq_ptr_value$1~in2:WEST
@@ -143,10 +125,10 @@ layout Queue4_R
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
   edge _T~in0 -> _do_enq_T
   edge _T~in1 -> _do_deq_T
-  edge _do_deq_T~in0 -> io.deq.ready
-  edge _do_deq_T~in1 -> io.deq.valid
-  edge _do_enq_T~in0 -> io.enq.ready
-  edge _do_enq_T~in1 -> io.enq.valid
+  edge _do_deq_T~in0 -> io.deq
+  edge _do_deq_T~in1 -> io.deq
+  edge _do_enq_T~in0 -> io.enq
+  edge _do_enq_T~in1 -> io.enq
   edge _empty_T~in0 -> maybe_full~q
   edge _empty_T~in1 -> const$_empty_T~in1
   edge _io_count_T_1~in0 -> _io_count_T
@@ -173,9 +155,9 @@ layout Queue4_R
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
-  edge io.deq.bits -> ram~io_deq_bits_MPORT~r
-  edge io.deq.valid -> _io_deq_valid_T
-  edge io.enq.ready -> _io_enq_ready_T
+  edge io.deq -> _io_deq_valid_T
+  edge io.deq -> ram~io_deq_bits_MPORT~r
+  edge io.enq -> _io_enq_ready_T
   edge maybe_full -> mux$maybe_full
   edge mux$deq_ptr_value$1~in0 -> _do_deq_T
   edge mux$deq_ptr_value$1~in1 -> _value_T_2
@@ -198,7 +180,7 @@ layout Queue4_R
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
   edge ram~MPORT~a -> enq_ptr_value~q
-  edge ram~MPORT~w -> io.enq.bits
+  edge ram~MPORT~w -> io.enq
   edge ram~io_deq_bits_MPORT~a -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q
   edge wrap_1~in1 -> const$wrap_1~in1
@@ -236,13 +218,9 @@ layout Queue8_UInt32
   node empty kind=op pins=empty:EAST,empty~in0:WEST,empty~in1:WEST
   node enq_ptr_value kind=reg pins=enq_ptr_value:WEST,enq_ptr_value~q:EAST
   node full kind=op pins=full:EAST,full~in0:WEST,full~in1:WEST
-  node io.count kind=boundary pins=io.count:WEST:iface
-  node io.deq.bits kind=boundary pins=io.deq.bits:WEST:iface
-  node io.deq.ready kind=boundary pins=io.deq.ready:EAST:iface
-  node io.deq.valid kind=boundary pins=io.deq.valid:WEST:iface
-  node io.enq.bits kind=boundary pins=io.enq.bits:EAST:iface
-  node io.enq.ready kind=boundary pins=io.enq.ready:WEST:iface
-  node io.enq.valid kind=boundary pins=io.enq.valid:EAST:iface
+  node io.count kind=boundary pins=io.count:WEST
+  node io.deq kind=boundary pins=io.deq:WEST:iface
+  node io.enq kind=boundary pins=io.enq:EAST:iface
   node maybe_full kind=reg pins=maybe_full:WEST,maybe_full~q:EAST
   node mux$deq_ptr_value kind=op pins=mux$deq_ptr_value:EAST,mux$deq_ptr_value~in0:WEST,mux$deq_ptr_value~in1:WEST,mux$deq_ptr_value~in2:WEST
   node mux$deq_ptr_value$1 kind=op pins=mux$deq_ptr_value$1:EAST,mux$deq_ptr_value$1~in0:WEST,mux$deq_ptr_value$1~in1:WEST,mux$deq_ptr_value$1~in2:WEST
@@ -256,10 +234,10 @@ layout Queue8_UInt32
   node wrap_1 kind=op pins=wrap_1~in0:WEST,wrap_1~in1:WEST
   edge _T~in0 -> _do_enq_T
   edge _T~in1 -> _do_deq_T
-  edge _do_deq_T~in0 -> io.deq.ready
-  edge _do_deq_T~in1 -> io.deq.valid
-  edge _do_enq_T~in0 -> io.enq.ready
-  edge _do_enq_T~in1 -> io.enq.valid
+  edge _do_deq_T~in0 -> io.deq
+  edge _do_deq_T~in1 -> io.deq
+  edge _do_enq_T~in0 -> io.enq
+  edge _do_enq_T~in1 -> io.enq
   edge _empty_T~in0 -> maybe_full~q
   edge _empty_T~in1 -> const$_empty_T~in1
   edge _io_count_T_1~in0 -> _io_count_T
@@ -286,9 +264,9 @@ layout Queue8_UInt32
   edge full~in0 -> ptr_match
   edge full~in1 -> maybe_full~q
   edge io.count -> _io_count_T_2
-  edge io.deq.bits -> ram~io_deq_bits_MPORT~r
-  edge io.deq.valid -> _io_deq_valid_T
-  edge io.enq.ready -> _io_enq_ready_T
+  edge io.deq -> _io_deq_valid_T
+  edge io.deq -> ram~io_deq_bits_MPORT~r
+  edge io.enq -> _io_enq_ready_T
   edge maybe_full -> mux$maybe_full
   edge mux$deq_ptr_value$1~in0 -> _do_deq_T
   edge mux$deq_ptr_value$1~in1 -> _value_T_2
@@ -311,7 +289,7 @@ layout Queue8_UInt32
   edge ptr_match~in0 -> enq_ptr_value~q
   edge ptr_match~in1 -> deq_ptr_value~q
   edge ram~MPORT~a -> enq_ptr_value~q
-  edge ram~MPORT~w -> io.enq.bits
+  edge ram~MPORT~w -> io.enq
   edge ram~io_deq_bits_MPORT~a -> deq_ptr_value~q
   edge wrap_1~in0 -> deq_ptr_value~q
   edge wrap_1~in1 -> const$wrap_1~in1

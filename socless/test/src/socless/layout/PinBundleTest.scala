@@ -72,8 +72,8 @@ object PinBundleTest extends TestSuite {
       // Peer x's pin is its own scalar port: NOT "IoB".
       assert(pin("x", "x.p").bundle != "IoB")
       assert(pin("x", "x.p").bundle == "UInt<8>")
-      // The owning box keeps the bundle on its field pins.
-      assert(pin("c", "c.io.a").bundle == "IoB")
+      // The owning box's rows carry their own declared types too (#332).
+      assert(pin("c", "c.io.a").bundle == "UInt<8>")
     }
   }
 }

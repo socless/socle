@@ -234,20 +234,16 @@ object ModelToDesignTest extends TestSuite {
       }
     }
 
-    test("ports show as per-leaf boundary pins") {
-      // Every port is drawn, wired or not (captured designs only, the flag is
-      // off elsewhere).
+    test("ports show as declared boundary stubs") {
+      // Every declared port is one stub, its pins facing the design (#332).
       val d = ModelToDesign.design(gcd)
       assert(d.showUnwiredPorts)
       val laid  = Layout.withLayouts(d)
       val nodes = laid.layouts(laid.layoutOf("GCD")).nodes
       val pins  = nodes.filter(_.kind == NodeKind.Boundary).flatMap(_.ports).map(p => p.path -> p.side).toMap
-      assert(pins.get("io.in.valid") == Some(PinSide.East))
-      assert(pins.get("io.out.valid") == Some(PinSide.West))
+      assert(pins == Map("io.in" -> PinSide.East, "io.out" -> PinSide.West))
       assert(!pins.contains("clock"))
       assert(!pins.contains("reset"))
-      // The CHIRRTL path never sets the flag: no boundary stub without a wire.
-      assert(!SoclessExporter.designFromChirrtl(gcd.chirrtl).showUnwiredPorts)
     }
 
     test("instance boxes show their full interface") {
@@ -262,24 +258,17 @@ object ModelToDesignTest extends TestSuite {
       assert(core("alu")("alu.io.a") == PinSide.West)
       assert(core("alu")("alu.io.cout") == PinSide.East)
       check(Seq("raddr", "waddr", "wen", "wdata", "rdata").forall(n => core("rf").contains(s"rf.io.$n")), s"rf pins: ${core("rf").keys}")
-      // Cluster: cores_* io.in wires only bits, so the uncovered Decoupled
-      // leaves (valid, ready) show beside it.
+      // Cluster: cores_* io.in wires only bits, yet each box shows its declared
+      // Decoupled rows, collapsed, one per port (#332).
       val cluster = pinsOf("Cluster")
-      for (c <- Seq("cores_0", "cores_1")) {
-        val pins = cluster(c)
-        check(Seq("io.in.valid", "io.in.ready").forall(p => pins.contains(s"$c.$p")), s"$c pins: ${pins.keys}")
-        assert(pins(s"$c.io.in.valid") == PinSide.West)
-        assert(pins(s"$c.io.in.ready") == PinSide.East)
-        assert(!pins.contains(s"$c.io.in"))
-      }
-      // The same refinement on the boundary: Cluster's io.in is partly wired.
-      assert(cluster.get("io.in.valid").flatMap(_.get("io.in.valid")) == Some(PinSide.East))
-      assert(cluster.get("io.in.ready").flatMap(_.get("io.in.ready")) == Some(PinSide.West))
-      // With the flag off, instance boxes show only their wired pins
-      // (`alu.io.op := 0.U` is a constant tie-off: not drawn, so unwired).
+      for (c <- Seq("cores_0", "cores_1"))
+        assert(cluster(c) == Map(s"$c.io.in" -> PinSide.West, s"$c.io.out" -> PinSide.East))
+      assert(cluster.get("io.in").flatMap(_.get("io.in")) == Some(PinSide.East))
+      // The flag no longer matters: a CHIRRTL design shows the same rows
+      // (`alu.io.op := 0.U` is a constant tie-off: not drawn, still shown).
       val off  = d.copy(showUnwiredPorts = false)
       val alu  = LayoutCore.prepare(off.modules.find(_.name == "Core").get, off).nodes.find(_.id == "alu").get
-      assert(alu.pins.map(_.path).toSet == Set("alu.io.a", "alu.io.b", "alu.io.out"))
+      assert(alu.pins.map(_.path).toSet == Set("alu.io.a", "alu.io.b", "alu.io.op", "alu.io.out", "alu.io.cout"))
     }
 
     test("clock and reset stay hidden") {

@@ -26,6 +26,7 @@ the same everywhere: moving around the schematic and learning it from the UI.
 | Blocks | Breadcrumb | Go back up |
 | Wires | Click | Select and follow the net (it stays lit across levels) |
 | Pins | Click (the dot or the name) | Expand or collapse a bundle |
+| Module's own ports | Click the + or − | Expand or collapse a bundle |
 | Logic blocks | Click | Inspect a register or an operator |
 | Logic blocks | Click the title | Inspect a block or a state machine |
 | Logic blocks | Double-click | Open a state machine's diagram |
@@ -37,6 +38,30 @@ one) pans; a whole-notch wheel zooms.
 
 The minimap, the state diagram, text fields and scrollable lists keep their own
 drag and scroll.
+
+### Ports and bundles
+
+A block shows the ports its module declares, in declaration order, whether
+or not a wire ends on them; a port with no wire is drawn faint. A module's
+`io` bundle is shown as its fields (`in`, `out`, `rf`), unless a wire
+connects the whole `io`: then it is one row. Every other bundle, Vec or
+Decoupled starts closed, as one row.
+
+- **Sides:** inputs are on the left, outputs on the right. A Decoupled port is
+  on the side its `valid` goes: a producer on the right, a consumer on the left.
+  A Vec takes its first element's side. A bundle with fields both ways takes
+  the side of most of its Decoupled channels (a tie goes to the first one, so
+  a memory port or an AXI4 master is on the right), else of most of its fields.
+- **Opening:** a click on a bundle's pin opens it in place: its fields appear
+  below it, on the same side, each with its own direction arrow (a consumer's
+  `ready` points out). A row never changes side. A click again closes it,
+  whatever was opened under it; what was open under it is open again when
+  you reopen it.
+- **Wires** end on the deepest row shown: on `in` while it is closed, on
+  `in.bits.a` once it is open.
+- **The module's own ports** (the stubs at the edges, inputs on the left and
+  outputs on the right) work the same way: one stub per port, opened in
+  place with its + or −.
 
 ### Keyboard
 

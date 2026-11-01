@@ -51,6 +51,16 @@ private[schematic] object SchematicGeom {
     lazy val moduleByName: Map[String, ModuleDef] = design.modules.iterator.map(m => m.name -> m).toMap
     /** A logic node by id: the first one with that id, like the `logic.find` it replaced. */
     lazy val logicById: Map[String, LogicNodeDef] = firstBy(mod.logic)(_.id)
+    /** Every pin path a drawn wire ends on, and each of its parent paths. */
+    private lazy val wiredUnder: Set[String] = wires.iterator.flatMap(w => Iterator(w.fromPath, w.toPath)).flatMap { p =>
+      Iterator(p) ++ prefixes(p)
+    }.toSet
+    private lazy val wiredEnds: Set[String] = wires.iterator.flatMap(w => Iterator(w.fromPath, w.toPath)).toSet
+    private def prefixes(p: String): Iterator[String] =
+      p.indices.iterator.filter(i => p(i) == '.' || p(i) == '[').map(p.substring(0, _))
+    /** Whether a wire ends on the row at `path`, under it, or on a row above it
+      * (a whole-bundle connect reaches every field); a row with none is drawn faint (#332). */
+    def wiredPins(path: String): Boolean = wiredUnder(path) || prefixes(path).exists(wiredEnds)
     /** What an instance box stands for and what a double-click on it does:
       * the module it instantiates, an external or intrinsic module (no
       * internals), a folded group of generator copies (double-click unfolds),
@@ -75,7 +85,8 @@ private[schematic] object SchematicGeom {
     * SAME anti-parallel pin-pair rule the layout routes by, and the two cannot
     * drift. The old node-head fold lumped every per-path boundary pin under one
     * `io` node and dropped real connections (issue #258). */
-  def displayWires(mod: ModuleDef, expanded: Set[String]): Seq[LayoutCore.DisplayWire] = LayoutCore.displayWires(mod, expanded)
+  def displayWires(mod: ModuleDef, design: Design, expanded: Set[String]): Seq[LayoutCore.DisplayWire] =
+    LayoutCore.displayWires(mod, design, expanded)
 
   /** Restore strict orthogonality: any diagonal segment becomes an H-V-H jog
     * through its horizontal midpoint (JS orthogonalizePts). */

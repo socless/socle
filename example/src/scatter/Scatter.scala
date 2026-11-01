@@ -7,9 +7,9 @@ import chisel3._
   * `Producer.io` is one aggregate bundle whose fields connect to three
   * DIFFERENT peers: outputs `a`/`b` drive two separate consumers and input `c`
   * is driven by a third. The wire coalescer therefore splits `p.io` into
-  * field-level wires (no single clean partner), and the schematic renders the
-  * `p` box as an input group (`io (in)`: c) on the WEST side and an output group
-  * (`io (out)`: a, b) on the EAST side, with each field wired to its own peer.
+  * field-level wires (no single clean partner), and the schematic shows the
+  * `p` box's declared fields on their own sides (c WEST; a, b EAST, #332), with
+  * each field wired to its own peer.
   * The consumers use plain scalar ports, so they show a single pin each (no
   * replicated bundle copy). */
 class Producer extends Module {

@@ -100,7 +100,7 @@ object Schematic {
     // module's wires (it would leave every wire unanchored until the async
     // relayout lands, issue #258 follow-up). The same holds across a design
     // change (live reload): the result also records the design it was laid out for.
-    val engineVar   = Var[Option[(String, Design, LaidOut)]](None)
+    val engineVar   = Var[Option[(String, Design, LaidOut, Set[String])]](None)
     val pendingVar  = Var(false)
     val optNonceVar = Var(0)
     val totalWVar   = Var(1.0)
@@ -172,7 +172,8 @@ object Schematic {
     }
 
     // ── geometry signal ──
-    def computeGeom(d: Design, mod: ModuleDef, engine: Option[LaidOut], expanded: Set[String]): Geom = {
+    def computeGeom(d: Design, mod: ModuleDef, engine: Option[LaidOut], expanded: Set[String],
+                    wiresOff: Boolean = false): Geom = {
       val c       = Tokens.consts(d)
       val layout  = engine.orElse(bakedOf(d, mod)).getOrElse(LaidOut(Nil, Nil, 1, 1))
       val rows    = RowModel.build(layout, mod, d, expanded, c.headerH, c.portPad, c.portStep)
@@ -187,21 +188,12 @@ object Schematic {
       // with a single hidden end stays so buildWires can stub it (#223). Resolve
       // synthetic pin heads (`x~q`, `_T~in0`) to their node id to test membership.
       def wireNode(p: String): String = LayoutCore.nodeBaseId(p.split('.').headOption.getOrElse(p))
-      val dw0 = displayWires(mod, expanded)
+      val dw0 = if (wiresOff) Nil else displayWires(mod, d, expanded)
       val dw  = if (hiddenIds.isEmpty) dw0
                 else dw0.filterNot(w => hiddenIds.contains(wireNode(w.from)) && hiddenIds.contains(wireNode(w.to)))
       val wires   = buildWires(dw, layout, boxById, pinYMap, shift, hiddenIds)
       val canvasH = (layout.h + 40) + shift.total
       Geom(layout, mod, d, rows, wires, shift, canvasH, c, boxById)
-    }
-
-    // Paths that are expanded unconditionally: scattered-bundle groups and any
-    // locked sub-group headers. Derived from the base rows (baseOf) so it matches RowModel.
-    // The header/spacing constants are irrelevant to which paths are locked, so 0 is fine.
-    def lockedExpansions(d: Design, mod: ModuleDef): Set[String] = {
-      val baked = baseOf(d, mod).getOrElse(LaidOut(Nil, Nil, 1, 1))
-      RowModel.build(baked, mod, d, Set.empty, 0, 0, 0)
-        .values.flatMap(br => (br.westRows ++ br.eastRows).filter(_.locked).map(_.path)).toSet
     }
 
     // The expanded pins of the module in view: the geometry, the engine runs and
@@ -218,15 +210,21 @@ object Schematic {
 
     val geomSig: Signal[Option[Geom]] =
       Signal.combine(designSig, moduleSig, engineVar.signal, expandedSig).map {
-        case (Some(d), Some(mod), engine, expanded) =>
+        case (Some(d), Some(mod), engine, _) =>
           // Use the engine layout only when it was computed for THIS module of
           // THIS design; otherwise fall back to the baked layout for the current
           // module so a stale engine result never mis-anchors the wires.
-          val forThis = engine.collect { case (m, ed, l) if m == viewTag(mod) && (ed eq d) => l }
+          val forThis = engine.collect { case (m, ed, l, e) if m == viewTag(mod) && (ed eq d) => (l, e) }
           // The baked layout is the all-folded module: until the engine lays out
           // an unfolded group, show the module folded rather than unanchored copies.
           val shown = if (forThis.isEmpty && unfoldedMembers(mod).nonEmpty) InstanceFold.fold(mod, Set.empty) else mod
-          Some(computeGeom(d, shown, forThis, expanded ++ lockedExpansions(d, shown)))
+          // The rows and wires follow the open paths the shown layout was made
+          // with (the baked one: none), so a toggle awaiting its layout never
+          // draws wires to pins that layout does not have (#332).
+          // An older bake (#332) has other pins than the wires drawn now: its
+          // boxes show, its wires wait for the layout run it gets.
+          val oldBake = forThis.isEmpty && d.layoutModel < LayoutCore.LayoutModel
+          Some(computeGeom(d, shown, forThis.map(_._1), forThis.fold(Set.empty[String])(_._2), wiresOff = oldBake))
         case _                                      => None
       }
 
@@ -243,7 +241,7 @@ object Schematic {
     val engineRuns = js.Array[js.Dynamic]()
     dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclessEngineRuns")(engineRuns)
     def syncPending(): Unit = pendingVar.update(_ => awaiting.isDefined)
-    def place(gen: Int, e: Option[(String, Design, LaidOut)]): Unit =
+    def place(gen: Int, e: Option[(String, Design, LaidOut, Set[String])]): Unit =
       engineVar.update(cur => if (gen == engineGen) e else cur)
 
     def runEngine(dO: Option[Design], mO: Option[ModuleDef], expanded: Set[String], optimize: Boolean, hidden: Set[String]): Unit = {
@@ -251,34 +249,32 @@ object Schematic {
       engineGen += 1
       val myGen = engineGen
       awaiting = None
-      def done(e: Option[(String, Design, LaidOut)]): Unit = { place(myGen, e); syncPending() }
+      def done(e: Option[(String, Design, LaidOut, Set[String])]): Unit = { place(myGen, e); syncPending() }
       (dO, mO) match {
         case (Some(d), Some(mod)) =>
           val hasExpansion = expanded.nonEmpty
           // An unfolded group of generator copies is absent from the (all-folded)
           // baked layout, so it needs the engine too.
           val hasUnfolded = mod.children.exists(_.foldGroup.nonEmpty)
+          // A bake from before the declared port rows (#332) has other pins than
+          // the rows and wires drawn now: lay it out again.
+          val oldBake = d.layoutModel < LayoutCore.LayoutModel
           // Declutter (#223) forces the engine too: the baked layout has every
           // node, so hiding kinds needs a re-layout over the visible subset.
-          if (!hasExpansion && !hasUnfolded && !optimize && hidden.isEmpty) { done(None); return }
+          if (!hasExpansion && !hasUnfolded && !oldBake && !optimize && hidden.isEmpty) { done(None); return }
           baseOf(d, mod) match {
             case None => done(None)
-            case Some(bl) =>
-              val c    = Tokens.consts(d)
-              val rows = RowModel.build(bl, mod, d, expanded, c.headerH, c.portPad, c.portStep)
-              val overrides = rows.flatMap { case (inst, br) =>
-                val baseH = bl.nodes.find(_.id == inst).map(_.h.toDouble).getOrElse(0.0)
-                if (br.boxH > baseH)
-                  Some(inst -> BoxOverride(Some(br.boxH), br.pinY(c.headerH, c.portPad, c.portStep)))
-                else None
-              }
+            case Some(_) =>
+              // The layout opens the rows itself (prepare takes `expanded`, #332):
+              // no box geometry to override.
+              val overrides = Map.empty[String, BoxOverride]
               val mode = if (optimize) "optimize" else "reroute"
               val tag  = viewTag(mod)
               val key  = engineKey(tag, mode, expanded, overrides, hidden)
               engineCache.get(key) match {
                 case Some(cached) =>
                   // Cache hit: place synchronously, no engine run, no spinner.
-                  done(Some((tag, d, cached)))
+                  done(Some((tag, d, cached, expanded)))
                 case None =>
                   engineRuns.push(js.Dynamic.literal(key = key, t = dom.window.performance.now(), cached = engineCache.size))
                   awaiting = Some(myGen); syncPending()
@@ -290,7 +286,7 @@ object Schematic {
                     if (myGen == engineGen) {
                       awaiting = None; syncPending()
                       r match {
-                        case Success(res) => engineCachePut(key, res); done(Some((tag, d, res)))
+                        case Success(res) => engineCachePut(key, res); done(Some((tag, d, res, expanded)))
                         case Failure(e)   =>
                           done(None)
                           dom.console.warn("[socless] in-browser layout failed, using baked: " + e.getMessage)
@@ -906,9 +902,10 @@ object Schematic {
         },
         // Shown over the content while panning (Gestures): the grabbing cursor
         // and no text selection wherever the pointer goes, without restyling
-        // the content's elements.
+        // the content's elements. Above the view's controls too (z-index 3), so
+        // a pan that crosses them keeps its cursor.
         div(dataAttr("pan-overlay") := "1",
-          styleAttr := "position:absolute;inset:0;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
+          styleAttr := "position:absolute;inset:0;z-index:4;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
       ),
       SchematicChrome.controls(ctrlCtx),
       tooltip.el,
@@ -1000,8 +997,7 @@ object Schematic {
         (t: (Option[Design], Option[ModuleDef], Set[String], Int, Set[String], Boolean)) =>
           val manualOpt = t._4 != lastNonce
           lastNonce = t._4
-          val eff = t._3 ++ (for { d <- t._1; m <- t._2 } yield lockedExpansions(d, m)).getOrElse(Set.empty)
-          runEngine(t._1, t._2, eff, manualOpt || t._6, t._5)
+          runEngine(t._1, t._2, t._3, manualOpt || t._6, t._5)
       },
     )
   }

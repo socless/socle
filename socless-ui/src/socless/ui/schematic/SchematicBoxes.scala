@@ -135,6 +135,7 @@ private[schematic] object SchematicBoxes {
   // ── boundary stub box ──
   def boundaryStub(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double): ReactiveElement.Base = {
     val hasLabel = n.ports.exists(_.label.nonEmpty)
+    val rowOf    = g.rows.get(n.id).fold(Map.empty[String, RowModel.Row])(br => (br.westRows ++ br.eastRows).map(r => r.path -> r).toMap)
     val stub = reg(ctx, n.id, Highlight.BoxKind.Stub, div(
       cls := "scl-b",
       dataAttr("boundary-stub") := n.id,
@@ -149,18 +150,35 @@ private[schematic] object SchematicBoxes {
         val pw = if (p.interface) 8 else 3
         val ph = if (p.interface) 12 else 6
         val isWest = p.side == PinSide.West
-        val labelStyle = if (isWest) s"left:${pw + 3}px;text-align:left" else s"right:${pw + 3}px;text-align:right"
+        // The stub's rows (#332): an open stub shows its fields in place, each
+        // expandable row with a toggle, as a box does.
+        val row     = rowOf.get(p.path)
+        val depth   = row.fold(0)(_.depth)
+        val toggles = row.exists(_.isExpandable)
+        val label   = row.filter(_.depth > 0).fold(p.label)(_.label)
+        val inset   = pw + 3 + depth * 8
+        val labelStyle = if (isWest) s"left:${inset}px;text-align:left;flex-direction:row" else s"right:${inset}px;text-align:right;flex-direction:row-reverse"
         div(
+          dataAttr("row") := p.path, dataAttr("row-side") := p.side,
+          if (g.wiredPins(p.path)) emptyMod else cls := "scl-nc",
           // No native title: the stub's card names its port.
           div(
             styleAttr := s"position:absolute;left:${(p.x - n.x) - pw / 2.0}px;top:${(p.y - n.y) - ph / 2.0}px;width:${pw}px;height:${ph}px;" +
               s"background:${if (p.interface) Tokens.accent else Tokens.ink4};border-radius:${if (p.interface) 3 else 1}px;" +
               (if (p.interface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px" else "")),
-          if (p.label.nonEmpty) span(
-            styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;font-family:${Tokens.mono};font-size:var(--sch-label);" +
+          // Only the +/- mark toggles: a click elsewhere on a stub selects it.
+          if (label.nonEmpty || toggles) div(
+            styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;display:flex;align-items:center;gap:3px;" +
+              s"font-family:${Tokens.mono};font-size:var(--sch-label);" +
               s"color:${if (p.interface) Tokens.ink else Tokens.ink2};white-space:nowrap;pointer-events:none;" +
-              s"max-width:${math.max(12.0, n.w - pw - 8)}px;overflow:hidden;text-overflow:ellipsis;line-height:10px",
-            stripQ(p.label)) else emptyNode,
+              s"max-width:${math.max(12.0, n.w - inset - 5)}px;overflow:hidden;line-height:10px",
+            if (toggles) span(
+              dataAttr("bundle-toggle") := p.path, dataAttr("pan-block") := "1",
+              styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:var(--sch-mark);pointer-events:auto;cursor:pointer;padding:0 2px",
+              onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); ctx.togglePort(p.path) },
+              child.text <-- ctx.expandedSig.map(s => if (s(p.path)) "−" else "+")) else emptyNode,
+            span(styleAttr := "overflow:hidden;text-overflow:ellipsis;min-width:0", stripQ(label)),
+          ) else emptyNode,
         )
       },
     ))
@@ -285,34 +303,25 @@ private[schematic] object SchematicBoxes {
   }
 
   // ── port rows inside an instance box ──
+  // Every row carries `data-row` (its port path) and `data-row-side`: a test
+  // hook for the smoke's bundle-toggle check, never styled.
   // What a pin is (direction, type, width, an op input's role) is on the
   // tooltip card (Tooltip), not in native titles.
+  // Each row is a laid pin (#332): drawn where the layout placed it, its
+  // children opened in place below it; a row no wire ends on is faint.
   def renderPortRows(ctx: Ctx, g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String): Seq[ReactiveElement.Base] = {
-    val c = g.c
     val isWest = side == PinSide.West
     def togglePort(p: String): Unit = ctx.togglePort(p)
-    // Draw each pin where the layout actually placed it (row.pinYBaked) so the
-    // dots line up with the wires and symbol stubs - including an op's output
-    // pin, laid at the center of its inputs. Only fall back to index positions
-    // once an expansion has re-flowed the rows.
-    val expanded = rows.exists(!_.isTopLevel)
-    rows.zipWithIndex.map { case (row, rowIdx) =>
-      val rowY = if (!expanded && row.isTopLevel) row.pinYBaked
-                 else c.headerH + c.portPad + rowIdx * c.portStep + c.portStep / 2
+    rows.map { row =>
+      val rowY     = row.pinYBaked
       val indentPx = row.depth * 8
-      if (row.isGroupHeader) {
-        val labelSide = if (isWest) s"left:${12 + indentPx}px" else s"right:${12 + indentPx}px"
-        div(
-          dataAttr("bundle-group") := row.path,
-          dataAttr("bundle-group-dir") := (if (isWest) "in" else "out"),
-          dataAttr("pan-block") := "1",
-          styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;display:flex;align-items:center;height:16px;" +
-            s"font-family:${Tokens.mono};font-size:var(--sch-label);font-weight:600;color:${Tokens.ink2};white-space:nowrap;pointer-events:none",
-          span(stripQ(row.label)),
-        )
-      } else if (row.isTopLevel) {
+      val toggles  = row.isExpandable
+      val faint    = if (g.wiredPins(row.path)) emptyMod else cls := "scl-nc"
+      def toggleMark(color: String) =
+        if (toggles) span(styleAttr := s"flex-shrink:0;color:$color;font-size:var(--sch-mark);line-height:1",
+          child.text <-- ctx.expandedSig.map(s => if (s(row.path)) "−" else "+")) else emptyNode
+      if (row.isTopLevel) {
         val isInterface = row.isExpandable
-        val toggles = row.isExpandable && !row.locked
         val pw = if (isInterface) 8 else 3
         val pinAbsX = if (isWest) 0.0 else n.w.toDouble
         val labelSide = if (isWest) s"left:${pw + 4 + indentPx}px" else s"right:${pw + 4 + indentPx}px"
@@ -333,17 +342,17 @@ private[schematic] object SchematicBoxes {
           if (toggles) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod)
         ctx.hl.pin(row.path, dot.ref)
         div(
+          dataAttr("row") := row.path, dataAttr("row-side") := side, faint,
           dot,
           div(
             dataAttr("pan-block") := "1",
-            if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
+            if (toggles) dataAttr("bundle-toggle") := row.path else emptyMod,
             styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (pw + 4 + indentPx) - 4)}px;" +
               s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
               s"font-family:${Tokens.mono};font-size:var(--sch-label);color:${Tokens.ink};white-space:nowrap;overflow:hidden;" +
-              s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
-            if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2};font-size:var(--sch-mark);line-height:1",
-              child.text <-- ctx.expandedSig.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
+              s"pointer-events:${if (toggles) "auto" else "none"};cursor:${if (toggles) "pointer" else "default"}",
+            if (toggles) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
+            toggleMark(Tokens.ink2),
             span(styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;width:100%;text-align:${if (isWest) "left" else "right"}", stripQ(row.label)),
           ),
         )
@@ -357,33 +366,32 @@ private[schematic] object SchematicBoxes {
         // The field's dot and its name are lit by a followed net (classes,
         // Highlight.css), so the dot's colour is a class, not inline.
         // An expandable field's dot toggles it, as its label row does.
-        val fieldToggles = row.isExpandable && !row.locked
-        val fieldDot = Option.when(row.drawPin)(div(
+        val fieldDot = div(
           cls := "scl-fpin", dataAttr("pin-field") := row.path,
-          if (fieldToggles) dataAttr("pan-block") := "1" else emptyMod,
+          if (toggles) dataAttr("pan-block") := "1" else emptyMod,
           styleAttr := s"position:absolute;left:${pinAbsX - 3.5}px;top:${rowY - 3.5}px;width:7px;height:7px;" +
-            "border-radius:50%" + (if (fieldToggles) ";pointer-events:auto;cursor:pointer" else ""),
-          if (fieldToggles) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod))
-        fieldDot.foreach(d => ctx.hl.mark(row.path, d.ref))
+            "border-radius:50%" + (if (toggles) ";pointer-events:auto;cursor:pointer" else ""),
+          if (toggles) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod)
+        ctx.hl.mark(row.path, fieldDot.ref)
         val name = span(cls := "scl-rl",
           styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;text-align:${if (isWest) "left" else "right"}", stripQ(row.label))
         ctx.hl.row(row.path, name.ref)
         div(
-          fieldDot.getOrElse(emptyNode),
+          dataAttr("row") := row.path, dataAttr("row-side") := side, faint,
+          fieldDot,
           row.dir match {
             case Some(_) => dirTriangle(n.w.toDouble, rowY, isWest, flowPointsRight(row, isWest), Tokens.ink3)
             case None    => emptyNode
           },
           div(
             dataAttr("pan-block") := "1",
-            if (row.isExpandable && !row.locked) dataAttr("bundle-toggle") := row.path else emptyMod,
+            if (toggles) dataAttr("bundle-toggle") := row.path else emptyMod,
             styleAttr := s"position:absolute;top:${rowY - 8}px;$labelSide;width:${math.max(24.0, n.w / 2.0 - (12 + indentPx) - 4)}px;" +
               s"display:flex;align-items:center;flex-direction:${if (isWest) "row" else "row-reverse"};justify-content:flex-start;gap:3px;height:16px;" +
               s"font-family:${Tokens.mono};font-size:var(--sch-label);color:${Tokens.ink2};white-space:nowrap;overflow:hidden;" +
-              s"pointer-events:${if (row.isExpandable && !row.locked) "auto" else "none"};cursor:${if (row.isExpandable && !row.locked) "pointer" else "default"}",
-            if (row.isExpandable && !row.locked) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
-            if (row.isExpandable && !row.locked) span(styleAttr := s"flex-shrink:0;color:${Tokens.ink3};font-size:var(--sch-mark)",
-              child.text <-- ctx.expandedSig.map(s => if (s(row.path)) "−" else "+")) else emptyNode,
+              s"pointer-events:${if (toggles) "auto" else "none"};cursor:${if (toggles) "pointer" else "default"}",
+            if (toggles) onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); togglePort(row.path) } else emptyMod,
+            toggleMark(Tokens.ink3),
             // No width:100% here: the name hugs its text so the width label sits right
             // beside it ("reset 1b" / "1b valid"), not across the box near the centre.
             name,

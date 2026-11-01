@@ -48,7 +48,7 @@ object DisplayWireTest extends TestSuite {
 
   val tests = Tests {
     test("display wires match the routed edge set pin-for-pin") {
-      val dws   = LayoutCore.displayWires(topMod)
+      val dws   = LayoutCore.displayWires(topMod, design)
       val edges = LayoutCore.prepare(topMod, design)
       // Every routed connection has exactly one display wire and vice versa.
       assert(pairsOf(dws) == edgePairs(edges))
@@ -71,7 +71,7 @@ object DisplayWireTest extends TestSuite {
           WireDef("b.out1", "a.in1", "Wire", "", SourceRef.unknown),
         ),
         metrics = Metrics(0, 0, 0))
-      val dws = LayoutCore.displayWires(biTop)
+      val dws = LayoutCore.displayWires(biTop, design)
       assert(dws.size == 1)
       assert(dws.head.bidir)
     }

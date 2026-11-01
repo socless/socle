@@ -24,6 +24,29 @@ indicator + LIVE badge), `data-dropzone` / `data-toast` (drag-drop chrome),
 `data-theme-toggle` (the light/dark theme button), and `data-open-editor` /
 `data-editor` (the open-in-editor preset chip).
 
+## Bundle toggles (#331)
+
+On every design, `smoke.mjs` also opens and closes each bundle toggle of the
+instance boxes in the first six modules. A box must not show a port path
+twice, and closing a toggle must give back the rows it had, also when one of
+its children was opened. An open row must keep a toggle to close it with.
+Edge stubs are checked the same way. A known problem would be listed in
+`KNOWN_TOGGLE` and printed as `known`, not failed; the port model (#332)
+emptied the list. A new problem fails, and so does a known one that no longer
+happens, so the list only shrinks.
+
+## timings: first view, drill and toggle times (#331, #335)
+
+```bash
+node tools/ui-smoke/timings.mjs http://localhost:8765 axisystem - 3
+node tools/ui-smoke/timings.mjs http://localhost:8765 deepsoc DeepSoc/cluster0 3
+```
+
+It loads a design of a served site (as for `smoke.mjs`), optionally drills
+into a module, opens and closes the first bundle toggle of the box with the
+most rows, and prints the medians in ms, measured to the layout-ready flag,
+with the view's size (boxes, edge stubs, rows).
+
 ## serve-smoke: the design-input layer (#194)
 
 `smoke.mjs` loads a pre-baked `design.json`, so it cannot exercise the
