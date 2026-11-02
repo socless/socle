@@ -920,7 +920,8 @@ object App {
     div(
       cls := "scl-topbar", dataAttr("topbar") := "1",
       // Embedded, the editor tab names the panel: no logo, picker or theme toggle.
-      Option.when(!Embedded.on)(span(cls := "scl-logo", "Socle")),
+      Option.when(!Embedded.on)(span(cls := "scl-logo", title := "Socle",
+        foreignSvgElement(com.raquo.laminar.DomApi.unsafeParseSvgString(Logo.svg)))),
       // Breadcrumb: clickable segments navigate up the hierarchy.
       div(cls := "scl-crumbs",
         // An open state diagram adds a last segment `FSM: <register>`.

@@ -1,4 +1,11 @@
-# Socle
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/socle-logo-sombre.svg">
+    <img src="brand/socle-logo.svg" alt="Socle" height="64">
+  </picture>
+</h1>
+
+*The socle for your Chisel designs.*
 
 **An interactive UI for inspecting hardware designs.** Socle turns an
 elaborated design into a navigable schematic, hierarchy, and inspector so a

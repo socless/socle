@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Socle</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" role="img"%3E%3Ctitle%3ESocle%3C/title%3E%3Crect width="16" height="16" rx="3.5" fill="%2316202b"/%3E%3Crect x="4.5" y="2" width="7" height="6.5" rx="1" fill="%23e6ac3d"/%3E%3Crect x="3" y="9.5" width="10" height="1.8" rx="0.4" fill="%23edf0f4"/%3E%3Crect x="1.8" y="12.3" width="12.4" height="1.8" rx="0.4" fill="%23edf0f4"/%3E%3C/svg%3E">
 <!-- IBM Plex (#277): the CDN stylesheet is for the dev loop only; the
      socle-ui.dist task replaces this <link> with inlined base64 @font-face so
      the shipped single file stays offline. -->
@@ -15,12 +16,15 @@
      at paint time. Light is the default; dark overrides below. The set-before-
      paint script and the topbar toggle (App.scala) drive data-theme. */
   :root {
-    --bg: #fbfbfa; --panel: #ffffff; --panelAlt: #f5f5f4;
-    --border: #e5e5e3; --borderSoft: #ececea;
-    --ink: #1a1a18; --ink2: #525250; --ink3: #70706e; --ink4: #767674;
-    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.96 0.02 250);
+    /* Socle charter: pierre #edf0f4, calcaire #f9fafc, ardoise #16202b,
+       granit #4d5660, laiton #be810a / or #e6ac3d; signal (the accent) unchanged. */
+    --bg: #edf0f4; --panel: #f9fafc; --panelAlt: #edf0f4;
+    --border: #d5dbe2; --borderSoft: #e2e7ed;
+    --ink: #16202b; --ink2: #4d5660; --ink3: #626c78; --ink4: #6d7783;
+    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.95 0.025 250);
     --accentLine: oklch(0.55 0.16 250 / 0.18);
-    --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
+    --hi: oklch(0.94 0.06 80);
+    --logo-chip: #be810a; --logo-ink: #16202b; --logo-dot: #16202b; --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
     /* Hover outline + connected wires (schematic), apart from the accent. */
     --hov: oklch(0.60 0.13 175);
     /* The followed net (schematic), apart from the accent and the hover. */
@@ -54,11 +58,12 @@
     --badge-unconn-bg: oklch(0.95 0.06 30); --badge-unconn-fg: oklch(0.45 0.16 30);
   }
   :root[data-theme="dark"] {
-    --bg: #0d1117; --panel: #161b22; --panelAlt: #21262d;
-    --border: #30363d; --borderSoft: #21262d;
-    --ink: #e6edf3; --ink2: #c9d1d9; --ink3: #8b949e; --ink4: #6e7681;
-    --accent: #1f6feb; --accentBg: #11213a; --accentLine: rgba(56,139,253,0.4);
-    --hi: rgba(56,139,253,0.15); --ok: #3fb950; --warn: #d29922;
+    --bg: #0e151d; --panel: #16202b; --panelAlt: #1e2935;
+    --border: #2c3845; --borderSoft: #1e2935;
+    --ink: #edf0f4; --ink2: #c3cbd4; --ink3: #8d98a5; --ink4: #707b88;
+    --accent: #4aa3f0; --accentBg: #12263a; --accentLine: rgba(74,163,240,0.4);
+    --hi: rgba(230,172,61,0.16);
+    --logo-chip: #e6ac3d; --logo-ink: #edf0f4; --logo-dot: #16202b; --ok: #3fb950; --warn: #d29922;
     --hov: oklch(0.76 0.13 175);
     --fol: oklch(0.74 0.18 335);
     /* Dark variants of the #220 accent palette: accents lifted in lightness to
@@ -91,6 +96,7 @@
      :root (light themes) or :root[data-mode="dark"] (dark themes), which the app
      sets alongside data-theme. The set-before-paint script applies both. */
   :root[data-mode="dark"] {
+    --logo-chip: #e6ac3d; --logo-ink: #edf0f4; --logo-dot: #16202b;
     --hov: oklch(0.76 0.13 175);
     --fol: oklch(0.74 0.18 335);
     --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
@@ -214,7 +220,8 @@
   .scl-shell { display: flex; flex-direction: column; height: 100vh; }
   .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     border-bottom: 1px solid var(--border); background: var(--panel); }
-  .scl-logo { font-weight: 700; flex-shrink: 0; font-family: var(--sans); letter-spacing: -.01em; }
+  .scl-logo { flex-shrink: 0; display: inline-flex; align-items: center; }
+  .scl-logo svg { height: 22px; width: auto; display: block; }
   .scl-sub { color: var(--ink3); }
   .scl-engine { color: var(--accent); flex-shrink: 0; }
   /* SOURCE indicator + LIVE badge (#194 / #120). */
