@@ -9,6 +9,16 @@ and [tags](https://github.com/e-ban/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-02
+
+The first release named Socle.
+
+### Added
+
+- The Socle brand (`brand/`): the logo in the UI's top bar, a favicon, the
+  VS Code tile and activity bar mark, and the charter's stone, slate and brass
+  in the default light and dark themes (the accent is unchanged).
+
 ### Changed
 
 - SoCLess is now **Socle**, everywhere, with no alias for the old names:
