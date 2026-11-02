@@ -80,7 +80,8 @@ object BrowserLayout {
                        junctionPoints: Seq[(Int, Int)])
 
   /** One module's full laid-out geometry, in the shape the UI renders. */
-  case class LaidOut(nodes: Seq[LaidNodeR], edges: Seq[LaidEdgeR], w: Int, h: Int)
+  case class LaidOut(nodes: Seq[LaidNodeR], edges: Seq[LaidEdgeR], w: Int, h: Int,
+                     debugY: Int = 0, mainW: Int = 0)
 
   object LaidOut {
     /** Adapt the backend's baked geometry ([[ModuleLayout]] from
@@ -93,7 +94,7 @@ object BrowserLayout {
           n.ports.map(p => LaidPortR(p.path, p.x, p.y, p.side, p.interface, p.label, p.bundle, p.expandable)))
       }
       val edges = L.edges.map(e => LaidEdgeR(e.from, e.to, e.points, Nil))
-      LaidOut(nodes, edges, L.w, L.h)
+      LaidOut(nodes, edges, L.w, L.h, L.debugY, L.mainW)
     }
   }
 
@@ -332,21 +333,43 @@ object BrowserLayout {
         prep0.nodes.filterNot(n => hidden.contains(n.kind)),
         prep0.edges.filterNot(e => hiddenPaths.contains(e.fromPath) || hiddenPaths.contains(e.toPath)))
     }
-    val prev = previous.fold(Map.empty[String, (Double, Double)])(_.nodes.map(n => n.id -> ((n.x.toDouble, n.y.toDouble))).toMap)
+    // Verification-layer content apart, as in the JVM bake: the design laid out
+    // alone, the layer nodes in a band below it.
+    val layerIds = module.logic.iterator.filter(_.layer).map(_.id).toSet
+    val (mainP, dbgP, cross) = LayoutCore.splitLayers(prep, layerIds)
+    // The band's nodes, in the layout shown, sit this far below their own graph.
+    val prevDy = previous.filter(_.debugY > 0).fold(0.0)(p => p.debugY + LayoutCore.DebugGap * 2 / 3)
+    val prev = previous.fold(Map.empty[String, (Double, Double)])(_.nodes.map { n =>
+      n.id -> ((n.x.toDouble, if (layerIds(n.id)) n.y - prevDy else n.y.toDouble))
+    }.toMap)
     def run(p: LayoutCore.Prepared): Future[LaidOut] = {
       val laid: Future[js.Dynamic] = engine.layout(buildGraph(p, mode, overrides, prev)).asInstanceOf[js.Promise[js.Dynamic]]
       laid.map(res => extractTyped(p, res))
     }
     // A logic or FSM block's pins follow their peers (#334), as in the JVM bake.
     // A relayout from the layout shown takes the peers from it: one run.
-    if (!prep.nodes.exists(n => NodeKind.isBox(n.kind))) run(prep)
-    else if (previous.isDefined) {
-      val portY = previous.get.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
-      run(LayoutCore.reorderBoxPins(prep, LayoutCore.peerYOf(prep, portY)))
-    }
-    else run(prep).flatMap { first =>
-      val portY = first.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
-      run(LayoutCore.reorderBoxPins(prep, LayoutCore.peerYOf(prep, portY)))
+    def ordered(p: LayoutCore.Prepared): Future[LaidOut] =
+      if (!p.nodes.exists(n => NodeKind.isBox(n.kind))) run(p)
+      else if (previous.isDefined) {
+        val portY = previous.get.nodes.iterator.flatMap(_.ports.map(q => q.path -> q.y.toDouble)).toMap
+        run(LayoutCore.reorderBoxPins(p, LayoutCore.peerYOf(p, portY)))
+      }
+      else run(p).flatMap { first =>
+        val portY = first.nodes.iterator.flatMap(_.ports.map(q => q.path -> q.y.toDouble)).toMap
+        run(LayoutCore.reorderBoxPins(p, LayoutCore.peerYOf(p, portY)))
+      }
+    if (dbgP.nodes.isEmpty) ordered(mainP)
+    else for { main <- ordered(mainP); dbg <- ordered(dbgP) } yield {
+      val dy   = (main.h + LayoutCore.DebugGap).toInt
+      val band = dbg.nodes.map(n => n.copy(y = n.y + dy, ports = n.ports.map(q => q.copy(y = q.y + dy))))
+      val bandE = dbg.edges.map(e => e.copy(points = e.points.map { case (x, y) => (x, y + dy) },
+        junctionPoints = e.junctionPoints.map { case (x, y) => (x, y + dy) }))
+      val pin = (main.nodes ++ band).iterator.flatMap(_.ports.map(q => q.path -> ((q.x.toDouble, q.y.toDouble, q.side)))).toMap
+      val routes = LayoutCore.debugRoutes(cross, pin, main.h + LayoutCore.DebugGap / 2).map { case (e, pts) =>
+        LaidEdgeR(e.fromPath, e.toPath, pts.map { case (x, y) => (x.toInt, y.toInt) }, Nil)
+      }
+      LaidOut(main.nodes ++ band, main.edges ++ bandE ++ routes, math.max(main.w, dbg.w), dy + dbg.h,
+        debugY = (main.h + LayoutCore.DebugGap / 3).toInt, mainW = main.w)
     }
   }
 

@@ -722,7 +722,14 @@ object Schematic {
       hl.install(reg)
       // Constant annotations render after the wire layer so their labels sit on
       // top of crossing wires instead of being covered (#229).
-      ((Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls ++ tiedEls
+      // The debug band's top, with layers shown: a rule and its title.
+      val bandEls: Seq[ReactiveElement.Base] =
+        if (!showLayers || g.layout.debugY <= 0) Nil
+        else Seq(div(dataAttr("debug-band") := "1",
+          styleAttr := s"position:absolute;left:0;top:${g.layout.debugY}px;width:${g.layout.w}px;height:0;" +
+            s"border-top:1px dashed ${Tokens.border};pointer-events:none",
+          span(styleAttr := s"position:absolute;left:4px;top:4px;font-family:${Tokens.mono};font-size:10px;letter-spacing:.5px;color:${Tokens.ink3}", "debug")))
+      ((bandEls ++ Seq[ReactiveElement.Base](hit) ++ boxEls) :+ (vis: ReactiveElement.Base)) ++ constEls ++ tiedEls
     }
 
 
@@ -953,18 +960,25 @@ object Schematic {
       // when the geometry changes or it shows or hides); pan and zoom move just
       // its viewport rect, through `minimapViewSig`. Hidden until the module's
       // view is in place (`settledPathVar`).
-      child.maybe <-- Signal.combine(geomSig, zoomVar.signal, viewSizeVar.signal, pathSig.map(_.mkString("/")), settledPathVar.signal).map {
-        case (Some(g), z, (vw, vh), pk, settled)
-          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (g.layout.w * z > vw + 1 || g.canvasH * z > vh + 1) => Some(g)
+      child.maybe <-- Signal.combine(geomSig, zoomVar.signal, viewSizeVar.signal, pathSig.map(_.mkString("/")), settledPathVar.signal,
+          Signal.combine(totalWVar.signal, canvasHVar.signal, showLayersVar.signal)).map {
+        case (Some(g), z, (vw, vh), pk, settled, (tw, th, layers))
+          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (tw * z > vw + 1 || th * z > vh + 1) => Some((g, layers))
         case _ => None
       }.distinctByFn {
-        case (Some(a), Some(b)) => a eq b
+        case (Some(a), Some(b)) => (a._1 eq b._1) && a._2 == b._2
         case (a, b)             => a.isEmpty && b.isEmpty
-      }.map(_.map(g => SchematicChrome.minimap(g, minimapViewSig, centerOnContent))),
+      }.map(_.map { case (g, layers) => SchematicChrome.minimap(g, layers, minimapViewSig, centerOnContent) }),
       // keep totalW/canvasH mirrors + current module name in sync with geometry.
       // Both dims are set in ONE transaction: two separate sets made the armed fit
       // below run on the new width paired with the previous (placeholder) height.
-      geomSig --> { (gO: Option[Geom]) => gO.foreach { g => Var.set(totalWVar -> g.layout.w.toDouble, canvasHVar -> g.canvasH); curModName = g.mod.name } },
+      // With layers hidden, the view is the design alone: the debug band below it
+      // (laid out apart) does not count.
+      Signal.combine(geomSig, showLayersVar.signal) --> { (t: (Option[Geom], Boolean)) => t._1.foreach { g =>
+        val alone = !t._2 && g.layout.debugY > 0
+        val w = if (alone) g.layout.mainW.toDouble else g.layout.w.toDouble
+        val h = if (alone) g.layout.debugY + 40 + g.boxShift.total else g.canvasH
+        Var.set(totalWVar -> w, canvasHVar -> h); curModName = g.mod.name } },
       // Clear the filter on navigation (JS clears it per path change).
       // A drag in progress ends there too, so a stale drag cannot undo the new
       // module's fit.

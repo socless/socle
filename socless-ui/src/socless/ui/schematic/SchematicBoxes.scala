@@ -169,6 +169,7 @@ private[schematic] object SchematicBoxes {
               (if (p.interface) s"outline:1.5px solid ${Tokens.accentLine};outline-offset:1px" else "")),
           // Only the +/- mark toggles: a click elsewhere on a stub selects it.
           if (label.nonEmpty || toggles) div(
+            cls := "scl-stubl",
             styleAttr := s"position:absolute;top:${(p.y - n.y) - 5}px;$labelStyle;display:flex;align-items:center;gap:3px;" +
               s"font-family:${Tokens.mono};font-size:var(--sch-label);" +
               s"color:${if (p.interface) Tokens.ink else Tokens.ink2};white-space:nowrap;pointer-events:none;" +
@@ -310,6 +311,8 @@ private[schematic] object SchematicBoxes {
     ))
   }
 
+  private val GroundType = """^[SU]Int<\d+>$""".r
+
   // ── overview (#334) ──
   /** Below this on-screen pin text size (px), the schematic shows its overview. */
   val OverviewPx = 7.0
@@ -390,7 +393,9 @@ private[schematic] object SchematicBoxes {
         if (row.bundleKey.endsWith("#bits") && !row.open)
           g.design.bundles.get(row.bundleKey.stripSuffix("#bits")).fold("")(_.fields.map(f => s"${f.name} ${f.width}b").mkString(", "))
         else ""
-      val extra = Seq(typeText, if (row.width > 0) s"${row.width}b" else "", summary).filter(_.nonEmpty).mkString(" ")
+      // A signal's width says its type (`8b`, not `UInt<8> 8b`).
+      val shownType = if (row.width > 0 && GroundType.matches(typeText)) "" else typeText
+      val extra = Seq(shownType, if (row.width > 0) s"${row.width}b" else "", summary).filter(_.nonEmpty).mkString(" ")
       val name = span(cls := (if (top) "" else "scl-rl"),
         styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:${if (extra.nonEmpty) 0 else 1};text-align:${if (isWest) "left" else "right"}",
         stripQ(nameText))

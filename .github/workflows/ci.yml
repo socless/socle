@@ -1,9 +1,11 @@
 name: CI
 
+# Pull requests only: a squash merge puts the PR's own tree on main, so a run on
+# the push would repeat the PR's run. A manual run (Actions, CI, Run workflow)
+# checks main, and refreshes the caches pull requests read.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 # Rapid successive pushes should not run redundant full builds.
 concurrency:
@@ -18,12 +20,12 @@ concurrency:
 #
 # Pull requests run selectively (tools/ci/selective.sh), except when they
 # change .github/workflows or tools/ci: then `prepare` takes no snapshot and
-# every job runs everything, as on a push to main.
+# every job runs everything, as on a manual run.
 #
 # Each Mill job caches its out/ directory, keyed on the job and on the hash of
 # build.mill and of the sources it builds, so a module whose inputs did not
 # change is not recompiled (Mill re-checks every input hash, so an out/ from
-# another commit is safe). Pull requests read the caches saved by main.
+# another commit is safe). Pull requests read the caches saved by main (manual runs).
 jobs:
   unit:
     name: Unit tests

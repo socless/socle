@@ -391,7 +391,11 @@ object ChannelDef { implicit val rw: ReadWriter[ChannelDef] = macroRW }
   * Coordinates are absolute within a `w` x `h` canvas. Produced by the Scala
   * `Layout` object (ELK), consumed verbatim by the UI renderer.
   */
-case class ModuleLayout(nodes: Seq[LaidNode], edges: Seq[RoutedEdge], w: Int, h: Int)
+case class ModuleLayout(nodes: Seq[LaidNode], edges: Seq[RoutedEdge], w: Int, h: Int,
+  // Verification-layer content laid out apart (a band below the design):
+  // `debugY` is the band's top (0: no band), `mainW` the design's own width, so
+  // with layers hidden the view is the design alone. Additive, last.
+  debugY: Int = 0, mainW: Int = 0)
 object ModuleLayout { implicit val rw: ReadWriter[ModuleLayout] = macroRW }
 
 /** A laid-out box. `kind` is "inst" (a child instance, drilled/expandable),

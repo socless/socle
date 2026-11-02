@@ -199,6 +199,8 @@ object `socless-js` extends ScalaJSModule {
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "LayoutCore.scala",
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "InstanceFold.scala",
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "BundleTree.scala",
+    // A module's and its port fields' scaladoc, from the embedded sources (the Inspector, pin cards).
+    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "Scaladoc.scala",
     // The declared ports of a box as rows (#332), for the layout's pins and the UI's rows.
     mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "PortModel.scala",
     // LayoutCore now consumes the synthetic-pin protocol (issue #212 layer wires).

@@ -131,11 +131,17 @@ private[schematic] object SchematicChrome {
   // node rects are built once per call (once per geometry); only the viewport
   // rect follows `viewSig` (pan, zoom, viewport size), so panning or zooming
   // never rebuilds the overview (perf).
-  def minimap(g: Geom, viewSig: Signal[((Double, Double), Double, (Double, Double))],
+  def minimap(g: Geom, showLayers: Boolean, viewSig: Signal[((Double, Double), Double, (Double, Double))],
               centerOnContent: (Double, Double) => Unit): Element = {
+    // With layers hidden, the overview is the design alone (no debug band).
+    val alone  = !showLayers && g.layout.debugY > 0
+    val layer  = g.mod.logic.iterator.filter(_.layer).map(_.id).toSet
+    val shown  = if (showLayers) g.layout.nodes else g.layout.nodes.filterNot(n => layer(n.id))
+    val cw     = if (alone) g.layout.mainW.toDouble else g.layout.w.toDouble
+    val ch     = if (alone) g.layout.debugY + 40.0 + g.boxShift.total else g.canvasH
     val maxW = 190.0; val maxH = 140.0
-    val s = math.min(maxW / g.layout.w, maxH / g.canvasH)
-    val w = math.max(1.0, g.layout.w * s); val h = math.max(1.0, g.canvasH * s)
+    val s = math.min(maxW / cw, maxH / ch)
+    val w = math.max(1.0, cw * s); val h = math.max(1.0, ch * s)
     def centerAt(clientX: Double, clientY: Double, rect: dom.DOMRect): Unit = {
       val mx = math.max(0.0, math.min(w, clientX - rect.left))
       val my = math.max(0.0, math.min(h, clientY - rect.top))
@@ -166,7 +172,7 @@ private[schematic] object SchematicChrome {
           dom.window.addEventListener("mousemove", moveL); dom.window.addEventListener("mouseup", upL)
         }
       },
-      g.layout.nodes.map(n => div(styleAttr := s"position:absolute;left:${n.x * s}px;top:${n.y * s}px;width:${math.max(1.0, n.w * s)}px;height:${math.max(1.0, n.h * s)}px;background:${Tokens.ink4};opacity:0.45;border-radius:1px")),
+      shown.map(n => div(styleAttr := s"position:absolute;left:${n.x * s}px;top:${n.y * s}px;width:${math.max(1.0, n.w * s)}px;height:${math.max(1.0, n.h * s)}px;background:${Tokens.ink4};opacity:0.45;border-radius:1px")),
       // Moved by a transform (no layout per pan step); its size changes only
       // with the zoom or the viewport.
       div(dataAttr("minimap-viewport") := "1",

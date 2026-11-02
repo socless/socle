@@ -36,8 +36,10 @@ the deltas: a pinch sends small fractional ones (under 10 px), a mouse notch
 whole ones. A two-finger swipe without Ctrl (fractional deltas, or a sideways
 one) pans; a whole-notch wheel zooms.
 
-The minimap, the state diagram, text fields and scrollable lists keep their own
-drag and scroll.
+The minimap, text fields and scrollable lists keep their own drag and scroll.
+A state diagram has the schematic's gestures: the wheel zooms at the pointer
+(Shift + wheel scrolls sideways), a drag pans, `+` / `-` zoom, `f` or `0`
+fits, and its `fit` / `100%` buttons sit bottom-right.
 
 ### Ports and bundles
 
@@ -79,6 +81,10 @@ Decoupled starts closed, as one row.
   still be clicked in the overview.
 - **Logic blocks:** their pins are ordered within each side by where their
   wires go, inputs on the left and outputs on the right.
+- **Verification layers** (`layers` in the controls, hidden by default) are
+  laid out apart: hidden, the schematic is the design alone, with no gap where
+  they were; shown, they sit in a band titled "debug" below the design, their
+  wires to it running down into the band.
 
 ### Keyboard
 

@@ -1249,6 +1249,28 @@ async function smokeDesignIn(design, ctx) {
         const atRight = await geo();
         if (atRight && atRight.right > atRight.pane.r + 1) note(design, where, `wide diagram (1:1): the rightmost state is unreachable (${atRight.right} > ${atRight.pane.r})`);
         if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__diagram-wide-1to1.png` }).catch(() => {});
+        // Zoom and pan, as on the schematic: the wheel changes the scale at the
+        // pointer, a drag scrolls (and opens no source), f fits again.
+        const scale = () => page.evaluate((sel) => parseFloat(document.querySelector(`${sel} svg[data-fsm-scale]`)?.getAttribute('data-fsm-scale') || 'NaN'), diag);
+        const pane = await page.evaluate((sel) => { const r = document.querySelector(`${sel} [data-fsm-scroll]`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, diag);
+        const s0 = await scale();
+        await page.mouse.move(pane.x, pane.y);
+        await page.mouse.wheel(0, -200);
+        await page.waitForTimeout(150);
+        const s1 = await scale();
+        if (!(s1 > s0)) note(design, where, `wheel up did not zoom the diagram in (${s0} -> ${s1})`);
+        const sc0 = await page.evaluate((sel) => { const e = document.querySelector(`${sel} [data-fsm-scroll]`); return [e.scrollLeft, e.scrollTop]; }, diag);
+        await page.mouse.down();
+        for (let i = 1; i <= 6; i++) await page.mouse.move(pane.x - 15 * i, pane.y - 8 * i);
+        await page.mouse.up();
+        await page.waitForTimeout(100);
+        const sc1 = await page.evaluate((sel) => { const e = document.querySelector(`${sel} [data-fsm-scroll]`); return [e.scrollLeft, e.scrollTop]; }, diag);
+        if (sc1[0] <= sc0[0]) note(design, where, `a drag did not pan the diagram (${sc0} -> ${sc1})`);
+        if (!(await page.locator(diag).count())) note(design, where, 'a drag on the diagram closed it');
+        await page.keyboard.press('f');
+        await page.waitForTimeout(150);
+        const s2 = await scale();
+        if (!(s2 < s1)) note(design, where, `f did not fit the diagram again (${s1} -> ${s2})`);
       }
       drain(`${where} (wide)`);
 
@@ -3044,6 +3066,19 @@ async function smokeDesignIn(design, ctx) {
       const pe = await page.evaluate(() => { const l = document.querySelector('[data-box-inst="decode"] .scl-rlab'); return l ? getComputedStyle(l).pointerEvents : null; });
       if (pe !== 'none') note(design, where, `a faded row label takes clicks in the overview (pointer-events ${pe})`);
     }
+    // In the overview, a bundle wire's type is readable (at least 9px on screen)
+    // and an edge stub's label fades like the pin text.
+    if (a.ov) {
+      const ov = await page.evaluate(() => {
+        const c = document.querySelector('[data-content]');
+        const z = parseFloat((c.style.transform.match(/scale\(([-\d.e]+)\)/) || [])[1] || '1');
+        const wl = document.querySelector('.scl-wl:not(.sig)');
+        const st = document.querySelector('.scl-stubl');
+        return { wirePx: wl ? parseFloat(getComputedStyle(wl).fontSize) * z : null, stubOpacity: st ? getComputedStyle(st).opacity : null };
+      });
+      if (ov.wirePx != null && ov.wirePx < 9) note(design, where, `a bundle wire label is ${ov.wirePx.toFixed(1)}px at fit`);
+      if (ov.stubOpacity != null && ov.stubOpacity !== '0') note(design, where, `an edge stub label is not faded in the overview (opacity ${ov.stubOpacity})`);
+    }
     await click('Reset to 100%'); await page.waitForTimeout(400);
     const b = await state();
     if (b.ov || !b.labelShown) note(design, where, `at 1:1, the detail is not back: ${JSON.stringify(b)}`);
@@ -3093,6 +3128,16 @@ async function smokeDesignIn(design, ctx) {
     if (await page.locator('[data-bundle-group]').count())
       note(design, 'scattered fields (#237)', 'a [data-bundle-group] row is still drawn');
     if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
+  }
+  // A signal row shows its width once, never also its type (`UInt<8> 8b`).
+  {
+    const twice = await page.$$eval('.scl-rt', (els) => els.map((e) => e.textContent).filter((t) => /^[SU]Int<\d+> \d+b/.test(t)));
+    if (twice.length) note(design, 'row types', `a signal row repeats its type: ${JSON.stringify(twice.slice(0, 3))}`);
+  }
+  // The module's scaladoc in the Inspector (DeepSoc documents its top class).
+  if (design === 'deepsoc') {
+    const doc = await page.locator('[data-scaladoc]').first().textContent().catch(() => null);
+    if (!doc || !doc.startsWith('Top-level SoC')) note(design, 'scaladoc', `the Inspector shows no module scaladoc: ${JSON.stringify(doc)}`);
   }
   // #334: a bundle wire carries its type once.
   if (design === 'axisystem') {
@@ -3214,10 +3259,22 @@ async function smokeDesignIn(design, ctx) {
       note(design, 'layers toggle (#212)', 'no [data-toggle-layers] control on a design with layer content');
     } else {
       const before = await page.locator('[data-box-inst]').count();
+      // Hidden, the debug band is not drawn and adds no room to the view.
+      const canvas = () => page.evaluate(() => { const c = document.querySelector('[data-content]'); return { w: parseFloat(c.style.width), h: parseFloat(c.style.height) }; });
+      const c0 = await canvas();
+      if (await page.locator('[data-debug-band]').count()) note(design, 'debug band', 'the debug band is drawn with layers hidden');
       await toggle.click().catch((e) => note(design, 'layers toggle', e.message));
       await page.waitForTimeout(250);
       const after = await page.locator('[data-box-inst]').count();
       if (after <= before) note(design, 'layers toggle (#212)', `showing layers did not add boxes (${before} -> ${after})`);
+      // Shown, layer content sits in a band below the design.
+      const band = await page.evaluate(() => {
+        const b = document.querySelector('[data-debug-band]');
+        return b ? parseFloat(b.style.top) : null;
+      });
+      const c1 = await canvas();
+      if (band == null) note(design, 'debug band', 'no debug band with layers shown');
+      else if (!(c1.h > c0.h)) note(design, 'debug band', `showing layers did not grow the view (${c0.h} -> ${c1.h})`);
       await toggle.click().catch(() => {}); // restore
     }
     drain('layers toggle');

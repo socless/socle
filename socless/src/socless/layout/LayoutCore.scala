@@ -41,9 +41,11 @@ object LayoutCore {
   /** The header/port-row layout constants, packaged for the schema (issue #38). */
   val consts: LayoutConsts = LayoutConsts(HeaderH, PortStep, PortPad)
   /** The pin model `prepare` lays out, stamped on a bake (`Design.layoutModel`):
-    * 1 since pins are the declared port rows (#332). Bump it when a bake's pins
+    * 1 since pins are the declared port rows (#332); 2 since wires end on the
+    * pins' centres, block pins follow their peers and layers sit in a debug band
+    * (#334). Bump it when a bake's pins
     * change meaning, so the UI lays older bakes out again. */
-  val LayoutModel: Int = 1
+  val LayoutModel: Int = 2
   val BoundaryW: Double = 16.0
   val BoundaryH: Double = 28.0
   val LabelGap: Double  = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -308,6 +310,9 @@ object LayoutCore {
       modulesByName.get(c.`type`).map(m => c.name -> PortModel.instanceRows(c.name, m, design, expanded, ends))
     }.toMap
     val stubs: Seq[(String, Seq[PortModel.Row])] = PortModel.boundaryStubs(module, design, expanded, ends)
+    /** A bundle register's rows, by the register's id (#334 follow-up). */
+    val regs: Map[String, Seq[PortModel.Row]] = module.logic.iterator
+      .map(n => n.id -> PortModel.regRows(n, design, expanded)).filter(_._2.nonEmpty).toMap
     private val stubRows = stubs.flatMap(_._2)
     /** The stub id of each stub row's path. */
     val stubOf: Map[String, String] = stubs.iterator.flatMap { case (id, rs) => rs.map(_.path -> id) }.toMap
@@ -318,7 +323,8 @@ object LayoutCore {
       * keeps its Vec group path, so no wire is ever dropped. */
     def group(path: String): String = {
       val head = pathHead(path)
-      val rows = inst.getOrElse(head, if (portNames(head)) stubRows else Nil)
+      val rows = inst.get(head).orElse(regs.get(head.stripSuffix("~q")))
+        .getOrElse(if (portNames(head)) stubRows else Nil)
       PortModel.attach(path, rows).getOrElse(groupPath(path, expanded))
     }
   }
@@ -394,6 +400,7 @@ object LayoutCore {
     }
     portRows.stubs.foreach { case (id, rows) => seed(id, NodeKind.Boundary, rows) }
     module.children.foreach(c => portRows.inst.get(c.name).foreach(seed(c.name, NodeKind.Inst, _)))
+    portRows.regs.foreach { case (id, rows) => seed(id, NodeKind.Reg, rows) }
     // e.to is SOURCE; e.from is SINK.
     grouped.foreach { e =>
       vote(e.to,   isSource = true)
@@ -493,7 +500,7 @@ object LayoutCore {
         if (kind == NodeKind.Mem) memPinLabel(module, id, p.path)
         else if (boxPinLabel(p).isDefined) boxPinLabel(p).get
         // A stub's top row keeps its full path ("io.in: Decoupled"), as before #332.
-        else if (rowOf.get((id, kind, p.path)).exists(r => kind != NodeKind.Boundary || r.depth > 0))
+        else if (rowOf.get((id, kind, p.path)).exists(r => kind == NodeKind.Inst || (kind == NodeKind.Boundary && r.depth > 0)))
           rowLabel(rowOf((id, kind, p.path)), design)
         // The type at Chisel's level (#333): a class or a known shape, never a hash.
         else pinLabel(id, p.path, Some(BundleTree.displayName(p.bundle, design)))
@@ -645,6 +652,37 @@ object LayoutCore {
       .maxByOption { case (a, b) => math.abs(b._1 - a._1) }
       .filter { case (a, b) => math.abs(b._1 - a._1) >= labelW + 8 }
       .map { case (a, b) => ((a._1 + b._1) / 2, a._2) }
+
+  // ── Verification layers apart (a debug band below the design) ───────────────
+
+  /** The space between the design and the debug band, the channel the wires
+    * into the band run in at its middle. */
+  val DebugGap: Double = 56.0
+
+  /** `prep` split into the design's own graph and its verification-layer
+    * nodes' (`layerIds`), and the edges between the two. */
+  def splitLayers(prep: Prepared, layerIds: Set[String]): (Prepared, Prepared, Seq[PreparedEdge]) = {
+    val (dbg, main) = prep.nodes.partition(n => layerIds(n.id))
+    val inDbg = dbg.iterator.flatMap(_.pins.map(_.path)).toSet
+    val (within, cross) = prep.edges.partition(e => inDbg(e.fromPath) == inDbg(e.toPath))
+    val (dbgE, mainE) = within.partition(e => inDbg(e.fromPath))
+    (Prepared(main, mainE), Prepared(dbg, dbgE), cross)
+  }
+
+  /** Routes for the wires between the design and the band: out of the source
+    * pin, along the channel at `channelY`, into the sink pin, each wire on its
+    * own track. `pin` gives each pin's absolute position and side; an edge with
+    * an unknown pin gets no route. Points run source (`toPath`) to sink. */
+  def debugRoutes(cross: Seq[PreparedEdge], pin: Map[String, (Double, Double, String)],
+                  channelY: Double): Seq[(PreparedEdge, Seq[(Double, Double)])] =
+    cross.zipWithIndex.flatMap { case (e, i) =>
+      for { (sx, sy, sSide) <- pin.get(e.toPath); (tx, ty, tSide) <- pin.get(e.fromPath) } yield {
+        val track = channelY + (i % 6 - 2.5) * 5
+        val out   = if (sSide == PinSide.West) sx - 10 - 3 * (i % 4) else sx + 10 + 3 * (i % 4)
+        val in    = if (tSide == PinSide.East) tx + 10 + 3 * (i % 4) else tx - 10 - 3 * (i % 4)
+        e -> Seq((sx, sy), (out, sy), (out, track), (in, track), (in, ty), (tx, ty))
+      }
+    }
 
   // ── Logic block pin order (#334) ─────────────────────────────────────────────
 

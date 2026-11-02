@@ -3,7 +3,7 @@ package socless.ui.schematic
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{NodeKind, PinSide, PortDir, ModuleKind}
+import socless.schema.{NodeKind, PinSide, PortDir, ModuleKind, Scaladoc}
 import socless.ui.theme.Tokens
 import socless.ui.model.ScalaClassLabel
 import socless.ui.model.LogicLabels.{OpInRe, stripQ, inRole}
@@ -296,7 +296,12 @@ object Tooltip {
         case _                    => if (r.side == PinSide.West) "input" else "output"
       }
       val what = (Seq(dir) :+ typed(g, r.bundleKey, r.width)).filter(_.nonEmpty).mkString(", ")
-      Content("pin", name, what, Option.when(name != plain)(plain).toSeq,
+      // The field's scaladoc: of the instance's module, or this module's own for an edge stub.
+      val owner = g.childByName.get(boxId).flatMap(c => g.moduleByName.get(c.`type`))
+        .map(m => m -> path.stripPrefix(boxId + "."))
+        .orElse(Option.when(g.boxById.get(boxId).exists(_.kind == NodeKind.Boundary))(g.mod -> path))
+      val doc = owner.fold("") { case (m, rel) => Scaladoc.ofField(m, rel.split('.').toSeq, g.design) }
+      Content("pin", name, what, Option.when(name != plain)(plain).toSeq ++ Option.when(doc.nonEmpty)(doc),
         if (r.isExpandable) acts("Click: expand or collapse") else acts())
     }
 

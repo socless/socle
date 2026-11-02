@@ -37,7 +37,8 @@ object RowModel {
     val declared: Map[String, PortModel.Row] =
       (module.children.iterator.flatMap(c =>
         modules.get(c.`type`).iterator.flatMap(m => PortModel.instanceRows(c.name, m, design, expandedPorts, ends))) ++
-        PortModel.boundaryStubs(module, design, expandedPorts, ends).iterator.flatMap(_._2))
+        PortModel.boundaryStubs(module, design, expandedPorts, ends).iterator.flatMap(_._2) ++
+        module.logic.iterator.flatMap(n => PortModel.regRows(n, design, expandedPorts)))
         .map(r => r.path -> r).toMap
     layout.nodes.iterator.map { box =>
       def rowsOf(side: String): Seq[Row] =

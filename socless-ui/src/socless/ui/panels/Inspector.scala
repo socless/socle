@@ -3,7 +3,7 @@ package socless.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind}
+import socless.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind, Scaladoc}
 import socless.ui.theme._
 import socless.ui.model._
 
@@ -79,7 +79,7 @@ object Inspector {
           // wins over the incidental net the node terminates.
           val logicNode = sig.flatMap(s => mod.logic.find(_.id == s))
           (sig, logicNode, wire) match {
-            case (None, _, _)              => metaView(mod)
+            case (None, _, _)              => metaView(mod, d)
             case (Some(_), Some(ln), _)    => logicView(ln, mod, d)
             case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle, bulkBundle)
             case (Some(s), None, None)     =>
@@ -105,7 +105,15 @@ object Inspector {
   }
 
   // ── Module metadata (nothing selected) ──────────────────────────────────────
-  private def metaView(mod: ModuleDef): Element = {
+  /** A module's scaladoc (from the embedded sources), paragraphs kept. */
+  private def docBlock(m: ModuleDef, d: Design): Modifier[HtmlElement] = {
+    val doc = Scaladoc.ofModule(m, d)
+    if (doc.isEmpty) emptyMod
+    else div(dataAttr("scaladoc") := m.name,
+      styleAttr := s"margin-bottom:14px;font-size:11.5px;line-height:1.5;color:${Tokens.ink2};white-space:pre-line", doc)
+  }
+
+  private def metaView(mod: ModuleDef, d: Design): Element = {
     val m = mod.metrics
     val items: Seq[(String, String)] =
       Seq("Type" -> mod.`type`, "Instances" -> mod.children.length.toString, "Connects" -> mod.wires.length.toString) ++
@@ -113,7 +121,7 @@ object Inspector {
         Seq("Registers" -> m.registers.toString, "Memories" -> m.memories.toString, "LOC" -> m.lines.toString)
     div(styleAttr := s"padding:24px 16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
       div(styleAttr := s"margin-bottom:12px;font-weight:500;color:${Tokens.ink2}", mod.`type`),
-      if (mod.doc.nonEmpty) div(styleAttr := "margin-bottom:16px;font-size:11.5px", mod.doc) else emptyNode,
+      docBlock(mod, d),
       div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-family:${Tokens.mono};font-size:11px",
         items.flatMap { case (k, v) => Seq(
           span(styleAttr := s"color:${Tokens.ink4}", k),
@@ -134,6 +142,7 @@ object Inspector {
     div(dataAttr("inst-inspect") := inst.name, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", inst.name),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px", inst.`type`),
+      instMod.fold[Modifier[HtmlElement]](emptyMod)(docBlock(_, d)),
       sectionTitle("Domains"),
       div(styleAttr := s"display:grid;grid-template-columns:64px 1fr;row-gap:5px;column-gap:8px;font-size:11px;margin-bottom:12px;font-family:${Tokens.mono}",
         labelRow("clock", span(dataAttr("inst-clock") := inst.clock, if (inst.clock.nonEmpty) inst.clock else "—")) ++

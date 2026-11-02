@@ -15,12 +15,14 @@ import socless.ui.theme.Tokens
   * initial one ringed like the FSM box and entered from a start dot; each
   * transition is an arrow with its condition; transitions from any state leave
   * a small `*` marker. elkjs lays it out top-down ([[BrowserLayout.layoutDiagram]]).
-  * The diagram fits the pane by default; `1:1` shows it at natural size and
-  * the pane scrolls.
+  * The diagram fits the pane by default. As on the schematic, the wheel zooms
+  * at the pointer, a drag pans, `+` / `-` zoom and `f` (or `0`) fits; `100%`
+  * shows it at natural size. The pane scrolls when the drawing is larger.
   *
   * Clicking a state or a transition calls `openSource` with its source. Test
   * hooks: `data-fsm-diagram` (and `data-fsm-ready` once laid out),
-  * `data-fsm-scroll` (the scrolling pane), `data-fsm-zoom` (`fit` / `1:1`),
+  * `data-fsm-scroll` (the scrolling pane), `data-fsm-zoom` (`fit` / `1:1`, the 100% button),
+  * `data-fsm-scale` (the scale shown),
   * `data-fsm-state` / `data-initial`, `data-fsm-transition` / `data-from` /
   * `data-to` (with `data-fsm-path` and `data-fsm-label` inside),
   * `data-fsm-any`, `data-fsm-start` (the start dot), `data-fsm-note`. */
@@ -99,17 +101,47 @@ private[schematic] object FsmDiagramView {
 
     // None while laying out, then the layout or the failure's message.
     val layoutVar = Var[Option[Either[String, DiagramLayout]]](None)
-    val fitVar    = Var(true)          // fit the pane (default) or natural size
+    val zoomVar   = Var(Option.empty[Double]) // None: fit the pane (default); else the scale
     val paneVar   = Var((0.0, 0.0))    // the scrolling pane's client size
     var paneNode: dom.html.Element = null
     var observer: dom.ResizeObserver = null
+    var curScale  = 1.0                // the scale drawn now (fit or chosen)
     def measure(): Unit = if (paneNode != null) paneVar.set((paneNode.clientWidth.toDouble, paneNode.clientHeight.toDouble))
 
+    // Zoom by `f` keeping the drawing point under (mx, my) (pane coordinates) in place.
+    def zoomAt(f: Double, mx: Double, my: Double): Unit = if (paneNode != null) {
+      val svgEl = paneNode.querySelector("svg").asInstanceOf[dom.html.Element]
+      if (svgEl != null) {
+        val s0 = curScale
+        val s1 = math.max(0.1, math.min(4.0, s0 * f))
+        val cx = (paneNode.scrollLeft + mx - svgEl.offsetLeft) / s0
+        val cy = (paneNode.scrollTop + my - svgEl.offsetTop) / s0
+        zoomVar.set(Some(s1))
+        paneNode.scrollLeft = cx * s1 + svgEl.offsetLeft - mx
+        paneNode.scrollTop = cy * s1 + svgEl.offsetTop - my
+      }
+    }
+    def zoomCentre(f: Double): Unit = if (paneNode != null) zoomAt(f, paneNode.clientWidth / 2.0, paneNode.clientHeight / 2.0)
+
+    // A drag pans the pane; a press that moves less than 4 px is still a click.
+    var drag: Option[(Double, Double, Double, Double)] = None // start x, y, scrollLeft, scrollTop
+    var dragged = false
+    val keys: scala.scalajs.js.Function1[dom.KeyboardEvent, Unit] = (e: dom.KeyboardEvent) => {
+      val t = e.target match { case el: dom.Element => el; case _ => null }
+      val typing = t != null && t.closest("input, textarea, select, [contenteditable]:not([contenteditable=false])") != null
+      if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey) e.key match {
+        case "+" | "=" => e.preventDefault(); zoomCentre(1.25)
+        case "-" | "_" => e.preventDefault(); zoomCentre(0.8)
+        case "f" | "0" => e.preventDefault(); zoomVar.set(None)
+        case _         =>
+      }
+    }
+
     val zbtn = s"border:none;background:transparent;cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
-    def zoomBtn(mode: String, fit: Boolean, tip: String) =
+    def zoomBtn(mode: String, label: String, at: Option[Double], tip: String) =
       button(dataAttr("fsm-zoom") := mode, title := tip,
-        styleAttr <-- fitVar.signal.map(f => zbtn + s";color:${if (f == fit) Tokens.accent else Tokens.ink3}"),
-        onClick --> { (_: dom.MouseEvent) => fitVar.set(fit) }, mode)
+        styleAttr <-- zoomVar.signal.map(z => zbtn + s";color:${if (z == at) Tokens.accent else Tokens.ink3}"),
+        onClick --> { (_: dom.MouseEvent) => zoomVar.set(at) }, label)
 
     div(
       dataAttr("fsm-diagram") := blockId,
@@ -117,6 +149,9 @@ private[schematic] object FsmDiagramView {
       dataAttr("pan-block") := "1",
       dataAttr("no-pan") := "1", // keeps its own scroll and pan
       styleAttr := s"position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;background:${Tokens.bg};cursor:default",
+      onMountUnmountCallback(
+        mount = { _ => dom.window.addEventListener("keydown", keys) },
+        unmount = { _ => dom.window.removeEventListener("keydown", keys) }),
       onMountCallback { _ =>
         BrowserLayout.layoutDiagram(nodes, edges).onComplete {
           case Success(l) => layoutVar.set(Some(Right(l)))
@@ -133,7 +168,40 @@ private[schematic] object FsmDiagramView {
         note)),
       div(
         dataAttr("fsm-scroll") := "1",
-        styleAttr := "flex:1 1 auto;min-height:0;overflow:auto;position:relative",
+        styleAttr := "flex:1 1 auto;min-height:0;overflow:auto;position:relative;cursor:grab;user-select:none",
+        // The wheel (and a trackpad pinch) zooms at the pointer; Shift + wheel scrolls sideways.
+        onWheel --> { (e: dom.WheelEvent) =>
+          if (!e.shiftKey && paneNode != null) {
+            e.preventDefault()
+            val r = paneNode.getBoundingClientRect()
+            zoomAt(math.exp(-e.deltaY * (if (e.ctrlKey) 0.01 else 0.0015)), e.clientX - r.left, e.clientY - r.top)
+          }
+        },
+        onPointerDown --> { (e: dom.PointerEvent) =>
+          if (e.button == 0 && paneNode != null) {
+            drag = Some((e.clientX, e.clientY, paneNode.scrollLeft, paneNode.scrollTop)); dragged = false
+          }
+        },
+        onPointerMove --> { (e: dom.PointerEvent) =>
+          drag.foreach { case (x0, y0, sl, st) =>
+            val dx = e.clientX - x0; val dy = e.clientY - y0
+            if (!dragged && math.hypot(dx, dy) > 4) {
+              dragged = true
+              paneNode.asInstanceOf[scala.scalajs.js.Dynamic].setPointerCapture(e.pointerId)
+              paneNode.style.cursor = "grabbing"
+            }
+            if (dragged) { paneNode.scrollLeft = sl - dx; paneNode.scrollTop = st - dy }
+          }
+        },
+        onPointerUp --> { (_: dom.PointerEvent) => drag = None; if (paneNode != null) paneNode.style.cursor = "grab" },
+        onPointerCancel --> { (_: dom.PointerEvent) => drag = None; dragged = false },
+        // The click that ends a drag opens nothing.
+        inContext { el =>
+          el.ref.addEventListener("click", (e: dom.MouseEvent) => {
+            if (dragged) { e.stopPropagation(); e.preventDefault(); dragged = false }
+          }, useCapture = true)
+          emptyMod
+        },
         // The pane's size, whatever changes it (window, side panels, bottom panel).
         onMountUnmountCallback(
           mount = { ctx =>
@@ -152,13 +220,13 @@ private[schematic] object FsmDiagramView {
           case Some(Left(msg)) => span(styleAttr := s"position:absolute;top:16px;left:16px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3}",
             s"The state diagram could not be laid out: $msg")
           case Some(Right(l)) =>
-            drawing(fsm, l, sizes, idOf, shown, labelW, initial, openSource, fitVar.signal, paneVar.signal)
+            drawing(fsm, l, sizes, idOf, shown, labelW, initial, openSource, zoomVar.signal, paneVar.signal, curScale = _)
         },
       ),
-      // fit / 1:1, bottom-right like the schematic's zoom controls.
+      // fit / 100%, bottom-right like the schematic's zoom controls.
       div(styleAttr := s"position:absolute;bottom:12px;right:12px;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px",
-        zoomBtn("fit", fit = true, "Fit the diagram to the pane"),
-        zoomBtn("1:1", fit = false, "Show the diagram at its natural size (scroll to pan)")),
+        zoomBtn("fit", "fit", None, "Fit the diagram to the pane (f)"),
+        zoomBtn("1:1", "100%", Some(1.0), "Show the diagram at its natural size; the wheel zooms, a drag pans")),
     )
   }
 
@@ -167,7 +235,8 @@ private[schematic] object FsmDiagramView {
   private def drawing(fsm: FsmDiagram, l: DiagramLayout, sizes: Map[String, (Double, Double)],
                       idOf: Map[String, String], shown: Seq[(FsmTransition, Int)], labelW: Map[Int, Double],
                       initial: Int, openSource: SourceRef => Unit,
-                      fitSig: Signal[Boolean], paneSig: Signal[(Double, Double)]): HtmlElement = {
+                      zoomSig: Signal[Option[Double]], paneSig: Signal[(Double, Double)],
+                      onScale: Double => Unit): HtmlElement = {
     // Everything drawn (boxes, path and control points, labels) widens these
     // bounds, so a self-loop routed to negative x or a far label stays inside.
     var minX = Double.MaxValue; var minY = Double.MaxValue
@@ -315,9 +384,10 @@ private[schematic] object FsmDiagramView {
     val vx = minX - Margin; val vy = minY - Margin
     val vw = maxX - minX + 2 * Margin; val vh = maxY - minY + 2 * Margin
     // Fit scales down only (a small diagram stays at natural size).
-    val scaleSig = Signal.combine(fitSig, paneSig).map { case (fit, (pw, ph)) =>
-      if (!fit || pw <= 0 || ph <= 0) 1.0
-      else math.max(0.05, math.min(1.0, math.min((pw - 2 * Pad) / vw, (ph - 2 * Pad) / vh)))
+    val scaleSig = Signal.combine(zoomSig, paneSig).map {
+      case (Some(z), _)                  => z
+      case (None, (pw, ph)) if pw <= 0 || ph <= 0 => 1.0
+      case (None, (pw, ph))              => math.max(0.05, math.min(1.0, math.min((pw - 2 * Pad) / vw, (ph - 2 * Pad) / vh)))
     }
     // max-content + auto margins: centered when smaller, scrollable from its
     // left/top edge when larger (plain flex centering would clip the left side).
@@ -328,6 +398,8 @@ private[schematic] object FsmDiagramView {
         sa("width") <-- scaleSig.map(s => num(vw * s)),
         sa("height") <-- scaleSig.map(s => num(vh * s)),
         sa("style") := "flex-shrink:0;margin:auto;overflow:visible",
+        sa("data-fsm-scale") <-- scaleSig.map(s => f"$s%.3f"),
+        scaleSig --> { (s: Double) => onScale(s) },
         // Transitions first, then everything drawn over them.
         transitionEls ++ initEls ++ anyEls ++ stateEls,
       ),

@@ -90,7 +90,7 @@ object PortPinsTest extends TestSuite {
       // the declared rows, so the UI lays it out again (#332).
       assert(rv.layoutModel == 0)
       assert(Layout.withLayouts(rv).layoutModel == LayoutCore.LayoutModel)
-      assert(LayoutCore.LayoutModel >= 1)
+      assert(LayoutCore.LayoutModel >= 2) // #334 changed what a bake holds
     }
 
     test("pin labels name types at Chisel's level (#333)") {

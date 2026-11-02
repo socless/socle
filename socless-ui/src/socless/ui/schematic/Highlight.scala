@@ -517,6 +517,11 @@ object Highlight {
     // Faded actions take no clicks: a click on the name never opens a bundle,
     // unfolds copies or opens a diagram the user cannot see.
     ".ov .scl-rlab, .ov [data-fsm-open], .ov [data-fold-toggle]{pointer-events:none !important}",
+    // Edge stub labels fade too (their toggles with them); a bundle wire's type
+    // stays readable at a fixed screen size.
+    ".ov .scl-stubl{opacity:0}",
+    ".ov .scl-stubl, .ov .scl-stubl *{pointer-events:none !important}",
+    ".ov .scl-wl:not(.sig){font-size:calc(10px / var(--z))}",
     // A declared port no wire ends on (#332).
     ".scl-nc{opacity:.45}",
     s".scl-pin.follow,.scl-fpin.follow{background:${Tokens.fol}}",

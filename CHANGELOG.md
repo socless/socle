@@ -8,6 +8,29 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+### Added
+
+- The Inspector shows a module's scaladoc, and a pin's card the scaladoc of
+  its field (read from the embedded sources: the CHIRRTL export and the IDE
+  view both carry them).
+- A state diagram zooms and pans like the schematic: the wheel zooms at the
+  pointer, a drag pans, `+` / `-` zoom, `f` fits; its buttons are fit and 100%.
+
+### Changed
+
+- Verification layers are laid out apart from the design. Hidden (the
+  default), the schematic is the design alone, with no gap where they were;
+  shown, they sit in a band titled "debug" below it.
+- CI runs on pull requests and by hand, no longer on each push to main.
+- Designs exported before this version are laid out again when they open.
+
+### Fixed
+
+- A register of bundle type opens in place again (lost in 0.19.0).
+- A signal row shows its width once (`8b`), not also its type.
+- In the overview, bundle wire types are readable and edge stub labels fade
+  with the pin text.
+
 ## [0.19.0] - 2026-11-02
 
 ### Changed

@@ -49,6 +49,14 @@ object PortModel {
   }
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
 
+  /** The rows of a register of bundle type: its D side (`id`, West) and its Q
+    * side (`id~q`, East), each opening to its fields. None for a ground register,
+    * whose pins stay its wire ends. */
+  def regRows(n: LogicNodeDef, design: Design, expanded: Set[String]): Seq[Row] =
+    if (n.kind != NodeKind.Reg || !BundleTree.isAggregateType(n.bundle, design)) Nil
+    else emit(BundleTree.portTree(n.bundle, Some(PortDir.In), n.id, design), "", 0, PinSide.West, expanded) ++
+         emit(BundleTree.portTree(n.bundle, Some(PortDir.Out), n.id + "~q", design), "", 0, PinSide.East, expanded)
+
   /** Every wire end path of `module`, for `wireEnds`. */
   def wireEndsOf(module: ModuleDef): Set[String] =
     module.wires.iterator.flatMap(w => Iterator(w.from, w.to)).toSet

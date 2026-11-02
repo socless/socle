@@ -132,9 +132,31 @@ object Layout {
     // All engine-independent prep (resolve, vote, geometry, anti-parallel
     // collapse) is shared with the browser engine (issue #167).
     val prep = LayoutCore.prepare(InstanceFold.fold(module, Set.empty), design, Set.empty)
+    // Verification-layer content apart: the design laid out alone (no hole when
+    // layers are hidden), the layer nodes in a band below it.
+    val layerIds = module.logic.iterator.filter(_.layer).map(_.id).toSet
+    val (mainP, dbgP, cross) = LayoutCore.splitLayers(prep, layerIds)
+    val main = ordered(mainP)
+    if (dbgP.nodes.isEmpty) main
+    else {
+      val dbg  = ordered(dbgP)
+      val dy   = (main.h + LayoutCore.DebugGap).toInt
+      val band = dbg.copy(
+        nodes = dbg.nodes.map(n => n.copy(y = n.y + dy, ports = n.ports.map(p => p.copy(y = p.y + dy)))),
+        edges = dbg.edges.map(e => e.copy(points = e.points.map { case (x, y) => (x, y + dy) })))
+      val pin = (main.nodes ++ band.nodes).iterator.flatMap(_.ports.map(p => p.path -> ((p.x.toDouble, p.y.toDouble, p.side)))).toMap
+      val routes = LayoutCore.debugRoutes(cross, pin, main.h + LayoutCore.DebugGap / 2).map { case (e, pts) =>
+        RoutedEdge(e.fromPath, e.toPath, pts.map { case (x, y) => (x.toInt, y.toInt) }, e.label)
+      }
+      ModuleLayout(main.nodes ++ band.nodes, main.edges ++ band.edges ++ routes,
+        math.max(main.w, dbg.w), dy + dbg.h, debugY = (main.h + LayoutCore.DebugGap / 3).toInt, mainW = main.w)
+    }
+  }
+
+  // A logic or FSM block's pins follow their peers (#334): a second pass with
+  // them reordered within their side by where pass one put the other ends.
+  private def ordered(prep: LayoutCore.Prepared): ModuleLayout = {
     val first = layoutPrepared(prep)
-    // A logic or FSM block's pins follow their peers (#334): a second pass with
-    // them reordered within their side by where pass one put the other ends.
     if (!prep.nodes.exists(n => NodeKind.isBox(n.kind))) first
     else {
       val portY = first.nodes.iterator.flatMap(_.ports.map(p => p.path -> p.y.toDouble)).toMap
