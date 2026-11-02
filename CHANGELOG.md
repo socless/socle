@@ -9,6 +9,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Changed
+
+- The VS Code extension moved to its own repository,
+  [socless/socle-vscode](https://github.com/socless/socle-vscode), with its own
+  releases (from 0.23.0, each bundling a pinned Socle language server). Socle's
+  releases no longer carry a vsix. `docs/lsp-protocol.md` lists the server's
+  protocol for its clients.
+
 ## [0.22.0] - 2026-11-02
 
 The first release named Socle.

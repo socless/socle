@@ -7,9 +7,13 @@ This document describes how to cut a release. A release publishes:
 - a GitHub release `v<version>` with the distributable files:
   - `socle-<version>.jar` - standalone UI server + CLI (`java -jar socle-<version>.jar serve`, see [docs/usage-standalone.md](docs/usage-standalone.md))
   - `socle-lsp-<version>.jar` - the language server
-  - `socle-<version>.vsix` - the VS Code extension
   - `socle-<version>.html` - the single-file UI
   - `SHA256SUMS` - checksums of the above
+
+The VS Code extension ([socless/socle-vscode](https://github.com/socless/socle-vscode)) and the
+Neovim plugin ([socless/socle.nvim](https://github.com/socless/socle.nvim)) release on their own:
+each pins the language server of one Socle release (version and sha256 of `socle-lsp-<version>.jar`),
+so after a release, bump their pins when they should ship it.
 
 ## Versioning
 
@@ -37,7 +41,7 @@ artifacts on every push (so publish metadata cannot rot).
 ## Automation
 
 - CI (pull requests and pushes to `main`) does not build the distributable
-  files. To try a change's vsix or jars, run the Release workflow by hand on
+  files. To try a change's jars, run the Release workflow by hand on
   its branch (Actions, Release, Run workflow, or
   `gh workflow run release.yml --ref <branch>`): it builds them with
   `.github/workflows/build-artifacts.yml` and uploads them as the

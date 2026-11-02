@@ -3,7 +3,7 @@ name: Release
 # A pushed `v*` tag checks the version and the release notes, builds the
 # files (build-artifacts.yml) and publishes them as a GitHub release (see
 # RELEASING.md). A manual dispatch only checks and builds: run it on a branch
-# to get a change's vsix and jars, or before tagging. Pull requests and pushes
+# to get a change's jars, or before tagging. Pull requests and pushes
 # to main do not build the files.
 on:
   push:

@@ -26,12 +26,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The VS Code extension's vsix is packaged with npm / npx.
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: "20"
-
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v6
         with:
@@ -69,9 +63,6 @@ jobs:
       - name: Build the language server
         run: ./mill socle-lsp.assembly
 
-      - name: Build the VS Code extension
-        run: ./mill socle-vscode.vsix
-
       - name: Build the single-file UI
         run: ./mill socle-ui.dist
 
@@ -82,11 +73,6 @@ jobs:
           mkdir -p dist
           cp out/socle/assembly.dest/out.jar "dist/socle-$VER.jar"
           cp out/socle-lsp/assembly.dest/out.jar "dist/socle-lsp-$VER.jar"
-          vsix=(out/socle-vscode/vsix.dest/*.vsix)
-          if [ "${#vsix[@]}" != 1 ] || [ ! -f "${vsix[0]}" ]; then
-            echo "::error::expected one vsix in out/socle-vscode/vsix.dest, found: ${vsix[*]}"; exit 1
-          fi
-          cp "${vsix[0]}" "dist/socle-$VER.vsix"
           cp out/socle-ui/dist.dest/socle.html "dist/socle-$VER.html"
           (cd dist && sha256sum -- * > SHA256SUMS)
           ls -l dist

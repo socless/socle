@@ -1,6 +1,6 @@
 # Socle in VS Code
 
-The `socle-vscode` extension wraps the same language server as the
+The Socle extension for VS Code ([socless/socle-vscode](https://github.com/socless/socle-vscode)) wraps the same language server as the
 [Neovim guide](ide-neovim.md): a **View design** code lens above every
 ChiselSim scalatest test (and a [Simulate](#simulate) lens whose waveforms
 [follow the schematic](#waveforms-that-follow-the-schematic) in Surfer), a
@@ -16,22 +16,17 @@ leaves your machine.
 ## Install
 
 The extension is not on the Marketplace yet. Download `socle-<version>.vsix`
-from the [GitHub releases](https://github.com/socless/socle/releases) page and
-install it with `code --install-extension socle-<version>.vsix`, or build it
-from this repo:
+from the [extension's releases](https://github.com/socless/socle-vscode/releases)
+and install it with `code --install-extension socle-<version>.vsix` (or
+"Extensions: Install from VSIX..."). To build it yourself, see the extension
+repository's `DEVELOPING.md`.
 
-```bash
-./mill socle-vscode.vsix
-code --install-extension out/socle-vscode/vsix.dest/socle-*.vsix
-```
-
-The glob matches the one vsix there, whose file name carries the current
-version (`./mill show socle-vscode.vsix` prints its exact path). The vsix is
-about 70 MB because it bundles the language server jar (`socle-lsp`, with
-the probe agent and the [embedded Surfer](#the-embedded-surfer) inside). Building it needs Node and npm (for `npm install
-vscode-languageclient` and `npx @vscode/vsce package`), and network access the
-first time, to fetch those packages; nothing else of the extension is built
-with Node.
+The vsix is about 70 MB because it bundles the language server jar
+(`socle-lsp`, with the probe agent and the [embedded Surfer](#the-embedded-surfer)
+inside). Each extension release bundles the server of one Socle release, named
+in its release notes; the `socle.serverJar` setting runs another jar instead.
+The extension and the server talk through LSP and the `socle/*` methods of
+[lsp-protocol.md](lsp-protocol.md).
 
 ## Use it
 
@@ -433,53 +428,13 @@ and the server only attaches to Scala files), so it works without Metals.
 
 ## Verified by the end-to-end test
 
-```bash
-./mill socle-vscode.stage
-socle-vscode/e2e/run.sh out/socle-vscode/stage.dest
-```
-
-This is a script, not a Mill command: it runs the server, which calls
-`./mill --no-daemon` on this repo, and a Mill command would contend with those
-calls on the `out/` lock. For the same reason, do not run it while another
-`./mill` command runs. It starts a headless VS Code (xvfb, a throwaway profile
-and extensions dir) on this repository with the staged extension and checks:
-
-1. the Socle view container exists and its Tests view lists `GcdSpec`
-   with `GCD computes gcd(48, 18)`;
-2. the `View design` lens appears on `GcdSpec.scala`;
-3. `View design` on that Tests view item opens a Socle webview tab titled
-   after the test, `/design.json` serves the GCD design, and the test is
-   marked `shown`;
-4. the cursor in `GCD.scala` makes `/ide.json` report `gcd.GCD`;
-5. `POST /open` (what a click in the panel sends) moves the editor to
-   `GCD.scala:24`;
-6. closing the panel and running the lens again opens exactly one new panel;
-7. viewing `DeepSoc` fills the Hierarchy view (`DeepSoc` > `cluster0`, ...);
-   inside the webview, the UI loads `DeepSoc` from the server, and a real mouse
-   click on the `cluster0` box makes the UI send `POST /open` (with the
-   iframe's `Origin`, accepted by the server), which moves the editor to the
-   `Cluster` class in `DeepSoc.scala`, and the Details view shows `cluster0`
-   (module, ports). Before the click it checks the UI is in embedded mode (no
-   Source tab, logo, theme toggle, hierarchy or inspector pane, bottom panel
-   closed) with the data theme of the VS Code theme;
-8. clicking `cluster0` in the Hierarchy view drills the schematic into it;
-9. with the bottom panel open, viewing the design again and running
-   `Socle: Show design panel` do not reload the UI (drill path and panel
-   are kept);
-10. after switching the VS Code theme (dark to light), the UI in the webview
-    follows it.
-
-The webview checks (from step 7 on) drive the webview over the Chrome DevTools
-Protocol: `run.sh` starts VS Code with a free `--remote-debugging-port` and runs
-`socle-vscode/e2e/webview-click.mjs` (plain Node, no npm package) next to it.
-The screenshot it takes before the click and its result are kept in
-`$SOCLE_E2E_ARTIFACTS` (default `${TMPDIR:-/tmp}/socle-e2e-artifacts`).
-
-Needs `xvfb-run` and a Linux VS Code. It finds the Electron binary next to the
-`code` on your `PATH`; set `SOCLE_E2E_ELECTRON` to override. A cold first run
-(Mill compiling the example tests) can take a few minutes; a warm run takes
-about 18 seconds. The pure logic is covered by `./mill socle-vscode.test`
-(Scala.js unit tests, run on Node), which CI runs.
+The extension's repository has an end-to-end test (`e2e/run.sh`, see its
+`DEVELOPING.md`): it starts a headless VS Code on a Socle checkout with the
+staged extension and checks the Tests view, the `View design` lens, the panel
+and its embedded mode, the cursor focus, `POST /open` from a click in the
+webview, the Hierarchy and Details views, the drill from the Hierarchy view,
+that the panel is not reloaded when the design is shown again, and that it
+follows the VS Code theme. It is run by hand, not in CI.
 
 ## Known limits
 
@@ -487,8 +442,7 @@ about 18 seconds. The pure logic is covered by `./mill socle-vscode.test`
   lenses, its command, save handling and cursor forwarding, and the `scala`
   language contribution merges with Metals' own. The end-to-end test runs with
   `--disable-extensions`, so no automated check has Metals installed.
-- CI builds the vsix (a downloadable artifact of every run), but the headless
-  end-to-end test is not run in CI.
+- The headless end-to-end test is not run in CI.
 - The end-to-end test does not run Simulate; the server's tests cover it (a
   real Verilator run of the GCD test when `verilator` is on the `PATH`).
 - WSL works: WSL relays the server's loopback port to Windows unchanged (the

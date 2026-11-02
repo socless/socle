@@ -21,7 +21,6 @@ mill mill-socle.publishLocal   # Scala 3 Mill plugin
 # (alternative) SOCLE_REGENERATE=1 ./mill socle.test socle.GoldenDesignTest
 ./mill socle-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
 ./mill socle-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
-./mill socle-vscode.test        # VS Code extension logic (Scala.js, runs on Node)
 ./mill example.test               # the example ChiselSim tests (needs Verilator on PATH)
 tools/ci/selective.sh prepare <base-sha>   # PR CI: snapshot the base (checks it out and back: commit first), then
 tools/ci/selective.sh run socle.test     # run only if its inputs changed (`selected <sel>` lists what would run)
@@ -45,10 +44,7 @@ mill show example.socleRun     # Print path to emitted design.json
 
 # Chisel IDE: language server jar for editors (java -jar, probe agent inside); setup in docs/ide-neovim.md
 ./mill socle-lsp.assembly       # -> out/socle-lsp/assembly.dest/out.jar
-# VS Code extension (docs/ide-vscode.md): vsix bundles the server jar
-./mill socle-vscode.vsix        # -> out/socle-vscode/vsix.dest/socle-<version>.vsix (needs node/npm)
-./mill socle-vscode.stage       # extension dir for the e2e
-socle-vscode/e2e/run.sh out/socle-vscode/stage.dest  # headless VS Code e2e; NOT a Mill command (it would contend on the out/ lock); never run it during another ./mill
+# VS Code extension: its own repository, socless/socle-vscode (it bundles a released socle-lsp jar)
 
 # Inspect baked layout geometry headlessly (no UI)
 mill example.socleDebugLayout          # dump default design's per-module SVG + text
@@ -105,13 +101,6 @@ socle-lsp/src/socle/lsp/  # Language server (stdio): View design / Simulate lens
   ScalaSourceIndex.scala # scalameta SourceIndex: generator constructs, FSM state diagrams
   FsmFacts.scala         # switch(register) state machines, syntax only (for ScalaSourceIndex.fsm)
   FromCapture.scala      # CLI: capture -> design.json with the source index (socleCapturedFsm)
-
-socle-vscode/            # VS Code extension (Scala.js, CommonJS; docs/ide-vscode.md)
-  src/socle/vscode/    # Extension (activate), Panel (webview), Logic (pure, unit-tested),
-                         # Sidebar (Tests/Hierarchy/Details views), SidebarModel (pure, unit-tested),
-                         # facade/ (vscode, languageclient, node)
-  package.json           # manifest template (@VERSION@ placeholders), rendered by Mill
-  e2e/                   # index.js (runs inside VS Code), webview-click.mjs (CDP), run.sh (headless launcher)
 
 mill-socle/src/socle/mill/
   SocleModule.scala    # Trait users mix into ScalaModule; defines `socle` and `socleUI` tasks
@@ -206,4 +195,3 @@ away first-paint and the JVM-side layout tests (see the perf plan, not yet sched
 | `mill-socle` | 3.8.2 | Mill 1.1.6 APIs |
 | `socle-lsp` | 2.13.16 | lsp4j 1.0.0, scalameta 4.17.4; depends on `socle` |
 | `socle-probe` | 2.13.16 | Chisel 7.16.0 compile-only (the test JVM provides it); Byte Buddy 1.18.15 + upickle shaded under `socle.shaded` in the agent jar |
-| `socle-vscode` | 2.13.16 (Scala.js 1.19) | vscode-languageclient 9.0.1 (npm, only into the vsix); vsce 3.2.1 |

@@ -82,7 +82,8 @@ Then point it at your own design via the **[standalone
 app](docs/usage-standalone.md)**, the **[Mill plugin](docs/usage-mill.md)** or
 the **[Chisel IDE](docs/ide-vscode.md)**. Each release on the
 [GitHub releases page](https://github.com/socless/socle/releases) attaches the
-standalone jar, the language server jar, the VS Code vsix and the single-file UI.
+standalone jar, the language server jar and the single-file UI; the VS Code
+extension has its own [releases](https://github.com/socless/socle-vscode/releases).
 
 ## How it works
 

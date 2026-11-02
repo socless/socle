@@ -82,7 +82,6 @@ socle-ui/             # Scala.js + Laminar frontend (the shipped UI)
 mill-socle/           # Mill plugin trait (Scala 3)
 socle-probe/          # Java agent: captures a ChiselSim test's design (IDE view mode)
 socle-lsp/            # language server for the Chisel IDE (lenses, live panel, Simulate)
-socle-vscode/         # VS Code extension (Scala.js) around the language server
 example/src/            # bundled demo designs
 tools/                  # CI helpers (ci/selective.sh) and the UI smokes (ui-smoke/)
 ```
@@ -96,10 +95,9 @@ coalescing, etc.).
 CI (`.github/workflows/ci.yml`) runs five jobs in parallel, each compiling only
 what its own tasks need:
 
-- **Artifacts** (`build-artifacts.yml`): the jars, the vsix and the single-file
+- **Artifacts** (`build-artifacts.yml`): the jars and the single-file
   UI, uploaded as the `socle-dist` workflow artifact.
-- **Unit tests**: the `socle`, `socle-probe` and `socle-vscode` test
-  suites, the CHIRRTL fixture sync check and the reference JSON check.
+- **Unit tests**: the `socle` and `socle-probe` test suites, the CHIRRTL fixture sync check and the reference JSON check.
 - **Language server tests**: the `socle-lsp` suite, on its own because
   `MillBridgeTest` drives a real Mill and takes about 3 minutes in CI.
 - **UI smokes and examples**: the UI dist, the example elaborations, the
