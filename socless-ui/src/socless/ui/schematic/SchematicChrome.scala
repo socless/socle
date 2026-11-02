@@ -83,6 +83,23 @@ private[schematic] object SchematicChrome {
       ),
     )
 
+  /** The clock domains of `m` and their instances, when it has two or more
+    * (bottom-right, above the zoom controls). */
+  def clockLegend(m: socless.schema.ModuleDef): Option[Element] = {
+    val colors = SchematicColors.clockDomains(m)
+    Option.when(colors.nonEmpty)(
+      div(dataAttr("clock-legend") := "1",
+        styleAttr := s"position:absolute;bottom:46px;right:12px;z-index:3;max-width:320px;display:flex;flex-direction:column;gap:3px;" +
+          s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:6px 9px;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2};pointer-events:none",
+        m.children.map(_.clock).filter(_.nonEmpty).distinct.map { d =>
+          val insts = m.children.filter(_.clock == d).map(_.name)
+          div(dataAttr("legend-domain") := d, styleAttr := "display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
+            span(styleAttr := s"width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${colors(d)}"),
+            span(styleAttr := s"color:${Tokens.ink}", d),
+            span(styleAttr := "overflow:hidden;text-overflow:ellipsis", s"(${insts.mkString(", ")})"))
+        }))
+  }
+
   // ── zoom / optimize controls (bottom-right) ──
   private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
 

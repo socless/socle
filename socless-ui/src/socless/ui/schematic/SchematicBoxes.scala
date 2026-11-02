@@ -26,9 +26,9 @@ private[schematic] object SchematicBoxes {
     * with `togglePort`). `hl` registers each box and pin a
     * highlight can touch: selection, hover, dimming and the colorized fill
     * (issue #266) are classes on them ([[Highlight]]), never a re-render.
-    * `openFsm` opens an FSM block's state diagram. */
+    * `openFsm` opens an FSM block's state diagram, `openBlock` enters a logic block. */
   final case class Ctx(selectedVar: Var[Option[String]], expandedSig: Signal[Set[String]], togglePort: String => Unit,
-                       hl: Highlight.Registry, openFsm: String => Unit = _ => ())
+                       hl: Highlight.Registry, openFsm: String => Unit = _ => (), openBlock: String => Unit = _ => ())
 
   private def sa(name: String) = svg.svgAttr(name, StringAsIsCodec, scala.None)
 
@@ -244,14 +244,16 @@ private[schematic] object SchematicBoxes {
   }
 
   // ── logic / generator block (captured view) ──
-  // Same shape as the FSM box (header + WEST/EAST pin rows, non-drillable): a
-  // module's logic grouped into one node, or one generator construct. Neutral
+  // Same shape as the FSM box (header + WEST/EAST pin rows): a module's logic
+  // grouped into one node, or one generator construct. A double-click (or its
+  // `↵`) enters it when its body is stored. Neutral
   // border, the `block` tint when components are colorized, a `{ }` glyph.
   // Tagged `data-block` (and `data-block-label` on its name) for ui-smoke.
   def blockBox(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double): ReactiveElement.Base = {
     val c            = g.c
     val label        = g.logicById.get(n.id).map(_.label).filter(_.nonEmpty).getOrElse(n.id)
     val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
+    val opens        = g.design.regions.contains(n.id)
     reg(ctx, n.id, Highlight.BoxKind.Selectable, div(
       cls := "scl-b",
       dataAttr("block") := n.id,
@@ -259,17 +261,20 @@ private[schematic] object SchematicBoxes {
       dataAttr("pan-block") := "1",
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${boxInfo.boxH}px;" +
         boxVars(n.kind, Tokens.border, RestShadow, RestShadow, SelShadow, Tokens.panel) +
-        "border-width:1px;border-style:solid;border-radius:6px;cursor:default;overflow:visible;" +
+        s"border-width:1px;border-style:solid;border-radius:6px;cursor:${if (opens) "zoom-in" else "default"};overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
-      // header (no drill handler: a block is non-drillable)
+      if (opens) onDblClick --> { (_: dom.MouseEvent) => ctx.openBlock(n.id) } else emptyMod,
       div(
         cls := "scl-hd",
         styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
-          s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
+          s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
         onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"display:inline-flex;justify-content:center;color:${Tokens.ink3};font-family:${Tokens.mono};font-size:10px;white-space:nowrap", "{ }"),
         span(dataAttr("block-label") := n.id,
           styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
+        if (opens) span(dataAttr("block-open") := n.id, title := "Open the block (double-click)",
+          styleAttr := s"margin-left:auto;font-family:${Tokens.mono};font-size:9px;color:${Tokens.accent};cursor:pointer",
+          onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); ctx.openBlock(n.id) }, "↵") else emptyNode,
       ),
       renderPortRows(ctx, g, n, boxInfo.westRows, PinSide.West),
       renderPortRows(ctx, g, n, boxInfo.eastRows, PinSide.East),
@@ -342,6 +347,40 @@ private[schematic] object SchematicBoxes {
   // pointing the way it flows, a bundle a tab (out: closed, down: open) that
   // opens it, a Vec of signals two stacked tabs. `glyphs = false` keeps plain
   // dots, for logic symbols that draw their own.
+  /** An instance's clk and rst pins, in the rows the layout keeps for them at
+    * the bottom of its West side (no wire): the flip-flop chevron in its clock
+    * domain's colour, and a ring marked `(async)` for an AsyncReset. With a
+    * domain colour, a stripe along the left edge spans these two rows, under
+    * the pins. */
+  def clockPins(id: String, boxH: Double, clk: Boolean, rst: Boolean, async: Boolean,
+                clock: String, reset: String, domain: Option[String]): Seq[ReactiveElement.Base] = {
+    val step  = socless.layout.LayoutCore.PortStep
+    val lastY = boxH - socless.layout.LayoutCore.PortPad - step / 2
+    val rstY  = lastY
+    val clkY  = if (rst) lastY - step else lastY
+    val ink   = domain.getOrElse(Tokens.ink)
+    def label(y: Double, color: String, parts: Modifier[HtmlElement]*) =
+      div(cls := "scl-ck", styleAttr := s"position:absolute;top:${y - 8}px;left:14px;height:16px;display:flex;align-items:center;gap:5px;" +
+        s"font-family:${Tokens.mono};font-size:var(--sch-label);color:$color;white-space:nowrap;pointer-events:none", parts)
+    val clkEl = Option.when(clk)(div(dataAttr("clk-pin") := id,
+      title := (if (clock.nonEmpty) s"clock: $clock" else "clock input"),
+      svg.svg(svg.width := "9", svg.height := "12",
+        svg.style := s"position:absolute;left:-1px;top:${clkY - 6}px;overflow:visible;pointer-events:none",
+        svg.path(svg.d := "M0.8 1 L7.5 6 L0.8 11", svg.fill := "none", svg.stroke := ink, svg.strokeWidth := "1.6")),
+      label(clkY, domain.getOrElse(Tokens.ink2), "clk")))
+    val rstEl = Option.when(rst)(div(dataAttr("rst-pin") := id, dataAttr("async") := (if (async) "1" else "0"),
+      title := (if (reset.nonEmpty) s"reset: $reset" else "reset input") + (if (async) " (asynchronous)" else ""),
+      div(styleAttr := s"position:absolute;left:-4px;top:${rstY - 4}px;width:8px;height:8px;box-sizing:border-box;border:1.5px solid ${Tokens.ink};border-radius:50%;background:${Tokens.panel};pointer-events:none"),
+      label(rstY, Tokens.ink2, "rst", if (async) span(styleAttr := s"color:${Tokens.ink4};font-size:var(--sch-mark)", "(async)") else emptyNode)))
+    val stripe = domain.filter(_ => clk).map { col =>
+      val bottom = if (rst) rstY else clkY
+      div(dataAttr("box-domain") := clock,
+        styleAttr := s"position:absolute;left:-1px;top:${clkY - 10}px;height:${bottom - clkY + 20}px;width:3px;" +
+          s"background:$col;border-radius:0 2px 2px 0;pointer-events:none")
+    }
+    stripe.toSeq ++ clkEl.toSeq ++ rstEl.toSeq
+  }
+
   def renderPortRows(ctx: Ctx, g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String,
                      glyphs: Boolean = true): Seq[ReactiveElement.Base] = {
     val isWest = side == PinSide.West

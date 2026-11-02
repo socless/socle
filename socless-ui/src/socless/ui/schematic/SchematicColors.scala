@@ -46,4 +46,12 @@ private[schematic] object SchematicColors {
     val m = h % 360
     if (m < 0) m + 360 else m
   }
+
+  /** A colour for each clock domain of `m` (its instances' `clock`), in order of
+    * first use; empty when `m` has fewer than two domains. */
+  def clockDomains(m: socless.schema.ModuleDef): Map[String, String] = {
+    val ds = m.children.map(_.clock).filter(_.nonEmpty).distinct
+    if (ds.length < 2) Map.empty
+    else ds.zipWithIndex.map { case (d, i) => d -> Tokens.domainColors(i % Tokens.domainColors.length) }.toMap
+  }
 }

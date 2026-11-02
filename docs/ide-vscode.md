@@ -46,7 +46,9 @@ with Node.
    module compiles it with Mill, so it can take a while; the panel shows
    "waiting for the first design" until it succeeds.
 3. Save a file to refresh the panel, move the cursor to focus the class under it
-   (after a 300 ms pause), click a box to open its source.
+   (after a 300 ms pause), click a box to open its source. A register, an
+   operator or a memory opens its own line, a wire (or a logic block's pin)
+   the line of its connection.
 4. Close the panel and run the lens again to get it back, or run the command
    `SoCLess: Show design panel` to reveal the current design.
 5. With `socless.waveViewer` set to `surfer-panel`, run the command

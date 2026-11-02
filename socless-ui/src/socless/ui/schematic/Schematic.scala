@@ -159,14 +159,16 @@ object Schematic {
     // The pre-engine geometry the rows and box overrides are measured against:
     // the baked layout, or, with copies unfolded (absent from the all-folded
     // baked layout), the prepared boxes and pins the engine starts from.
-    def baseOf(d: Design, mod: ModuleDef): Option[LaidOut] =
-      bakedOf(d, mod).map { bl =>
-        if (unfoldedMembers(mod).isEmpty) bl
-        else LaidOut(LayoutCore.prepare(mod, d).nodes.map { n =>
+    // A module with no bake (an open logic block of an older file) starts from
+    // the prepared boxes too.
+    def baseOf(d: Design, mod: ModuleDef): Option[LaidOut] = {
+      val baked = bakedOf(d, mod)
+      if (baked.isDefined && unfoldedMembers(mod).isEmpty) baked
+      else Some(LaidOut(LayoutCore.prepare(mod, d).nodes.map { n =>
           LaidNodeR(n.id, n.kind, 0, 0, n.width.toInt, n.height.toInt,
             n.pins.map(p => LaidPortR(p.path, p.x.toInt, p.y.toInt, p.side, p.interface, p.label, p.bundle, p.expandable)))
-        }, Nil, bl.w, bl.h)
-      }
+        }, Nil, baked.fold(1)(_.w), baked.fold(1)(_.h)))
+    }
     def engineCachePut(key: String, v: LaidOut): Unit = {
       engineCache(key) = v
       if (engineCache.size > engineCacheCap) engineCache.remove(engineCache.head._1)
@@ -260,7 +262,7 @@ object Schematic {
           val hasUnfolded = mod.children.exists(_.foldGroup.nonEmpty)
           // A bake from before the declared port rows (#332) has other pins than
           // the rows and wires drawn now: lay it out again.
-          val oldBake = d.layoutModel < LayoutCore.LayoutModel
+          val oldBake = d.layoutModel < LayoutCore.LayoutModel || bakedOf(d, mod).isEmpty
           // Declutter (#223) forces the engine too: the baked layout has every
           // node, so hiding kinds needs a re-layout over the visible subset.
           // A bake made with the optimize pass is what auto-optimize would lay out
@@ -439,7 +441,9 @@ object Schematic {
       // at the end (the net for the drill path `g` is shown at).
       val reg = new Highlight.Registry(g, path)
       // Interactive state the box/port renderers in [[SchematicBoxes]] need (#216).
-      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedSig, p => togglePort(g.mod.name, p), reg, id => fsmOpenVar.set(Some(id)))
+      val boxCtx = SchematicBoxes.Ctx(selectedVar, expandedSig, p => togglePort(g.mod.name, p), reg, id => fsmOpenVar.set(Some(id)), drillInto)
+      // A colour per clock domain, only when the module has two or more.
+      val domainColor: Map[String, String] = SchematicColors.clockDomains(g.mod)
       // Verification-layer nodes (issue #212) and their wires are hidden unless
       // "show layers" is on. layerIds empty for a design with no layer content.
       // A wire's fromInst/toInst is a raw pin head (`L~in<i>`, `L~q`); resolve it
@@ -571,11 +575,11 @@ object Schematic {
           // Generator signature of a captured module; empty from CHIRRTL.
           val sigFull    = childMod.filter(_.scalaClass.nonEmpty).map(ScalaClassLabel.signature).getOrElse("")
           // Clock/reset are filtered from the wire graph (no laid pin, see
-          // displayWires), so a clocked instance carries a compact corner cue
-          // instead of a routed clock tree: a clock-input notch bottom-left and a
-          // reset ring bottom-right (issue #188 follow-up).
-          val hasClock = childMod.exists(_.ports.exists(_.bundle == "Clock"))
-          val hasReset = childMod.exists(_.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset"))
+          // displayWires): a clocked instance shows a clk and a rst pin at the
+          // bottom of its West side, in rows the layout keeps for them, with no wire.
+          val hasClock = childMod.exists(LayoutCore.hasClockPort)
+          val hasReset = childMod.exists(LayoutCore.hasResetPort)
+          val domain   = domainColor.get(ch.clock)
           val boxInfo    = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
           // Selected, clock peer (of the selected instance) and resting looks
           // are classes over these values (Highlight.css). Stacked edge: a
@@ -627,11 +631,6 @@ object Schematic {
               // CHIRRTL designs (no scalaClass) keep the exact markup below.
               div(styleAttr := (if (sigFull.isEmpty) "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px"
                                 else "margin-left:auto;flex-shrink:1000;min-width:0;display:flex;align-items:center;gap:6px"),
-                // Clock and reset: two small marks in the header, not a footer (#334).
-                opt(hasClock)(span(dataAttr("clk-cue") := n.id, title := "clock input",
-                  styleAttr := s"flex-shrink:0;font-size:8px;line-height:1;color:${Tokens.ink4};pointer-events:none", "▷")),
-                opt(hasReset)(span(dataAttr("rst-cue") := n.id, title := "reset input",
-                  styleAttr := s"flex-shrink:0;font-size:8px;line-height:1;color:${Tokens.ink4};pointer-events:none", "○")),
                 opt(isBlackbox)(span(styleAttr := s"font-family:${Tokens.mono};font-size:8px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:${Tokens.ink3};background:${Tokens.panel};border:1px dashed ${Tokens.border};border-radius:3px;padding:0 4px;line-height:13px",
                   extLabel)),
                 if (sigFull.isEmpty)
@@ -649,6 +648,8 @@ object Schematic {
             // port rows
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West),
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East),
+            SchematicBoxes.clockPins(n.id, boxInfo.boxH, hasClock, hasReset,
+              childMod.exists(LayoutCore.asyncReset), ch.clock, ch.reset, domain),
             // The name drawn at a fixed screen size in the overview (#334); last,
             // so the header stays the box's first child.
             SchematicBoxes.overviewName(n.id, if (isFolded) s"${n.id} × ${ch.foldCount}" else n.id, n.w.toDouble),
@@ -955,6 +956,8 @@ object Schematic {
       // entries that no longer resolve, a vanished net lights nothing); a fresh
       // load clears them (`history.reset`, from App).
       designSig.changes --> { _ => engineCache.clear() },
+      // The clock domains' legend, bottom-right above the zoom controls.
+      child.maybe <-- geomSig.map(_.map(_.mod)).distinct.map(_.flatMap(SchematicChrome.clockLegend)),
       // Minimap, shown only when content overflows the viewport at this zoom.
       // Its node rects are built once per geometry (the element is rebuilt only
       // when the geometry changes or it shows or hides); pan and zoom move just

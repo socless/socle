@@ -316,7 +316,8 @@ object Layout {
     val repByFp  = scala.collection.mutable.HashMap.empty[String, String]      // fingerprint -> representative module name
     val layouts  = scala.collection.mutable.LinkedHashMap.empty[String, ModuleLayout]
     val layoutOf = scala.collection.mutable.LinkedHashMap.empty[String, String]
-    for (m <- design.modules) {
+    // An open logic block is a module too, laid out under its id.
+    for (m <- design.modules ++ LayoutCore.openableBlocks(design).map(_._2)) {
       repByFp.get(fingerprint(m)) match {
         case Some(rep) =>
           layoutOf(m.name) = rep                      // reuse an identical module's layout

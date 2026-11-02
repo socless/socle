@@ -8,6 +8,26 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+### Added
+
+- A logic block opens like a module: double-click it (or its `↵`) to see its
+  registers, operators and wires, with its pins as ports. The breadcrumb names
+  it (`logic`) and takes you back.
+- Clock domains: when a module's instances run on two or more clocks, each
+  domain has a colour (its `clk` pin and a stripe beside the clock and reset
+  pins) and a legend.
+
+### Changed
+
+- Clock and reset are pins: `clk` (the flip-flop chevron) and `rst` (a ring,
+  `(async)` for an AsyncReset) at the bottom of a box's left side, in place of
+  the two small marks in its header.
+- A selection opens the editor at its own line: a register, an operator or a
+  memory at its declaration, a wire or a block pin at its connection, a port at
+  its declaration. An instance still opens its module's class.
+- A bake now holds a layout for each logic block, and boxes keep rows for their
+  clock and reset pins (layout model 3): older files are laid out again.
+
 ## [0.20.0] - 2026-11-02
 
 ### Added

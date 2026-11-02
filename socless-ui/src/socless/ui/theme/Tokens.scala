@@ -53,6 +53,11 @@ object Tokens {
     "mem"      -> "var(--node-mem)",
     "block"    -> "var(--node-block)",
   )
+  // Clock domains (schematic stripe, clk pin, legend): mid-lightness hues that
+  // read on both the light and the dark themes.
+  val domainColors: Seq[String] = Seq(
+    "oklch(0.58 0.15 250)", "oklch(0.64 0.15 55)", "oklch(0.6 0.14 150)",
+    "oklch(0.58 0.17 320)", "oklch(0.66 0.13 95)", "oklch(0.58 0.17 25)")
   // Scala source syntax palette (BottomPanel).
   val syntaxKw  = "var(--syntax-kw)"
   val syntaxTy  = "var(--syntax-ty)"

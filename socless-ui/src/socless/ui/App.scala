@@ -6,7 +6,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import socless.schema.{Design, ModuleDef, ModuleKind, NodeKind, SourceRef}
-import socless.layout.InstanceFold
+import socless.layout.{InstanceFold, LayoutCore}
 import socless.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socless.ui.theme._
 import socless.ui.model._
@@ -467,11 +467,20 @@ object App {
     else {
       val byName = d.modules.iterator.map(m => m.name -> m).toMap
       // path.head is a MODULE name (the top, or a module jumped to via the
-      // palette); the rest are instance names walked down from there.
-      path.tail.foldLeft(byName.get(path.head)) { (acc, instName) =>
-        for { m <- acc; c <- m.children.find(_.name == instName); cm <- byName.get(c.`type`) } yield cm
+      // palette); the rest are instance names walked down from there, or the id
+      // of an open logic block (its body as a module).
+      path.tail.foldLeft(byName.get(path.head)) { (acc, seg) =>
+        acc.flatMap { m =>
+          m.children.find(_.name == seg).flatMap(c => byName.get(c.`type`))
+            .orElse(openBlock(d, m, seg))
+        }
       }
     }
+
+  /** Logic block `id` of `m`, as a module to open, when its body is stored. */
+  private def openBlock(d: Design, m: ModuleDef, id: String): Option[ModuleDef] =
+    m.logic.find(n => n.id == id && n.kind == NodeKind.Block)
+      .flatMap(n => d.regions.get(id).map(LayoutCore.blockAsModule(id, _, n.label)))
 
   /** `mod` as shown: its generator copies folded, but the groups unfolded in it. */
   private def folded(mod: ModuleDef, unfolded: Map[String, Set[String]]): ModuleDef =
@@ -519,9 +528,8 @@ object App {
     for {
       d        <- loader.currentDesign
       mod      <- currentModule(d, pathVar.now())
-      child    <- mod.children.find(_.name == inst)
-      childMod <- d.modules.find(_.name == child.`type`)
-      if childMod.kind != ModuleKind.External && childMod.kind != ModuleKind.Intrinsic
+      if openBlock(d, mod, inst).isDefined || mod.children.find(_.name == inst).flatMap(c => d.modules.find(_.name == c.`type`))
+                                                .exists(cm => cm.kind != ModuleKind.External && cm.kind != ModuleKind.Intrinsic)
     } pathVar.update(_ :+ inst) // selectedSig cleared by the path-change binder
 
   /** Show `path` when it resolves in the design (the view history's Back and
@@ -779,7 +787,7 @@ object App {
       selectedSigVar.signal.changes.debounce(0).distinct --> { sel =>
         val fromNav = sel.isDefined && sel == navSelect
         navSelect = None
-        if (!fromNav) sel.foreach(openInstanceSource)
+        if (!fromNav) sel.foreach(openSelectionSource)
       },
       // The editor's side panel follows the design, the drill path and the selection.
       // One post per burst (a navigate sets the path, then the selection).
@@ -859,18 +867,27 @@ object App {
     case _ => None
   }
 
-  /** `POST /open` for a selected instance of the current module whose module
-    * source file is absolute or a key of `design.sources` (a user file read
-    * from the source root), or for a selected logic block whose own source is.
-    * Wire / port selections are ignored. */
-  private def openInstanceSource(sel: String): Unit =
+  /** `POST /open` for a selection of the current module, at its own line, when
+    * its file is absolute or a key of `design.sources` ([[openableSource]]):
+    *  - an instance: its module's class;
+    *  - a logic node: its own source (a block or FSM, a register, an operator,
+    *    a memory);
+    *  - a pin or a wire (a wire selects its sink end, at the row shown): the
+    *    first wire that ends there or below, so a block pin opens the crossing
+    *    wire's line;
+    *  - a port of the module: its declaration, when known. */
+  private def openSelectionSource(sel: String): Unit = {
+    def at(e: String) = e == sel || e.startsWith(sel + ".") || e.startsWith(sel + "[")
     for {
       d   <- loader.currentDesign
       mod <- shownModule(d, pathVar.now())
       src <- mod.children.find(_.name == sel).flatMap(c => d.modules.find(_.name == c.`type`)).map(_.source)
-               .orElse(mod.logic.find(n => n.id == sel && NodeKind.isBox(n.kind)).map(_.source))
+               .orElse(mod.logic.find(_.id == sel).map(_.source))
+               .orElse(mod.wires.find(w => at(w.from)).orElse(mod.wires.find(w => at(w.to))).map(_.source).filter(_.line > 0))
+               .orElse(mod.ports.find(_.name == sel).map(_.source))
       if openableSource(d, src.file)
     } ide.open(src.file, src.line)
+  }
 
   /** `POST /open` for a source position (a state diagram's state or
     * transition), under the same [[openableSource]] gate. */
@@ -910,9 +927,13 @@ object App {
         children <-- Signal.combine(pathVar.signal, fsmOpenVar.signal).map { case (p, fsm) =>
           val path = p.zipWithIndex.flatMap { case (seg, i) =>
             val sep: Seq[Element] = if (i > 0) Seq(span(cls := "scl-crumb-sep", "›")) else Nil
+            // An open logic block shows its label (`logic`), not its id.
+            val block = loader.currentDesign.flatMap(d => currentModule(d, p.take(i)))
+              .flatMap(_.logic.find(n => n.id == seg && n.kind == NodeKind.Block))
             sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
               title := p.take(i + 1).mkString(" > "),
-              onClick --> { _ => navTo(i) }, seg)
+              block.map(n => dataAttr("crumb-block") := n.id),
+              onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)
           }
           path ++ fsm.toSeq.flatMap { id =>
             val reg = id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id }

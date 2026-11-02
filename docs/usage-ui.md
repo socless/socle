@@ -29,7 +29,7 @@ the same everywhere: moving around the schematic and learning it from the UI.
 | Module's own ports | Click the + or − | Expand or collapse a bundle |
 | Logic blocks | Click | Inspect a register or an operator |
 | Logic blocks | Click the title | Inspect a block or a state machine |
-| Logic blocks | Double-click | Open a state machine's diagram |
+| Logic blocks | Double-click (or its `↵`) | Open a block: its registers, operators and wires, its pins as ports; the breadcrumb goes back. A state machine opens its diagram |
 
 Browsers report a trackpad pinch as Ctrl + wheel. SoCLess tells the two apart by
 the deltas: a pinch sends small fractional ones (under 10 px), a mouse notch
@@ -73,8 +73,12 @@ Decoupled starts closed, as one row.
 
 - **Pins:** a signal pin is a triangle on the box edge pointing the way data
   flows; a bundle pin is a blue tab (pointing out: closed, pointing down: open);
-  a Vec of signals is two stacked tabs. Clock and reset are the two small marks
-  in a box's header.
+  a Vec of signals is two stacked tabs. A clocked box has a `clk` pin (the
+  flip-flop chevron) and a `rst` pin (a ring, marked `(async)` for an
+  AsyncReset) at the bottom of its left side; they carry no wire.
+- **Clock domains:** when a module's instances run on two or more clocks, each
+  domain gets a colour, on its `clk` pin and a stripe along the box's edge
+  beside the `clk` and `rst` pins, with a legend at the bottom right. With one clock there is no colour.
 - **Overview:** zoomed out so far that pin names would be too small to read
   (under about 7px), the schematic shows each box's name at a readable size
   and hides pin names; zoom in and the detail comes back. A title or a pin can

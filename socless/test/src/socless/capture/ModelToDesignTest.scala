@@ -243,8 +243,10 @@ object ModelToDesignTest extends TestSuite {
       for ((label, cm) <- Seq("gcd" -> gcd, "rvpipeline" -> rvpipeline, "deepsoc" -> deepsoc)) {
         val design = ModelToDesign.design(cm)
         val laid   = Layout.withLayouts(design)
-        check(laid.layoutOf.size == design.modules.size,
-          s"[$label] layoutOf.size ${laid.layoutOf.size} != modules.size ${design.modules.size} - some modules were skipped")
+        // A module each, and an open logic block each.
+        val blocks = LayoutCore.openableBlocks(design).length
+        check(laid.layoutOf.size == design.modules.size + blocks,
+          s"[$label] layoutOf.size ${laid.layoutOf.size} != modules.size ${design.modules.size} + blocks $blocks - some were skipped")
         design.modules.foreach { m =>
           check(laid.layoutOf.get(m.name).exists(laid.layouts.contains), s"[$label] module ${m.name} has no resolvable layout")
         }

@@ -903,6 +903,38 @@ async function smokeDesignIn(design, ctx) {
         }
         if (!opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119))
           note(design, where, `selecting ${id} did not open its source: ${JSON.stringify(opened)}`);
+        // Each selection opens its own line: the wire into a block pin opens
+        // that connection, a register inside the open block its declaration.
+        const src = 'example/src/deephier/DeepSoc.scala';
+        const expectLine = async (step, line) => {
+          await page.waitForTimeout(250);
+          if (!opened.some((o) => o.file === src && o.line === line))
+            note(design, where, `${step}: expected POST /open ${src}:${line}, got ${JSON.stringify(opened)}`);
+        };
+        opened.length = 0;
+        await page.locator(`[data-wire="io.in"][data-wire-to="${id}.io_in_ready"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
+        await expectLine('the wire into a block pin', 136);
+        await page.keyboard.press('Escape');
+        // A double-click opens the block: its contents, its label in the breadcrumb.
+        await page.locator(`[data-block="${id}"] [data-block-label]`).first().dblclick({ timeout: 3000 })
+          .catch((e) => note(design, where, `open ${id}: ${e.message}`));
+        await settle();
+        const inside = await page.evaluate(() => ({
+          crumb: (document.querySelector('[data-crumb-block]')?.textContent || '').trim(),
+          regs: document.querySelectorAll('[data-logic-node]').length,
+          sel: !!document.querySelector('[data-logic-node="sel"]'),
+          blocks: document.querySelectorAll('[data-block]').length,
+        }));
+        if (inside.crumb !== 'logic') note(design, where, `open block: breadcrumb shows ${JSON.stringify(inside.crumb)}, not "logic"`);
+        if (!inside.regs || !inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
+        opened.length = 0;
+        await page.locator('[data-logic-node="sel"]').first().dispatchEvent('click').catch((e) => note(design, where, `select sel: ${e.message}`));
+        await expectLine('register sel', 128);
+        drain(`${where} (open block)`);
+        // Back to the module.
+        await page.locator('.scl-crumb').nth(-2).click({ timeout: 3000 }).catch((e) => note(design, where, `crumb back: ${e.message}`));
+        await settle();
+        if (!(await page.locator(`[data-block="${id}"]`).count())) note(design, where, 'the breadcrumb did not return to the module');
         // A live reload that drops the selected block (here: renames it) clears
         // the selection instead of leaving the Inspector blank on a stale id.
         const fresh = (await (await page.request.get(`${BASE}/${design}/design.json`)).text())
@@ -3088,21 +3120,26 @@ async function smokeDesignIn(design, ctx) {
     // refits when a bundle grows the canvas, #207).
     await click('Reset to 100%'); await page.waitForTimeout(300);
   }
-  // #334: a box's anatomy. No + or − text, clock and reset in the header, and
-  // an open bundle's fields hang from a guide line.
+  // #334: a box's anatomy. No + or − text, clk and rst pins at the bottom of
+  // the West side (no header marks), and an open bundle's fields hang from a guide line.
   if (design === 'rvpipeline') {
     const where = 'box anatomy (#334)';
     const a = await page.evaluate(() => {
       const b = document.querySelector('[data-box-inst="decode"]');
       if (!b) return null;
       const texts = Array.from(b.querySelectorAll('*')).filter((e) => e.children.length === 0).map((e) => e.textContent.trim());
-      const clk = b.querySelector('[data-clk-cue]');
-      return { pm: texts.filter((t) => t === '+' || t === '−').length, clkInHeader: !!clk && b.firstElementChild.contains(clk) };
+      const clk = b.querySelector('[data-clk-pin]');
+      const rst = b.querySelector('[data-rst-pin]');
+      const hd = b.firstElementChild.getBoundingClientRect();
+      const bottom = (e) => !!e?.firstElementChild && e.firstElementChild.getBoundingClientRect().top > hd.bottom;
+      return { pm: texts.filter((t) => t === '+' || t === '−').length, clk: bottom(clk), rst: bottom(rst),
+        marks: !!b.querySelector('[data-clk-cue], [data-rst-cue]') };
     });
     if (!a) note(design, where, 'no decode box');
     else {
       if (a.pm) note(design, where, `decode shows ${a.pm} + or − marks`);
-      if (!a.clkInHeader) note(design, where, 'the clock mark is not in the header');
+      if (!a.clk || !a.rst) note(design, where, 'decode shows no clk or rst pin below its header');
+      if (a.marks) note(design, where, 'decode still shows the header clock marks');
       const t = page.locator('[data-bundle-toggle="decode.io.in"]').first();
       const guides = () => page.locator('[data-box-inst="decode"] [data-row-guide]').count();
       if (await t.count()) {

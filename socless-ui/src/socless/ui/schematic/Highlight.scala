@@ -513,7 +513,7 @@ object Highlight {
     s".scl-ovn{display:none;position:absolute;inset:28px 12px 0 12px;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;white-space:nowrap;font-family:${Tokens.mono};font-weight:700;color:${Tokens.ink}}",
     ".ov .scl-ovn{display:flex}",
     // Faded, not hidden: a title or a row stays clickable in the overview.
-    ".ov .scl-hd > *, .ov .scl-rlab, .ov [data-row-guide], .ov .scl-wl.sig{opacity:0}",
+    ".ov .scl-hd > *, .ov .scl-rlab, .ov .scl-ck, .ov [data-row-guide], .ov .scl-wl.sig{opacity:0}",
     // Faded actions take no clicks: a click on the name never opens a bundle,
     // unfolds copies or opens a diagram the user cannot see.
     ".ov .scl-rlab, .ov [data-fsm-open], .ov [data-fold-toggle]{pointer-events:none !important}",

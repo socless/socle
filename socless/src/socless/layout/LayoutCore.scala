@@ -43,9 +43,10 @@ object LayoutCore {
   /** The pin model `prepare` lays out, stamped on a bake (`Design.layoutModel`):
     * 1 since pins are the declared port rows (#332); 2 since wires end on the
     * pins' centres, block pins follow their peers and layers sit in a debug band
-    * (#334). Bump it when a bake's pins
+    * (#334); 3 since instances keep rows for their clk and rst pins and logic
+    * blocks are baked as modules to open. Bump it when a bake's pins
     * change meaning, so the UI lays older bakes out again. */
-  val LayoutModel: Int = 2
+  val LayoutModel: Int = 3
   val BoundaryW: Double = 16.0
   val BoundaryH: Double = 28.0
   val LabelGap: Double  = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -146,6 +147,48 @@ object LayoutCore {
     val maxRows = math.max(1, math.max(westN, eastN))
     math.max(HeaderH + 2 * PortPad + PortStep, HeaderH + 2 * PortPad + maxRows * PortStep)
   }
+
+  /** Logic block `id` (its body `Design.regions(id)`) as a module to open: its
+    * pins are the ports, and the body's wires end on them by name instead of
+    * `<id>.<pin>`. A pin named like a member (an out pin after the register that
+    * drives it) is renamed `<pin>_pin`, keeping its name as its label. Its type
+    * is the block's `label` (`logic`), as the chip and the Inspector show it. */
+  def blockAsModule(id: String, body: ModuleDef, label: String = ""): ModuleDef = {
+    val members = body.logic.iterator.map(_.id).toSet
+    val taken   = scala.collection.mutable.Set.empty[String] ++ members ++ body.ports.map(_.name)
+    val renamed = body.ports.iterator.filter(p => members(p.name)).map { p =>
+      val n = (s"${p.name}_pin" #:: LazyList.from(2).map(i => s"${p.name}_pin$i")).find(!taken(_)).get
+      taken += n
+      p.name -> n
+    }.toMap
+    val prefix = s"$id."
+    def end(e: String): String =
+      if (!e.startsWith(prefix)) e
+      else { val pin = e.drop(prefix.length); renamed.getOrElse(pin, pin) }
+    body.copy(
+      name  = id,
+      `type` = if (label.nonEmpty) label else body.`type`,
+      ports = body.ports.map(p => renamed.get(p.name).fold(p)(n => p.copy(name = n, label = if (p.label.nonEmpty) p.label else p.name))),
+      wires = body.wires.map(w => w.copy(from = end(w.from), to = end(w.to))))
+  }
+
+  /** The logic blocks of `design` that open as modules, by id (not FSMs, which
+    * open their state diagram). */
+  def openableBlocks(design: Design): Seq[(String, ModuleDef)] = {
+    val ids = (design.modules.iterator ++ design.regions.valuesIterator).flatMap(_.logic).filter(_.kind == NodeKind.Block).map(_.id).toSet
+    design.regions.toSeq.filter { case (id, _) => ids(id) }.sortBy(_._1).map { case (id, b) => id -> blockAsModule(id, b) }
+  }
+
+  /** How many clock and reset pins an instance of `m` shows (0 to 2): a `Clock`
+    * port, then a `Reset` or `AsyncReset` one (a ground port named `clock` or
+    * `reset` counts too, as a top module's implicit reset is a Bool). */
+  def clockRows(m: ModuleDef): Int = (if (hasClockPort(m)) 1 else 0) + (if (hasResetPort(m)) 1 else 0)
+  private def bit(p: PortDef) = p.bundle == "UInt<1>" || p.bundle == "UInt"
+  def hasClockPort(m: ModuleDef): Boolean = m.ports.exists(p => p.bundle == "Clock")
+  def hasResetPort(m: ModuleDef): Boolean =
+    m.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset" || (p.name == "reset" && bit(p)))
+  /** Whether `m`'s reset is asynchronous. */
+  def asyncReset(m: ModuleDef): Boolean = m.ports.exists(_.bundle == "AsyncReset")
 
   /** Estimate rendered pixel width of `text` in the UI's small monospace font. */
   def labelPx(text: String): Double = text.length * 6.5 + 14.0
@@ -560,16 +603,12 @@ object LayoutCore {
         val fold         = module.children.find(_.name == id)
         val headerText   = fold.filter(_.foldCount > 0).fold(id)(c => s"$id × ${c.foldCount}")
         val toggleW      = if (fold.exists(c => c.foldCount > 0 || c.foldGroup.nonEmpty)) 30.0 else 0.0
-        // The clock and reset marks in the header (#334), as the UI draws them.
-        val ports        = fold.flatMap(c => modulesByName.get(c.`type`)).fold(Seq.empty[PortDef])(_.ports)
-        val cueW         = (if (ports.exists(_.bundle == "Clock")) 14.0 else 0.0) +
-                           (if (ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset")) 14.0 else 0.0)
         // The header's right group too: the type label (capped at 80px by the UI)
         // and the open mark, so the name keeps its room (#334).
         // The name is drawn at about 8px a character; the glyph, padding and gaps take about 50px.
         val typeW        = if (kind == NodeKind.Inst) math.min(80.0, fold.fold(0)(_.`type`.length) * 6.5) + 24.0 else 0.0
         val headerTextPx =
-          if (kind == NodeKind.Inst) headerText.length * 8.0 + 50.0 + toggleW + cueW + typeW
+          if (kind == NodeKind.Inst) headerText.length * 8.0 + 50.0 + toggleW + typeW
           else headerText.length * 6.5 + 24.0 + toggleW
         // Op/reg logic nodes render as a compact symbol (no header, short or no
         // pin labels), so they use a small fixed width; real instances size to
@@ -581,8 +620,11 @@ object LayoutCore {
         val (hdr, pad, step) = if (isLogic) (LogicHeaderH, LogicPortPad, LogicPortStep) else (HeaderH, PortPad, PortStep)
         val w = if (isLogic) LogicNodeW
                 else math.min(MaxNodeW, math.max(NodeW, math.max(headerTextPx, westMaxPx + LabelGap + eastMaxPx)))
+        // An instance keeps rows at the bottom of its West side for its clk and
+        // rst pins (they carry no wire).
+        val clk = if (kind == NodeKind.Inst) fold.flatMap(c => modulesByName.get(c.`type`)).fold(0)(clockRows) else 0
         val h = if (isLogic) hdr + 2 * pad + math.max(1, math.max(west, east)) * step
-                else nodeHeight(west, east)
+                else nodeHeight(west + clk, east)
         // West and east pins are laid from their own row 0 via separate index sequences
         // (westPins.zipWithIndex / eastPins.zipWithIndex), so each side starts at row 0.
         def rowY(r: Double): Double = hdr + pad + r * step + step / 2

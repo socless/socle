@@ -108,6 +108,16 @@ object PortPinsTest extends TestSuite {
       assert(Layout.withLayouts(rv).layoutOptimized)
     }
 
+    test("a clocked box keeps rows for its clk and rst pins") {
+      val n    = node(LayoutCore.prepare(top(rv), rv), "decode")
+      val west = n.pins.count(_.side == PinSide.West)
+      val east = n.pins.count(_.side == PinSide.East)
+      assert(LayoutCore.clockRows(rv.modules.find(_.name == "Decode").get) == 2)
+      assert(n.height == LayoutCore.nodeHeight(west + 2, east))
+      // no clock/reset pin among the laid pins: they carry no wire
+      assert(!n.pins.exists(p => p.path.endsWith(".clock") || p.path.endsWith(".reset")))
+    }
+
     test("display wires use the same rows") {
       val m  = top(axi)
       val open = Set("xbar.io.in")
