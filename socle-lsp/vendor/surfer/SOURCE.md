@@ -6,7 +6,7 @@ packed into the language server jar under `surfer/`, and `LiveHttp` serves
 `/surfer/surfer.js` and `/surfer/surfer_bg.wasm`, nothing else.
 
 Surfer is licensed under the EUPL-1.2 (`LICENSE-EUPL-1.2.txt`). It is a separate
-component; Socle itself is MIT.
+component; Socle itself is licensed under the AGPL-3.0.
 
 ## Pin
 

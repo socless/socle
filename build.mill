@@ -667,6 +667,9 @@ object example extends ChiselToolchain {
         "--chirrtl-out", dest.toString,
       ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
       if (rc.exitCode != 0) throw new RuntimeException(s"CHIRRTL dump failed for top=$top")
+      // Source markers relative to the repository (`@[example/src/...]`): the
+      // committed fixtures name no checkout path.
+      os.write.over(dest, os.read(dest).replace(mill.api.BuildCtx.workspaceRoot.toString + "/", ""))
       Task.log.info(s"[socle] $top -> $dest")
     }
   }
