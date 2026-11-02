@@ -8,6 +8,8 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-02
+
 ### Added
 
 - The Inspector shows a module's scaladoc, and a pin's card the scaladoc of
