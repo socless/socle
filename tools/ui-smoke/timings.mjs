@@ -13,7 +13,7 @@ const T = { first: [], drill: [], open: [], close: [] };
 let size = null, toggled = null;
 for (let r = 0; r < runs; r++) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 950 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
   const page = await ctx.newPage();
   // Time to a laid-out view: the layout flag set (no pending engine run) with boxes drawn.
   const settled = async (t0) => {
@@ -21,7 +21,7 @@ for (let r = 0; r < runs; r++) {
     return performance.now() - t0;
   };
   let t0 = performance.now();
-  await page.goto(`${BASE}/${design}/SoCLess.html`);
+  await page.goto(`${BASE}/${design}/socle.html`);
   T.first.push(await settled(t0));
   if (drill !== '-') {
     await page.waitForTimeout(500);

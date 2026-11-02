@@ -1,0 +1,116 @@
+package socle.ir
+
+import socle._
+
+import socle.schema._
+import socle.parse._
+import socle.ir._
+import socle.layout._
+import socle.cli._
+
+import utest._
+
+/** Export warnings channel (issue #118): the parser/IR-walk collect non-fatal
+  * issues into Design.warnings instead of only printing to a forked JVM's
+  * stderr, so the UI can surface them and --strict can gate on them.
+  */
+object WarningsTest extends TestSuite {
+
+  // A design that exercises both skipped constructs: a partial connect and an
+  // attach. The rest is a normal connect so the module is not empty.
+  private val withSkips =
+    """|circuit T :
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    output c : UInt<8>
+       |    connect b, a
+       |    c <- a
+       |    attach(a, b)
+       |""".stripMargin
+
+  private val clean =
+    """|circuit T :
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    connect b, a
+       |""".stripMargin
+
+  // `dangling` is never referenced in the body, so it stays unconnected; `a`/`b`
+  // are wired so the module is not flagged empty.
+  private val withDangling =
+    """|circuit T :
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    input dangling : UInt<8>
+       |    connect b, a
+       |""".stripMargin
+
+  // `Stub` is a real module with no connects and no instances -> empty-module.
+  // `T` wires its ports so it is the clean, non-empty baseline.
+  private val withEmptyModule =
+    """|circuit T :
+       |  module Stub :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |  module T :
+       |    input a : UInt<8>
+       |    output b : UInt<8>
+       |    connect b, a
+       |""".stripMargin
+
+  val tests = Tests {
+
+    test("skipped partial connects and attach become structured warnings") {
+      val d = IrWalk.design(ChirrtlParser.parse(withSkips))
+      val byKind = d.warnings.map(w => w.kind -> w).toMap
+      assert(byKind.contains("skipped-partial-connect"))
+      assert(byKind.contains("skipped-attach"))
+      assert(byKind("skipped-partial-connect").count == 1)
+      assert(byKind("skipped-attach").count == 1)
+      assert(byKind("skipped-partial-connect").message.contains("partial connect"))
+    }
+
+    test("a clean design has no warnings") {
+      val d = IrWalk.design(ChirrtlParser.parse(clean))
+      assert(d.warnings.isEmpty)
+    }
+
+    test("a dangling port becomes an unconnected-port warning") {
+      val d = IrWalk.design(ChirrtlParser.parse(withDangling))
+      val byKind = d.warnings.map(w => w.kind -> w).toMap
+      assert(byKind.contains("unconnected-port"))
+      assert(byKind("unconnected-port").count == 1)
+      assert(byKind("unconnected-port").message.contains("T.dangling"))
+    }
+
+    test("a module with no connects or instances becomes an empty-module warning") {
+      val d = IrWalk.design(ChirrtlParser.parse(withEmptyModule))
+      val byKind = d.warnings.map(w => w.kind -> w).toMap
+      assert(byKind.contains("empty-module"))
+      assert(byKind("empty-module").count == 1)
+      assert(byKind("empty-module").message.contains("Stub"))
+    }
+
+    test("Design.warnings defaults to empty and round-trips through JSON") {
+      val d = Design("T", Map.empty, Nil)
+      assert(d.warnings.isEmpty)
+      val js = upickle.default.write(d)
+      // serializeDefaults is NOT set on warnings, so a clean design omits it,
+      // keeping older/byte-identical JSON for warning-free exports.
+      assert(!js.contains("\"warnings\""))
+      val withW = d.copy(warnings = Seq(Warning("k", 2, "msg", "ModX")))
+      val back  = upickle.default.read[Design](upickle.default.write(withW))
+      assert(back.warnings == Seq(Warning("k", 2, "msg", "ModX")))
+    }
+
+    test("--strict is parsed as a boolean flag") {
+      val Right(cfg) = Launcher.parseArgs(Array("--top", "pkg.T", "--strict"))
+      assert(cfg.strict)
+      val Right(cfg2) = Launcher.parseArgs(Array("--top", "pkg.T"))
+      assert(!cfg2.strict)
+    }
+  }
+}

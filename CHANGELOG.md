@@ -1,12 +1,31 @@
 # Changelog
 
-Notable changes to SoCLess, in the
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. SoCLess uses
-[Semantic Versioning](https://semver.org/). Releases before 0.16.0 are listed on
-the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
-[tags](https://github.com/e-ban/SoCless/tags) pages.
+Notable changes to Socle, in the
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Socle uses
+[Semantic Versioning](https://semver.org/). Releases up to 0.21.0 were named
+SoCLess; their sections below keep the names they shipped with. Releases before
+0.16.0 are listed on the [GitHub releases](https://github.com/e-ban/socle/releases)
+and [tags](https://github.com/e-ban/socle/tags) pages.
 
 ## [Unreleased]
+
+### Changed
+
+- SoCLess is now **Socle**, everywhere, with no alias for the old names:
+
+  | Before | After |
+  |---|---|
+  | Scala packages `socless.*` | `socle.*` |
+  | Maven `io.socless::socless`, `::mill-socless` | `io.socle::socle`, `::mill-socle` |
+  | Mill trait `SoclessModule`, tasks `socless`, `soclessUI` | `SocleModule`, `socle`, `socleUI` |
+  | `SoclessExporter` | `SocleExporter` |
+  | VS Code extension `socless`, settings and commands `socless.*` | `socle`, `socle.*` |
+  | LSP methods `socless/*` | `socle/*` |
+  | Environment `SOCLESS_*`, properties `-Dsocless.*` | `SOCLE_*`, `-Dsocle.*` |
+  | Release files `socless-X.jar`, `socless-lsp-X.jar`, `socless-X.vsix`, `SoCLess-X.html` | `socle-X.jar`, `socle-lsp-X.jar`, `socle-X.vsix`, `socle-X.html` |
+
+  The browser's stored view settings (`socless-*` keys) start over once.
+  `design.json` files are unchanged and still load.
 
 ## [0.21.0] - 2026-11-02
 

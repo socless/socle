@@ -1,21 +1,21 @@
 //| mill-version: 1.1.6
 //
-// SoCLess build - Mill 1.1.6.
+// Socle build - Mill 1.1.6.
 //
 // Two artifacts get published:
-//   io.socless::socless::<v>        - runtime library (Scala 2.13 / Chisel)
-//   io.socless::mill-socless::<v>   - Mill plugin trait (Scala 3 / Mill APIs)
+//   io.socle::socle::<v>        - runtime library (Scala 2.13 / Chisel)
+//   io.socle::mill-socle::<v>   - Mill plugin trait (Scala 3 / Mill APIs)
 //
 // Bundled `example/` is a demonstration that skips publishLocal - it depends
-// on `socless` via moduleDeps and inlines the launcher invocation. Real
+// on `socle` via moduleDeps and inlines the launcher invocation. Real
 // consumers use the seamless plugin flow (see README).
 //
 // Quick start (this workspace):
-//   mill socless.publishLocal
-//   mill mill-socless.publishLocal
-//   mill example.soclessRun           # AXISystem (default)
-//   mill example.soclessRunGcd        # GCD
-//   mill example.soclessRunPipeline   # 4-stage RVPipeline
+//   mill socle.publishLocal
+//   mill mill-socle.publishLocal
+//   mill example.socleRun           # AXISystem (default)
+//   mill example.socleRunGcd        # GCD
+//   mill example.socleRunPipeline   # 4-stage RVPipeline
 
 package build
 
@@ -36,26 +36,26 @@ object V {
   val elk         = "0.9.1"
   val scalaJs     = "1.19.0"          // Scala.js for the in-browser layout (issue #167)
   val laminar     = "17.2.0"          // Scala.js UI framework for the frontend (epic #172)
-  val byteBuddy   = "1.18.15"         // socless-probe agent; 1.15 fails on Java 25
-  val lsp4j       = "1.0.0"           // socless-lsp language server
-  val scalameta   = "4.17.4"          // socless-lsp syntactic test discovery
+  val byteBuddy   = "1.18.15"         // socle-probe agent; 1.15 fails on Java 25
+  val lsp4j       = "1.0.0"           // socle-lsp language server
+  val scalameta   = "4.17.4"          // socle-lsp syntactic test discovery
   val vscodeLanguageClient = "9.0.1"  // npm, staged into the VS Code extension at packaging
   val vsce        = "3.2.1"           // @vscode/vsce, packages the VS Code extension
   val publishVer  = "0.21.1-SNAPSHOT"
 }
 
 // ─── Common publish boilerplate ─────────────────────────────────────────────
-trait SoclessPublish extends PublishModule {
+trait SoclePublish extends PublishModule {
   def publishVersion = V.publishVer
   def pomSettings = PomSettings(
-    description    = "SoCLess Chisel design exporter",
-    organization   = "io.socless",
-    // The actual repository (the old socless/socless coordinates pointed at a
+    description    = "Socle Chisel design exporter",
+    organization   = "io.socle",
+    // The actual repository (the old socle/socle coordinates pointed at a
     // repo that does not exist); developers must be non-empty or Maven
     // Central validation rejects the artifact (issue #104).
-    url            = "https://github.com/e-ban/SoCless",
+    url            = "https://github.com/e-ban/socle",
     licenses       = Seq(License.MIT),
-    versionControl = VersionControl.github("e-ban", "SoCless"),
+    versionControl = VersionControl.github("e-ban", "socle"),
     developers     = Seq(Developer("e-ban", "Iban Guinebert", "https://github.com/e-ban")),
   )
 }
@@ -76,45 +76,45 @@ trait ChiselToolchain extends ScalaModule {
   )
 }
 
-// ─── SoCLess standalone server helper ───────────────────────────────────────
-// Used by both `example.soclessUI` and `example.soclessServe`.
-// The equivalent in the published Mill plugin lives in SoclessModule.scala.
+// ─── Socle standalone server helper ───────────────────────────────────────
+// Used by both `example.socleUI` and `example.socleServe`.
+// The equivalent in the published Mill plugin lives in SocleModule.scala.
 
 /** Parse the leftover task arguments as a port: `--port N` or a bare `N`.
-  * Mirrors SoclessModule.parsePort (build.mill cannot depend on the plugin).
+  * Mirrors SocleModule.parsePort (build.mill cannot depend on the plugin).
   */
-def parseSoclessPort(args: Seq[String], default: Int): Int = {
+def parseSoclePort(args: Seq[String], default: Int): Int = {
   def toPort(s: String): Int =
     s.toIntOption.filter(p => p > 0 && p <= 65535).getOrElse(
-      sys.error(s"[socless] invalid port '$s' (expected 1-65535)")
+      sys.error(s"[socle] invalid port '$s' (expected 1-65535)")
     )
   args match {
     case Seq()            => default
     case Seq("--port", n) => toPort(n)
     case Seq(n)           => toPort(n)
     case other            => sys.error(
-      s"[socless] unrecognized arguments: ${other.mkString(" ")} (usage: soclessUI [--port] <port>)"
+      s"[socle] unrecognized arguments: ${other.mkString(" ")} (usage: socleUI [--port] <port>)"
     )
   }
 }
 
 /** Open `url` in the default browser, best-effort: never kill the server task. */
-def openSoclessBrowser(url: String, log: String => Unit): Unit = {
+def openSocleBrowser(url: String, log: String => Unit): Unit = {
   val opener =
     if (sys.props.getOrElse("os.name", "").toLowerCase.contains("mac")) "open"
     else "xdg-open"
   try { os.proc(opener, url).spawn(stdout = os.Pipe, stderr = os.Pipe); () }
-  catch { case _: Exception => log(s"[socless] could not open a browser, visit $url manually") }
+  catch { case _: Exception => log(s"[socle] could not open a browser, visit $url manually") }
 }
 
 // ─── Runtime library ────────────────────────────────────────────────────────
-object socless extends ChiselToolchain with SoclessPublish {
-  def artifactName = "socless"
-  // Explicit so `mill socless.assembly` always produces a runnable jar
+object socle extends ChiselToolchain with SoclePublish {
+  def artifactName = "socle"
+  // Explicit so `mill socle.assembly` always produces a runnable jar
   // (`java -jar … serve` / `--fir-input`) regardless of how many `main`s the
   // module gains; relying on Mill's single-main auto-detection would silently
   // break the assembly the day a second entry point is added (issue #156).
-  def mainClass = Some("socless.cli.Launcher")
+  def mainClass = Some("socle.cli.Launcher")
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.lihaoyi::upickle:${V.upickle}",
     mvn"com.lihaoyi::os-lib:${V.osLib}",
@@ -122,13 +122,13 @@ object socless extends ChiselToolchain with SoclessPublish {
     mvn"org.eclipse.elk:org.eclipse.elk.alg.layered:${V.elk}",
   )
   // Bundle ONLY the built UI at the JAR root (it is the single resource
-  // SoclessModule.soclessUI extracts; embedding all of ui/ used to ship ~9 MB
+  // SocleModule.socleUI extracts; embedding all of ui/ used to ship ~9 MB
   // of dev assets, issue #104). The shipped UI is the Scala.js + Laminar
-  // frontend, produced offline by the `socless-ui.dist` task (no committed
+  // frontend, produced offline by the `socle-ui.dist` task (no committed
   // artifact, epic #172 / issue #184). The JAR resource keeps the name
-  // SoCLess.html so the server/plugin are unchanged.
+  // socle.html so the server/plugin are unchanged.
   def uiResource = Task {
-    os.copy.over(`socless-ui`.dist().path, Task.dest / "SoCLess.html")
+    os.copy.over(`socle-ui`.dist().path, Task.dest / "socle.html")
     PathRef(Task.dest)
   }
   override def resources = Task { super.resources() :+ uiResource() }
@@ -143,46 +143,46 @@ object socless extends ChiselToolchain with SoclessPublish {
     *
     * Run this whenever an intentional pipeline change alters the emitted JSON:
     *
-    *   ./mill socless.regenerateGoldens
+    *   ./mill socle.regenerateGoldens
     *
-    * The task forks `socless.GoldenWriter`, which writes (or overwrites) both
+    * The task forks `socle.GoldenWriter`, which writes (or overwrites) both
     * golden families in the source tree: the JSON snapshots
-    * (socless/test/resources/golden/<name>.json) and the layout-structure
-    * snapshots (socless/test/resources/golden/layout/<name>.txt).  After
-    * regenerating, review the diff with `git diff socless/test/resources/golden/`
+    * (socle/test/resources/golden/<name>.json) and the layout-structure
+    * snapshots (socle/test/resources/golden/layout/<name>.txt).  After
+    * regenerating, review the diff with `git diff socle/test/resources/golden/`
     * before committing.
     *
-    * Alternative (sets SOCLESS_REGENERATE=1 so the golden TESTS write instead
+    * Alternative (sets SOCLE_REGENERATE=1 so the golden TESTS write instead
     * of assert; equivalent for the JSON goldens):
-    *   SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
+    *   SOCLE_REGENERATE=1 ./mill socle.test socle.GoldenDesignTest
     */
   def regenerateGoldens(): Command[Unit] = Task.Command {
     // Build a classpath for the test JVM.  test.runClasspath() includes the
     // compiled test classes, so GoldenWriter and the pipeline are all present.
     val cp = test.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
     // Golden files live in the source tree, not in Task.dest, so they get committed.
-    val goldenDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "golden"
+    val goldenDir = mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "golden"
     os.makeDir.all(goldenDir)
     val rc = os.proc(
       Seq("java") ++ test.forkArgs() ++
-      Seq("-cp", cp, "socless.GoldenWriter", goldenDir.toString)
+      Seq("-cp", cp, "socle.GoldenWriter", goldenDir.toString)
     ).call(
       stdout = os.Inherit, stderr = os.Inherit,
       cwd = mill.api.BuildCtx.workspaceRoot,
       check = false,
     )
     if (rc.exitCode != 0) throw new RuntimeException(s"regenerateGoldens failed (exit ${rc.exitCode})")
-    Task.log.info("[socless] Goldens regenerated - review 'git diff socless/test/resources/golden/' before committing.")
+    Task.log.info("[socle] Goldens regenerated - review 'git diff socle/test/resources/golden/' before committing.")
   }
 }
 
 // ─── In-browser layout engine (Scala.js, issue #167) ────────────────────────
 // The browser-side schematic layout (elkjs facade + the port of Layout.scala's
-// graph build/extract). Consumed in-process by the `socless-ui` frontend via a
+// graph build/extract). Consumed in-process by the `socle-ui` frontend via a
 // moduleDep (BrowserLayout.runTyped), so it no longer produces a standalone
 // artifact of its own. Shares the pure Schema + LayoutCore + BundleTree sources
-// with the JVM `socless` module so the two layout implementations cannot drift.
-object `socless-js` extends ScalaJSModule {
+// with the JVM `socle` module so the two layout implementations cannot drift.
+object `socle-js` extends ScalaJSModule {
   def scalaVersion   = V.scala
   def scalaJSVersion = V.scalaJs
   def moduleKind = ModuleKind.NoModule
@@ -190,57 +190,57 @@ object `socless-js` extends ScalaJSModule {
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.lihaoyi::upickle::${V.upickle}",
   )
-  // Compile the SHARED pure sources straight from the JVM `socless` module so
+  // Compile the SHARED pure sources straight from the JVM `socle` module so
   // the schema + engine-independent layout logic cannot drift between the two
   // engines (issue #167). Only the genuinely ELK-free files are included; they
   // are declared via Task.Sources so Mill permits reading them during the build.
   def sharedSources = Task.Sources(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "Schema.scala",
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "LayoutCore.scala",
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "InstanceFold.scala",
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "BundleTree.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "Schema.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "LayoutCore.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "InstanceFold.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "BundleTree.scala",
     // A module's and its port fields' scaladoc, from the embedded sources (the Inspector, pin cards).
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "Scaladoc.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "Scaladoc.scala",
     // The declared ports of a box as rows (#332), for the layout's pins and the UI's rows.
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "layout" / "PortModel.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "PortModel.scala",
     // LayoutCore now consumes the synthetic-pin protocol (issue #212 layer wires).
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "ir" / "Synthetic.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "ir" / "Synthetic.scala",
     // The wave viewer settings, read by the UI from /ide.json.
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveSettings.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "wave" / "WaveSettings.scala",
     // The schematic's defaults from the editor's settings, read by the UI from /ide.json.
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "schema" / "SchematicSettings.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "SchematicSettings.scala",
     // The pure plan of a module's signals for the waveform viewer.
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveLayout.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "wave" / "WaveLayout.scala",
     // The messages between the panel and the VS Code Surfer tab.
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "SurferWire.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "wave" / "SurferWire.scala",
     // The signal behind a trace path, and its drivers and loads (Surfer's right-click actions).
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "wave" / "WaveLinks.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "wave" / "WaveLinks.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 }
 
 // ─── In-browser UI (Scala.js + Laminar, epic #172) ──────────────────────────
-// The shipped frontend (embedded in the socless JAR as SoCLess.html). Depends
-// on socless-js so it can call the layout engine + bundle tree in-process.
+// The shipped frontend (embedded in the socle JAR as socle.html). Depends
+// on socle-js so it can call the layout engine + bundle tree in-process.
 // NoModule so its fullLinkJS output inlines into the single-file dist offline.
-object `socless-ui` extends ScalaJSModule {
+object `socle-ui` extends ScalaJSModule {
   def scalaVersion   = V.scala
   def scalaJSVersion = V.scalaJs
   def moduleKind     = ModuleKind.NoModule
-  def moduleDeps     = Seq(`socless-js`)
+  def moduleDeps     = Seq(`socle-js`)
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.raquo::laminar::${V.laminar}",
   )
 
   // The module owns its HTML template + vendored elkjs runtime.
-  def uiTemplate  = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "html" / "SoCLess.src.html")
-  def uiVendorElk = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk.bundled.js")
+  def uiTemplate  = Task.Source(mill.api.BuildCtx.workspaceRoot / "socle-ui" / "html" / "socle.src.html")
+  def uiVendorElk = Task.Source(mill.api.BuildCtx.workspaceRoot / "socle-ui" / "vendor" / "elk.bundled.js")
   // The worker build of elkjs (matched version), inlined as a non-executing
   // script the runtime reads to spin up the Blob-URL layout Web Worker (Phase 2).
-  def uiVendorElkWorker = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "elk-worker.min.js")
+  def uiVendorElkWorker = Task.Source(mill.api.BuildCtx.workspaceRoot / "socle-ui" / "vendor" / "elk-worker.min.js")
   // IBM Plex woff2 (vendored, #277): inlined as base64 @font-face so the shipped
   // file carries its own fonts offline (the template links a CDN for dev only).
-  def uiVendorFonts = Task.Source(mill.api.BuildCtx.workspaceRoot / "socless-ui" / "vendor" / "fonts")
+  def uiVendorFonts = Task.Source(mill.api.BuildCtx.workspaceRoot / "socle-ui" / "vendor" / "fonts")
 
   /** The shipped single-file UI: the fullLinkJS output + the vendored elkjs
     * bundle inlined into the template, producing one offline file. Built
@@ -256,10 +256,10 @@ object `socless-ui` extends ScalaJSModule {
       sys.error("inlined script contains '</script' and cannot be embedded safely")
 
     val elkRe = """<script src="https://unpkg\.com/elkjs@([^/"]+)[^"]*"[^>]*></script>""".r
-    val jsRe  = """<script src="socless-ui\.js"></script>""".r
+    val jsRe  = """<script src="socle-ui\.js"></script>""".r
     val elkVer = elkRe.findFirstMatchIn(tpl).map(_.group(1))
-      .getOrElse(sys.error("elkjs CDN tag not found in SoCLess.src.html"))
-    if (jsRe.findFirstIn(tpl).isEmpty) sys.error("socless-ui.js script tag not found in SoCLess.src.html")
+      .getOrElse(sys.error("elkjs CDN tag not found in socle.src.html"))
+    if (jsRe.findFirstIn(tpl).isEmpty) sys.error("socle-ui.js script tag not found in socle.src.html")
 
     def quote(s: String) = java.util.regex.Matcher.quoteReplacement(s)
     // Inline the elkjs client (executes, sets window.ELK) plus the worker build
@@ -268,9 +268,9 @@ object `socless-ui` extends ScalaJSModule {
     // URL, so the worker source must travel inline.
     val elkInline =
       s"<script>/* elkjs@$elkVer bundled (vendored) */\n$elk\n</script>\n" +
-      s"""<script type="text/plain" id="socless-elk-worker">/* elkjs@$elkVer worker (vendored) */""" + s"\n$elkWorker\n</script>"
+      s"""<script type="text/plain" id="socle-elk-worker">/* elkjs@$elkVer worker (vendored) */""" + s"\n$elkWorker\n</script>"
     var html = elkRe.replaceFirstIn(tpl, quote(elkInline))
-    html = jsRe.replaceFirstIn(html, quote(s"<script>/* socless-ui (Scala.js + Laminar) */\n$js\n</script>"))
+    html = jsRe.replaceFirstIn(html, quote(s"<script>/* socle-ui (Scala.js + Laminar) */\n$js\n</script>"))
 
     // Inline IBM Plex as base64 @font-face, replacing the dev CDN <link> (#277).
     // Plex Sans is a variable woff2 (one face, 400-700); Plex Mono is three
@@ -285,63 +285,63 @@ object `socless-ui` extends ScalaJSModule {
       face("IBM Plex Mono", "400", "IBMPlexMono-400.woff2") + "\n" +
       face("IBM Plex Mono", "500", "IBMPlexMono-500.woff2") + "\n" +
       face("IBM Plex Mono", "600", "IBMPlexMono-600.woff2")
-    val fontsRe = """<link id="socless-fonts"[^>]*>""".r
-    if (fontsRe.findFirstIn(tpl).isEmpty) sys.error("socless-fonts <link> not found in SoCLess.src.html")
+    val fontsRe = """<link id="socle-fonts"[^>]*>""".r
+    if (fontsRe.findFirstIn(tpl).isEmpty) sys.error("socle-fonts <link> not found in socle.src.html")
     html = """(?m)^\s*<link rel="preconnect" href="https://fonts\.gstatic\.com"[^>]*>\s*$\n?""".r.replaceFirstIn(html, "")
     html = fontsRe.replaceFirstIn(html, quote(s"<style>/* IBM Plex (vendored, #277) */\n$fontCss\n</style>"))
 
     val doctypeRe = """(?i)^<!doctype html>""".r
     if (doctypeRe.findFirstIn(html).isEmpty) sys.error("expected the template to start with a doctype")
     html = doctypeRe.replaceFirstIn(html, quote(
-      "<!doctype html>\n<!-- GENERATED FILE - DO NOT EDIT. Built by `mill socless-ui.dist` from\n" +
-      "     socless-ui/html/SoCLess.src.html (Scala.js + Laminar inlined offline, epic #172). -->"))
+      "<!doctype html>\n<!-- GENERATED FILE - DO NOT EDIT. Built by `mill socle-ui.dist` from\n" +
+      "     socle-ui/html/socle.src.html (Scala.js + Laminar inlined offline, epic #172). -->"))
 
     if (html.contains("unpkg.com")) sys.error("dist still references unpkg.com (offline guarantee broken)")
     if (html.contains("fonts.googleapis.com") || html.contains("fonts.gstatic.com"))
       sys.error("dist still references a font CDN (offline guarantee broken)")
-    os.write(Task.dest / "SoCLess.html", html)
-    PathRef(Task.dest / "SoCLess.html")
+    os.write(Task.dest / "socle.html", html)
+    PathRef(Task.dest / "socle.html")
   }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────
-// Compiled against the Mill APIs so users can mix in `SoclessModule`. Doesn't
-// declare a moduleDep on `socless` - the trait pulls the runtime in at task
+// Compiled against the Mill APIs so users can mix in `SocleModule`. Doesn't
+// declare a moduleDep on `socle` - the trait pulls the runtime in at task
 // time via the user's mvnDeps.
-object `mill-socless` extends ScalaModule with SoclessPublish {
+object `mill-socle` extends ScalaModule with SoclePublish {
   def scalaVersion = V.scala3Mill
-  def artifactName = "mill-socless"
+  def artifactName = "mill-socle"
   // Mill plugins are resolved with the Mill binary-platform suffix: the
-  // `//| mvnDeps: io.socless::mill-socless::<v>` directive documented in the
-  // README looks for mill-socless_mill1_3. Without this suffix we published
-  // mill-socless_3 and the documented consumption flow could not resolve the
+  // `//| mvnDeps: io.socle::mill-socle::<v>` directive documented in the
+  // README looks for mill-socle_mill1_3. Without this suffix we published
+  // mill-socle_3 and the documented consumption flow could not resolve the
   // artifact at all (caught by tools/consume-test, issue #103).
   override def platformSuffix = "_mill1"
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"com.lihaoyi::mill-libs:${V.mill}",
   )
-  // Bake the build's version into the plugin so soclessVersion (the runtime
+  // Bake the build's version into the plugin so socleVersion (the runtime
   // artifact the plugin pulls in) cannot drift from publishVersion: a plugin
   // published at 0.2.0 used to keep resolving a hardcoded 0.1.0-SNAPSHOT
   // (issue #104). RELEASING.md's single version bump now covers both.
   def buildInfoSource = Task {
     val src =
-      s"""package socless.mill
+      s"""package socle.mill
          |
          |/** Generated by build.mill: the version this plugin was built and
          |  * published as. Single source of truth is V.publishVer. */
-         |private[mill] object SoclessBuildInfo {
+         |private[mill] object SocleBuildInfo {
          |  val version: String = "${V.publishVer}"
          |}
          |""".stripMargin
-    os.write.over(Task.dest / "SoclessBuildInfo.scala", src)
+    os.write.over(Task.dest / "SocleBuildInfo.scala", src)
     PathRef(Task.dest)
   }
   override def generatedSources = Task { super.generatedSources() :+ buildInfoSource() }
 }
 
 // ─── Bundled example (uses moduleDeps, NOT the published plugin) ────────────
-// Stays inside this workspace so `mill example.soclessRun*` works without a
+// Stays inside this workspace so `mill example.socleRun*` works without a
 // prior publishLocal. Real-world consumers should use the plugin trait
 // instead (see README's "Seamless Mill plugin" section).
 //
@@ -349,29 +349,29 @@ object `mill-socless` extends ScalaModule with SoclessPublish {
 // in sibling packages). Different tops are exposed as separate tasks so each
 // gets its own out/ dir and you can name them on the CLI.
 object example extends ChiselToolchain {
-  def moduleDeps = Seq(socless)
+  def moduleDeps = Seq(socle)
 
-  /** Default top - kept for back-compat with `mill example.soclessRun`. */
-  def soclessTop: String = "axisystem.AXISystem"
+  /** Default top - kept for back-compat with `mill example.socleRun`. */
+  def socleTop: String = "axisystem.AXISystem"
 
   /** Plain ChiselSim scalatest suites: unmodified-user-test fixtures for the
-    * "View design" probe. They deliberately import nothing from SoCLess. */
+    * "View design" probe. They deliberately import nothing from Socle. */
   object test extends ScalaTests with TestModule.ScalaTest {
     def mvnDeps = super.mvnDeps() ++ Seq(
       mvn"org.scalatest::scalatest:3.2.19",
     )
   }
 
-  /** Internal: fork java with this module's runClasspath, call socless.cli.Launcher
+  /** Internal: fork java with this module's runClasspath, call socle.cli.Launcher
     * with `--top <fqcn>`, and return the path to the emitted design.json.
-    * Called from each named soclessRun* task below.
+    * Called from each named socleRun* task below.
     */
   private def runFor(top: String, dest: os.Path, log: mill.api.Logger, cp: Seq[mill.api.PathRef]): os.Path = {
     val out   = dest / "design.json"
     val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
     val rc = os.proc(
       "java", "-cp", cpStr,
-      "socless.cli.Launcher",
+      "socle.cli.Launcher",
       "--top", top,
       "--output", out.toString,
       // Workspace root → exporter resolves SourceRefs against it for the
@@ -380,91 +380,91 @@ object example extends ChiselToolchain {
       "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = dest, check = false)
     if (rc.exitCode != 0) throw new RuntimeException(s"launcher exited ${rc.exitCode} for top=$top")
-    log.info(s"[socless] $top → $out")
+    log.info(s"[socle] $top → $out")
     out
   }
 
-  /** AXI4 interconnect (default soclessTop). */
-  def soclessRun: T[PathRef] = Task {
-    PathRef(runFor(soclessTop, Task.dest, Task.log, runClasspath()))
+  /** AXI4 interconnect (default socleTop). */
+  def socleRun: T[PathRef] = Task {
+    PathRef(runFor(socleTop, Task.dest, Task.log, runClasspath()))
   }
 
   /** GCD - single-module Decoupled in/out demo. */
-  def soclessRunGcd: T[PathRef] = Task {
+  def socleRunGcd: T[PathRef] = Task {
     PathRef(runFor("gcd.GCD", Task.dest, Task.log, runClasspath()))
   }
 
   /** 4-stage RVPipeline - multi-module with mixed Decoupled + sub-bundles. */
-  def soclessRunPipeline: T[PathRef] = Task {
+  def socleRunPipeline: T[PathRef] = Task {
     PathRef(runFor("rvpipeline.RVPipeline", Task.dest, Task.log, runClasspath()))
   }
 
   /** Deep hierarchy (>= 3 levels): DeepSoc > Cluster > Vec[Core] > (ALU, RegFile). */
-  def soclessRunDeepSoc: T[PathRef] = Task {
+  def socleRunDeepSoc: T[PathRef] = Task {
     PathRef(runFor("deephier.DeepSoc", Task.dest, Task.log, runClasspath()))
   }
 
   /** Vec-of-bundle ports + nested/mixed-direction bundles: Interconnect. */
-  def soclessRunIoBundles: T[PathRef] = Task {
+  def socleRunIoBundles: T[PathRef] = Task {
     PathRef(runFor("iobundles.Interconnect", Task.dest, Task.log, runClasspath()))
   }
 
   /** Register-heavy datapath: dense reg/when/elsewhen/otherwise CHIRRTL. */
-  def soclessRunRegHeavy: T[PathRef] = Task {
+  def socleRunRegHeavy: T[PathRef] = Task {
     PathRef(runFor("regheavy.Datapath", Task.dest, Task.log, runClasspath()))
   }
 
   /** Minimal 3-state FSM demo (switch/is on a state register). */
-  def soclessRunFsm: T[PathRef] = Task {
+  def socleRunFsm: T[PathRef] = Task {
     PathRef(runFor("fsm.TrafficFsm", Task.dest, Task.log, runClasspath()))
   }
 
   /** Counter with assert/assume/cover -> Chisel Verification layers (issue #212). */
-  def soclessRunLayers: T[PathRef] = Task {
+  def socleRunLayers: T[PathRef] = Task {
     PathRef(runFor("layers.LayeredCounter", Task.dest, Task.log, runClasspath()))
   }
 
   /** Scattered bundle (one port bundle whose fields fan to different peers) ->
     * the in/out direction split (issue #237). */
-  def soclessRunScatter: T[PathRef] = Task {
+  def socleRunScatter: T[PathRef] = Task {
     PathRef(runFor("scatter.ScatterDemo", Task.dest, Task.log, runClasspath()))
   }
 
   /** A 16x16 grid of stages in one module: the UI smoke's performance guard. */
-  def soclessRunBigArray: T[PathRef] = Task {
+  def socleRunBigArray: T[PathRef] = Task {
     PathRef(runFor("bigarray.BigArray", Task.dest, Task.log, runClasspath()))
   }
 
   /** Dump the default design's baked layout to debug SVG + text (no UI). */
-  def soclessDebugLayout: T[PathRef] = Task {
-    val json   = soclessRun().path
+  def socleDebugLayout: T[PathRef] = Task {
+    val json   = socleRun().path
     val outDir = Task.dest / "layout-debug"
     val cpStr  = runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
     val rc = os.proc(
-      "java", "-cp", cpStr, "socless.cli.Launcher", "debug-layout",
+      "java", "-cp", cpStr, "socle.cli.Launcher", "debug-layout",
       json.toString, "--out", outDir.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
-    if (rc.exitCode != 0) throw new RuntimeException(s"socless debug-layout exited ${rc.exitCode}")
-    Task.log.info(s"[socless] layout-debug -> $outDir")
+    if (rc.exitCode != 0) throw new RuntimeException(s"socle debug-layout exited ${rc.exitCode}")
+    Task.log.info(s"[socle] layout-debug -> $outDir")
     PathRef(outDir)
   }
 
   /** Elaborate the default design (AXI4) and open the UI in a browser.
     *
-    * Extracts SoCLess.html from the runtime JAR, places design.json next to
+    * Extracts socle.html from the runtime JAR, places design.json next to
     * it, and starts a dynamic HTTP server that also accepts
     * `POST /convert` (CHIRRTL body -> design.json response) so you can
     * drag-drop additional .fir files while the server is running.
     *
     * Usage:
-    *   mill example.soclessUI              # port 8765
-    *   mill example.soclessUI --port 9000  # custom port
+    *   mill example.socleUI              # port 8765
+    *   mill example.socleUI --port 9000  # custom port
     *
     * Blocks until Ctrl-C.
     */
-  def soclessUI(args: Args) = Task.Command {
-    val port = parseSoclessPort(args.value, 8765)
-    val json = soclessRun().path
+  def socleUI(args: Args) = Task.Command {
+    val port = parseSoclePort(args.value, 8765)
+    val json = socleRun().path
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
     // The UI HTML is served from the JAR by the forked server; only the
@@ -475,112 +475,112 @@ object example extends ChiselToolchain {
 
   // The committed capture, a Source so a fixture change reruns the conversion.
   def capturedDeepSocFixture = Task.Source(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "deepsoc.json")
+    mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "deepsoc.json")
 
   /** Convert the committed DeepSoc capture to a laid-out design.json.
     *
     * Gives the ui-smoke site a captured (view mode) design whose generator
     * copies are tagged with a fold group. Caches on the fixture and classpath.
     */
-  def soclessCapturedDeepSoc: T[PathRef] = Task {
+  def socleCapturedDeepSoc: T[PathRef] = Task {
     val out = Task.dest / "design.json"
     val rc = os.proc(
       "java", "-cp", runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
-      "socless.cli.Launcher", "from-capture", capturedDeepSocFixture().path.toString,
+      "socle.cli.Launcher", "from-capture", capturedDeepSocFixture().path.toString,
       "--output", out.toString,
       "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
-    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the DeepSoc capture (exit ${rc.exitCode})")
+    if (rc.exitCode != 0) sys.error(s"[socle] could not adapt the DeepSoc capture (exit ${rc.exitCode})")
     PathRef(out)
   }
 
   def capturedFsmFixture = Task.Source(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "fsm.json")
+    mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "fsm.json")
   // The Scala source the index reads the state diagram from.
   def capturedFsmScala = Task.Source(
     mill.api.BuildCtx.workspaceRoot / "example" / "src" / "fsm" / "TrafficFsm.scala")
 
   /** Convert the committed TrafficFsm capture to a laid-out design.json with its state diagram.
     *
-    * Runs `socless.lsp.FromCapture` (scalameta source index) so the FSM block
+    * Runs `socle.lsp.FromCapture` (scalameta source index) so the FSM block
     * carries the diagram read from the source. Caches on the fixture and the
     * language server classpath.
     */
-  def soclessCapturedFsm: T[PathRef] = Task {
+  def socleCapturedFsm: T[PathRef] = Task {
     capturedFsmScala() // only puts the source's hash in the graph: FromCapture reads it under --source-root
     val out = Task.dest / "design.json"
-    val cp  = build.`socless-lsp`.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val cp  = build.`socle-lsp`.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
     val rc = os.proc(
       "java", "-cp", cp,
-      "socless.lsp.FromCapture", capturedFsmFixture().path.toString,
+      "socle.lsp.FromCapture", capturedFsmFixture().path.toString,
       "--output", out.toString,
       "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
-    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the TrafficFsm capture (exit ${rc.exitCode})")
+    if (rc.exitCode != 0) sys.error(s"[socle] could not adapt the TrafficFsm capture (exit ${rc.exitCode})")
     PathRef(out)
   }
 
   def capturedGcdFixture = Task.Source(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "gcd.json")
+    mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "gcd.json")
 
   /** Convert the committed GCD capture to a laid-out design.json with its
     * signals (`ModuleDef.signals`): the design the embedded smoke's Waveform
     * tab follows against a GCD trace. Caches on the fixture and classpath.
     */
-  def soclessCapturedGcd: T[PathRef] = Task {
+  def socleCapturedGcd: T[PathRef] = Task {
     val out = Task.dest / "design.json"
     val rc = os.proc(
       "java", "-cp", runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator),
-      "socless.cli.Launcher", "from-capture", capturedGcdFixture().path.toString,
+      "socle.cli.Launcher", "from-capture", capturedGcdFixture().path.toString,
       "--output", out.toString,
       "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
-    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt the GCD capture (exit ${rc.exitCode})")
+    if (rc.exitCode != 0) sys.error(s"[socle] could not adapt the GCD capture (exit ${rc.exitCode})")
     PathRef(out)
   }
 
   /** View the design a ChiselSim test elaborates, in the UI, without simulating.
     *
-    * Runs the unmodified test in view mode with the socless-probe agent
+    * Runs the unmodified test in view mode with the socle-probe agent
     * (`example.test.runClasspath`), adapts the capture to design.json (layouts
-    * baked) and serves it like `soclessUI`. Blocks until Ctrl-C.
+    * baked) and serves it like `socleUI`. Blocks until Ctrl-C.
     *
     * @param args `<Suite> <full test name> [--port N]`, e.g.
     *             `gcd.GcdSpec "GCD computes gcd(48, 18)"`
     */
-  def soclessView(args: Args) = Task.Command {
+  def socleView(args: Args) = Task.Command {
     val (suite, testName, rest) = args.value match {
       case Seq(s, t, r @ _*) => (s, t, r)
-      case _ => sys.error("[socless] usage: soclessView <Suite> <full test name> [--port N]")
+      case _ => sys.error("[socle] usage: socleView <Suite> <full test name> [--port N]")
     }
-    val port     = parseSoclessPort(rest, 8765)
+    val port     = parseSoclePort(rest, 8765)
     val captured = Task.dest / "captured.json"
     val sep      = java.io.File.pathSeparator
     // Exit code 1 is the normal view-mode result (the probe stops the test);
     // only the captured status counts.
     val run = os.proc(
-      "java", s"-javaagent:${build.`socless-probe`.assembly().path}",
-      "-Dsocless.probe.mode=view", s"-Dsocless.probe.out=$captured",
+      "java", s"-javaagent:${build.`socle-probe`.assembly().path}",
+      "-Dsocle.probe.mode=view", s"-Dsocle.probe.out=$captured",
       "-cp", test.runClasspath().map(_.path.toString).mkString(sep),
       "org.scalatest.tools.Runner", "-oW", "-s", suite, "-t", testName,
     ).call(cwd = Task.dest, check = false, mergeErrIntoOut = true)
     if (!os.exists(captured))
-      sys.error(s"[socless] the probe wrote no capture; test JVM output:\n${run.out.text()}")
+      sys.error(s"[socle] the probe wrote no capture; test JVM output:\n${run.out.text()}")
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
     val rc = os.proc(
       "java", "-cp", runClasspath().map(_.path.toString).mkString(sep),
-      "socless.cli.Launcher", "from-capture", captured.toString,
+      "socle.cli.Launcher", "from-capture", captured.toString,
       "--output", (uiDir / "design.json").toString,
       "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
     ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
-    if (rc.exitCode != 0) sys.error(s"[socless] could not adapt $captured (exit ${rc.exitCode})")
+    if (rc.exitCode != 0) sys.error(s"[socle] could not adapt $captured (exit ${rc.exitCode})")
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
-  /** Start the SoCLess UI server without elaborating any design first.
+  /** Start the Socle UI server without elaborating any design first.
     *
-    * Extracts SoCLess.html from the JAR and serves it on a local port.
+    * Extracts socle.html from the JAR and serves it on a local port.
     * A `POST /convert` endpoint lets the browser upload a `.fir` (CHIRRTL)
     * file and receive back a `design.json` -- the UI initiates this when you
     * drag-drop a `.fir` file onto the page.
@@ -589,13 +589,13 @@ object example extends ChiselToolchain {
     * project, no prior elaboration needed.
     *
     * Usage:
-    *   mill example.soclessServe              # port 8765
-    *   mill example.soclessServe --port 9000  # custom port
+    *   mill example.socleServe              # port 8765
+    *   mill example.socleServe --port 9000  # custom port
     *
     * Blocks until Ctrl-C.
     */
-  def soclessServe(args: Args) = Task.Command {
-    val port = parseSoclessPort(args.value, 8765)
+  def socleServe(args: Args) = Task.Command {
+    val port = parseSoclePort(args.value, 8765)
     val uiDir = Task.dest / "ui"
     os.makeDir.all(uiDir)
     // No design.json to pre-load; the user drops a .fir file in the browser.
@@ -603,23 +603,23 @@ object example extends ChiselToolchain {
     serve(uiDir, runClasspath(), port, Task.log)
   }
 
-  /** Fork the standalone JVM UI server (`socless.cli.Launcher serve`) on the run
+  /** Fork the standalone JVM UI server (`socle.cli.Launcher serve`) on the run
     * classpath and block until Ctrl-C. The same server the published plugin and
     * the standalone CLI use (issue #155): it serves the UI HTML embedded in the
     * JAR, the JSONs from `uiDir` via `--dir`, and converts dropped `.fir` files
     * in process via `POST /convert`. No `python3` dependency. */
   private def serve(uiDir: os.Path, cp: Seq[mill.api.PathRef], port: Int, log: mill.api.Logger): Unit = {
     val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
-    val url   = s"http://localhost:$port/SoCLess.html"
-    log.info(s"[socless] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
-    openSoclessBrowser(url, msg => log.info(msg))
+    val url   = s"http://localhost:$port/socle.html"
+    log.info(s"[socle] UI at $url (drag-drop .fir or .json) -- Ctrl-C to stop")
+    openSocleBrowser(url, msg => log.info(msg))
     os.proc(
-      "java", "-cp", cpStr, "socless.cli.Launcher", "serve",
+      "java", "-cp", cpStr, "socle.cli.Launcher", "serve",
       "--port", port.toString, "--dir", uiDir.toString, "--no-open",
     ).call(stdout = os.Inherit, stderr = os.Inherit)
   }
 
-  /** Dump CHIRRTL for all example tops into socless/test/resources/chirrtl/.
+  /** Dump CHIRRTL for all example tops into socle/test/resources/chirrtl/.
     * Committed fixtures let PipelineRobustnessTest run without Chisel at test time.
     * Usage: mill example.dumpChirrtlFixtures
     * This is a Command (not a Task) so it can write outside Task.dest.
@@ -635,7 +635,7 @@ object example extends ChiselToolchain {
       "fsm.TrafficFsm"         -> "fsm.fir",
       "layers.LayeredCounter"  -> "layers.fir",
     )
-    val outDir = mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "chirrtl"
+    val outDir = mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "chirrtl"
     os.makeDir.all(outDir)
     val cp = runClasspath()
     fixtures.foreach { case (top, fname) =>
@@ -643,12 +643,12 @@ object example extends ChiselToolchain {
       val cpStr = cp.map(_.path.toString).mkString(java.io.File.pathSeparator)
       val rc = os.proc(
         "java", "-cp", cpStr,
-        "socless.cli.Launcher",
+        "socle.cli.Launcher",
         "--top", top,
         "--chirrtl-out", dest.toString,
       ).call(stdout = os.Inherit, stderr = os.Inherit, cwd = Task.dest, check = false)
       if (rc.exitCode != 0) throw new RuntimeException(s"CHIRRTL dump failed for top=$top")
-      Task.log.info(s"[socless] $top -> $dest")
+      Task.log.info(s"[socle] $top -> $dest")
     }
   }
 }
@@ -658,7 +658,7 @@ object example extends ChiselToolchain {
 // shared CapturedModel. Chisel is compile-only: the agent jar built from this
 // module must NOT contain Chisel/firrtl (the user's test JVM provides them),
 // so mvnDeps is set without ChiselToolchain's runtime Chisel dependency.
-object `socless-probe` extends ChiselToolchain {
+object `socle-probe` extends ChiselToolchain {
   def mvnDeps = Seq(
     mvn"com.lihaoyi::upickle:${V.upickle}",
     mvn"net.bytebuddy:byte-buddy:${V.byteBuddy}",
@@ -667,28 +667,28 @@ object `socless-probe` extends ChiselToolchain {
     mvn"org.chipsalliance::chisel:${V.chisel}",
     mvn"org.scala-lang:scala-reflect:${V.scala}",
   )
-  // The captured model is shared with `socless` (which adapts it to the
-  // design.json schema), like `socless-js.sharedSources`, so it cannot drift.
+  // The captured model is shared with `socle` (which adapts it to the
+  // design.json schema), like `socle-js.sharedSources`, so it cannot drift.
   def sharedSources = Task.Sources(
-    mill.api.BuildCtx.workspaceRoot / "socless" / "src" / "socless" / "capture" / "CapturedModel.scala",
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "capture" / "CapturedModel.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
 
   // `assembly` is the agent jar (`java -javaagent:<jar>`). It runs inside the
   // user's test JVM, which provides Scala and Chisel: those are left out, and
   // the libraries the probe brings (and its own copy of the captured model,
-  // which socless also ships) are relocated so they cannot clash with the
+  // which socle also ships) are relocated so they cannot clash with the
   // user's versions.
   def manifest = Task {
     super.manifest().add(
-      "Premain-Class"           -> "socless.probe.Agent",
+      "Premain-Class"           -> "socle.probe.Agent",
       "Can-Retransform-Classes" -> "true",
     )
   }
   def prependShellScript = ""
   def assemblyRules = super.assemblyRules ++
-    Seq("net.bytebuddy", "upickle", "ujson", "upack", "geny", "sourcecode", "socless.capture").map { p =>
-      Assembly.Rule.Relocate(s"$p.**", "socless.shaded.@0")
+    Seq("net.bytebuddy", "upickle", "ujson", "upack", "geny", "sourcecode", "socle.capture").map { p =>
+      Assembly.Rule.Relocate(s"$p.**", "socle.shaded.@0")
     } ++
     Seq("scala/.*", "chisel3/.*", "firrtl/.*", "circt/.*", ".*module-info\\.class", "rootdoc\\.txt", "library\\.properties")
       .map(Assembly.Rule.ExcludePattern(_))
@@ -711,7 +711,7 @@ object `socless-probe` extends ChiselToolchain {
     def forkArgs = Task {
       def cp(rc: Seq[PathRef]) = rc.map(_.path.toString).mkString(java.io.File.pathSeparator)
       super.forkArgs() ++ Seq(
-        s"-Dprobe.jar=${`socless-probe`.assembly().path}",
+        s"-Dprobe.jar=${`socle-probe`.assembly().path}",
         s"-Dexample.cp=${cp(example.test.runClasspath())}",
         s"-Dfixtures.cp=${cp(fixtures.runClasspath())}",
       )
@@ -720,21 +720,21 @@ object `socless-probe` extends ChiselToolchain {
 }
 
 // ─── Language server (Chisel IDE) ───────────────────────────────────────────
-object `socless-lsp` extends ScalaModule {
+object `socle-lsp` extends ScalaModule {
   def scalaVersion = V.scala
-  def moduleDeps = Seq(socless)
+  def moduleDeps = Seq(socle)
   def mvnDeps = Seq(
     mvn"org.eclipse.lsp4j:org.eclipse.lsp4j:${V.lsp4j}",
     mvn"org.scalameta::scalameta:${V.scalameta}",
   )
-  def mainClass = Some("socless.lsp.Main")
+  def mainClass = Some("socle.lsp.Main")
   // No mixin forwarders: forwarders of lsp4j's default methods (initialized(),
   // initialized(params)) make its reflection see "Duplicate RPC method".
   def scalacOptions = super.scalacOptions() ++ Seq("-Xmixin-force-forwarders:false")
 
-  /** The socless-probe agent jar, as the `socless-probe.jar` resource ViewRunner extracts. */
+  /** The socle-probe agent jar, as the `socle-probe.jar` resource ViewRunner extracts. */
   def probeJarResource = Task {
-    os.copy(`socless-probe`.assembly().path, Task.dest / "socless-probe.jar")
+    os.copy(`socle-probe`.assembly().path, Task.dest / "socle-probe.jar")
     PathRef(Task.dest)
   }
   /** The vendored Surfer WASM build (vendor/surfer, see its SOURCE.md), as `surfer/` resources LiveHttp serves. */
@@ -756,15 +756,15 @@ object `socless-lsp` extends ScalaModule {
     // runs the assembly as an editor does.
     // FromCaptureTest reads this committed capture: a Source so a change re-runs the tests.
     def capturedFsmFixture = Task.Source(
-      mill.api.BuildCtx.workspaceRoot / "socless" / "test" / "resources" / "captured" / "fsm.json")
+      mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "fsm.json")
     def forkArgs = Task {
       def cp(rc: Seq[PathRef]) = rc.map(_.path.toString).mkString(java.io.File.pathSeparator)
       super.forkArgs() ++ Seq(
         s"-Dcaptured.fsm=${capturedFsmFixture().path}",
-        s"-Dsocless.root=${mill.api.BuildCtx.workspaceRoot}",
-        s"-Dlsp.jar=${`socless-lsp`.assembly().path}",
+        s"-Dsocle.root=${mill.api.BuildCtx.workspaceRoot}",
+        s"-Dlsp.jar=${`socle-lsp`.assembly().path}",
         s"-Dexample.cp=${cp(example.test.runClasspath())}",
-        s"-Dfixtures.cp=${cp(`socless-probe`.fixtures.runClasspath())}",
+        s"-Dfixtures.cp=${cp(`socle-probe`.fixtures.runClasspath())}",
       )
     }
   }
@@ -775,7 +775,7 @@ object `socless-lsp` extends ScalaModule {
 // `require` it. `vscode` is provided by VS Code at runtime and
 // `vscode-languageclient/node` is staged from npm at packaging time; neither is
 // needed to compile. Tests run the pure logic under plain Node.
-object `socless-vscode` extends ScalaJSModule {
+object `socle-vscode` extends ScalaJSModule {
   def scalaVersion   = V.scala
   def scalaJSVersion = V.scalaJs
   def moduleKind     = ModuleKind.CommonJSModule
@@ -809,7 +809,7 @@ object `socless-vscode` extends ScalaJSModule {
       sys.error(s"${cmd.mkString(" ")} failed (exit ${r.exitCode})\n${r.out.text()}\n${r.err.text()}")
   }
 
-  /** The extension directory: `out/extension.js`, `server/socless-lsp.jar`, `package.json`, `media/`, README, LICENSE, `node_modules`.
+  /** The extension directory: `out/extension.js`, `server/socle-lsp.jar`, `package.json`, `media/`, README, LICENSE, `node_modules`.
     *
     * Copies the linked JS and the server assembly, then runs `npm install --omit=dev` for
     * `vscode-languageclient`. This directory is what the E2E loads as `--extensionDevelopmentPath`.
@@ -818,7 +818,7 @@ object `socless-vscode` extends ScalaJSModule {
   def stage = Task {
     val d = Task.dest
     os.copy(fullLinkJS().dest.path / "main.js", d / "out" / "extension.js", createFolders = true)
-    os.copy(`socless-lsp`.assembly().path, d / "server" / "socless-lsp.jar", createFolders = true)
+    os.copy(`socle-lsp`.assembly().path, d / "server" / "socle-lsp.jar", createFolders = true)
     os.copy(packageJson().path, d / "package.json")
     os.copy(readme().path, d / "README.md")
     os.copy(license().path, d / "LICENSE")
@@ -829,14 +829,14 @@ object `socless-vscode` extends ScalaJSModule {
     PathRef(d)
   }
 
-  /** The installable extension: `socless-<version>.vsix`, packaged with vsce from a copy of the stage.
+  /** The installable extension: `socle-<version>.vsix`, packaged with vsce from a copy of the stage.
     *
     * Needs network on the first run (npx fetches @vscode/vsce).
     */
   def vsix = Task {
     val work = Task.dest / "work"
     os.copy(stage().path, work, createFolders = true)
-    val out = Task.dest / s"socless-$extVersion.vsix"
+    val out = Task.dest / s"socle-$extVersion.vsix"
     runTool(work, "npx", "--yes", s"@vscode/vsce@${V.vsce}", "package", "--out", out.toString)
     PathRef(out)
   }

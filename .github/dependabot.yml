@@ -1,4 +1,4 @@
-# Dependabot configuration for SoCLess.
+# Dependabot configuration for Socle.
 #
 # Dependabot natively supports GitHub Actions version pins.
 # Mill/Scala dependencies are NOT supported by Dependabot; use Scala Steward

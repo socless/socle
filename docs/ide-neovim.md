@@ -1,6 +1,6 @@
-# SoCLess in Neovim
+# Socle in Neovim
 
-`socless-lsp` is a small language server for Chisel projects built with Mill. It
+`socle-lsp` is a small language server for Chisel projects built with Mill. It
 adds a **View design** code lens above every ChiselSim scalatest test. Running
 the lens elaborates that test's design in view mode (the
 [probe run contract](how-it-works.md#view-mode-probe-run-contract)) and shows it
@@ -10,7 +10,7 @@ panel follows your cursor, and clicking a box in the panel jumps to its source.
 It does not replace Metals: it offers no diagnostics, completion, hover or
 go-to-definition, so run both side by side (see [With Metals](#with-metals)).
 
-Using VS Code? See [SoCLess in VS Code](ide-vscode.md).
+Using VS Code? See [Socle in VS Code](ide-vscode.md).
 
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath and fork
@@ -20,16 +20,16 @@ tests and build are never modified.
 
 ## Install the plugin
 
-[socless.nvim](https://github.com/e-ban/socless.nvim) sets all of this up from
-your package manager: it downloads the server jar of a pinned SoCLess release
+[socle.nvim](https://github.com/e-ban/socle.nvim) sets all of this up from
+your package manager: it downloads the server jar of a pinned Socle release
 (checked against the release's `SHA256SUMS`), starts it on Scala files of Mill
 projects, turns the lenses on, follows the cursor, opens the panel and adds
-`:Socless view|simulate|panel|update|log|health` and `:checkhealth socless`.
+`:Socle view|simulate|panel|update|log|health` and `:checkhealth socle`.
 With lazy.nvim / LazyVim:
 
 ```lua
 {
-  "e-ban/socless.nvim",
+  "e-ban/socle.nvim",
   ft = "scala",
   opts = {},
 }
@@ -43,8 +43,8 @@ this page sets the server up by hand, without the plugin.
 ## Build the server
 
 ```bash
-./mill socless-lsp.assembly
-cp out/socless-lsp/assembly.dest/out.jar ~/.local/share/socless/socless-lsp.jar
+./mill socle-lsp.assembly
+cp out/socle-lsp/assembly.dest/out.jar ~/.local/share/socle/socle-lsp.jar
 ```
 
 The jar is self-contained (`java -jar`, the probe agent inside). Copy it out of
@@ -55,18 +55,18 @@ The jar is self-contained (`java -jar`, the probe agent inside). Copy it out of
 In your `init.lua`:
 
 ```lua
-vim.lsp.config('socless', {
-  cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socless/socless-lsp.jar') },
+vim.lsp.config('socle', {
+  cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socle/socle-lsp.jar') },
   filetypes = { 'scala' },
   root_markers = { 'build.mill' },
 })
-vim.lsp.enable('socless')
+vim.lsp.enable('socle')
 
 -- Show the "View design" lenses (Neovim 0.12 refreshes them by itself).
 vim.api.nvim_create_autocmd('LspAttach', {
   callback = function(args)
     local client = vim.lsp.get_client_by_id(args.data.client_id)
-    if client and client.name == 'socless' then
+    if client and client.name == 'socle' then
       vim.lsp.codelens.enable(true, { bufnr = args.buf, client_id = client.id })
     end
   end,
@@ -76,8 +76,8 @@ vim.api.nvim_create_autocmd('LspAttach', {
 vim.api.nvim_create_autocmd('CursorHold', {
   pattern = '*.scala',
   callback = function(args)
-    for _, client in ipairs(vim.lsp.get_clients({ bufnr = args.buf, name = 'socless' })) do
-      client:notify('socless/cursor', {
+    for _, client in ipairs(vim.lsp.get_clients({ bufnr = args.buf, name = 'socle' })) do
+      client:notify('socle/cursor', {
         uri = vim.uri_from_bufnr(args.buf),
         line = vim.api.nvim_win_get_cursor(0)[1] - 1,
       })
@@ -145,7 +145,7 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   "illegal ChiselSim ScalaTest option".
 - The run's working directory, and ChiselSim's `build/chiselsim` (through
   `-Dchisel.project.root`, which wins over the same option in `forkArgs`), is
-  `out/socless/sim/<suite>/<test>/` under the workspace root. It is emptied at
+  `out/socle/sim/<suite>/<test>/` under the workspace root. It is emptied at
   the start of each run, so the last run of each test is kept; `sim.log` there
   holds the test's output, `surfer.log` the viewer's. `./mill clean` (which
   empties `out/`) removes the kept waves too.
@@ -166,7 +166,7 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
 
 The settings go in `init_options` (defaults: `waveFlag = "emitVcd"`,
 `surferCommand = "surfer"`, the Surfer app's executable). The wave viewer keys
-use the same names as VS Code without the `socless.` prefix: `waveViewer`
+use the same names as VS Code without the `socle.` prefix: `waveViewer`
 (`surfer`, `surfer-panel`, `custom`), `waveViewerCommand`,
 `wavesFollowSelection`, `wavesShowClockReset`, `wavesFoldBundles`,
 `wavesShowWires`, `wavesColorByDirection` and `wavesFollowDelayMs`. They have
@@ -174,8 +174,8 @@ the same defaults and meanings as in VS Code (see its
 [settings table](ide-vscode.md#settings)).
 
 ```lua
-vim.lsp.config('socless', {
-  cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socless/socless-lsp.jar') },
+vim.lsp.config('socle', {
+  cmd = { 'java', '-jar', vim.fn.expand('~/.local/share/socle/socle-lsp.jar') },
   filetypes = { 'scala' },
   root_markers = { 'build.mill' },
   init_options = { waveFlag = "emitFst", waveViewer = "surfer-panel" },
@@ -200,7 +200,7 @@ the app cannot scroll to a focused signal) are described in the
 [VS Code guide](ide-vscode.md#waveforms-that-follow-the-schematic).
 
 The embedded viewer is Surfer v0.7.0, shipped in the server jar under its own
-licence, the EUPL-1.2; `socless-lsp/vendor/surfer/SOURCE.md` says where it
+licence, the EUPL-1.2; `socle-lsp/vendor/surfer/SOURCE.md` says where it
 comes from and how to rebuild it.
 
 In the browser panel the Waveform tab is always there. In `surfer` mode it
@@ -232,6 +232,6 @@ only, and the server logs it.
 ## With Metals
 
 Not yet tested together with nvim-metals. Both clients are expected to attach
-to the same Scala buffers side by side: SoCLess offers only its lenses, its
-command, save handling and `socless/cursor`, no diagnostics, completion, hover
+to the same Scala buffers side by side: Socle offers only its lenses, its
+command, save handling and `socle/cursor`, no diagnostics, completion, hover
 or definition.

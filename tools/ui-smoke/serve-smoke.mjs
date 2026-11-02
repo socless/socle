@@ -1,10 +1,10 @@
-// SoCLess standalone-server smoke test (#194).
+// Socle standalone-server smoke test (#194).
 //
 // The static smoke (smoke.mjs) loads a pre-baked design.json per design and so
 // cannot exercise the design-INPUT layer: drag-dropping a .fir (which the UI
 // POSTs to /convert) and the live poller (#120, which re-fetches design.json
 // when `serve --watch` re-converts a changed .fir). This driver runs the real
-// `socless.cli.Launcher serve` from the assembled jar and checks all three input
+// `socle.cli.Launcher serve` from the assembled jar and checks all three input
 // features that the Scala.js cutover dropped:
 //
 //   1. live source + LIVE badge   - `serve --watch a.fir` shows the design with
@@ -18,7 +18,7 @@
 //   node serve-smoke.mjs --jar <assembly.jar> --fixtures <chirrtl-dir> [--shots <dir>]
 //
 // Requires a system Chromium (or CHROMIUM=/path) and a built assembly jar
-// (`mill socless.assembly`). Exit code is non-zero on any failure.
+// (`mill socle.assembly`). Exit code is non-zero on any failure.
 
 import { chromium } from 'playwright-core';
 import { spawn } from 'node:child_process';
@@ -36,10 +36,10 @@ const args = Object.fromEntries(
 );
 
 const JAR = args.jar;
-const FIXTURES = args.fixtures || 'socless/test/resources/chirrtl';
+const FIXTURES = args.fixtures || 'socle/test/resources/chirrtl';
 const SHOTS = args.shots || null;
 if (!JAR || !existsSync(JAR)) {
-  console.error(`serve-smoke: --jar <assembly.jar> required (got ${JAR}). Build with: mill socless.assembly`);
+  console.error(`serve-smoke: --jar <assembly.jar> required (got ${JAR}). Build with: mill socle.assembly`);
   process.exit(2);
 }
 if (SHOTS) await mkdir(SHOTS, { recursive: true });
@@ -59,7 +59,7 @@ function freePort() {
   });
 }
 
-// Start `java -jar JAR serve ...`, resolve once it answers on /SoCLess.html.
+// Start `java -jar JAR serve ...`, resolve once it answers on /socle.html.
 async function startServe(extra) {
   const port = await freePort();
   const proc = spawn('java', ['-jar', JAR, 'serve', '--port', String(port), '--no-open', ...extra],
@@ -70,7 +70,7 @@ async function startServe(extra) {
   const base = `http://127.0.0.1:${port}`;
   for (let i = 0; i < 80; i++) {
     try {
-      const r = await fetch(`${base}/SoCLess.html`);
+      const r = await fetch(`${base}/socle.html`);
       if (r.ok) return { proc, base, port, log: () => log };
     } catch { /* not up yet */ }
     await new Promise((r) => setTimeout(r, 125));
@@ -92,7 +92,7 @@ async function dropFile(page, content, name, type) {
 }
 
 const browser = await chromium.launch({ args: ['--no-sandbox'], ...(EXEC ? { executablePath: EXEC } : {}) });
-const tmp = await mkdtemp(join(tmpdir(), 'socless-serve-smoke-'));
+const tmp = await mkdtemp(join(tmpdir(), 'socle-serve-smoke-'));
 
 // ── 1+2. live source, LIVE badge, and the live poller (#120) ───────────────────
 {
@@ -104,7 +104,7 @@ const tmp = await mkdtemp(join(tmpdir(), 'socless-serve-smoke-'));
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
-    await page.goto(`${srv.base}/SoCLess.html`, { waitUntil: 'networkidle' });
+    await page.goto(`${srv.base}/socle.html`, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).catch(() => {});
 
     const src = await page.getAttribute('[data-source]', 'data-source').catch(() => null);
@@ -143,7 +143,7 @@ const tmp = await mkdtemp(join(tmpdir(), 'socless-serve-smoke-'));
       const errors = [];
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
       page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
-      await page.goto(`${srv.base}/SoCLess.html`, { waitUntil: 'networkidle' });
+      await page.goto(`${srv.base}/socle.html`, { waitUntil: 'networkidle' });
       await page.waitForTimeout(300); // initial design.json 404s on a plain serve; that is expected
       await dropFile(page, firText, 'gcd.fir', 'application/octet-stream');
       const ok = await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).then(() => true).catch(() => false);
@@ -161,7 +161,7 @@ const tmp = await mkdtemp(join(tmpdir(), 'socless-serve-smoke-'));
       const errors = [];
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
       page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
-      await page.goto(`${srv.base}/SoCLess.html`, { waitUntil: 'networkidle' });
+      await page.goto(`${srv.base}/socle.html`, { waitUntil: 'networkidle' });
       // Convert a fixture to JSON via the server, then drop that JSON as a file.
       const json = await (await fetch(`${srv.base}/convert`, { method: 'POST', body: firText })).text();
       await dropFile(page, json, 'gcd.json', 'application/json');

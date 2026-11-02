@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # Four jobs run in parallel, each compiling only what its own tasks need:
-# `unit` (the socless, probe and VS Code suites and the fixture checks), `lsp`
+# `unit` (the socle, probe and VS Code suites and the fixture checks), `lsp`
 # (the language server suite), `ui` (example elaboration and the browser
 # smokes) and `packaging` (publishLocal and the plugin consumption smoke). The
 # distributable files are built by release.yml only (a tag, or a manual run).
@@ -37,13 +37,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      # socless-vscode's Scala.js tests run on Node.
+      # socle-vscode's Scala.js tests run on Node.
       - name: Set up Node
         uses: actions/setup-node@v7
         with:
           node-version: "20"
 
-      # 21: the socless-probe Java agent targets Java 21 and 25.
+      # 21: the socle-probe Java agent targets Java 21 and 25.
       - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v6
         with:
@@ -72,7 +72,7 @@ jobs:
             !out/mill-no-daemon
             !out/mill-out-lock
             !out/mill-selective-execution.json
-          key: out-unit-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socless/**', 'socless-js/**', 'socless-ui/**', 'socless-probe/**', 'socless-vscode/**', 'example/**') }}
+          key: out-unit-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socle/**', 'socle-js/**', 'socle-ui/**', 'socle-probe/**', 'socle-vscode/**', 'example/**') }}
           restore-keys: |
             out-unit-${{ runner.os }}-${{ hashFiles('build.mill') }}-
             out-unit-${{ runner.os }}-
@@ -93,17 +93,17 @@ jobs:
         run: tools/ci/selective.sh prepare ${{ github.event.pull_request.base.sha }}
 
       - name: Run test suite
-        run: tools/ci/selective.sh run socless.test
+        run: tools/ci/selective.sh run socle.test
 
       # The view-mode probe agent: forks unmodified ChiselSim tests with the
       # agent attached. View mode stops before firtool, so no Verilator needed.
       - name: Run probe test suite
-        run: tools/ci/selective.sh run socless-probe.test
+        run: tools/ci/selective.sh run socle-probe.test
 
       # The VS Code extension's Scala.js unit tests (run on the Node set up
       # above). The vsix and the headless VS Code e2e are not run in CI.
       - name: Run VS Code extension tests
-        run: tools/ci/selective.sh run socless-vscode.test
+        run: tools/ci/selective.sh run socle-vscode.test
 
       # The committed CHIRRTL fixtures are the input to every golden test.
       # Fail if they have drifted from the current example sources / Chisel
@@ -115,7 +115,7 @@ jobs:
       # evolves (issue #135).
       - name: Reference example JSONs are valid
         run: |
-          for f in socless/test/resources/reference/*.json; do
+          for f in socle/test/resources/reference/*.json; do
             python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert isinstance(d.get('modules'),list) and d['modules'], 'no modules'; assert isinstance(d.get('top'),str) and d['top'], 'no top'" "$f" \
               || { echo "invalid reference JSON: $f"; exit 1; }
           done
@@ -166,7 +166,7 @@ jobs:
             !out/mill-no-daemon
             !out/mill-out-lock
             !out/mill-selective-execution.json
-          key: out-lsp-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socless/**', 'socless-js/**', 'socless-ui/**', 'socless-probe/**', 'socless-lsp/**', 'example/**') }}
+          key: out-lsp-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socle/**', 'socle-js/**', 'socle-ui/**', 'socle-probe/**', 'socle-lsp/**', 'example/**') }}
           restore-keys: |
             out-lsp-${{ runner.os }}-${{ hashFiles('build.mill') }}-
             out-lsp-${{ runner.os }}-
@@ -186,7 +186,7 @@ jobs:
       # The language server: in-process LSP, live panel HTTP, and a stdio smoke
       # test of the assembly.
       - name: Run language server tests
-        run: tools/ci/selective.sh run socless-lsp.test
+        run: tools/ci/selective.sh run socle-lsp.test
 
       # No daemon writing into out/ while the cache step saves it.
       - name: Stop the Mill daemon
@@ -228,8 +228,8 @@ jobs:
             mill-${{ runner.os }}-
 
       # The captured TrafficFsm conversion runs on the language server's
-      # classpath (which carries the probe jar), hence socless-lsp and
-      # socless-probe in the key.
+      # classpath (which carries the probe jar), hence socle-lsp and
+      # socle-probe in the key.
       - name: Cache Mill out/
         uses: actions/cache@v6
         with:
@@ -239,7 +239,7 @@ jobs:
             !out/mill-no-daemon
             !out/mill-out-lock
             !out/mill-selective-execution.json
-          key: out-ui-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socless/**', 'socless-js/**', 'socless-ui/**', 'socless-probe/**', 'socless-lsp/**', 'example/**') }}
+          key: out-ui-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socle/**', 'socle-js/**', 'socle-ui/**', 'socle-probe/**', 'socle-lsp/**', 'example/**') }}
           restore-keys: |
             out-ui-${{ runner.os }}-${{ hashFiles('build.mill') }}-
             out-ui-${{ runner.os }}-
@@ -258,12 +258,12 @@ jobs:
         if: github.event_name == 'pull_request'
         run: tools/ci/selective.sh prepare ${{ github.event.pull_request.base.sha }}
 
-      # The shipped UI (socless-ui.dist) is generated by Mill from the Scala.js
+      # The shipped UI (socle-ui.dist) is generated by Mill from the Scala.js
       # link + the template + vendored elkjs (epic #172 / issue #184), so there
       # is no committed artifact to drift. Built here for the JAR-serve checks
       # and the UI smoke test below.
       - name: Build the UI dist
-        run: ./mill socless-ui.dist
+        run: ./mill socle-ui.dist
 
       # One Mill call, so the examples elaborate in parallel; a failure names
       # its task. AXISystem, GCD, RVPipeline, DeepSoc, IoBundles, RegHeavy,
@@ -272,7 +272,7 @@ jobs:
       # (state diagram) and GCD (internal signals, for the Waveform check)
       # conversions, and BigArray (256 boxes, the smoke's performance guard).
       - name: Elaborate the examples
-        run: ./mill '{example.soclessRun,example.soclessRunGcd,example.soclessRunPipeline,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd,example.soclessRunBigArray}'
+        run: ./mill '{example.socleRun,example.socleRunGcd,example.socleRunPipeline,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}'
 
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
@@ -281,17 +281,17 @@ jobs:
         run: |
           ./mill show example.runClasspath > /tmp/rc.json
           cp=$(python3 -c "import json; print(':'.join(p.split(':',3)[-1] if p.startswith('ref:') else p for p in json.load(open('/tmp/rc.json'))))")
-          java -cp "$cp" socless.cli.Launcher serve --port 8923 --no-open >/tmp/serve115.log 2>&1 &
+          java -cp "$cp" socle.cli.Launcher serve --port 8923 --no-open >/tmp/serve115.log 2>&1 &
           pid=$!
           trap "kill $pid 2>/dev/null || true" EXIT
           ok=0
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://127.0.0.1:8923/SoCLess.html; then ok=1; break; fi
+            if curl -sf -o /dev/null http://127.0.0.1:8923/socle.html; then ok=1; break; fi
             sleep 1
           done
           if [ "$ok" != 1 ]; then echo "standalone server never came up"; cat /tmp/serve115.log; exit 1; fi
-          curl -sf http://127.0.0.1:8923/SoCLess.html | grep -q 'GENERATED FILE' || { echo "standalone server is not serving the dist"; exit 1; }
-          curl -sf --data-binary @socless/test/resources/chirrtl/gcd.fir http://127.0.0.1:8923/convert \
+          curl -sf http://127.0.0.1:8923/socle.html | grep -q 'GENERATED FILE' || { echo "standalone server is not serving the dist"; exit 1; }
+          curl -sf --data-binary @socle/test/resources/chirrtl/gcd.fir http://127.0.0.1:8923/convert \
             | python3 -c "import json,sys; assert json.load(sys.stdin)['top']=='GCD', 'convert top'; print('standalone /convert ok')"
 
       # ── UI interactivity smoke test ──────────────────────────────────────
@@ -310,10 +310,10 @@ jobs:
       - name: Decide whether the UI smokes run
         id: uismoke
         run: |
-          sel=$(tools/ci/selective.sh selected '{socless-ui.dist,socless.assembly,example.soclessRun,example.soclessRunPipeline,example.soclessRunGcd,example.soclessRunDeepSoc,example.soclessRunIoBundles,example.soclessRunRegHeavy,example.soclessRunFsm,example.soclessRunLayers,example.soclessRunScatter,example.soclessCapturedDeepSoc,example.soclessCapturedFsm,example.soclessCapturedGcd,example.soclessRunBigArray}')
+          sel=$(tools/ci/selective.sh selected '{socle-ui.dist,socle.assembly,example.socleRun,example.socleRunPipeline,example.socleRunGcd,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}')
           changed=""
           if [ "${{ github.event_name }}" = pull_request ]; then
-            changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socless/test/resources/chirrtl socless-lsp .github/workflows)
+            changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socle/test/resources/chirrtl socle-lsp .github/workflows)
           fi
           printf 'selected tasks:\n%s\nchanged non-Mill inputs:\n%s\n' "$sel" "$changed"
           if [ -n "$sel$changed" ]; then echo "run=true" >> "$GITHUB_OUTPUT"
@@ -365,7 +365,7 @@ jobs:
 
       # Embedded mode (the VS Code panel): the chrome it drops, the theme and
       # side-panel channels, and the Waveform tab, which boots the vendored
-      # Surfer (socless-lsp/vendor/surfer) on a GCD trace fixture with
+      # Surfer (socle-lsp/vendor/surfer) on a GCD trace fixture with
       # software WebGL and follows the selection. It serves the dist and the
       # designs elaborated above itself (its default paths).
       - name: Run embedded-mode smoke (VS Code panel, Waveform tab)
@@ -378,14 +378,14 @@ jobs:
       # pre-baked design.json per page) structurally cannot reach.
       - name: Build the standalone assembly
         if: steps.uismoke.outputs.run == 'true'
-        run: ./mill socless.assembly
+        run: ./mill socle.assembly
 
       - name: Run UI server smoke (drag-drop /convert + live poller)
         if: steps.uismoke.outputs.run == 'true'
         run: |
           node tools/ui-smoke/serve-smoke.mjs \
-            --jar out/socless/assembly.dest/out.jar \
-            --fixtures socless/test/resources/chirrtl
+            --jar out/socle/assembly.dest/out.jar \
+            --fixtures socle/test/resources/chirrtl
 
       # No daemon writing into out/ while the cache step saves it.
       - name: Stop the Mill daemon
@@ -426,7 +426,7 @@ jobs:
             !out/mill-no-daemon
             !out/mill-out-lock
             !out/mill-selective-execution.json
-          key: out-packaging-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socless/**', 'socless-js/**', 'socless-ui/**', 'mill-socless/**') }}
+          key: out-packaging-${{ runner.os }}-${{ hashFiles('build.mill') }}-${{ hashFiles('socle/**', 'socle-js/**', 'socle-ui/**', 'mill-socle/**') }}
           restore-keys: |
             out-packaging-${{ runner.os }}-${{ hashFiles('build.mill') }}-
             out-packaging-${{ runner.os }}-
@@ -438,8 +438,8 @@ jobs:
       # path for both artifacts (catches POM/metadata breakage early).
       - name: Publish artifacts locally
         run: |
-          ./mill socless.publishLocal
-          ./mill mill-socless.publishLocal
+          ./mill socle.publishLocal
+          ./mill mill-socle.publishLocal
 
       # Consume the published plugin the way the README tells users to
       # (tools/consume-test): catches version drift between the two artifacts,
@@ -451,24 +451,24 @@ jobs:
           work=$(mktemp -d)
           cp -r tools/consume-test/. "$work/"
           cp mill "$work/mill"
-          sed -i "s/SOCLESS_VERSION/$ver/" "$work/build.mill"
-          (cd "$work" && ./mill demo.socless)
+          sed -i "s/SOCLE_VERSION/$ver/" "$work/build.mill"
+          (cd "$work" && ./mill demo.socle)
           json=$(find "$work/out" -name design.json | head -1)
           if [ -z "$json" ]; then echo "plugin produced no design.json"; exit 1; fi
           # Assert the emitted JSON is VALID and is the Blinky design, not just
           # that a (possibly empty/truncated) file exists (issue #134).
           python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d['top']=='Blinky', d['top']; assert d['modules'], 'no modules'" "$json"
-          # consume-test sets soclessTops=[Blinky, Counter]: assert the multi-top
+          # consume-test sets socleTops=[Blinky, Counter]: assert the multi-top
           # index and the second design were emitted (issue #117).
           dz=$(find "$work/out" -name designs.json | head -1)
           if [ -z "$dz" ]; then echo "plugin produced no designs.json for the multi-top build"; exit 1; fi
           python3 -c "import json,sys; ds=json.load(open(sys.argv[1]))['designs']; ids=[d['id'] for d in ds]; assert ids==['demo.Blinky','demo.Counter'], ids" "$dz"
           counter=$(find "$work/out" -name 'design-demo_Counter.json' | head -1)
           python3 -c "import json,sys; assert json.load(open(sys.argv[1]))['top']=='Counter'" "$counter"
-          (cd "$work" && timeout 120 ./mill demo.soclessServe --port 8917 >serve.log 2>&1 &)
+          (cd "$work" && timeout 120 ./mill demo.socleServe --port 8917 >serve.log 2>&1 &)
           ok=0
           for i in $(seq 1 60); do
-            if curl -sf -o /dev/null http://127.0.0.1:8917/SoCLess.html; then ok=1; break; fi
+            if curl -sf -o /dev/null http://127.0.0.1:8917/socle.html; then ok=1; break; fi
             sleep 1
           done
           if [ "$ok" != 1 ]; then
@@ -477,14 +477,14 @@ jobs:
           # The served (and JAR-embedded) UI must be the BUILT dist, not the
           # CDN-dependent dev source - the exact regression PR #113 wired the
           # build to prevent, but no gate asserted the served bytes (issue #134).
-          curl -sf http://127.0.0.1:8917/SoCLess.html -o /tmp/served-ui.html
+          curl -sf http://127.0.0.1:8917/socle.html -o /tmp/served-ui.html
           grep -q 'GENERATED FILE' /tmp/served-ui.html || { echo "served UI is not the built dist (no GENERATED FILE banner)"; exit 1; }
           if grep -q -e 'unpkg.com' -e 'text/babel' /tmp/served-ui.html; then
             echo "served UI still references the CDN / in-browser Babel (dev source leaked into the JAR)"; exit 1
           fi
           # Exercise POST /convert (the drag-drop .fir path): the python server's
           # only dynamic endpoint, otherwise zero coverage (issue #134).
-          curl -sf --data-binary @socless/test/resources/chirrtl/gcd.fir http://127.0.0.1:8917/convert \
+          curl -sf --data-binary @socle/test/resources/chirrtl/gcd.fir http://127.0.0.1:8917/convert \
             | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('modules'), 'convert returned no modules'; print('convert ok: top=' + str(d.get('top')))"
 
       # No daemon writing into out/ while the cache step saves it.

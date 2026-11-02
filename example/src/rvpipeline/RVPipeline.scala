@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 
 // ── Minimal 4-stage in-order pipeline: Fetch → Decode → Exec → WB ────────────
-// Not a real RISC-V - the goal is to give the SoCLess exporter a multi-module
+// Not a real RISC-V - the goal is to give the Socle exporter a multi-module
 // hierarchy with mixed Decoupled handshakes, sub-bundles, and a memory port.
 
 // Memory port: a request channel (master) and a response channel (slave).

@@ -1,14 +1,14 @@
-# SoCLess UI smoke test
+# Socle UI smoke test
 
 Headless interactivity check for the single-file Scala.js + Laminar UI
-(built by `./mill socless-ui.dist`). It catches regressions that the Scala unit tests
+(built by `./mill socle-ui.dist`). It catches regressions that the Scala unit tests
 cannot: anything that only breaks when a human clicks around (drill-down
 crashes, bundle-expand errors, blank pages).
 
 What it does, per example design served by a local server (one subdir per
-design: `<id>/SoCLess.html` + `<id>/design.json`):
+design: `<id>/socle.html` + `<id>/design.json`):
 
-1. Loads `<id>/SoCLess.html`.
+1. Loads `<id>/socle.html`.
 2. Fully expands the hierarchy tree.
 3. Drills into every module (including leaves) and asserts the app stays mounted.
 4. Back on the top module, expands every bundle port.
@@ -53,13 +53,13 @@ with the view's size (boxes, edge stubs, rows).
 design-INPUT layer: drag-dropping a `.fir` (which the UI POSTs to `/convert`)
 or the live poller (#120, which re-fetches `design.json` when `serve --watch`
 re-converts a changed `.fir`). `serve-smoke.mjs` runs the real
-`socless.cli.Launcher serve` from the assembled jar and checks all of it:
+`socle.cli.Launcher serve` from the assembled jar and checks all of it:
 
 ```bash
-./mill socless.assembly
+./mill socle.assembly
 node tools/ui-smoke/serve-smoke.mjs \
-  --jar out/socless/assembly.dest/out.jar \
-  --fixtures socless/test/resources/chirrtl [--shots /tmp/shots]
+  --jar out/socle/assembly.dest/out.jar \
+  --fixtures socle/test/resources/chirrtl [--shots /tmp/shots]
 ```
 
 It asserts: a `serve --watch a.fir` page shows `data-source="live"` + a LIVE
@@ -72,27 +72,27 @@ dropping a `.fir` on a plain `serve` renders it via `/convert`; and dropping a
 `embedded.mjs` serves the dist page itself and checks that `?host=vscode`
 removes the Source / Waveform tabs, logo, design picker, theme toggle and
 gallery, share button and drop zone, starts with the bottom panel closed,
-takes its theme from `&theme=light|dark|hc`, and follows `socless-theme`
+takes its theme from `&theme=light|dark|hc`, and follows `socle-theme`
 messages from its parent frame only; and that without the parameter all of it
 is still there. Embedded, the hierarchy and inspector panes and their toggles
 are gone too (VS Code's side panel shows them): on the DeepSoc design, framed by
-a cross-origin loopback page, the UI posts `socless-state` (hierarchy, drill
-path, selection, details) on load, drill and select, follows `socless-navigate`
+a cross-origin loopback page, the UI posts `socle-state` (hierarchy, drill
+path, selection, details) on load, drill and select, follows `socle-navigate`
 from the parent, and ignores self-posted or malformed messages:
 
 ```bash
-./mill socless-ui.dist && ./mill 'example.{soclessRunGcd,soclessRunDeepSoc,soclessCapturedFsm}'
-node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
-  --deep out/example/soclessRunDeepSoc.dest/design.json \
-  --fsm out/example/soclessCapturedFsm.dest/design.json
+./mill socle-ui.dist && ./mill 'example.{socleRunGcd,socleRunDeepSoc,socleCapturedFsm}'
+node tools/ui-smoke/embedded.mjs --design out/example/socleRunGcd.dest/design.json \
+  --deep out/example/socleRunDeepSoc.dest/design.json \
+  --fsm out/example/socleCapturedFsm.dest/design.json
 ```
 
 ## Run
 
 ```bash
 # 1. Build the UI dist, elaborate the examples, then assemble + serve per-design dirs:
-./mill socless-ui.dist
-for t in soclessRun soclessRunPipeline soclessRunGcd soclessRunDeepSoc soclessRunIoBundles soclessRunRegHeavy soclessRunBigArray; do mill example.$t; done
+./mill socle-ui.dist
+for t in socleRun socleRunPipeline socleRunGcd socleRunDeepSoc socleRunIoBundles socleRunRegHeavy socleRunBigArray; do mill example.$t; done
 node tools/ui-smoke/assemble.mjs site && (cd site && python3 -m http.server 8765 &)
 
 # 2. Install deps once and run:

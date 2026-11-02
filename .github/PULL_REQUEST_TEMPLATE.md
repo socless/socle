@@ -12,8 +12,8 @@ Closes #
 
 ## Test plan
 
-- [ ] `./mill socless.test` passes
-- [ ] Ran the affected example (`./mill example.soclessRun*`) and inspected the
+- [ ] `./mill socle.test` passes
+- [ ] Ran the affected example (`./mill example.socleRun*`) and inspected the
       emitted `design.json`
 - [ ] Reviewed the UI in a browser (if UI files changed)
 

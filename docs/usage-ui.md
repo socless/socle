@@ -32,7 +32,7 @@ the same everywhere: moving around the schematic and learning it from the UI.
 | Clock domains | Click a `clk` pin or a legend row | Light the domain: the other instances fade |
 | Logic blocks | Double-click (or its `↵`) | Open a block: its registers, operators and wires, its pins as ports; the breadcrumb goes back. A state machine opens its diagram |
 
-Browsers report a trackpad pinch as Ctrl + wheel. SoCLess tells the two apart by
+Browsers report a trackpad pinch as Ctrl + wheel. Socle tells the two apart by
 the deltas: a pinch sends small fractional ones (under 10 px), a mouse notch
 whole ones. A two-finger swipe without Ctrl (fractional deltas, or a sideways
 one) pans; a whole-notch wheel zooms.
@@ -178,7 +178,7 @@ Three things dim part of the schematic:
   class. Its **×** stops the focus until the cursor is on another class; a
   selection shows everything while it lasts. Turn it off for good with
   **Follow the editor's cursor** in the settings popover, or the editor's
-  `socless.followCursor` setting (Neovim: `follow_cursor`).
+  `socle.followCursor` setting (Neovim: `follow_cursor`).
 - **The filter box** (top left): the boxes matching its text and their
   neighbours stay lit. Esc or its **×** clears it.
 - **A selection**: the wires not connected to it fade (boxes stay). Esc or a
@@ -191,6 +191,6 @@ When Surfer shows a trace (the Waveform tab, or VS Code's Surfer tab), a small
 keep it open (Esc closes it): it says what each colour of the signal list
 means, inputs Blue, outputs Green, registers Orange and wires Gray, and how the
 groups are built: one group per port, its bundles nested, then Registers, then
-Wires. With the colour-by-direction setting off (`socless.wavesColorByDirection`),
+Wires. With the colour-by-direction setting off (`socle.wavesColorByDirection`),
 it says that the ports are all Blue. The names are Surfer's colours; Surfer's
 theme sets their exact shade.

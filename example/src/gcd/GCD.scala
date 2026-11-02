@@ -54,7 +54,7 @@ class GCD extends Module {
   * wrapper for parameterized designs, since the object can close over any
   * config or implicits it needs.
   *
-  *   mill: soclessTop = "gcd.GcdGen"   (or --top gcd.GcdGen)
+  *   mill: socleTop = "gcd.GcdGen"   (or --top gcd.GcdGen)
   */
 object GcdGen {
   def apply(): GCD = new GCD

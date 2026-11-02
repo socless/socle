@@ -1,6 +1,6 @@
-# Contributing to SoCLess
+# Contributing to Socle
 
-SoCLess is a Mill plugin for Chisel that exports elaborated hardware designs to
+Socle is a Mill plugin for Chisel that exports elaborated hardware designs to
 `design.json` for a single-file interactive web UI.
 
 ## Prerequisites
@@ -17,24 +17,24 @@ resolved by Mill; no manual Scala install is needed.
 ## Getting started
 
 ```bash
-git clone https://github.com/e-ban/SoCless.git
-cd SoCless
-./mill socless.compile         # compile the runtime library
-./mill mill-socless.compile    # compile the Mill plugin
+git clone https://github.com/e-ban/socle.git
+cd socle
+./mill socle.compile         # compile the runtime library
+./mill mill-socle.compile    # compile the Mill plugin
 ```
 
 To publish both artifacts to your local Maven cache (needed to use the plugin in
 a separate project):
 
 ```bash
-./mill socless.publishLocal
-./mill mill-socless.publishLocal
+./mill socle.publishLocal
+./mill mill-socle.publishLocal
 ```
 
 ## Running the test suite
 
 ```bash
-./mill socless.test
+./mill socle.test
 ```
 
 The suite (utest) covers `LayoutTest`, `ElkSmokeTest`, `EndpointTest`,
@@ -47,42 +47,42 @@ The `example/` module uses `moduleDeps` (not the published plugin), so no
 `publishLocal` is needed:
 
 ```bash
-./mill example.soclessRun          # AXISystem (default)
-./mill example.soclessRunGcd       # GCD module
-./mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
-./mill example.soclessRunDeepSoc   # deep hierarchy (DeepSoc)
-./mill example.soclessRunIoBundles # vec-of-bundle ports (Interconnect)
-./mill example.soclessRunRegHeavy  # register-heavy design (Datapath)
-./mill show example.soclessRun     # print the path to the emitted design.json
+./mill example.socleRun          # AXISystem (default)
+./mill example.socleRunGcd       # GCD module
+./mill example.socleRunPipeline  # 4-stage RISC-V pipeline
+./mill example.socleRunDeepSoc   # deep hierarchy (DeepSoc)
+./mill example.socleRunIoBundles # vec-of-bundle ports (Interconnect)
+./mill example.socleRunRegHeavy  # register-heavy design (Datapath)
+./mill show example.socleRun     # print the path to the emitted design.json
 ```
 
 ## Viewing the UI
 
 The UI needs HTTP (the Laminar app fetches `design.json`), so serve it rather
-than opening from `file://`. The simplest path is the `soclessUI` task in a user
+than opening from `file://`. The simplest path is the `socleUI` task in a user
 project (it serves the UI embedded in the JAR and drops `design.json` next to it):
 
 ```bash
-./mill myDesign.soclessUI           # serves the UI at http://localhost:8765
-./mill myDesign.soclessUI --port 9000
+./mill myDesign.socleUI           # serves the UI at http://localhost:8765
+./mill myDesign.socleUI --port 9000
 ```
 
 To build just the single-file UI for manual serving:
 
 ```bash
-./mill socless-ui.dist              # writes out/socless-ui/dist.dest/SoCLess.html
+./mill socle-ui.dist              # writes out/socle-ui/dist.dest/socle.html
 ```
 
 ## Project layout
 
 ```
-socless/src/socless/    # runtime exporter library (Scala 2.13 + Chisel)
-socless-js/             # Scala.js layout engine (shares pure sources with the backend)
-socless-ui/             # Scala.js + Laminar frontend (the shipped UI)
-mill-socless/           # Mill plugin trait (Scala 3)
-socless-probe/          # Java agent: captures a ChiselSim test's design (IDE view mode)
-socless-lsp/            # language server for the Chisel IDE (lenses, live panel, Simulate)
-socless-vscode/         # VS Code extension (Scala.js) around the language server
+socle/src/socle/    # runtime exporter library (Scala 2.13 + Chisel)
+socle-js/             # Scala.js layout engine (shares pure sources with the backend)
+socle-ui/             # Scala.js + Laminar frontend (the shipped UI)
+mill-socle/           # Mill plugin trait (Scala 3)
+socle-probe/          # Java agent: captures a ChiselSim test's design (IDE view mode)
+socle-lsp/            # language server for the Chisel IDE (lenses, live panel, Simulate)
+socle-vscode/         # VS Code extension (Scala.js) around the language server
 example/src/            # bundled demo designs
 tools/                  # CI helpers (ci/selective.sh) and the UI smokes (ui-smoke/)
 ```
@@ -97,10 +97,10 @@ CI (`.github/workflows/ci.yml`) runs five jobs in parallel, each compiling only
 what its own tasks need:
 
 - **Artifacts** (`build-artifacts.yml`): the jars, the vsix and the single-file
-  UI, uploaded as the `socless-dist` workflow artifact.
-- **Unit tests**: the `socless`, `socless-probe` and `socless-vscode` test
+  UI, uploaded as the `socle-dist` workflow artifact.
+- **Unit tests**: the `socle`, `socle-probe` and `socle-vscode` test
   suites, the CHIRRTL fixture sync check and the reference JSON check.
-- **Language server tests**: the `socless-lsp` suite, on its own because
+- **Language server tests**: the `socle-lsp` suite, on its own because
   `MillBridgeTest` drives a real Mill and takes about 3 minutes in CI.
 - **UI smokes and examples**: the UI dist, the example elaborations, the
   standalone server smoke, and the browser smokes (`smoke.mjs`, four designs at
@@ -118,7 +118,7 @@ execution through `tools/ci/selective.sh`: they snapshot the base commit, then
 the test jobs run only the suites whose inputs changed, and the UI job runs the
 browser smokes only when one of the Mill tasks they drive (the UI dist, the
 assembly, an example design) is selected, or when a file under
-`tools/ui-smoke`, `tools/ci`, `socless/test/resources/chirrtl` or
+`tools/ui-smoke`, `tools/ci`, `socle/test/resources/chirrtl` or
 `.github/workflows` changed. Pushes to `main` run everything.
 
 A change to CI itself tests itself: when a pull request changes
@@ -137,10 +137,10 @@ Chromium (`/usr/bin/chromium`); set `CHROMIUM=/path/to/chromium` to use
 another.
 
 ```bash
-./mill socless-ui.dist && ./mill 'example.{soclessRunGcd,soclessRunDeepSoc,soclessCapturedFsm}'
-node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
-  --deep out/example/soclessRunDeepSoc.dest/design.json \
-  --fsm out/example/soclessCapturedFsm.dest/design.json
+./mill socle-ui.dist && ./mill 'example.{socleRunGcd,socleRunDeepSoc,socleCapturedFsm}'
+node tools/ui-smoke/embedded.mjs --design out/example/socleRunGcd.dest/design.json \
+  --deep out/example/socleRunDeepSoc.dest/design.json \
+  --fsm out/example/socleCapturedFsm.dest/design.json
 ```
 
 ## Contribution workflow
@@ -148,7 +148,7 @@ node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.
 1. Fork the repo and create a branch off `main` with a descriptive name:
    `feat/my-feature`, `fix/short-description`, `chore/infra-thing`, etc.
 2. Keep PRs focused on one concern. Split unrelated changes into separate PRs.
-3. Run `./mill socless.test` and confirm it passes before pushing.
+3. Run `./mill socle.test` and confirm it passes before pushing.
 4. Reference the issue in your PR description with `Closes #N`.
 5. Open the PR against `main`.
 
@@ -171,9 +171,9 @@ Common prefixes: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`,
 
 - **Backend (Scala)**: standard `scalafmt` defaults; no `chisel3.internal.*`
   imports (use only public Chisel APIs).
-- **UI (`socless-ui/`)**: Scala.js + Laminar. The shipped single-file UI is
-  produced by `./mill socless-ui.dist` (the Scala.js link output + vendored
-  elkjs inlined into `socless-ui/html/SoCLess.src.html`, offline) - there is no
+- **UI (`socle-ui/`)**: Scala.js + Laminar. The shipped single-file UI is
+  produced by `./mill socle-ui.dist` (the Scala.js link output + vendored
+  elkjs inlined into `socle-ui/html/socle.src.html`, offline) - there is no
   committed artifact and no Node build. Smoke interactivity changes with the
   ui-smoke harness (`tools/ui-smoke/`).
 - **Prose and comments**: no em dashes. Use a hyphen, comma, colon, or
@@ -181,7 +181,7 @@ Common prefixes: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `style`,
 
 ## Schema contract
 
-`Schema.scala` case classes are the JSON contract with the `socless-ui`
+`Schema.scala` case classes are the JSON contract with the `socle-ui`
 frontend. Adding fields is fine (use a trailing default so older `design.json`
 still parses). Never remove or rename existing fields without updating the UI
 in the same PR.

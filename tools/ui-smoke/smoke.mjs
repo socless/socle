@@ -1,8 +1,8 @@
-// SoCLess UI interactivity smoke test.
+// Socle UI interactivity smoke test.
 //
 // Drives the single-file UI in a headless browser and exercises the
 // interactive surface that unit tests cannot reach: each design on its own page
-// (out/<id>/SoCLess.html), drilling into every module in the hierarchy
+// (out/<id>/socle.html), drilling into every module in the hierarchy
 // (including leaves), and expanding every bundle port. It fails on any uncaught
 // page exception or console error, so regressions like "drilling into a leaf
 // module blanks the page" are caught automatically.
@@ -116,7 +116,7 @@ async function smokeDesign(design) {
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   // The first-time tips are seen: they would sit over the schematic on every
   // first load (smokeHelpFirstRun checks them in a context of its own).
-  await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
   try {
     await smokeDesignIn(design, ctx);
     await smokeToggles(design, ctx);
@@ -147,7 +147,7 @@ async function smokeToggles(design, ctx) {
     else note(design, where, `${msg} [${key}]`);
   };
   try {
-    await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-layout-ready="1"]', { timeout: 30000 });
     const ready = async () => {
       await page.waitForTimeout(150);
@@ -241,7 +241,7 @@ async function smokeHelpFirstRun(design) {
     const errors = [];
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     const load = async () => {
-      await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+      await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
       await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
       await page.waitForTimeout(300);
     };
@@ -296,7 +296,7 @@ async function smokeReloadNav(design, ctx, top, W) {
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   const fmt = JSON.stringify;
   try {
-    await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
     const readView = () => page.evaluate(() => {
       const t = document.querySelector('[data-content]')?.style.transform || '';
@@ -305,7 +305,7 @@ async function smokeReloadNav(design, ctx, top, W) {
     });
     const settle = async () => {
       await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
       let v = await readView();
       for (let i = 0; i < 25; i++) {
         await page.waitForTimeout(150);
@@ -316,8 +316,8 @@ async function smokeReloadNav(design, ctx, top, W) {
     };
     const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
     const go = async (p) => { await page.locator(`[data-hier-path="${p}"]`).first().dispatchEvent('click'); await settle(); };
-    const hist = () => page.evaluate(() => window.__soclessHistory());
-    const follow = () => page.evaluate(() => window.__soclessFollow());
+    const hist = () => page.evaluate(() => window.__socleHistory());
+    const follow = () => page.evaluate(() => window.__socleFollow());
     const sameNet = (a, b) => !!a && !!b && a.from === b.from && a.to === b.to && a.origin === b.origin;
     await settle();
     // Follow W with a real click on the wire.
@@ -452,9 +452,9 @@ async function smokeDesignIn(design, ctx) {
   // (Diagnostics: every design.json request and every design load of the page.)
   const t0 = Date.now(), dj = [];
   const loadLog = async () => {
-    const loads = await page.evaluate(() => JSON.stringify((window.__soclessLoads || []).map((l) => `${l.kind}@${Math.round(l.t)}`))).catch(() => '?');
-    const runs = await page.evaluate(() => JSON.stringify((window.__soclessEngineRuns || []).slice(-4).map((r) => `${r.key.slice(0, 120)} @${Math.round(r.t)} cache=${r.cached}`))).catch(() => '?');
-    const nRuns = await page.evaluate(() => (window.__soclessEngineRuns || []).length).catch(() => '?');
+    const loads = await page.evaluate(() => JSON.stringify((window.__socleLoads || []).map((l) => `${l.kind}@${Math.round(l.t)}`))).catch(() => '?');
+    const runs = await page.evaluate(() => JSON.stringify((window.__socleEngineRuns || []).slice(-4).map((r) => `${r.key.slice(0, 120)} @${Math.round(r.t)} cache=${r.cached}`))).catch(() => '?');
+    const nRuns = await page.evaluate(() => (window.__socleEngineRuns || []).length).catch(() => '?');
     return `loads ${loads}, design.json [${dj.slice(-6).join('; ')}] (${dj.length}), engine misses ${nRuns}: ${runs}`;
   };
 
@@ -498,7 +498,7 @@ async function smokeDesignIn(design, ctx) {
     });
   }
 
-  await page.goto(`${BASE}/${design}/SoCLess.html`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
   // A design that renders zero hierarchy nodes is a failure, not a skip:
   // every fixture has at least a top module (issue #103 - the blank-canvas
   // regression class must not pass silently).
@@ -532,7 +532,7 @@ async function smokeDesignIn(design, ctx) {
       await btn.click().catch((e) => note(design, 'theme toggle', e.message));
       const after = await page.evaluate(() => document.documentElement.getAttribute('data-theme') || 'light');
       if (after === before) note(design, 'theme toggle', `clicking did not change the theme (stayed "${before}")`);
-      const saved = await page.evaluate(() => { try { return localStorage.getItem('socless-theme'); } catch { return null; } });
+      const saved = await page.evaluate(() => { try { return localStorage.getItem('socle-theme'); } catch { return null; } });
       if (saved !== after) note(design, 'theme toggle', `theme not persisted (data-theme="${after}", localStorage="${saved}")`);
       await btn.click().catch(() => {}); // restore so later steps render in the original theme
     }
@@ -549,7 +549,7 @@ async function smokeDesignIn(design, ctx) {
       await btn.first().click({ button: 'right' }).catch((e) => note(design, 'editor presets', e.message));
       const after = await btn.first().getAttribute('data-editor');
       if (after === before) note(design, 'editor presets', `right-click did not cycle the editor (stayed "${before}")`);
-      const saved = await page.evaluate(() => { try { return localStorage.getItem('socless-editor'); } catch { return null; } });
+      const saved = await page.evaluate(() => { try { return localStorage.getItem('socle-editor'); } catch { return null; } });
       if (saved !== after) note(design, 'editor presets', `editor choice not persisted (data-editor="${after}", localStorage="${saved}")`);
     }
   }
@@ -1327,9 +1327,9 @@ async function smokeDesignIn(design, ctx) {
       // Restore the served design for the later steps: the poller sees the
       // real file's stamp again and reloads it. Wait for that reload, or it
       // (and its re-layout) lands in the middle of a later check.
-      const loadsBefore = await page.evaluate(() => (window.__soclessLoads || []).length);
+      const loadsBefore = await page.evaluate(() => (window.__socleLoads || []).length);
       await page.unroute('**/design.json');
-      await page.waitForFunction((n) => (window.__soclessLoads || []).length > n, loadsBefore, { timeout: 10000 })
+      await page.waitForFunction((n) => (window.__socleLoads || []).length > n, loadsBefore, { timeout: 10000 })
         .catch(() => note(design, where, 'restore: the served design was never reloaded'));
       await page.waitForSelector(`[data-fsm="${id}"]`, { timeout: 10000 }).catch(() => note(design, where, 'restore: the block never came back'));
       await settle();
@@ -1535,8 +1535,8 @@ async function smokeDesignIn(design, ctx) {
     }
     // The indexed highlight matching agrees with a full scan on every key of
     // this view (wire ends, pins, boxes and their prefixes).
-    const chk = await page.evaluate(() => window.__soclessHighlightCheck ? window.__soclessHighlightCheck() : null);
-    if (!chk) note(design, where, 'no window.__soclessHighlightCheck hook');
+    const chk = await page.evaluate(() => window.__socleHighlightCheck ? window.__socleHighlightCheck() : null);
+    if (!chk) note(design, where, 'no window.__socleHighlightCheck hook');
     else if (chk.bad.length) note(design, where, `indexed matches differ from a scan for ${chk.bad.length}/${chk.keys} keys: ${chk.bad.slice(0, 5).join(', ')}`);
     else if (!chk.keys) note(design, where, 'the highlight self-check saw no keys');
     else console.log(`[${design}] highlight self-check: ${chk.keys} keys agree`);
@@ -1773,8 +1773,8 @@ async function smokeDesignIn(design, ctx) {
     }
 
     // The tooltip content function on every box, wire and pin of this view.
-    const tc = await page.evaluate(() => window.__soclessTooltipCheck ? window.__soclessTooltipCheck() : null);
-    if (!tc) note(design, where, 'no window.__soclessTooltipCheck hook');
+    const tc = await page.evaluate(() => window.__socleTooltipCheck ? window.__socleTooltipCheck() : null);
+    if (!tc) note(design, where, 'no window.__socleTooltipCheck hook');
     else if (tc.bad.length) note(design, where, `tooltip content is empty or has a dash for ${tc.bad.length}/${tc.n} targets: ${tc.bad.slice(0, 5).join(', ')}`);
     else console.log(`[${design}] tooltip content: ${tc.n} targets`);
     drain(where);
@@ -2110,14 +2110,14 @@ async function smokeDesignIn(design, ctx) {
         [-7, 0, 0, false, false, 'pan:7,0'],
       ];
       const got = await page.evaluate((cs) => {
-        const f = window.__soclessWheelClassify;
+        const f = window.__socleWheelClassify;
         if (!f) return null;
         return cs.map(([dx, dy, m, c, s]) => {
           const o = f(dx, dy, m, c, s);
           return o.kind === 'zoom' ? (o.log < 0 ? 'zoom-' : 'zoom+') : `pan:${o.dx + 0},${o.dy + 0}`;
         });
       }, cases);
-      if (!got) note(design, where, 'no window.__soclessWheelClassify hook');
+      if (!got) note(design, where, 'no window.__socleWheelClassify hook');
       else cases.forEach((c, i) => { if (got[i] !== c[5]) note(design, where, `wheel classify ${JSON.stringify(c.slice(0, 5))}: ${got[i]}, expected ${c[5]}`); });
     }
 
@@ -2240,7 +2240,7 @@ async function smokeDesignIn(design, ctx) {
     const near0 = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
     const settle = async () => {
       await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
       let v = await readView();
       for (let i = 0; i < 25; i++) {
         await page.waitForTimeout(150);
@@ -2249,7 +2249,7 @@ async function smokeDesignIn(design, ctx) {
         v = n;
       }
       for (let i = 0; i < 20; i++) {
-        const h = await page.evaluate(() => (window.__soclessHistory ? window.__soclessHistory() : null));
+        const h = await page.evaluate(() => (window.__socleHistory ? window.__socleHistory() : null));
         const cur = h && h.entries[h.index];
         if (!cur || near0(v, cur)) break;
         await page.waitForTimeout(150);
@@ -2261,7 +2261,7 @@ async function smokeDesignIn(design, ctx) {
     const near = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
     const focusSchematic = () => page.evaluate(() => document.querySelector('[data-content]').parentElement.focus({ preventScroll: true }));
     const key = async (k) => { await focusSchematic(); await page.keyboard.press(k); return settle(); };
-    const hist = () => page.evaluate(() => (window.__soclessHistory ? window.__soclessHistory() : null));
+    const hist = () => page.evaluate(() => (window.__socleHistory ? window.__socleHistory() : null));
     const vpBox = () => page.evaluate(() => {
       const r = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
       return { x: r.left + r.width / 2, y: r.top + r.height / 2, l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height };
@@ -2310,7 +2310,7 @@ async function smokeDesignIn(design, ctx) {
 
     // The stack model.
     const model = await page.evaluate(() => {
-      const f = window.__soclessHistoryModel;
+      const f = window.__socleHistoryModel;
       if (!f) return null;
       return {
         cap: f(Array(60).fill('p')),
@@ -2318,7 +2318,7 @@ async function smokeDesignIn(design, ctx) {
         ends: f(['p', 'b', 'b', 'f', 'f', 'f']),
       };
     });
-    if (!model) note(design, where, 'no window.__soclessHistoryModel hook');
+    if (!model) note(design, where, 'no window.__socleHistoryModel hook');
     else {
       if (model.cap.size !== 50 || model.cap.index !== 49)
         note(design, where, `60 places kept ${model.cap.size} entries at ${model.cap.index}, expected 50 at 49`);
@@ -2415,7 +2415,7 @@ async function smokeDesignIn(design, ctx) {
           if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}; history ${fmt(await hist())}`);
         }
       }
-      if (!await page.evaluate(() => Array.isArray(window.__soclessHistory && window.__soclessHistory().entries))) note(design, where, 'no window.__soclessHistory hook');
+      if (!await page.evaluate(() => Array.isArray(window.__socleHistory && window.__socleHistory().entries))) note(design, where, 'no window.__socleHistory hook');
     }
     drain(where);
 
@@ -2445,7 +2445,7 @@ async function smokeDesignIn(design, ctx) {
       // all of its 250 ms in one or two frames.
       let flew = false;
       for (let i = 0; i < 50 && !flew; i++) {
-        flew = await page.evaluate(() => !!(window.__soclessFlying && window.__soclessFlying()));
+        flew = await page.evaluate(() => !!(window.__socleFlying && window.__socleFlying()));
         if (!flew) await page.waitForTimeout(20);
       }
       await page.waitForTimeout(400);
@@ -2486,7 +2486,7 @@ async function smokeDesignIn(design, ctx) {
           await page.mouse.move(vc.x, vc.y);
           if (await pick(`${topMod}.${far2.id}`)) {
             await page.mouse.move(vc.x, vc.y);
-            const flying = await page.evaluate(() => !!(window.__soclessFlying && window.__soclessFlying()));
+            const flying = await page.evaluate(() => !!(window.__socleFlying && window.__socleFlying()));
             await page.mouse.down();
             for (let i = 1; i <= 3; i++) await page.mouse.move(vc.x + 10 * i, vc.y);
             await page.mouse.up();
@@ -2695,7 +2695,7 @@ async function smokeDesignIn(design, ctx) {
     const fmt = JSON.stringify;
     const settle = async () => {
       await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
       let v = await readView();
       for (let i = 0; i < 25; i++) {
         await page.waitForTimeout(150);
@@ -2751,8 +2751,8 @@ async function smokeDesignIn(design, ctx) {
     // on an instance, the child's lit wires touch that port and following
     // one of them back lights the original wire.
     await toTop();
-    const chk = await page.evaluate(() => (window.__soclessFollowCheck ? window.__soclessFollowCheck() : null));
-    if (!chk) note(design, where, 'no window.__soclessFollowCheck hook');
+    const chk = await page.evaluate(() => (window.__socleFollowCheck ? window.__socleFollowCheck() : null));
+    if (!chk) note(design, where, 'no window.__socleFollowCheck hook');
     else if (chk.bad.length) note(design, where, `follow resolution failed for ${chk.bad.length}/${chk.n} wires: ${chk.bad.slice(0, 4).join(' | ')}`);
     else { if (chk.n) followCheckDesigns.add(design); console.log(`[${design}] follow self-check: ${chk.n} wires round-trip`); }
 
@@ -2772,9 +2772,9 @@ async function smokeDesignIn(design, ctx) {
       if (L.wires.some(([f, t]) => f === other[0] && t === other[1])) note(design, where, `following ${W[0]} also lit ${other[0]}`);
       if (!L.pins.includes(W[0])) note(design, where, `the followed wire's pin ${W[0]} is not lit: ${fmt(L.pins)}`);
       if (m0.child) note(design, where, `following a wire changed the content's child list (${m0.child} records)`);
-      const st = await page.evaluate(() => (window.__soclessFollow ? window.__soclessFollow() : null));
+      const st = await page.evaluate(() => (window.__socleFollow ? window.__socleFollow() : null));
       if (!st || !st.net || st.net.from !== W[0] || st.net.to !== W[1] || st.net.origin !== top)
-        note(design, where, `window.__soclessFollow() does not name the clicked wire at ${top}: ${fmt(st)}`);
+        note(design, where, `window.__socleFollow() does not name the clicked wire at ${top}: ${fmt(st)}`);
       // The click both selects and follows (the net outlives the selection,
       // which a drill clears).
       const sel = await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.hl').length);
@@ -3397,14 +3397,14 @@ const PERF_LONG_MS = 250;
 async function smokePerf(design) {
   const where = 'perf';
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
-  await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console: ' + m.text()); });
   try {
     const t0 = Date.now();
-    await page.goto(`${BASE}/${design}/SoCLess.html`);
+    await page.goto(`${BASE}/${design}/socle.html`);
     const shown = await page.waitForSelector('[data-box-inst]', { timeout: 60000 }).then(() => true).catch(() => false)
       && await page.waitForSelector('[data-layout-ready="1"]', { timeout: 60000 }).then(() => true).catch(() => false);
     if (!shown) { note(design, where, 'the schematic never showed laid out'); return; }

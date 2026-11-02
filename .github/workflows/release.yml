@@ -76,7 +76,7 @@ jobs:
       - name: Download the release files
         uses: actions/download-artifact@v8
         with:
-          name: socless-dist
+          name: socle-dist
           path: dist
 
       # Never overwrite a release: a re-run on an already released tag fails.
@@ -94,5 +94,5 @@ jobs:
           ls -l dist
           gh release create "$TAG" dist/* \
             --verify-tag \
-            --title "SoCLess $VER" \
+            --title "Socle $VER" \
             --notes-file "$RUNNER_TEMP/notes.md"

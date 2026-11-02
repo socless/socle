@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Socle</title>
+<!-- IBM Plex (#277): the CDN stylesheet is for the dev loop only; the
+     socle-ui.dist task replaces this <link> with inlined base64 @font-face so
+     the shipped single file stays offline. -->
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="socle-fonts" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+  /* Theme tokens (issue #2). Every color resolves to one of these CSS variables
+     (see Tokens.scala), so flipping data-theme on <html> re-themes the whole app
+     at paint time. Light is the default; dark overrides below. The set-before-
+     paint script and the topbar toggle (App.scala) drive data-theme. */
+  :root {
+    --bg: #fbfbfa; --panel: #ffffff; --panelAlt: #f5f5f4;
+    --border: #e5e5e3; --borderSoft: #ececea;
+    --ink: #1a1a18; --ink2: #525250; --ink3: #70706e; --ink4: #767674;
+    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.96 0.02 250);
+    --accentLine: oklch(0.55 0.16 250 / 0.18);
+    --hi: oklch(0.95 0.05 90); --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
+    /* Hover outline + connected wires (schematic), apart from the accent. */
+    --hov: oklch(0.60 0.13 175);
+    /* The followed net (schematic), apart from the accent and the hover. */
+    --fol: oklch(0.56 0.21 335);
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+    /* Schematic label sizes (#follow-up): centralized so the "Label size" setting
+       can scale them. Bumped from the old hardcoded 8-11.5px for legibility. */
+    --sch-name: 12px; --sch-type: 10px; --sch-label: 9.5px; --sch-mark: 8.5px;
+    /* Accent palette (#220): panel-pane colors that used to be inline OKLCH
+       literals in Inspector / BottomPanel / Chrome. Kept here so they recolor
+       under dark theme like every other token. */
+    --chan-ar: oklch(0.60 0.16 250); --chan-aw: oklch(0.55 0.17 290);
+    --chan-w: oklch(0.62 0.17 170); --chan-r: oklch(0.65 0.16 50);
+    --chan-b: oklch(0.58 0.18 25);
+    --kind-instance: oklch(0.55 0.16 290); --kind-port: oklch(0.55 0.16 50);
+    /* Schematic component-coloring fills (#266), pale tints keyed by node kind,
+       hues matching the debug-layout palette. --wire-l/--wire-c drive the hashed
+       wire-stroke colors so they read on this (light) surface. */
+    --node-inst: oklch(0.93 0.04 250); --node-boundary: oklch(0.94 0.06 90);
+    --node-reg: oklch(0.93 0.06 150); --node-const: oklch(0.93 0.05 305);
+    --node-op: oklch(0.92 0.06 25); --node-fsm: oklch(0.93 0.05 215);
+    --node-mem: oklch(0.93 0.06 75); --node-block: oklch(0.93 0.01 260);
+    --wire-l: 0.58; --wire-c: 0.16;
+    --syntax-kw: oklch(0.5 0.15 290); --syntax-ty: oklch(0.5 0.13 200);
+    --syntax-lit: oklch(0.55 0.15 30);
+    --link-child-bg: oklch(0.95 0.08 200); --link-child-fg: oklch(0.4 0.15 250);
+    --link-sel-bg: oklch(0.95 0.1 90);
+    --dir-master-bg: oklch(0.96 0.04 250); --dir-master-fg: oklch(0.4 0.15 250);
+    --dir-slave-bg: oklch(0.96 0.04 50); --dir-slave-fg: oklch(0.4 0.15 50);
+    --badge-unconn-bg: oklch(0.95 0.06 30); --badge-unconn-fg: oklch(0.45 0.16 30);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0d1117; --panel: #161b22; --panelAlt: #21262d;
+    --border: #30363d; --borderSoft: #21262d;
+    --ink: #e6edf3; --ink2: #c9d1d9; --ink3: #8b949e; --ink4: #6e7681;
+    --accent: #1f6feb; --accentBg: #11213a; --accentLine: rgba(56,139,253,0.4);
+    --hi: rgba(56,139,253,0.15); --ok: #3fb950; --warn: #d29922;
+    --hov: oklch(0.76 0.13 175);
+    --fol: oklch(0.74 0.18 335);
+    /* Dark variants of the #220 accent palette: accents lifted in lightness to
+       read on the dark surfaces, badge backgrounds darkened with light text. */
+    --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
+    --chan-w: oklch(0.72 0.15 170); --chan-r: oklch(0.75 0.15 50);
+    --chan-b: oklch(0.68 0.17 25);
+    --kind-instance: oklch(0.70 0.15 290); --kind-port: oklch(0.72 0.15 50);
+    /* Dark variants of the #266 schematic colors: dark-tinted node fills so the
+       box reads as colored while light ink stays legible, wire hue lifted in
+       lightness to read on the dark canvas. */
+    --node-inst: oklch(0.32 0.04 250); --node-boundary: oklch(0.34 0.05 90);
+    --node-reg: oklch(0.34 0.05 150); --node-const: oklch(0.33 0.05 305);
+    --node-op: oklch(0.33 0.06 25); --node-fsm: oklch(0.33 0.05 215);
+    --node-mem: oklch(0.34 0.05 75); --node-block: oklch(0.34 0.01 260);
+    --wire-l: 0.72; --wire-c: 0.15;
+    --syntax-kw: oklch(0.72 0.14 290); --syntax-ty: oklch(0.72 0.12 200);
+    --syntax-lit: oklch(0.75 0.14 40);
+    --link-child-bg: oklch(0.30 0.06 200); --link-child-fg: oklch(0.80 0.12 250);
+    --link-sel-bg: oklch(0.32 0.08 90);
+    --dir-master-bg: oklch(0.30 0.05 250); --dir-master-fg: oklch(0.80 0.12 250);
+    --dir-slave-bg: oklch(0.30 0.05 50); --dir-slave-fg: oklch(0.82 0.12 50);
+    --badge-unconn-bg: oklch(0.32 0.07 30); --badge-unconn-fg: oklch(0.80 0.13 30);
+  }
+  /* ── Theme gallery (#275) ──────────────────────────────────────────────────
+     Cohesive named themes. The default :root is "paper" (light) and
+     :root[data-theme="dark"] is "carbon"; both above are untouched. Each theme
+     below overrides only the CORE surface/accent vars; the secondary palettes
+     (#220 channel/kind, #266 node fills + wire, syntax/link/dir/badge) come from
+     :root (light themes) or :root[data-mode="dark"] (dark themes), which the app
+     sets alongside data-theme. The set-before-paint script applies both. */
+  :root[data-mode="dark"] {
+    --hov: oklch(0.76 0.13 175);
+    --fol: oklch(0.74 0.18 335);
+    --chan-ar: oklch(0.70 0.15 250); --chan-aw: oklch(0.68 0.16 290);
+    --chan-w: oklch(0.72 0.15 170); --chan-r: oklch(0.75 0.15 50);
+    --chan-b: oklch(0.68 0.17 25);
+    --kind-instance: oklch(0.70 0.15 290); --kind-port: oklch(0.72 0.15 50);
+    --node-inst: oklch(0.32 0.04 250); --node-boundary: oklch(0.34 0.05 90);
+    --node-reg: oklch(0.34 0.05 150); --node-const: oklch(0.33 0.05 305);
+    --node-op: oklch(0.33 0.06 25); --node-fsm: oklch(0.33 0.05 215);
+    --node-mem: oklch(0.34 0.05 75); --node-block: oklch(0.34 0.01 260);
+    --wire-l: 0.72; --wire-c: 0.15;
+    --syntax-kw: oklch(0.72 0.14 290); --syntax-ty: oklch(0.72 0.12 200);
+    --syntax-lit: oklch(0.75 0.14 40);
+    --link-child-bg: oklch(0.30 0.06 200); --link-child-fg: oklch(0.80 0.12 250);
+    --link-sel-bg: oklch(0.32 0.08 90);
+    --dir-master-bg: oklch(0.30 0.05 250); --dir-master-fg: oklch(0.80 0.12 250);
+    --dir-slave-bg: oklch(0.30 0.05 50); --dir-slave-fg: oklch(0.82 0.12 50);
+    --badge-unconn-bg: oklch(0.32 0.07 30); --badge-unconn-fg: oklch(0.80 0.13 30);
+  }
+  /* Blueprint: cyan on navy, on-brand for a schematic tool (a faint grid is
+     drawn on <body> when this theme is active, see .scl-shell rule below). */
+  :root[data-theme="blueprint"] {
+    --bg:#08182b; --panel:#0d2238; --panelAlt:#123049; --border:#1d4366; --borderSoft:#123049;
+    --ink:#dbeeff; --ink2:#8fb6d4; --ink3:#5e85a3; --ink4:#4a6c87;
+    --accent:#39c2ff; --accentBg:#0e2c44; --accentLine:rgba(57,194,255,.34);
+    --hi:rgba(57,194,255,.14); --ok:#4ec9a6; --warn:#e0af68;
+  }
+  :root[data-theme="nord"] {
+    --bg:#2e3440; --panel:#3b4252; --panelAlt:#434c5e; --border:#4c566a; --borderSoft:#3b4252;
+    --ink:#eceff4; --ink2:#c0c8d6; --ink3:#8b94a6; --ink4:#6f7889;
+    --accent:#88c0d0; --accentBg:#3b4654; --accentLine:rgba(136,192,208,.36);
+    --hi:rgba(136,192,208,.14); --ok:#a3be8c; --warn:#ebcb8b;
+  }
+  :root[data-theme="gruvbox"] {
+    --bg:#282828; --panel:#32302f; --panelAlt:#3c3836; --border:#504945; --borderSoft:#3c3836;
+    --ink:#ebdbb2; --ink2:#c5b18b; --ink3:#a89984; --ink4:#7c6f64;
+    --accent:#fabd2f; --accentBg:#3a3327; --accentLine:rgba(250,189,47,.34);
+    --hi:rgba(250,189,47,.13); --ok:#b8bb26; --warn:#fe8019;
+  }
+  :root[data-theme="dracula"] {
+    --bg:#282a36; --panel:#343746; --panelAlt:#3c3f51; --border:#4a4d63; --borderSoft:#343746;
+    --ink:#f8f8f2; --ink2:#c9cbe0; --ink3:#8d90a8; --ink4:#6c6f86;
+    --accent:#bd93f9; --accentBg:#343150; --accentLine:rgba(189,147,249,.4);
+    --hi:rgba(189,147,249,.16); --ok:#50fa7b; --warn:#ffb86c;
+  }
+  :root[data-theme="contrast"] {
+    --bg:#000000; --panel:#0b0b0b; --panelAlt:#141414; --border:#3a3a3a; --borderSoft:#222222;
+    --ink:#ffffff; --ink2:#d6d6d6; --ink3:#9a9a9a; --ink4:#7a7a7a;
+    --accent:#ffd400; --accentBg:#2a2600; --accentLine:rgba(255,212,0,.4);
+    --hi:rgba(255,212,0,.16); --ok:#3fff6a; --warn:#ffae00;
+    --hov:#00e5ff;
+    --fol:#ff5cf0;
+  }
+  /* Light themes: core only; secondary palette inherits the light :root. */
+  :root[data-theme="solarized"] {
+    --bg:#fdf6e3; --panel:#fbf3df; --panelAlt:#eee8d5; --border:#e3dcc4; --borderSoft:#eee8d5;
+    --ink:#3a4d52; --ink2:#62787f; --ink3:#93a1a1; --ink4:#a8b3b3;
+    --accent:#268bd2; --accentBg:#e7eef4; --accentLine:rgba(38,139,210,.22);
+    --hi:rgba(181,137,0,.16); --ok:#859900; --warn:#cb4b16;
+  }
+  :root[data-theme="sepia"] {
+    --bg:#f3ead6; --panel:#fbf4e3; --panelAlt:#ece0c6; --border:#ddceac; --borderSoft:#ece0c6;
+    --ink:#43341f; --ink2:#6f5b3e; --ink3:#9a8763; --ink4:#b09a73;
+    --accent:#b45309; --accentBg:#f0e2c4; --accentLine:rgba(180,83,9,.2);
+    --hi:rgba(180,83,9,.12); --ok:#5f7d4f; --warn:#b45309;
+  }
+  /* Blueprint grid texture (cosmetic, only this theme). */
+  :root[data-theme="blueprint"] .scl-shell {
+    background-image: linear-gradient(rgba(57,194,255,.05) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(57,194,255,.05) 1px, transparent 1px);
+    background-size: 26px 26px;
+  }
+  /* Compact density (#198): tighten the chrome row heights + fonts. The schematic
+     geometry is baked by the backend and unaffected; this is chrome only. */
+  :root[data-density="compact"] body { font-size: 12px; }
+  :root[data-density="compact"] .scl-topbar { padding: 5px 12px; gap: 10px; }
+  :root[data-density="compact"] .scl-pane-title { padding: 5px 10px; }
+  :root[data-density="compact"] .scl-hier-row { height: 20px; font-size: 11px; }
+  :root[data-density="compact"] .scl-hier-type { font-size: 9.5px; }
+  /* Comfy density (#274): loosen the chrome a touch. */
+  :root[data-density="comfy"] body { font-size: 14px; }
+  :root[data-density="comfy"] .scl-topbar { padding: 11px 16px; }
+  :root[data-density="comfy"] .scl-pane-title { padding: 11px 14px; }
+  :root[data-density="comfy"] .scl-hier-row { height: 28px; font-size: 13px; }
+  /* Schematic label size setting: scales the centralized --sch-* vars so port
+     labels + component names stay readable when zoomed out on large designs. */
+  :root[data-labels="large"] { --sch-name: 14.5px; --sch-type: 12px; --sch-label: 11.5px; --sch-mark: 10px; }
+  :root[data-labels="xl"]    { --sch-name: 17px;   --sch-type: 14px; --sch-label: 14px;   --sch-mark: 12px; }
+  /* Settings panel (#274): a frosted, sectioned control panel. */
+  .scl-set-panel { position: absolute; top: 34px; right: 0; z-index: 50; width: 236px;
+    background: color-mix(in srgb, var(--panel) 80%, transparent);
+    -webkit-backdrop-filter: blur(22px) saturate(150%); backdrop-filter: blur(22px) saturate(150%);
+    border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.06) inset, 0 16px 44px rgba(0,0,0,.34);
+    padding: 12px; display: flex; flex-direction: column; gap: 9px;
+    font-family: var(--sans); font-size: 11px; color: var(--ink2);
+    animation: scl-pop .14s cubic-bezier(.3, .7, .4, 1); }
+  .scl-set-sect { font-size: 10px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink3); margin: 4px 0 1px; }
+  .scl-set-sect:first-child { margin-top: 0; }
+  .scl-set-row-label { color: var(--ink2); }
+  .scl-seg { position: relative; display: flex; padding: 3px; border-radius: 9px;
+    background: var(--panelAlt); border: 1px solid var(--border); }
+  .scl-seg-thumb { position: absolute; top: 3px; bottom: 3px; border-radius: 6px; background: var(--panel);
+    border: 1px solid var(--border); box-shadow: 0 1px 3px rgba(0,0,0,.18);
+    transition: left .18s cubic-bezier(.3,.7,.4,1), width .18s; }
+  .scl-seg button { position: relative; z-index: 1; flex: 1; border: 0; background: transparent;
+    color: var(--ink2); font: 500 11px var(--mono); height: 23px; border-radius: 6px; cursor: pointer; }
+  .scl-seg button.on { color: var(--ink); }
+  .scl-tg-row { display: flex; align-items: center; justify-content: space-between; height: 24px; color: var(--ink2); }
+  .scl-tg { position: relative; width: 34px; height: 19px; border: 1px solid var(--border); border-radius: 99px;
+    background: var(--panelAlt); cursor: pointer; transition: background .16s; flex-shrink: 0; padding: 0; }
+  .scl-tg[data-on="1"] { background: var(--accent); border-color: transparent; }
+  .scl-tg i { position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .16s; }
+  .scl-tg[data-on="1"] i { transform: translateX(15px); }
+  .scl-set-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
+  .scl-shell { display: flex; flex-direction: column; height: 100vh; }
+  .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
+    border-bottom: 1px solid var(--border); background: var(--panel); }
+  .scl-logo { font-weight: 700; flex-shrink: 0; font-family: var(--sans); letter-spacing: -.01em; }
+  .scl-sub { color: var(--ink3); }
+  .scl-engine { color: var(--accent); flex-shrink: 0; }
+  /* SOURCE indicator + LIVE badge (#194 / #120). */
+  .scl-live { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+    color: var(--ok); font-size: 11px; }
+  .scl-live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+    animation: scl-pulse 1.8s ease-in-out infinite; }
+  .scl-live-ago { color: var(--ink4); }
+  /* Language-server run status (plan 2): running / last error, top bar. */
+  .scl-ide-status { flex-shrink: 1; min-width: 0; max-width: 360px; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 11px; padding: 1px 7px;
+    border-radius: 4px; }
+  .scl-ide-running { color: var(--ink3); }
+  .scl-ide-error { background: var(--badge-unconn-bg); color: var(--badge-unconn-fg); }
+  @keyframes scl-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(63,185,80,0.5); }
+    70%  { box-shadow: 0 0 0 5px rgba(63,185,80,0); }
+    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+  }
+  /* Layout spinner: shown while the in-browser engine re-lays out (perf feedback). */
+  .scl-spinner { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: scl-spin 0.7s linear infinite; }
+  @keyframes scl-spin { to { transform: rotate(360deg); } }
+  /* Overlay reveal + keyboard focus ring + reduced-motion (#277). */
+  .scl-pop { animation: scl-pop .14s cubic-bezier(.3, .7, .4, 1); }
+  @keyframes scl-pop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+  }
+  /* Drag-drop overlay (#194): full-window, click-through (drop is on window). */
+  .scl-dropzone { position: fixed; inset: 0; z-index: 9000; display: none;
+    align-items: center; justify-content: center; pointer-events: none;
+    background: rgba(13,17,23,0.72); backdrop-filter: blur(2px); }
+  .scl-dropzone.on { display: flex; }
+  .scl-dropzone-card { border: 2px dashed var(--accent); border-radius: 10px;
+    padding: 28px 40px; background: var(--panel); color: var(--ink); text-align: center; font-size: 14px; }
+  .scl-dropzone-card strong { display: block; margin-bottom: 6px; font-weight: 600; }
+  .scl-dropzone-sub { color: var(--ink3); font-size: 12px; }
+  /* Toasts (#194): transient drag-drop / conversion feedback. */
+  .scl-toasts { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    z-index: 9100; display: flex; flex-direction: column; gap: 6px; pointer-events: none; }
+  .scl-toast { padding: 8px 14px; border-radius: 6px; font-size: 12px; color: var(--ink);
+    background: var(--panelAlt); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,0.4); }
+  .scl-toast-err  { border-color: #f85149; color: #ffb4ab; }
+  .scl-toast-ok   { border-color: var(--ok); }
+  .scl-toast-info { border-color: var(--accent); }
+  /* Topbar chrome (#172 Phase 4). */
+  .scl-crumbs { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 0;
+    overflow: hidden; color: var(--ink2); margin-left: 4px; }
+  .scl-crumb { border: none; background: transparent; cursor: pointer; color: var(--ink2);
+    font-family: var(--mono); font-size: 11px; padding: 3px 6px; border-radius: 4px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+  .scl-crumb:hover { background: var(--panelAlt); }
+  .scl-crumb.active { color: var(--ink); font-weight: 600; }
+  .scl-crumb-sep { color: var(--ink4); flex-shrink: 0; }
+  .scl-search { display: flex; align-items: center; gap: 6px; background: var(--panelAlt);
+    padding: 5px 10px; border-radius: 5px; color: var(--ink3); width: 220px; border: none;
+    cursor: pointer; text-align: left; flex-shrink: 0; font-size: 11.5px; }
+  .scl-search:hover { background: var(--border); }
+  .scl-kbd { margin-left: auto; font-family: var(--mono); font-size: 10px; padding: 1px 4px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 3px; }
+  .scl-help-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
+    color: var(--ink3); border-radius: 50%; width: 26px; height: 26px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; }
+  .scl-help-btn:hover { background: var(--panelAlt); color: var(--ink); }
+  /* Theme toggle (issue #2): same chrome as the help button, sun/moon glyph. */
+  .scl-theme-btn { border: 1px solid var(--border); background: transparent; cursor: pointer;
+    color: var(--ink3); border-radius: 50%; width: 26px; height: 26px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 1; }
+  .scl-theme-btn:hover { background: var(--panelAlt); color: var(--ink); }
+  .scl-panes { display: flex; flex: 1; min-height: 0; }
+  .scl-pane { display: flex; flex-direction: column; border-right: 1px solid var(--border); overflow: auto; }
+  .scl-pane-hierarchy { width: 240px; }
+  .scl-pane-schematic { flex: 1;
+    background: radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0) 0 0/20px 20px, var(--bg); }
+  .scl-pane-inspector { width: 300px; border-right: none; }
+  .scl-pane-title { padding: 8px 12px; color: var(--ink3); font-size: 11px; font-family: var(--sans);
+    letter-spacing: .04em; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; }
+  .scl-pane-body { padding: 12px; color: var(--ink3); }
+  .scl-count { color: var(--ink3); }
+  .scl-hier { padding: 4px 2px; }
+  .scl-hier-row { display: flex; align-items: center; gap: 4px; height: 24px;
+    padding: 0 4px; cursor: pointer; font-size: 12px; color: var(--ink);
+    border-left: 2px solid transparent; white-space: nowrap; overflow: hidden; }
+  .scl-hier-row:hover { background: var(--bg); }
+  .scl-hier-row.active { background: rgba(31,111,235,0.15);
+    border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .scl-hier-toggle { width: 12px; display: inline-flex; justify-content: center;
+    color: var(--ink3); font-size: 10px; }
+  .scl-hier-glyph { width: 12px; text-align: center; color: var(--ink3); font-size: 10px; }
+  .scl-hier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scl-hier-type { margin-left: auto; color: var(--ink3); font-size: 10.5px;
+    max-width: 90px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* "Show in parent": flies to the instance's box in its parent module. Shown
+     on the hovered and the active row, and when focused (keyboard). */
+  .scl-hier-locate { flex-shrink: 0; border: none; background: transparent; color: var(--ink3);
+    cursor: pointer; padding: 0 3px; font-size: 11px; line-height: 1; opacity: 0; }
+  .scl-hier-row:hover .scl-hier-locate, .scl-hier-row.active .scl-hier-locate,
+  .scl-hier-locate:focus-visible { opacity: 1; }
+  .scl-hier-locate:hover, .scl-hier-locate:focus-visible { color: var(--accent); }
+  /* Center column = schematic + bottom panel (#172 Phase 3). */
+  .scl-center { flex: 1; display: flex; flex-direction: column; min-width: 0;
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .scl-bottom { height: 240px; flex-shrink: 0; border-top: 1px solid var(--border);
+    background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+  /* Drag handle on the top edge of the bottom panel (#206). */
+  .scl-bottom-resize { height: 6px; flex-shrink: 0; cursor: ns-resize; background: transparent; }
+  .scl-bottom-resize:hover { background: var(--accent); opacity: 0.45; }
+  /* Panel-toggle buttons dim when their pane is hidden (#206). */
+  .scl-panel-btn.off { opacity: 0.4; }
+  .scl-bottom-tabs { display: flex; height: 30px; align-items: stretch;
+    border-bottom: 1px solid var(--borderSoft); }
+  .scl-bottom-body { flex: 1; overflow: auto; position: relative; }
+  .scl-ports-row:hover { background: var(--panelAlt); }
+  /* Inspector pane (#172 Phase 3). */
+  .scl-pane-inspector { width: 304px; flex-shrink: 0; }
+  .scl-insp-clear { border: none; background: transparent; color: var(--ink3);
+    font-size: 11px; cursor: pointer; text-transform: none; letter-spacing: 0; }
+  .scl-insp-leaf:hover { background: var(--panelAlt); }
+  .scl-insp-leaf .copy-btn { opacity: 0; transition: opacity .1s; }
+  .scl-insp-leaf:hover .copy-btn { opacity: 1; }
+</style>
+<script>
+  // Set the theme before first paint so there is no flash (#2 / #275). Order:
+  // saved theme id in localStorage, else the OS prefers-color-scheme. Dark themes
+  // also get data-mode="dark" so the shared dark secondary palette applies; keep
+  // this list in sync with App.darkThemes.
+  (function () {
+    var DARK = { dark:1, blueprint:1, nord:1, gruvbox:1, dracula:1, contrast:1 };
+    try {
+      // Embedded in VS Code (?host=vscode&theme=light|dark|hc): the editor's
+      // theme wins over the saved one (keep in sync with Embedded.themeFor).
+      var q = new URLSearchParams(location.search);
+      var k = q.get('theme'), t = null;
+      if (q.get('host') === 'vscode') t = k === 'light' ? 'light' : k === 'dark' ? 'dark' : k === 'hc' ? 'contrast' : null;
+      if (!t) t = localStorage.getItem('socle-theme');
+      if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      if (t && t !== 'light') document.documentElement.setAttribute('data-theme', t);
+      if (DARK[t]) document.documentElement.setAttribute('data-mode', 'dark');
+      // Density (#198 / #274), also applied before paint to avoid a reflow.
+      var density = localStorage.getItem('socle-density');
+      if (density === 'compact' || density === 'comfy') document.documentElement.setAttribute('data-density', density);
+      var labels = localStorage.getItem('socle-labels');
+      if (labels === 'large' || labels === 'xl') document.documentElement.setAttribute('data-labels', labels);
+    } catch (e) { /* private mode / no storage - default light */ }
+  })();
+</script>
+</head>
+<body>
+<div id="root"></div>
+<!-- elkjs: the layout engine. CDN tag for the dev loop; the `socle-ui.dist`
+     Mill task swaps it for the vendored bundle inlined offline (epic #172). -->
+<script src="https://unpkg.com/elkjs@0.9.1/lib/elk.bundled.js"></script>
+<!-- socle-ui: the Scala.js + Laminar frontend. The `socle-ui.dist` task
+     inlines the fullLinkJS output here in place of this tag (no committed
+     artifact). For a manual dev loop, drop the linked main.js next to this
+     file as socle-ui.js and serve over HTTP. -->
+<script src="socle-ui.js"></script>
+<script>
+  window.SocleUI = (typeof SocleUI !== 'undefined') ? SocleUI : window.SocleUI;
+  if (window.SocleUI) window.SocleUI.main('root');
+</script>
+</body>
+</html>

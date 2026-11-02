@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Guard against drift between the committed CHIRRTL fixtures
-# (socless/test/resources/chirrtl/*.fir, the input to every golden test) and
+# (socle/test/resources/chirrtl/*.fir, the input to every golden test) and
 # what the current example sources + Chisel actually emit. Editing an example's
 # Scala, or bumping Chisel (which changes emitted CHIRRTL), would otherwise
 # leave the goldens testing stale input while CI stays green (issue #135).
@@ -13,7 +13,7 @@
 # Run from the repo root: tools/check-chirrtl-fixtures.sh
 set -euo pipefail
 
-dir=socless/test/resources/chirrtl
+dir=socle/test/resources/chirrtl
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
@@ -41,6 +41,6 @@ if [ "$rc" = 0 ]; then
 else
   echo
   echo "Re-dump the fixtures and regenerate the goldens, then commit:"
-  echo "  ./mill example.dumpChirrtlFixtures && ./mill socless.regenerateGoldens"
+  echo "  ./mill example.dumpChirrtlFixtures && ./mill socle.regenerateGoldens"
 fi
 exit $rc

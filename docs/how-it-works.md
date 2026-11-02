@@ -15,14 +15,14 @@
 5. The UI loads `design.json` and renders it.
 
 No `chisel3.internal.*` imports anywhere, so the exporter survives Chisel patch
-updates. When driven by the Mill plugin, the `socless` task forks `java` with
-your module's exact `runClasspath` and invokes `socless.cli.Launcher`, which
-reflection-resolves your top and hands it to `SoclessExporter.export`.
+updates. When driven by the Mill plugin, the `socle` task forks `java` with
+your module's exact `runClasspath` and invokes `socle.cli.Launcher`, which
+reflection-resolves your top and hands it to `SocleExporter.export`.
 
 ## The UI
 
 The viewer is a single self-contained HTML file: the **Scala.js + Laminar**
-frontend (`socless-ui`), built by `mill socless-ui.dist` with elkjs and the
+frontend (`socle-ui`), built by `mill socle-ui.dist` with elkjs and the
 fonts vendored inline, so it has **no network dependencies** and works offline.
 It parses `design.json` into the typed `Design` and runs the schematic layout
 in-process (elkjs), off the main thread in a Web Worker so large designs stay
@@ -35,13 +35,13 @@ contract), see [CLAUDE.md](../CLAUDE.md).
 
 ## View-mode probe: run contract
 
-`socless-probe` is a Java agent that captures the design an unmodified ChiselSim
+`socle-probe` is a Java agent that captures the design an unmodified ChiselSim
 scalatest test elaborates, without changing the test or its build. A caller runs
 one test in its own JVM:
 
 ```bash
-java -javaagent:<socless-probe agent jar> \
-  -Dsocless.probe.mode=view -Dsocless.probe.out=<captured.json> \
+java -javaagent:<socle-probe agent jar> \
+  -Dsocle.probe.mode=view -Dsocle.probe.out=<captured.json> \
   -cp <the test classpath> \
   org.scalatest.tools.Runner -s <Suite> -t "<full test name>"
 ```
@@ -52,7 +52,7 @@ java -javaagent:<socless-probe agent jar> \
   - `no-design`: the test never elaborated a design;
   - `elaboration-error`: the user's elaboration threw (`error` has the root
     cause's message).
-- **ViewOnly.** In view mode the probe throws `socless.probe.ViewOnly` right
+- **ViewOnly.** In view mode the probe throws `socle.probe.ViewOnly` right
   after the capture, so firtool and Verilator never run. Scalatest therefore
   reports the test as FAILED: trust only `status`, never the test outcome or the
   JVM exit code.
@@ -67,21 +67,21 @@ java -javaagent:<socless-probe agent jar> \
   failure of the probe never becomes `elaboration-error` and never fails a run
   that is not in view mode.
 - **Wiring.** When every module's `wires` is empty and `chirrtl` is non-empty,
-  derive the wiring from the CHIRRTL with `socless.capture.WiresFromChirrtl`
+  derive the wiring from the CHIRRTL with `socle.capture.WiresFromChirrtl`
   (what `ModelToDesign` does).
 - **Versions.** The agent is compiled against Scala 2.13 and Chisel 7.16 only;
   it uses the test JVM's own Scala and Chisel, so other versions are unsupported.
   `chiselVersion` records the Chisel the test ran.
 
-`./mill example.soclessView <Suite> "<test>"` runs this contract on the bundled
-examples, adapts the capture and serves it in the UI. The `socless-lsp` language
+`./mill example.socleView <Suite> "<test>"` runs this contract on the bundled
+examples, adapts the capture and serves it in the UI. The `socle-lsp` language
 server runs the same contract from an editor (a View design lens per test, a
-live panel, refresh on save): see [SoCLess in Neovim](ide-neovim.md) and
-[SoCLess in VS Code](ide-vscode.md).
+live panel, refresh on save): see [Socle in Neovim](ide-neovim.md) and
+[Socle in VS Code](ide-vscode.md).
 
 ## The IDE view
 
-A capture becomes a `Design` in `socless.capture.ModelToDesign.design`, which
+A capture becomes a `Design` in `socle.capture.ModelToDesign.design`, which
 takes an optional `SourceIndex` (the Scala source of the design). Per module:
 
 1. **Fold groups.** Generator copies (`Seq.fill(n)(Module(...))`: instances
@@ -106,11 +106,11 @@ takes an optional `SourceIndex` (the Scala source of the design). Per module:
 `InstanceFold.fold` (shared with the browser build) then folds each group into
 one box when the layout is baked (`Layout`) and in the UI, which keeps the
 unfold state. The source index lives in the language server:
-`socless.lsp.ScalaSourceIndex` (scalameta, parse-only) maps positions to
+`socle.lsp.ScalaSourceIndex` (scalameta, parse-only) maps positions to
 generator constructs, and `FsmFacts` reads `switch(register)` state machines,
 with `when` conditions as transition labels and next-state wires followed. The
-language server's view runs and `socless.lsp.FromCapture` use it;
-`Launcher from-capture` (behind `./mill example.soclessView`) has none, so it
+language server's view runs and `socle.lsp.FromCapture` use it;
+`Launcher from-capture` (behind `./mill example.socleView`) has none, so it
 shows no generator blocks and no transitions.
 
 The classic CHIRRTL view (`IrWalk` from a `.fir` or the Mill plugin) is

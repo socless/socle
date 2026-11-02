@@ -1,11 +1,11 @@
 package axisystem
 
-import socless.SoclessExporter
+import socle.SocleExporter
 import os._
 
-/** Entrypoint: elaborate AXISystem and write a SoCLess design.json.
+/** Entrypoint: elaborate AXISystem and write a Socle design.json.
   *
-  * Mill driver:  mill example.socless
+  * Mill driver:  mill example.socle
   * Direct:       mill example.runMain axisystem.Main -- --output design.json
   */
 object Main {
@@ -15,7 +15,7 @@ object Main {
       if (outIdx >= 0 && outIdx + 1 < args.length) Path(args(outIdx + 1), os.pwd)
       else os.pwd / "design.json"
 
-    SoclessExporter.export(
+    SocleExporter.export(
       gen        = () => new AXISystem,
       outputPath = outPath,
     )

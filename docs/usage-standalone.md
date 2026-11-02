@@ -1,8 +1,8 @@
 # Using the standalone app
 
-SoCLess does not need Mill. The runtime library ships a standalone, Python-free
+Socle does not need Mill. The runtime library ships a standalone, Python-free
 UI server, so any build that can emit CHIRRTL works in a couple of steps. This is
-a first-class way to use SoCLess: the same single-file UI, driven by a small CLI.
+a first-class way to use Socle: the same single-file UI, driven by a small CLI.
 
 ## 1. Dump CHIRRTL from your build
 
@@ -18,12 +18,12 @@ ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
 
 ## 2. Convert + serve with the CLI
 
-Build a single self-contained jar once (`socless.cli.Launcher` is its main
+Build a single self-contained jar once (`socle.cli.Launcher` is its main
 class), then run it anywhere - no Mill, no Python, no design checkout:
 
 ```bash
-mill socless.assembly                       # one fat jar at out/socless/assembly.dest/out.jar
-jar=out/socless/assembly.dest/out.jar
+mill socle.assembly                       # one fat jar at out/socle/assembly.dest/out.jar
+jar=out/socle/assembly.dest/out.jar
 
 # one-off convert:
 java -jar "$jar" --fir-input MyTop.fir --output design.json
@@ -38,11 +38,11 @@ serve a `design.json` / `designs.json` from that directory so the UI auto-loads
 it. [Using the UI](usage-ui.md) shows how to move around the schematic.
 
 Once the artifact is published to a repository you can resolve, coursier runs the
-same main without building the jar (publish first with `mill socless.publishLocal`,
+same main without building the jar (publish first with `mill socle.publishLocal`,
 or use a published release; substitute the version you published):
 
 ```bash
-cs launch io.socless::socless:0.12.0 -M socless.cli.Launcher -- serve --dir .
+cs launch io.socle::socle:0.12.0 -M socle.cli.Launcher -- serve --dir .
 ```
 
 ## Live dev loop (save and see)
@@ -57,7 +57,7 @@ loop is live). Pair it with a build that re-dumps the `.fir` on every edit:
 sbt "~runMain mypkg.DumpMain"          # DumpMain calls emitCHIRRTLFile (step 1 above)
 
 # terminal 2 - serve + watch that file:
-cs launch io.socless::socless:0.12.0 -M socless.cli.Launcher -- serve --watch MyTop.fir
+cs launch io.socle::socle:0.12.0 -M socle.cli.Launcher -- serve --watch MyTop.fir
 ```
 
 Edit your Chisel, sbt re-dumps `MyTop.fir`, and the open UI reloads within ~1s. A

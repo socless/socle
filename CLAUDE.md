@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Project Does
 
-**SoCLess** is a Mill plugin for Chisel that exports elaborated hardware designs to a JSON schema consumed by an interactive single-file web UI. It bridges Chisel elaboration and visualization.
+**Socle** is a Mill plugin for Chisel that exports elaborated hardware designs to a JSON schema consumed by an interactive single-file web UI. It bridges Chisel elaboration and visualization.
 
 Pipeline: Chisel design → `ChiselStage.emitCHIRRTL` → CHIRRTL text → typed AST → bundle deduplication + wire coalescing → `design.json` → UI.
 
@@ -12,64 +12,64 @@ Pipeline: Chisel design → `ChiselStage.emitCHIRRTL` → CHIRRTL text → typed
 
 ```bash
 # Publish to local Maven cache (prerequisite for user projects)
-mill socless.publishLocal        # Scala 2.13 runtime library
-mill mill-socless.publishLocal   # Scala 3 Mill plugin
+mill socle.publishLocal        # Scala 2.13 runtime library
+mill mill-socle.publishLocal   # Scala 3 Mill plugin
 
 # Run tests
-./mill socless.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, GoldenDesign, ...)
-./mill socless.regenerateGoldens  # Regenerate golden JSON snapshots after intentional pipeline changes
-# (alternative) SOCLESS_REGENERATE=1 ./mill socless.test socless.GoldenDesignTest
-./mill socless-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
-./mill socless-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
-./mill socless-vscode.test        # VS Code extension logic (Scala.js, runs on Node)
+./mill socle.test               # utest suite (LayoutTest, ChirrtlParser, PipelineRobustness, GoldenDesign, ...)
+./mill socle.regenerateGoldens  # Regenerate golden JSON snapshots after intentional pipeline changes
+# (alternative) SOCLE_REGENERATE=1 ./mill socle.test socle.GoldenDesignTest
+./mill socle-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
+./mill socle-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
+./mill socle-vscode.test        # VS Code extension logic (Scala.js, runs on Node)
 ./mill example.test               # the example ChiselSim tests (needs Verilator on PATH)
 tools/ci/selective.sh prepare <base-sha>   # PR CI: snapshot the base (checks it out and back: commit first), then
-tools/ci/selective.sh run socless.test     # run only if its inputs changed (`selected <sel>` lists what would run)
+tools/ci/selective.sh run socle.test     # run only if its inputs changed (`selected <sel>` lists what would run)
 
 # Run bundled examples (no publishLocal needed)
-mill example.soclessRun          # AXISystem design
-mill example.soclessRunGcd       # GCD module
-mill example.soclessRunPipeline  # 4-stage RISC-V pipeline
-mill example.soclessRunDeepSoc   # Deep hierarchy (DeepSoc)
-mill example.soclessRunIoBundles # Vec-of-bundle ports (Interconnect)
-mill example.soclessRunRegHeavy  # Register-heavy design (Datapath)
-mill example.soclessRunFsm       # TrafficFsm (switch/is FSM)
-mill example.soclessRunLayers    # LayeredCounter (verification layers)
-mill example.soclessRunScatter   # ScatterDemo (bundle direction split)
-mill example.soclessRunBigArray  # BigArray (16x16 stages: the UI smoke's performance guard)
-./mill example.soclessCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
-./mill example.soclessCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
-./mill example.soclessCapturedGcd      # committed GCD capture -> design.json with its signals (embedded.mjs Waveform check)
-./mill example.soclessView gcd.GcdSpec "GCD computes gcd(48, 18)"  # view a ChiselSim test's design (probe, no simulation)
-mill show example.soclessRun     # Print path to emitted design.json
+mill example.socleRun          # AXISystem design
+mill example.socleRunGcd       # GCD module
+mill example.socleRunPipeline  # 4-stage RISC-V pipeline
+mill example.socleRunDeepSoc   # Deep hierarchy (DeepSoc)
+mill example.socleRunIoBundles # Vec-of-bundle ports (Interconnect)
+mill example.socleRunRegHeavy  # Register-heavy design (Datapath)
+mill example.socleRunFsm       # TrafficFsm (switch/is FSM)
+mill example.socleRunLayers    # LayeredCounter (verification layers)
+mill example.socleRunScatter   # ScatterDemo (bundle direction split)
+mill example.socleRunBigArray  # BigArray (16x16 stages: the UI smoke's performance guard)
+./mill example.socleCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
+./mill example.socleCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
+./mill example.socleCapturedGcd      # committed GCD capture -> design.json with its signals (embedded.mjs Waveform check)
+./mill example.socleView gcd.GcdSpec "GCD computes gcd(48, 18)"  # view a ChiselSim test's design (probe, no simulation)
+mill show example.socleRun     # Print path to emitted design.json
 
 # Chisel IDE: language server jar for editors (java -jar, probe agent inside); setup in docs/ide-neovim.md
-./mill socless-lsp.assembly       # -> out/socless-lsp/assembly.dest/out.jar
+./mill socle-lsp.assembly       # -> out/socle-lsp/assembly.dest/out.jar
 # VS Code extension (docs/ide-vscode.md): vsix bundles the server jar
-./mill socless-vscode.vsix        # -> out/socless-vscode/vsix.dest/socless-<version>.vsix (needs node/npm)
-./mill socless-vscode.stage       # extension dir for the e2e
-socless-vscode/e2e/run.sh out/socless-vscode/stage.dest  # headless VS Code e2e; NOT a Mill command (it would contend on the out/ lock); never run it during another ./mill
+./mill socle-vscode.vsix        # -> out/socle-vscode/vsix.dest/socle-<version>.vsix (needs node/npm)
+./mill socle-vscode.stage       # extension dir for the e2e
+socle-vscode/e2e/run.sh out/socle-vscode/stage.dest  # headless VS Code e2e; NOT a Mill command (it would contend on the out/ lock); never run it during another ./mill
 
 # Inspect baked layout geometry headlessly (no UI)
-mill example.soclessDebugLayout          # dump default design's per-module SVG + text
-mill myDesign.soclessDebugLayout         # in a user project
-./mill socless.runMain socless.cli.Launcher debug-layout design.json --out dump   # any design.json
+mill example.socleDebugLayout          # dump default design's per-module SVG + text
+mill myDesign.socleDebugLayout         # in a user project
+./mill socle.runMain socle.cli.Launcher debug-layout design.json --out dump   # any design.json
 
 # In user projects after publishing
-mill myDesign.socless             # Elaborate + emit design.json
-mill myDesign.soclessUI           # Serve UI locally (default port 8765)
-mill myDesign.soclessUI --port 9000
+mill myDesign.socle             # Elaborate + emit design.json
+mill myDesign.socleUI           # Serve UI locally (default port 8765)
+mill myDesign.socleUI --port 9000
 ```
 
-Tests live in `socless/test/src/socless/` and run with `./mill socless.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, WithLayoutsTest, and GoldenDesignTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against the reference JSONs in `socless/test/resources/reference/`.
+Tests live in `socle/test/src/socle/` and run with `./mill socle.test`. The suite includes LayoutTest, ElkSmokeTest, EndpointTest, HarnessTest, LayoutPolishTest, PipelineRobustnessTest, SchemaLayoutTest, WithLayoutsTest, and GoldenDesignTest (utest framework). Additional validation can be done by elaborating examples and inspecting the emitted `design.json` against the reference JSONs in `socle/test/resources/reference/`.
 
-**Golden/snapshot tests**: `GoldenDesignTest` compares the IrWalk-pipeline output (parse+design, no layout) against committed golden files in `socless/test/resources/golden/`. When you intentionally change the emitted schema, regenerate the goldens with `./mill socless.regenerateGoldens`, then `git diff` to review and commit.
+**Golden/snapshot tests**: `GoldenDesignTest` compares the IrWalk-pipeline output (parse+design, no layout) against committed golden files in `socle/test/resources/golden/`. When you intentionally change the emitted schema, regenerate the goldens with `./mill socle.regenerateGoldens`, then `git diff` to review and commit.
 
 ## Module Architecture
 
 ```
-socless/src/socless/
-  SoclessExporter.scala  # Public entry point: SoclessExporter.export(gen, path, sourceRoot?), fromCaptured
+socle/src/socle/
+  SocleExporter.scala  # Public entry point: SocleExporter.export(gen, path, sourceRoot?), fromCaptured
   schema/                # Schema.scala: JSON case classes, the contract with the UI (Design, ModuleDef, ...);
                          # BundleTree.scala (shared with the UI)
   parse/ChirrtlParser.scala  # CHIRRTL text → typed AST (GroundT, BundleT, VecT, Port, Inst, Conn)
@@ -77,25 +77,25 @@ socless/src/socless/
                          # FsmDetect, MemNodes, Synthetic (logic-node extraction)
   cli/                   # Launcher (reflection-based main, CLI entry invoked by the Mill plugin;
                          # from-capture, debug-layout, serve), Serve (standalone UI server)
-  layout/                # LayoutCore (pure, shared with socless-js), Layout (JVM ELK bake),
+  layout/                # LayoutCore (pure, shared with socle-js), Layout (JVM ELK bake),
                          # LayoutDebug (headless dump), InstanceFold (folds generator copies; shared)
-  capture/               # View-mode capture: CapturedModel (shared with socless-probe),
+  capture/               # View-mode capture: CapturedModel (shared with socle-probe),
                          # ModelToDesign (capture -> Design), WiresFromChirrtl (wiring fallback),
                          # LogicGroups (which logic nodes form one block), LogicBlocks (collapse
                          # groups into boxes with pins), SourceIndex (trait: source position ->
-                         # generator construct, FSM diagram; implemented in socless-lsp)
+                         # generator construct, FSM diagram; implemented in socle-lsp)
 
-socless-probe/             # Java agent: captures a ChiselSim test's elaborated design (view mode)
-  src/socless/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk
+socle-probe/             # Java agent: captures a ChiselSim test's elaborated design (view mode)
+  src/socle/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk
   fixtures/src/probefix/ # NoSimulateSpec, BrokenSpec: compiled fixtures for AgentRunTest
 
-socless-lsp/src/socless/lsp/  # Language server (stdio): View design / Simulate lenses + live panel
+socle-lsp/src/socle/lsp/  # Language server (stdio): View design / Simulate lenses + live panel
   Main.scala             # entry point; stdout is the JSON-RPC channel (prints go to stderr)
-  SoclessLanguageServer.scala  # lenses, socless.viewDesign, save refresh, socless/cursor, panel-to-editor
-  SoclessClient.scala    # client-side notifications (socless/openPanel, ...)
+  SocleLanguageServer.scala  # lenses, socle.viewDesign, save refresh, socle/cursor, panel-to-editor
+  SocleClient.scala    # client-side notifications (socle/openPanel, ...)
   TestDiscovery.scala    # scalameta: ChiselSim test cases, enclosing class at a line
   SimBaseIndex.scala     # workspace classes/traits whose extends chain reaches ChiselSim
-  WorkspaceTests.scala   # every ChiselSim test of the workspace (socless/tests), parse-only
+  WorkspaceTests.scala   # every ChiselSim test of the workspace (socle/tests), parse-only
   MillBridge.scala       # asks ./mill for a source file's test classpath and fork settings
   ViewRunner.scala       # forks the test with the probe agent, adapts the capture to a Design
   SimRunner.scala        # Simulate: runs the test with waves, opens the trace in Surfer
@@ -104,17 +104,17 @@ socless-lsp/src/socless/lsp/  # Language server (stdio): View design / Simulate 
   LiveHttp.scala         # 127.0.0.1 panel: UI, /design.json, /ide.json, POST /open
   ScalaSourceIndex.scala # scalameta SourceIndex: generator constructs, FSM state diagrams
   FsmFacts.scala         # switch(register) state machines, syntax only (for ScalaSourceIndex.fsm)
-  FromCapture.scala      # CLI: capture -> design.json with the source index (soclessCapturedFsm)
+  FromCapture.scala      # CLI: capture -> design.json with the source index (socleCapturedFsm)
 
-socless-vscode/            # VS Code extension (Scala.js, CommonJS; docs/ide-vscode.md)
-  src/socless/vscode/    # Extension (activate), Panel (webview), Logic (pure, unit-tested),
+socle-vscode/            # VS Code extension (Scala.js, CommonJS; docs/ide-vscode.md)
+  src/socle/vscode/    # Extension (activate), Panel (webview), Logic (pure, unit-tested),
                          # Sidebar (Tests/Hierarchy/Details views), SidebarModel (pure, unit-tested),
                          # facade/ (vscode, languageclient, node)
   package.json           # manifest template (@VERSION@ placeholders), rendered by Mill
   e2e/                   # index.js (runs inside VS Code), webview-click.mjs (CDP), run.sh (headless launcher)
 
-mill-socless/src/socless/mill/
-  SoclessModule.scala    # Trait users mix into ScalaModule; defines `socless` and `soclessUI` tasks
+mill-socle/src/socle/mill/
+  SocleModule.scala    # Trait users mix into ScalaModule; defines `socle` and `socleUI` tasks
 
 example/src/
   gcd/                   # Single-module, Decoupled I/O (simplest case)
@@ -126,11 +126,11 @@ example/src/
   fsm/ layers/ scatter/  # TrafficFsm, LayeredCounter (verification layers), ScatterDemo
   bigarray/              # BigArray: 256 boxes in one module (performance guard)
 
-socless-js/src/socless/js/
+socle-js/src/socle/js/
   BrowserLayout.scala    # Scala.js elkjs facade; runs the schematic layout in-browser (in-process to the UI)
 
-socless-ui/                # Scala.js + Laminar frontend - owns all its UI assets
-  src/socless/ui/
+socle-ui/                # Scala.js + Laminar frontend - owns all its UI assets
+  src/socle/ui/
     App.scala              # frontend root: design load, hierarchy, state, keyboard, chrome, fold state
     schematic/             # Schematic (center pane: boxes/ports/wires, pan/zoom/drill, expansion,
                            # filter, minimap), SchematicBoxes / SchematicChrome / SchematicGeom /
@@ -143,7 +143,7 @@ socless-ui/                # Scala.js + Laminar frontend - owns all its UI asset
     wave/                  # SurferPane (embedded Surfer WASM over in-page WCP), WaveFollow (the
                            # waveform viewer follows the selection: panel Surfer or POST /wave/select)
     theme/Tokens.scala     # theme tokens
-  html/SoCLess.src.html    # template the `dist` task inlines into the single-file UI
+  html/socle.src.html    # template the `dist` task inlines into the single-file UI
   vendor/                  # elk.bundled.js + elk-worker.min.js (vendored elkjs), inlined offline
 
 tools/
@@ -152,13 +152,13 @@ tools/
   check-chirrtl-fixtures.sh, consume-test/  # CI: fixture drift check; plugin consumption smoke
 ```
 
-The frontend is **Scala.js + Laminar** (`socless-ui`). The shipped single-file
-UI is produced by the `socless-ui.dist` Mill task (link output + vendored elkjs
-inlined into the template, offline) and embedded in the socless JAR as
-`SoCLess.html` (epic #172). There is **no committed UI artifact and no Node
-build** - just `./mill socless-ui.dist`. It parses `design.json` into the typed
-`Design` and calls `socless-js` (`BrowserLayout.runTyped`) and
-`socless.BundleTree` in-process.
+The frontend is **Scala.js + Laminar** (`socle-ui`). The shipped single-file
+UI is produced by the `socle-ui.dist` Mill task (link output + vendored elkjs
+inlined into the template, offline) and embedded in the socle JAR as
+`socle.html` (epic #172). There is **no committed UI artifact and no Node
+build** - just `./mill socle-ui.dist`. It parses `design.json` into the typed
+`Design` and calls `socle-js` (`BrowserLayout.runTyped`) and
+`socle.BundleTree` in-process.
 
 ## Key Design Decisions
 
@@ -170,22 +170,22 @@ build** - just `./mill socless-ui.dist`. It parses `design.json` into the typed
 
 **Wire coalescing** — ground-level connects sharing a `<inst>.<port>` prefix are grouped; the count becomes the wire label in the UI.
 
-**Plugin task forks a JVM** (`SoclessModule.scala`) — `socless` task runs `Launcher` in a separate JVM with the user's exact run classpath, so the plugin doesn't need to share a classloader with user code.
+**Plugin task forks a JVM** (`SocleModule.scala`) — `socle` task runs `Launcher` in a separate JVM with the user's exact run classpath, so the plugin doesn't need to share a classloader with user code.
 
 **Launcher requires no-arg constructors** — parameterized Chisel modules need a thin wrapper class:
 ```scala
-class MyTopForSocless extends MyTop(defaultParams)
+class MyTopForSocle extends MyTop(defaultParams)
 ```
 
 **Two ELK engines, one shared core (deliberate, not duplication).** Layout has a
 single pure, engine-independent core (`layout/LayoutCore.scala`, plus `Schema`,
 `BundleTree`, `Synthetic`) that `build.mill` cross-compiles into BOTH the JVM
-`socless` module and the Scala.js `socless-js` module (`sharedSources`), so the
+`socle` module and the Scala.js `socle-js` module (`sharedSources`), so the
 graph prep cannot drift. Only the ELK runtime *binding* is duplicated: `Layout.scala`
 (JVM, wraps Eclipse ELK Java) bakes per-module layouts into `design.json` at export
 time, and `BrowserLayout.scala` (JS, wraps elkjs) re-lays-out in the browser. Both
 exist on purpose: the baked JVM layout gives instant first paint, deterministic
-golden snapshots (`LayoutStructureGoldenTest`), and headless `soclessDebugLayout`
+golden snapshots (`LayoutStructureGoldenTest`), and headless `socleDebugLayout`
 (no browser); elkjs gives interactive re-layout for expansions / drill-in / Optimize
 that the backend cannot precompute (issue #167). ELK versions are pinned together
 (`V.elk` and the vendored `elk.bundled.js`). Keep the two engine bindings behaviorally
@@ -194,16 +194,16 @@ away first-paint and the JVM-side layout tests (see the perf plan, not yet sched
 
 ## Schema Contract
 
-`Schema.scala` case classes are the JSON contract with the `socless-ui` frontend, which reads `design.json` into the typed `Design` via the shared upickle ReadWriters. Adding fields must be backward-compatible (use a trailing default so older `design.json` still parses). Never remove or rename existing fields without updating the UI.
+`Schema.scala` case classes are the JSON contract with the `socle-ui` frontend, which reads `design.json` into the typed `Design` via the shared upickle ReadWriters. Adding fields must be backward-compatible (use a trailing default so older `design.json` still parses). Never remove or rename existing fields without updating the UI.
 
 ## Dependencies
 
 | Module | Scala | Key deps |
 |--------|-------|----------|
-| `socless` | 2.13.16 | Chisel 7.16.0, upickle 4.0.2, os-lib 0.11.4 |
-| `socless-js` | 2.13.16 (Scala.js 1.19) | upickle; elkjs (`window.ELK`) at runtime |
-| `socless-ui` | 2.13.16 (Scala.js 1.19) | Laminar 17.2.0; depends on `socless-js` |
-| `mill-socless` | 3.8.2 | Mill 1.1.6 APIs |
-| `socless-lsp` | 2.13.16 | lsp4j 1.0.0, scalameta 4.17.4; depends on `socless` |
-| `socless-probe` | 2.13.16 | Chisel 7.16.0 compile-only (the test JVM provides it); Byte Buddy 1.18.15 + upickle shaded under `socless.shaded` in the agent jar |
-| `socless-vscode` | 2.13.16 (Scala.js 1.19) | vscode-languageclient 9.0.1 (npm, only into the vsix); vsce 3.2.1 |
+| `socle` | 2.13.16 | Chisel 7.16.0, upickle 4.0.2, os-lib 0.11.4 |
+| `socle-js` | 2.13.16 (Scala.js 1.19) | upickle; elkjs (`window.ELK`) at runtime |
+| `socle-ui` | 2.13.16 (Scala.js 1.19) | Laminar 17.2.0; depends on `socle-js` |
+| `mill-socle` | 3.8.2 | Mill 1.1.6 APIs |
+| `socle-lsp` | 2.13.16 | lsp4j 1.0.0, scalameta 4.17.4; depends on `socle` |
+| `socle-probe` | 2.13.16 | Chisel 7.16.0 compile-only (the test JVM provides it); Byte Buddy 1.18.15 + upickle shaded under `socle.shaded` in the agent jar |
+| `socle-vscode` | 2.13.16 (Scala.js 1.19) | vscode-languageclient 9.0.1 (npm, only into the vsix); vsce 3.2.1 |

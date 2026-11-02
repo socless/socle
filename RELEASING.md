@@ -1,19 +1,19 @@
-# Releasing SoCLess
+# Releasing Socle
 
 This document describes how to cut a release. A release publishes:
 
-- `io.socless::socless:<version>` - runtime library (Scala 2.13 / Chisel)
-- `io.socless::mill-socless:<version>` - Mill plugin trait (Scala 3 / Mill APIs)
+- `io.socle::socle:<version>` - runtime library (Scala 2.13 / Chisel)
+- `io.socle::mill-socle:<version>` - Mill plugin trait (Scala 3 / Mill APIs)
 - a GitHub release `v<version>` with the distributable files:
-  - `socless-<version>.jar` - standalone UI server + CLI (`java -jar socless-<version>.jar serve`, see [docs/usage-standalone.md](docs/usage-standalone.md))
-  - `socless-lsp-<version>.jar` - the language server
-  - `socless-<version>.vsix` - the VS Code extension
-  - `SoCLess-<version>.html` - the single-file UI
+  - `socle-<version>.jar` - standalone UI server + CLI (`java -jar socle-<version>.jar serve`, see [docs/usage-standalone.md](docs/usage-standalone.md))
+  - `socle-lsp-<version>.jar` - the language server
+  - `socle-<version>.vsix` - the VS Code extension
+  - `socle-<version>.html` - the single-file UI
   - `SHA256SUMS` - checksums of the above
 
 ## Versioning
 
-SoCLess follows [Semantic Versioning](https://semver.org/) (SemVer):
+Socle follows [Semantic Versioning](https://semver.org/) (SemVer):
 
 - **PATCH** (`0.1.x`) - backwards-compatible bug fixes, documentation, or
   dependency bumps that do not change the JSON schema or plugin API.
@@ -41,7 +41,7 @@ artifacts on every push (so publish metadata cannot rot).
   its branch (Actions, Release, Run workflow, or
   `gh workflow run release.yml --ref <branch>`): it builds them with
   `.github/workflows/build-artifacts.yml` and uploads them as the
-  `socless-dist` workflow artifact, kept for a few days. Doing this before
+  `socle-dist` workflow artifact, kept for a few days. Doing this before
   tagging also catches a packaging break before the release run.
 - Pushing a `v<version>` tag runs `.github/workflows/release.yml`: it checks
   that the tag equals `V.publishVer` and that `CHANGELOG.md` has a section for
@@ -57,18 +57,18 @@ tools/release/notes.sh 0.2.0
 
 ## Pre-release checklist
 
-1. Confirm `./mill socless.test` passes on a clean checkout of `main`:
+1. Confirm `./mill socle.test` passes on a clean checkout of `main`:
 
    ```bash
-   ./mill socless.test
+   ./mill socle.test
    ```
 
 2. Confirm the bundled examples still elaborate correctly:
 
    ```bash
-   ./mill example.soclessRun
-   ./mill example.soclessRunGcd
-   ./mill example.soclessRunPipeline
+   ./mill example.socleRun
+   ./mill example.socleRunGcd
+   ./mill example.socleRunPipeline
    ```
 
 3. Collect notable changes from the git log since the last tag:
@@ -118,7 +118,7 @@ git push origin v0.2.0
 ```
 
 The tag starts the release workflow, which builds the files and publishes the
-GitHub release `v0.2.0` ("SoCLess 0.2.0") with them. Follow it in the Actions
+GitHub release `v0.2.0` ("Socle 0.2.0") with them. Follow it in the Actions
 tab; if it fails (for example a tag that does not match `V.publishVer`, or a
 missing CHANGELOG section), fix the cause, then delete and re-push the tag.
 
@@ -128,8 +128,8 @@ The Maven artifacts are not published by the workflow. If you need them,
 publish from a clean checkout of the tag:
 
 ```bash
-./mill socless.publishLocal
-./mill mill-socless.publishLocal
+./mill socle.publishLocal
+./mill mill-socle.publishLocal
 ```
 
 Replace `publishLocal` with `publish` (and supply credentials) to push to a

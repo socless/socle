@@ -3,25 +3,25 @@
 // parameter every piece is still there.
 //
 // Embedded, the hierarchy and inspector panes are gone (VS Code's side panel shows
-// them), and the UI talks to the parent page: it posts `socless-state` (design
+// them), and the UI talks to the parent page: it posts `socle-state` (design
 // hierarchy only when the design changes, drill path, selection, details) and
-// follows `socless-navigate`.
+// follows `socle-navigate`.
 //
-// Usage (from the repo root, after `./mill socless-ui.dist`, the elaborated designs
-// `./mill example.soclessRunGcd` and `./mill example.soclessRunDeepSoc`, and the
-// captured FSM and GCD designs `./mill example.soclessCapturedFsm` and
-// `./mill example.soclessCapturedGcd`):
-//   node tools/ui-smoke/embedded.mjs --design out/example/soclessRunGcd.dest/design.json \
-//     --deep out/example/soclessRunDeepSoc.dest/design.json \
-//     --fsm out/example/soclessCapturedFsm.dest/design.json \
-//     --gcd out/example/soclessCapturedGcd.dest/design.json
+// Usage (from the repo root, after `./mill socle-ui.dist`, the elaborated designs
+// `./mill example.socleRunGcd` and `./mill example.socleRunDeepSoc`, and the
+// captured FSM and GCD designs `./mill example.socleCapturedFsm` and
+// `./mill example.socleCapturedGcd`):
+//   node tools/ui-smoke/embedded.mjs --design out/example/socleRunGcd.dest/design.json \
+//     --deep out/example/socleRunDeepSoc.dest/design.json \
+//     --fsm out/example/socleCapturedFsm.dest/design.json \
+//     --gcd out/example/socleCapturedGcd.dest/design.json
 //
 // The Waveform check (8) stands in for the language server: it serves /ide.json
 // (mutable), a ChiselSim GCD trace (tools/ui-smoke/fixtures/gcd-trace.vcd) and its
-// names under /wave/<id>/, the vendored Surfer (socless-lsp/vendor/surfer, the
+// names under /wave/<id>/, the vendored Surfer (socle-lsp/vendor/surfer, the
 // files the server jar packs) under /surfer/, and records POST /wave/select.
 // Check 10 frames the Surfer tab page (`?host=vscode&view=surfer`) and drives it with
-// `socless-surfer-cmd` messages, as the extension does, on the same trace. Check 11
+// `socle-surfer-cmd` messages, as the extension does, on the same trace. Check 11
 // frames the VS Code panel page, which then drives the Surfer tab by messages (the
 // check answers as the tab), and check 12 shows the browser page keeps its Surfer.
 // Check 8 runs the panel page unframed: with no parent to relay to, it keeps Surfer
@@ -40,13 +40,13 @@ const args = Object.fromEntries(
     return [k, v.join(' ') || true];
   }),
 );
-const UI = args.ui || 'out/socless-ui/dist.dest/SoCLess.html';
-const DESIGN = args.design || 'out/example/soclessRunGcd.dest/design.json';
-const DEEP = args.deep || 'out/example/soclessRunDeepSoc.dest/design.json'; // a design with instances
-const FSM = args.fsm || 'out/example/soclessCapturedFsm.dest/design.json'; // an FSM block with a state diagram
-const GCD = args.gcd || 'out/example/soclessCapturedGcd.dest/design.json'; // a captured design with its signals
+const UI = args.ui || 'out/socle-ui/dist.dest/socle.html';
+const DESIGN = args.design || 'out/example/socleRunGcd.dest/design.json';
+const DEEP = args.deep || 'out/example/socleRunDeepSoc.dest/design.json'; // a design with instances
+const FSM = args.fsm || 'out/example/socleCapturedFsm.dest/design.json'; // an FSM block with a state diagram
+const GCD = args.gcd || 'out/example/socleCapturedGcd.dest/design.json'; // a captured design with its signals
 const VCD = args.vcd || 'tools/ui-smoke/fixtures/gcd-trace.vcd'; // a ChiselSim (Verilator) trace of that design
-const SURFER = args.surfer || 'socless-lsp/vendor/surfer'; // the vendored Surfer WASM build
+const SURFER = args.surfer || 'socle-lsp/vendor/surfer'; // the vendored Surfer WASM build
 const SHOTS = args.shots || null; // where to save the Waveform screenshot
 for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURFER}/surfer_bg.wasm`])
   if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
@@ -154,7 +154,7 @@ const f = document.getElementById('f');
 addEventListener('message', (e) => { if (e.source === f.contentWindow) window.__msgs.push({ origin: e.origin, data: e.data }); });
 </script></body>`];
 const PARENT_TAB = `http://localhost:${server.address().port}/parent-tab.html`;
-// The VS Code SoCLess panel stand-in on the GCD capture (check 11): records what the UI
+// The VS Code Socle panel stand-in on the GCD capture (check 11): records what the UI
 // posts; the check answers as the extension and the Surfer tab would.
 files['/parent-panel.html'] = ['text/html', `<!DOCTYPE html><body style="margin:0"><iframe id="f" src="${BASE}/gcd/?host=vscode&theme=light" style="width:1400px;height:800px;border:0"></iframe>
 <script>
@@ -193,7 +193,7 @@ const REMOVED = {
 async function open(url, { fresh = false } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 } });
   if (!fresh && !url.includes('host=vscode'))
-    await ctx.addInitScript(() => { try { localStorage.setItem('socless-tips', 'done'); } catch {} });
+    await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -246,7 +246,7 @@ async function waitLoaded(frame) {
     await page.click('[data-first-tips-next]');
   }
   check('normal', seen.length === 4 && new Set(seen).size === 4, `four tips, then closed (${JSON.stringify(seen)})`);
-  check('normal', (await page.evaluate(() => localStorage.getItem('socless-tips'))) === 'done', 'tips remembered as seen');
+  check('normal', (await page.evaluate(() => localStorage.getItem('socle-tips'))) === 'done', 'tips remembered as seen');
   await page.reload();
   await waitLoaded(page);
   check('normal', (await count(page, '[data-first-tips]')) === 0, 'no tips after a reload');
@@ -269,7 +269,7 @@ async function waitLoaded(frame) {
   check('editor panel', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
   await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
   check('editor panel', !(await page.locator('[data-hint-bar]').isVisible()), 'hint bar closed');
-  check('editor panel', (await page.evaluate(() => [localStorage.getItem('socless-hints'), localStorage.getItem('socless-tips')])).every((v) => v === null),
+  check('editor panel', (await page.evaluate(() => [localStorage.getItem('socle-hints'), localStorage.getItem('socle-tips')])).every((v) => v === null),
     'nothing stored for the hint bar or the tips');
   await page.reload();
   await waitLoaded(page);
@@ -292,14 +292,14 @@ async function waitLoaded(frame) {
   }));
   check('embedded', dropCancelled.every(Boolean), `dragover/drop cancelled (no navigation) ${dropCancelled}`);
   check('embedded', (await theme(page)) === 'dark', 'data-theme=dark from ?theme=dark');
-  check('embedded', (await page.evaluate(() => localStorage.getItem('socless-theme'))) === null, 'theme not persisted');
+  check('embedded', (await page.evaluate(() => localStorage.getItem('socle-theme'))) === null, 'theme not persisted');
   // Help: the hint bar shows, the first-time tips never do; closing the bar
   // lasts for the page's life only.
   check('embedded', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
   check('embedded', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips');
   await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
   check('embedded', !(await page.locator('[data-hint-bar]').isVisible()), 'hint bar closed');
-  check('embedded', (await page.evaluate(() => [localStorage.getItem('socless-hints'), localStorage.getItem('socless-tips')])).every((v) => v === null),
+  check('embedded', (await page.evaluate(() => [localStorage.getItem('socle-hints'), localStorage.getItem('socle-tips')])).every((v) => v === null),
     'nothing stored for the hint bar or the tips');
   await page.reload();
   await waitLoaded(page);
@@ -321,7 +321,7 @@ async function waitLoaded(frame) {
   check('embedded', !/Toggle hierarchy panel|Toggle inspector panel/.test(cmds), 'no hierarchy / inspector toggle commands');
   await page.keyboard.press('Escape');
   // A window posting to itself is not the parent: ignored.
-  await page.evaluate(() => window.postMessage({ type: 'socless-theme', kind: 'light' }, '*'));
+  await page.evaluate(() => window.postMessage({ type: 'socle-theme', kind: 'light' }, '*'));
   await page.waitForTimeout(200);
   check('embedded', (await theme(page)) === 'dark', 'self-posted theme message ignored');
   check('embedded', errors.length === 0, `no page errors ${errors.join(' | ')}`);
@@ -336,7 +336,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await ctx.close();
 }
 
-// 4. Live switch: the parent page posts socless-theme to the iframe.
+// 4. Live switch: the parent page posts socle-theme to the iframe.
 {
   const { ctx, page, errors } = await open(PARENT);
   const frame = page.frameLocator('#f');
@@ -344,25 +344,25 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const f = page.frames().find((x) => x !== page.mainFrame());
   check('live', (await theme(f)) === null, 'starts light');
   for (const [kind, want] of [['dark', 'dark'], ['bogus', 'dark'], ['hc', 'contrast'], ['light', null]]) {
-    await page.evaluate((k) => document.getElementById('f').contentWindow.postMessage({ type: 'socless-theme', kind: k }, '*'), kind);
+    await page.evaluate((k) => document.getElementById('f').contentWindow.postMessage({ type: 'socle-theme', kind: k }, '*'), kind);
     await page.waitForTimeout(200);
     check('live', (await theme(f)) === want, `parent posts ${kind} -> data-theme=${want}`);
   }
-  await f.evaluate(() => window.postMessage({ type: 'socless-theme', kind: 'dark' }, '*'));
+  await f.evaluate(() => window.postMessage({ type: 'socle-theme', kind: 'dark' }, '*'));
   await page.waitForTimeout(200);
   check('live', (await theme(f)) === null, 'message from the frame itself ignored');
   check('live', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
 }
 
-// 5. The side panel channel (DeepSoc): socless-state to the parent on load, drill and select;
-// socless-navigate from the parent drills and selects; forged or malformed messages are ignored.
+// 5. The side panel channel (DeepSoc): socle-state to the parent on load, drill and select;
+// socle-navigate from the parent drills and selects; forged or malformed messages are ignored.
 {
   const { ctx, page, errors } = await open(PARENT_DEEP);
   const frame = page.frameLocator('#f');
   await frame.locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
   const f = page.frames().find((x) => x !== page.mainFrame());
-  const states = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socless-state'));
+  const states = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socle-state'));
   const last = async () => (await states()).at(-1);
   const crumb = () => f.evaluate(() => { const a = document.querySelector('.scl-crumb.active'); return a && a.textContent; });
   const navigate = (msg) => page.evaluate((m) => document.getElementById('f').contentWindow.postMessage(m, '*'), msg);
@@ -386,7 +386,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 
   const n0 = (await states()).length;
   check('side', (await states()).filter((m) => 'design' in m.data && m.data.design).length === 1, 'the hierarchy is posted once');
-  await navigate({ type: 'socless-navigate', path: ['DeepSoc', 'cluster0'], select: null });
+  await navigate({ type: 'socle-navigate', path: ['DeepSoc', 'cluster0'], select: null });
   const drilled = await waitFor('the drilled state', (d) => JSON.stringify(d.path) === '["DeepSoc","cluster0"]');
   check('side', (await crumb()) === 'cluster0', 'navigate drills (breadcrumb cluster0)');
   await page.waitForTimeout(300);
@@ -395,7 +395,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     'a drill posts path and details, not the hierarchy again');
 
   const n1 = (await states()).length;
-  await navigate({ type: 'socless-navigate', path: ['DeepSoc'], select: 'pipe' });
+  await navigate({ type: 'socle-navigate', path: ['DeepSoc'], select: 'pipe' });
   const sel = await waitFor('the selected state', (d) => d.selection === 'pipe');
   await page.waitForTimeout(300);
   check('side', (await states()).length === n1 + 1, `one state for a drill-and-select navigate (${(await states()).length - n1})`);
@@ -409,7 +409,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     // The view settled first: the navigate's fit (or a relayout landing) moves the
     // box, and a box that moves under a still pointer gets no hover.
     await f.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-    await f.waitForFunction(() => !(window.__soclessFlying && window.__soclessFlying()), null, { timeout: 10000 }).catch(() => {});
+    await f.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
     const rect = () => f.locator('[data-box-inst="cluster1"]').first().boundingBox();
     let bb = await rect();
     for (let i = 0; i < 25; i++) {
@@ -448,9 +448,9 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   check('side', !!clicked && clicked.data.details.module === 'Cluster_1', 'a box click posts its selection and details');
 
   const n = (await states()).length;
-  await f.evaluate(() => window.postMessage({ type: 'socless-navigate', path: ['DeepSoc', 'cluster0'], select: null }, '*'));
-  for (const bad of [{ type: 'socless-navigate', path: 'DeepSoc' }, { type: 'socless-navigate', path: ['DeepSoc', 'nope'] },
-    { type: 'socless-navigate', path: ['DeepSoc', 7] }, { type: 'socless-navigate', path: ['DeepSoc'], select: 3 }]) await navigate(bad);
+  await f.evaluate(() => window.postMessage({ type: 'socle-navigate', path: ['DeepSoc', 'cluster0'], select: null }, '*'));
+  for (const bad of [{ type: 'socle-navigate', path: 'DeepSoc' }, { type: 'socle-navigate', path: ['DeepSoc', 'nope'] },
+    { type: 'socle-navigate', path: ['DeepSoc', 7] }, { type: 'socle-navigate', path: ['DeepSoc'], select: 3 }]) await navigate(bad);
   await page.waitForTimeout(400);
   check('side', (await crumb()) === 'DeepSoc', 'self-posted and malformed navigate messages ignored');
   check('side', (await states()).length === n, 'no state posted for ignored messages');
@@ -502,7 +502,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const setIde = async (patch) => { wave.ide = { ...wave.ide, ...patch, stamp: wave.ide.stamp + 1 }; await new Promise((r) => setTimeout(r, 2000)); }; // > one 1500 ms poll
   const { ctx, page, errors } = await open('/gcd/?host=vscode&theme=light');
   await waitLoaded(page);
-  const snap = () => page.evaluate(() => window.__soclessWave ? window.__soclessWave.snapshot() : null);
+  const snap = () => page.evaluate(() => window.__socleWave ? window.__socleWave.snapshot() : null);
   const waitSnap = async (what, pred, ms = 20000) => {
     for (let t = 0; t < ms; t += 200) { const s = await snap(); if (s && pred(s)) return s; await page.waitForTimeout(200); }
     check('wave', false, `timed out waiting for ${what}: ${JSON.stringify(await snap())}`);
@@ -529,7 +529,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const ready = await page.waitForSelector('[data-surfer-status="ready"]', { timeout: 120000 }).then(() => true).catch(() => false);
   check('wave', ready, 'Surfer reports loaded');
   const shown = await waitSnap('the top plan', (s) => s.idle && s.shown && s.shown.path === '["GCD"]' && s.loadedTrace.endsWith('/wave/t1/trace'), 30000);
-  const items = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const items = await page.evaluate(() => window.__socleWave.items()).catch(() => []);
   const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
   // GCD's plan (WaveLayout): one group per port, its bundles nested (a Decoupled
   // reads valid, ready, bits, BundleTree's order), then the registers.
@@ -583,10 +583,10 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   // A click on the io.out stub focuses the port's first field; a field (a row
   // of the stub, no node of its own) through the hook.
   await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
-  await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__soclessWave.select('io.out.bits.result')), P('io_out_bits_result'));
+  await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__socleWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
   await focusAfter('wire from blk$GCD$logic.io_in_bits_a', () => page.locator('[data-wire="blk$GCD$logic.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
-  await focusAfter('bundle io.out', () => page.evaluate(() => window.__soclessWave.select('io.out')), P('io_out_valid'));
+  await focusAfter('bundle io.out', () => page.evaluate(() => window.__socleWave.select('io.out')), P('io_out_valid'));
   // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
   // index): a short panel, then the last signal.
   {
@@ -596,8 +596,8 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     await page.mouse.move(h.x + 100, h.y + 150, { steps: 5 });
     await page.mouse.up();
     await page.waitForTimeout(1000); // Surfer redraws at the new size
-    const rows = (await page.evaluate(() => window.__soclessWave.items()).catch(() => [])).map((i) => i.trace);
-    await focusAfter('register busy (the last row)', () => page.evaluate(() => window.__soclessWave.select('busy')), P('busy'));
+    const rows = (await page.evaluate(() => window.__socleWave.items()).catch(() => [])).map((i) => i.trace);
+    await focusAfter('register busy (the last row)', () => page.evaluate(() => window.__socleWave.select('busy')), P('busy'));
     const s = await snap();
     check('wave', !!s.lastScroll && s.lastScroll.index === rows.indexOf(P('busy')) && s.lastScroll.index > 0,
       `the focus scrolled its row into view (ScrollToItem ${JSON.stringify(s.lastScroll)}, row ${rows.indexOf(P('busy'))})`);
@@ -615,7 +615,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await page.click('[data-toggle-pane="bottom"]');
   await page.click('[data-bottom-tab="ports"]');
   await page.click('[data-bottom-tab="wave"]');
-  await focusAfter('port io.in.bits.a after closing the panel', () => page.evaluate(() => window.__soclessWave.select('io.in.bits.a')), P('io_in_bits_a'));
+  await focusAfter('port io.in.bits.a after closing the panel', () => page.evaluate(() => window.__socleWave.select('io.in.bits.a')), P('io_in_bits_a'));
 
   // Surfer's right-click actions (WCP events; the hook stands in for its menu):
   // Go to declaration of a register selects its logic block and opens its source,
@@ -624,15 +624,15 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   {
     wave.opens = [];
     const before = await snap();
-    await page.evaluate((v) => window.__soclessWave.event('goto_declaration', v), P('x'));
+    await page.evaluate((v) => window.__socleWave.event('goto_declaration', v), P('x'));
     await page.waitForTimeout(800);
-    const v = await page.evaluate(() => window.__soclessWave.view());
+    const v = await page.evaluate(() => window.__socleWave.view());
     check('wave', v.path === '["GCD"]' && v.selection === 'blk$GCD$logic', `Go to declaration of x selects its block ${JSON.stringify(v)}`);
     const opened = wave.opens.map((o) => JSON.parse(o.body));
     check('wave', opened.length === 1 && /GCD\.scala$/.test(opened[0].file) && opened[0].line === 30, `and opens x's declaration ${JSON.stringify(opened)}`);
     const after = await snap();
     check('wave', after.idle && after.focusCount === before.focusCount, `the reveal's selection is not followed (focus ${before.focusCount} -> ${after.focusCount})`);
-    await page.evaluate((v) => window.__soclessWave.event('add_drivers', v), P('io_out_bits_result'));
+    await page.evaluate((v) => window.__socleWave.event('add_drivers', v), P('io_out_bits_result'));
     await page.waitForTimeout(800);
     const added = await snap();
     check('wave', added.idle && added.addCount === before.addCount, `Add drivers of a signal whose drivers are shown adds nothing (${added.addCount})`);
@@ -641,15 +641,15 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 
   // Folded bundles (wavesFoldBundles): the plan is redone with its bundle groups
   // folded (GroupFold); a focus inside unfolds them first (GroupUnfold).
-  const visible = async () => (await page.evaluate(() => window.__soclessWave.items()).catch(() => []))
+  const visible = async () => (await page.evaluate(() => window.__socleWave.items()).catch(() => []))
     .map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace));
-  await page.evaluate(() => window.__soclessWave.select(null)); // no selection: no focus unfolds a group
+  await page.evaluate(() => window.__socleWave.select(null)); // no selection: no focus unfolds a group
   await setIde({ waveSettings: { ...SETTINGS, foldBundles: true } });
   await waitSnap('the folded plan', (s) => s.idle);
   const foldedItems = await visible();
   const wantFolded = ['group io', 'group io.in', 'group io.out', 'group Registers', P('x'), P('y'), P('busy')];
   check('wave', JSON.stringify(foldedItems) === JSON.stringify(wantFolded), `bundle groups folded ${JSON.stringify(foldedItems)}`);
-  await focusAfter('port io.in.bits.a in a folded bundle', () => page.evaluate(() => window.__soclessWave.select('io.in.bits.a')), P('io_in_bits_a'));
+  await focusAfter('port io.in.bits.a in a folded bundle', () => page.evaluate(() => window.__socleWave.select('io.in.bits.a')), P('io_in_bits_a'));
   const unfolded = await visible();
   check('wave', unfolded.includes(P('io_in_bits_a')) && unfolded.includes(P('io_in_bits_b')) && !unfolded.includes(P('io_out_valid')),
     `the focus unfolded its groups only ${JSON.stringify(unfolded)}`);
@@ -668,7 +668,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 
   // A burst of selections: only the last one reaches Surfer (debounced, one exchange at a time).
   const burst0 = (await snap()).focusCount;
-  await page.evaluate(() => ['io.in.valid', 'io.in.ready', 'io.out.valid', 'io.in.bits.b'].forEach((x) => window.__soclessWave.select(x)));
+  await page.evaluate(() => ['io.in.valid', 'io.in.ready', 'io.out.valid', 'io.in.bits.b'].forEach((x) => window.__socleWave.select(x)));
   const burst = await waitSnap('the burst', (x) => x.idle && x.focusCount > burst0);
   await page.waitForTimeout(500);
   const burst1 = await snap();
@@ -708,7 +708,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await waitSnap('the second trace', (s) => s.idle && s.loadedTrace.endsWith('/wave/t2/trace') && s.shown && s.shown.trace.endsWith('/wave/t2/trace'), 30000);
   const missing = await page.locator('[data-wave-missing]').innerText().catch(() => '');
   check('wave', missing.trim() === '1 signal not in the trace', `missing count shown (${JSON.stringify(missing)})`);
-  const items2 = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const items2 = await page.evaluate(() => window.__socleWave.items()).catch(() => []);
   check('wave', !items2.some((i) => i.trace === P('y')) && items2.some((i) => i.trace === P('x')), 'the missing register is not shown, the others are');
   check('wave', wave.surferJs === 1 && wave.surferWasm === 1 && (await snap()).boots === 1, `Surfer booted once (js ${wave.surferJs}, wasm ${wave.surferWasm})`);
 
@@ -718,11 +718,11 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await waitSnap('the third trace', (s) => s.idle && s.shown && s.shown.trace.endsWith('/wave/t3/trace'), 30000);
   const missing3 = await page.locator('[data-wave-missing]').innerText().catch(() => '');
   check('wave', missing3.trim() === '1 signal not in the trace', `a path Surfer dropped is counted missing (${JSON.stringify(missing3)})`);
-  const items3 = await page.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const items3 = await page.evaluate(() => window.__socleWave.items()).catch(() => []);
   const regs3 = items3.filter((i) => i.type !== 'Group').map((i) => i.trace);
   check('wave', regs3.includes(P('x')) && regs3.includes(P('busy')) && !regs3.includes(P('y')) && !regs3.includes(null),
     `the dropped register's group keeps its other signals, each matched ${JSON.stringify(regs3.slice(-3))}`);
-  await focusAfter('register busy beside a dropped one', () => page.evaluate(() => window.__soclessWave.select('busy')), P('busy'));
+  await focusAfter('register busy beside a dropped one', () => page.evaluate(() => window.__socleWave.select('busy')), P('busy'));
 
   // The schematic's navigation keys never act from the Surfer canvas, and do
   // with the focus on the body (Surfer loaded, so its own key handling is live).
@@ -767,7 +767,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await setIde({ waveViewer: 'surfer' });
   wave.posts = [];
   // A field has no node of its own to click (it is a row of the io.in stub).
-  await page.evaluate(() => window.__soclessWave.select('io.in.bits.b'));
+  await page.evaluate(() => window.__socleWave.select('io.in.bits.b'));
   await page.waitForTimeout(800);
   const want2 = { traceTest: TRACE_TEST, instPath: ['GCD'], selection: 'io.in.bits.b' };
   const bodies = wave.posts.map((x) => JSON.parse(x.body));
@@ -802,16 +802,16 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 
 // 9. The debug hook is installed only where the smoke needs it (embedded, or once
 // the panel has a trace to show): a normal page without a trace has no
-// window.__soclessWave.
+// window.__socleWave.
 {
   const { ctx, page } = await open('/');
   await waitLoaded(page);
-  check('hook', (await page.evaluate(() => typeof window.__soclessWave)) === 'undefined', 'no __soclessWave on a normal page');
+  check('hook', (await page.evaluate(() => typeof window.__socleWave)) === 'undefined', 'no __socleWave on a normal page');
   await ctx.close();
 }
 
 // 10. The Surfer tab page (`?host=vscode&view=surfer`): only Surfer, driven by its
-// parent's `socless-surfer-cmd` messages, answering `socless-surfer-status`. It
+// parent's `socle-surfer-cmd` messages, answering `socle-surfer-status`. It
 // fetches no design and no /ide.json; a Load then a Show of GCD's top plan shows
 // its 16 rows; Hello reports the state; Focus reaches the pane; self-posted and
 // malformed commands are ignored.
@@ -840,7 +840,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const mounted = await page.frameLocator('#f').locator('[data-surfer-pane]').waitFor({ timeout: 30000 }).then(() => true).catch(() => false);
   check('tab', mounted, 'the Surfer tab page mounts its pane');
   const f = page.frames().find((x) => x !== page.mainFrame());
-  const statuses = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socless-surfer-status'));
+  const statuses = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socle-surfer-status'));
   const waitStatus = async (what, pred, ms = 30000) => {
     for (let t = 0; t < ms; t += 200) {
       const s = (await statuses()).find((m) => pred(m.data.status));
@@ -850,7 +850,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     check('tab', false, `timed out waiting for ${what}: ${JSON.stringify((await statuses()).map((m) => m.data.status)).slice(-400)}`);
     return null;
   };
-  const cmd = (c) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-cmd', cmd: x }, '*'), c);
+  const cmd = (c) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage({ type: 'socle-surfer-cmd', cmd: x }, '*'), c);
 
   const first = await waitStatus('the first status', () => true, 10000);
   check('tab', !!first && first.origin === BASE && first.data.status.state === 'idle', `the page reports idle at start ${JSON.stringify(first)}`);
@@ -860,9 +860,9 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   check('tab', (await theme(f)) === 'dark', 'theme from ?theme=dark');
 
   // Ignored: posted by the frame to itself, or malformed.
-  await f.evaluate((u) => window.postMessage({ type: 'socless-surfer-cmd', cmd: { $type: 'Load', url: u } }, '*'), TRACE);
+  await f.evaluate((u) => window.postMessage({ type: 'socle-surfer-cmd', cmd: { $type: 'Load', url: u } }, '*'), TRACE);
   for (const bad of [{}, 'Load', { $type: 'Nope' }, { $type: 'Load' }, null]) await cmd(bad);
-  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-cmd' }, '*'));
+  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socle-surfer-cmd' }, '*'));
   await page.waitForTimeout(600);
   check('tab', wave.surferJs === js0 && (await statuses()).every((m) => m.data.status.state === 'idle'),
     `self-posted and malformed commands ignored (surfer.js fetched ${wave.surferJs - js0}x)`);
@@ -873,7 +873,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   const done = await waitStatus('the shown seq 1', (s) => s.shownSeq === 1, 120000);
   check('tab', !!done && done.data.status.state === 'ready' && done.data.status.loadedTrace === TRACE && done.data.status.dropped === 0 && !done.data.status.shownSeqFailed,
     `seq 1 shown, ready, nothing dropped ${JSON.stringify(done && done.data.status)}`);
-  const items = await f.evaluate(() => window.__soclessWave.items()).catch(() => []);
+  const items = await f.evaluate(() => window.__socleWave.items()).catch(() => []);
   const got = items.map((i) => (i.type === 'Group' ? `group ${i.name}` : i.trace || `? ${i.name}`));
   check('tab', items.length === 16 && JSON.stringify(got) === JSON.stringify(want),
     `Surfer shows GCD's 16 rows\n      got  ${JSON.stringify(got)}\n      want ${JSON.stringify(want)}`);
@@ -890,7 +890,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await cmd({ $type: 'Focus', trace: P('busy') });
   let focus = null;
   for (let t = 0; t < 20000 && !focus; t += 200) {
-    const s = await f.evaluate(() => window.__soclessWave.snapshot());
+    const s = await f.evaluate(() => window.__socleWave.snapshot());
     if (s.idle && s.lastFocus) focus = s.lastFocus; else await page.waitForTimeout(200);
   }
   check('tab', !!focus && focus.trace === P('busy') && focus.ok, `Focus reaches Surfer ${JSON.stringify(focus)}`);
@@ -917,15 +917,15 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     await cmd({ $type: 'Add', traces: [P('x'), P('busy'), P('io_out_bits_result')], after: P('x') });
     let s = null;
     for (let t = 0; t < 20000 && !(s && s.idle && s.addCount > 0); t += 200) {
-      s = await f.evaluate(() => window.__soclessWave.snapshot());
+      s = await f.evaluate(() => window.__socleWave.snapshot());
       if (!(s.idle && s.addCount > 0)) await page.waitForTimeout(200);
     }
-    const rows = (await f.evaluate(() => window.__soclessWave.items()).catch(() => [])).filter((i) => i.type !== 'Group').map((i) => i.trace);
+    const rows = (await f.evaluate(() => window.__socleWave.items()).catch(() => [])).filter((i) => i.type !== 'Group').map((i) => i.trace);
     check('tab', JSON.stringify(rows) === JSON.stringify([P('x'), P('busy'), P('io_out_bits_result')]) &&
       JSON.stringify(s.lastAdd) === JSON.stringify([P('busy'), P('io_out_bits_result')]) && s.lastFocus && s.lastFocus.trace === P('busy'),
       `Add shows the signals not shown, the first focused ${JSON.stringify({ rows, lastAdd: s && s.lastAdd, focus: s && s.lastFocus })}`);
     // A right-click action in the tab's Surfer goes up as a status carrying it.
-    await f.evaluate((v) => window.__soclessWave.event('add_loads', v), P('x'));
+    await f.evaluate((v) => window.__socleWave.event('add_loads', v), P('x'));
     const ev = await waitStatus('the status with the event', (st) => !!st.event, 5000);
     check('tab', !!ev && ev.data.status.event.kind === 'add_loads' && ev.data.status.event.variable === P('x') && ev.data.status.loadedTrace === TRACE,
       `an action in the tab's Surfer posts a status with its event ${JSON.stringify(ev && ev.data.status)}`);
@@ -940,13 +940,13 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 
 // 11. The VS Code panel (framed, `surfer-panel`) drives Surfer in another tab: on load
 // it posts a `Hello` (a tagged object) to learn the tab's state; a new trace posts
-// `socless-surfer-open` (with the trace and its test, unforced), then the `Load` and the
-// `Show` of the top plan (`socless-surfer-cmd`, its seq seeded per page); the new tab's
+// `socle-surfer-open` (with the trace and its test, unforced), then the `Load` and the
+// `Show` of the top plan (`socle-surfer-cmd`, its seq seeded per page); the new tab's
 // first status (no trace yet) gets them once more; the Waveform tab mounts no Surfer, says what the tab
 // reports and has a Show Surfer button (a forced open); a stale status changes nothing;
-// a selection posts `Focus`; after `socless-surfer-closed` nothing is sent until a
+// a selection posts `Focus`; after `socle-surfer-closed` nothing is sent until a
 // fresh tab reports, which gets the trace and the plan again; an error is retried once
-// per tab. 11b: a reloaded panel whose Hello is answered `socless-surfer-closed` (no tab)
+// per tab. 11b: a reloaded panel whose Hello is answered `socle-surfer-closed` (no tab)
 // says "Surfer: closed", and its seq starts elsewhere.
 let seq1 = -1;
 {
@@ -961,8 +961,8 @@ let seq1 = -1;
   await page.frameLocator('#f').locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
   const f = page.frames().find((x) => x !== page.mainFrame());
   const msgs = () => page.evaluate(() => window.__msgs.map((m) => m.data)
-    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socless-surfer')));
-  const kind = (m) => (m.type === 'socless-surfer-cmd' ? (m.cmd && m.cmd.$type) : m.type);
+    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socle-surfer')));
+  const kind = (m) => (m.type === 'socle-surfer-cmd' ? (m.cmd && m.cmd.$type) : m.type);
   const after = async (n) => (await msgs()).slice(n);
   const waitMsgs = async (what, n, pred, ms = 20000) => {
     for (let t = 0; t < ms; t += 200) { const xs = await after(n); if (pred(xs)) return xs; await page.waitForTimeout(200); }
@@ -970,13 +970,13 @@ let seq1 = -1;
     return null;
   };
   const toUi = (m) => page.evaluate((x) => document.getElementById('f').contentWindow.postMessage(x, '*'), m);
-  const status = (s) => toUi({ type: 'socless-surfer-status', status: s });
+  const status = (s) => toUi({ type: 'socle-surfer-status', status: s });
   const stub = (id) => f.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first().click();
 
   await f.waitForTimeout(500);
   const hello = await waitMsgs('the Hello', 0, (xs) => xs.length > 0, 5000);
   await f.waitForTimeout(300);
-  check('remote', !!hello && JSON.stringify(await msgs()) === '[{"type":"socless-surfer-cmd","cmd":{"$type":"Hello"}}]',
+  check('remote', !!hello && JSON.stringify(await msgs()) === '[{"type":"socle-surfer-cmd","cmd":{"$type":"Hello"}}]',
     `no trace: only a Hello posted, as a tagged object ${JSON.stringify(await msgs())}`);
   const base = (await msgs()).length;
   await f.click('[data-toggle-pane="bottom"]');
@@ -990,12 +990,12 @@ let seq1 = -1;
   const first = await waitMsgs('open, Load and Show', base, (xs) => xs.some((m) => kind(m) === 'Show'));
   await page.waitForTimeout(500);
   const xs = await after(base);
-  check('remote', JSON.stringify(xs.map(kind)) === '["socless-surfer-open","Load","Show"]', `a new trace posts open, Load, Show ${JSON.stringify(xs.map(kind))}`);
+  check('remote', JSON.stringify(xs.map(kind)) === '["socle-surfer-open","Load","Show"]', `a new trace posts open, Load, Show ${JSON.stringify(xs.map(kind))}`);
   const load = xs.find((m) => kind(m) === 'Load');
   const show = xs.find((m) => kind(m) === 'Show');
   const url = load && load.cmd.url;
   check('remote', !!first && !!url && url === `${BASE}/wave/t1/trace`, `Load of the absolute trace (${url})`);
-  const open0 = xs.find((m) => m.type === 'socless-surfer-open');
+  const open0 = xs.find((m) => m.type === 'socle-surfer-open');
   check('remote', !!open0 && open0.trace === url && open0.traceTest === TRACE_TEST && open0.force === false,
     `the new trace's open names it and its test, unforced ${JSON.stringify(open0)}`);
   seq1 = show ? show.cmd.seq : -1;
@@ -1026,7 +1026,7 @@ let seq1 = -1;
   const n0 = (await msgs()).length;
   await btn.click().catch(() => {});
   const opened = await waitMsgs('the open of Show Surfer', n0, (ys) => ys.length > 0, 5000);
-  check('remote', !!opened && JSON.stringify(opened.map(kind)) === '["socless-surfer-open"]' &&
+  check('remote', !!opened && JSON.stringify(opened.map(kind)) === '["socle-surfer-open"]' &&
     opened[0].trace === url && opened[0].traceTest === TRACE_TEST && opened[0].force === true, `Show Surfer posts a forced open ${JSON.stringify(opened)}`);
 
   // A stale status (seq 1, replaced by seq 2) changes nothing.
@@ -1047,7 +1047,7 @@ let seq1 = -1;
 
   // A selection: Focus with its trace, no new plan.
   const n1 = (await msgs()).length;
-  await f.evaluate(() => window.__soclessWave.select('io.out.bits.result'));
+  await f.evaluate(() => window.__socleWave.select('io.out.bits.result'));
   const foc = await waitMsgs('the Focus', n1, (ys) => ys.some((m) => kind(m) === 'Focus'));
   await page.waitForTimeout(400);
   const ys = await after(n1);
@@ -1066,12 +1066,12 @@ let seq1 = -1;
   const n5 = (await msgs()).length;
   await status({ state: 'ready', loadedTrace: url, shownSeq: null, dropped: null, event: { kind: 'goto_declaration', variable: P('busy') } });
   await page.waitForTimeout(800);
-  const rv = await f.evaluate(() => window.__soclessWave.view());
+  const rv = await f.evaluate(() => window.__socleWave.view());
   check('remote', rv.selection === 'blk$GCD$logic' && (await after(n5)).length === 0,
     `Go to declaration selects busy's block, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
 
   // The tab closed: nothing is sent; a fresh tab's first status gets Load and Show again.
-  await toUi({ type: 'socless-surfer-closed' });
+  await toUi({ type: 'socle-surfer-closed' });
   await page.waitForTimeout(200);
   const n2 = (await msgs()).length;
   await stub('io.in.valid');
@@ -1104,7 +1104,7 @@ let seq1 = -1;
   const es = await after(ne);
   check('remote', resent(es) === '["Load","Show"]', `an error twice resyncs once ${JSON.stringify(es.map(kind))}`);
   // A new tab may retry again.
-  await toUi({ type: 'socless-surfer-closed' });
+  await toUi({ type: 'socle-surfer-closed' });
   await page.waitForTimeout(200);
   await status({ state: 'idle', loadedTrace: '', shownSeq: null, dropped: null });
   await page.waitForTimeout(1500);
@@ -1126,13 +1126,13 @@ let seq1 = -1;
   await page.frameLocator('#f').locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
   const f = page.frames().find((x) => x !== page.mainFrame());
   const surferMsgs = () => page.evaluate(() => window.__msgs.map((m) => m.data)
-    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socless-surfer')));
+    .filter((d) => d && typeof d.type === 'string' && d.type.startsWith('socle-surfer')));
   let ms = [];
   for (let t = 0; t < 5000 && ms.length === 0; t += 200) { ms = await surferMsgs(); if (!ms.length) await page.waitForTimeout(200); }
-  check('remote-reload', ms.length > 0 && ms[0].type === 'socless-surfer-cmd' && ms[0].cmd && ms[0].cmd.$type === 'Hello',
+  check('remote-reload', ms.length > 0 && ms[0].type === 'socle-surfer-cmd' && ms[0].cmd && ms[0].cmd.$type === 'Hello',
     `the reloaded panel's first message is a Hello ${JSON.stringify(ms[0])}`);
   // The extension's answer with no Surfer tab.
-  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socless-surfer-closed' }, '*'));
+  await page.evaluate(() => document.getElementById('f').contentWindow.postMessage({ type: 'socle-surfer-closed' }, '*'));
   await f.click('[data-toggle-pane="bottom"]');
   await f.click('[data-bottom-tab="wave"]').catch(() => {});
   let info = '';
@@ -1141,7 +1141,7 @@ let seq1 = -1;
     if (!/Surfer: closed/.test(info)) await page.waitForTimeout(200);
   }
   check('remote-reload', /Surfer: closed/.test(info), `the answer shows the tab closed, not idle (${JSON.stringify(info.slice(0, 120))})`);
-  const seqB = await f.evaluate(() => window.__soclessWave && window.__soclessWave.snapshot().seq);
+  const seqB = await f.evaluate(() => window.__socleWave && window.__socleWave.snapshot().seq);
   check('remote-reload', typeof seqB === 'number' && seqB > 2 && Math.abs(seqB - seq1) > 2,
     `a new page's seq starts elsewhere (${seq1} then ${seqB})`);
   check('remote-reload', errors.length === 0, `no page errors ${errors.join(' | ')}`);
