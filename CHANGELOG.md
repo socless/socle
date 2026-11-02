@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-11-02
+
 ### Changed
 
 - Socle is now licensed under the **GNU AGPL-3.0** (was MIT), with an additional permission
@@ -16,14 +18,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
   available for closed-source tools, and contributions go through a contributor agreement
   (CLA.md). The jars and the single-file UI now carry the third-party notices and licence
   texts (THIRD_PARTY_NOTICES.md, `legal/`).
-
-### Changed
-
 - The VS Code extension moved to its own repository,
   [socless/socle-vscode](https://github.com/socless/socle-vscode), with its own
   releases (from 0.23.0, each bundling a pinned Socle language server). Socle's
   releases no longer carry a vsix. `docs/lsp-protocol.md` lists the server's
   protocol for its clients.
+- The embedded Surfer is rebuilt from the same v0.7.0 sources without the builder's local
+  paths. The language server jars and vsix files of 0.17.0 to 0.22.0, which carried them,
+  are removed from those releases: use 0.23.0 or later.
 
 ## [0.22.0] - 2026-11-02
 
