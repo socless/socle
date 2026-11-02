@@ -15,11 +15,13 @@ leaves your machine.
 
 ## Install
 
-The extension is not on the Marketplace yet. Download `socle-<version>.vsix`
-from the [extension's releases](https://github.com/socless/socle-vscode/releases)
-and install it with `code --install-extension socle-<version>.vsix` (or
-"Extensions: Install from VSIX..."). To build it yourself, see the extension
-repository's `DEVELOPING.md`.
+Install **Socle (Chisel)** (`socless.socle`) from the
+[Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=socless.socle):
+search for "Socle" in the Extensions view, or run
+`code --install-extension socless.socle`. Each release's vsix is also on the
+[extension's releases](https://github.com/socless/socle-vscode/releases), for
+"Extensions: Install from VSIX..." (VSCodium, offline machines). To build it
+yourself, see the extension repository's `DEVELOPING.md`.
 
 The vsix is about 70 MB because it bundles the language server jar
 (`socle-lsp`, with the probe agent and the [embedded Surfer](#the-embedded-surfer)
