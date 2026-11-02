@@ -4,8 +4,8 @@ Notable changes to Socle, in the
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Socle uses
 [Semantic Versioning](https://semver.org/). Releases up to 0.21.0 were named
 SoCLess; their sections below keep the names they shipped with. Releases before
-0.16.0 are listed on the [GitHub releases](https://github.com/e-ban/socle/releases)
-and [tags](https://github.com/e-ban/socle/tags) pages.
+0.16.0 are listed on the [GitHub releases](https://github.com/socless/socle/releases)
+and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
@@ -162,7 +162,7 @@ The first release named Socle.
   add the signals that drive it or that it feeds, found in the design through
   operators, muxes, memories and logic blocks, and across a port into the
   parent. In the Surfer app and the panel's Surfer (docs/ide-vscode.md).
-- Neovim: the [socless.nvim](https://github.com/e-ban/socless.nvim) plugin
+- Neovim: the [socless.nvim](https://github.com/socless/socless.nvim) plugin
   installs SoCLess from lazy.nvim / LazyVim, `vim.pack`, mini.deps, packer or
   vim-plug (it fetches the server jar of a pinned release; configurable);
   docs/ide-neovim.md leads with it and keeps the manual setup.

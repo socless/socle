@@ -32,7 +32,7 @@ There are three ways in, all front doors to the same UI:
   the VS Code extension ([docs/ide-vscode.md](docs/ide-vscode.md)) or the
   language server in Neovim or any LSP editor
   ([docs/ide-neovim.md](docs/ide-neovim.md); in Neovim, the
-  [socle.nvim](https://github.com/e-ban/socle.nvim) plugin sets it up).
+  [socle.nvim](https://github.com/socless/socle.nvim) plugin sets it up).
   Your tests are never modified.
 
 However you open it, [docs/usage-ui.md](docs/usage-ui.md) shows how to move
@@ -81,7 +81,7 @@ mill example.socleRunRegHeavy  # register-heavy design
 Then point it at your own design via the **[standalone
 app](docs/usage-standalone.md)**, the **[Mill plugin](docs/usage-mill.md)** or
 the **[Chisel IDE](docs/ide-vscode.md)**. Each release on the
-[GitHub releases page](https://github.com/e-ban/socle/releases) attaches the
+[GitHub releases page](https://github.com/socless/socle/releases) attaches the
 standalone jar, the language server jar, the VS Code vsix and the single-file UI.
 
 ## How it works
@@ -103,7 +103,7 @@ Mill plugin are the first integrations. Planned directions:
 - **Simulation frontend** - the first part has shipped: the Chisel IDE's
   Simulate lens runs a ChiselSim test and opens its waves in Surfer. Still
   planned: ingest the waveforms and cross-probe them against the
-  schematic (epic [#127](https://github.com/e-ban/socle/issues/127)).
+  schematic (epic [#127](https://github.com/socless/socle/issues/127)).
 - **CIRCT multi-level IR** - inspect a design across lowering passes, not just
   at the CHIRRTL level.
 - **Exports & teamwork** - richer shareable artifacts and integrations for

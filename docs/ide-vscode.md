@@ -16,7 +16,7 @@ leaves your machine.
 ## Install
 
 The extension is not on the Marketplace yet. Download `socle-<version>.vsix`
-from the [GitHub releases](https://github.com/e-ban/socle/releases) page and
+from the [GitHub releases](https://github.com/socless/socle/releases) page and
 install it with `code --install-extension socle-<version>.vsix`, or build it
 from this repo:
 

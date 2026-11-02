@@ -17,7 +17,7 @@ resolved by Mill; no manual Scala install is needed.
 ## Getting started
 
 ```bash
-git clone https://github.com/e-ban/socle.git
+git clone https://github.com/socless/socle.git
 cd socle
 ./mill socle.compile         # compile the runtime library
 ./mill mill-socle.compile    # compile the Mill plugin

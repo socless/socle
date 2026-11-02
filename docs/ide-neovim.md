@@ -20,7 +20,7 @@ tests and build are never modified.
 
 ## Install the plugin
 
-[socle.nvim](https://github.com/e-ban/socle.nvim) sets all of this up from
+[socle.nvim](https://github.com/socless/socle.nvim) sets all of this up from
 your package manager: it downloads the server jar of a pinned Socle release
 (checked against the release's `SHA256SUMS`), starts it on Scala files of Mill
 projects, turns the lenses on, follows the cursor, opens the panel and adds
@@ -29,7 +29,7 @@ With lazy.nvim / LazyVim:
 
 ```lua
 {
-  "e-ban/socle.nvim",
+  "socless/socle.nvim",
   ft = "scala",
   opts = {},
 }

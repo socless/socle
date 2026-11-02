@@ -53,9 +53,9 @@ trait SoclePublish extends PublishModule {
     // The actual repository (the old socle/socle coordinates pointed at a
     // repo that does not exist); developers must be non-empty or Maven
     // Central validation rejects the artifact (issue #104).
-    url            = "https://github.com/e-ban/socle",
+    url            = "https://github.com/socless/socle",
     licenses       = Seq(License.MIT),
-    versionControl = VersionControl.github("e-ban", "socle"),
+    versionControl = VersionControl.github("socless", "socle"),
     developers     = Seq(Developer("e-ban", "Iban Guinebert", "https://github.com/e-ban")),
   )
 }
