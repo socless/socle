@@ -117,3 +117,11 @@ Mill plugin are the first integrations. Planned directions:
 - What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 - Versioning and the release procedure: [RELEASING.md](RELEASING.md).
 - Architecture and design decisions for contributors: [CLAUDE.md](CLAUDE.md).
+
+## Licence
+
+Socle is free software under the [GNU AGPL-3.0](LICENSE), with an additional permission for its
+Eclipse (EPL) libraries; see [LICENSING.md](LICENSING.md). Anyone may use it, including at work.
+Work that builds on Socle stays open source. Embedding Socle in a closed commercial tool needs a
+commercial licence from the author. Bundled third-party software keeps its own licences
+([THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)).

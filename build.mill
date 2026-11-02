@@ -52,7 +52,7 @@ trait SoclePublish extends PublishModule {
     // repo that does not exist); developers must be non-empty or Maven
     // Central validation rejects the artifact (issue #104).
     url            = "https://github.com/socless/socle",
-    licenses       = Seq(License.MIT),
+    licenses       = Seq(License.`AGPL-3.0-only`),
     versionControl = VersionControl.github("socless", "socle"),
     developers     = Seq(Developer("e-ban", "Iban Guinebert", "https://github.com/e-ban")),
   )
@@ -129,7 +129,16 @@ object socle extends ChiselToolchain with SoclePublish {
     os.copy.over(`socle-ui`.dist().path, Task.dest / "socle.html")
     PathRef(Task.dest)
   }
-  override def resources = Task { super.resources() :+ uiResource() }
+  /** The licence, its terms and the third-party notices with their licence
+    * texts, under `socle-legal/` in the jar (and so in the language server's). */
+  def legalFiles = Task.Sources(
+    mill.api.BuildCtx.workspaceRoot / "LICENSE", mill.api.BuildCtx.workspaceRoot / "LICENSING.md",
+    mill.api.BuildCtx.workspaceRoot / "THIRD_PARTY_NOTICES.md", mill.api.BuildCtx.workspaceRoot / "legal")
+  def legalResource = Task {
+    for (p <- legalFiles()) os.copy(p.path, Task.dest / "socle-legal" / p.path.last, createFolders = true)
+    PathRef(Task.dest)
+  }
+  override def resources = Task { super.resources() :+ uiResource() :+ legalResource() }
 
   object test extends ScalaTests with TestModule.Utest {
     def mvnDeps = super.mvnDeps() ++ Seq(
@@ -244,6 +253,9 @@ object `socle-ui` extends ScalaJSModule {
     * bundle inlined into the template, producing one offline file. Built
     * entirely in Mill (no committed artifacts, no Node), issue #184. The
     * standalone-server tests grep the served bytes for the GENERATED banner. */
+  /** The licence texts of what the page inlines (elkjs, IBM Plex), shipped in it. */
+  def uiLicenseTexts = Task.Sources(
+    mill.api.BuildCtx.workspaceRoot / "legal" / "EPL-2.0.txt", mill.api.BuildCtx.workspaceRoot / "legal" / "OFL-1.1-IBM-Plex.txt")
   def dist = Task {
     val tpl = os.read(uiTemplate().path)
     val elk = os.read(uiVendorElk().path)
@@ -292,7 +304,16 @@ object `socle-ui` extends ScalaJSModule {
     if (doctypeRe.findFirstIn(html).isEmpty) sys.error("expected the template to start with a doctype")
     html = doctypeRe.replaceFirstIn(html, quote(
       "<!doctype html>\n<!-- GENERATED FILE - DO NOT EDIT. Built by `mill socle-ui.dist` from\n" +
-      "     socle-ui/html/socle.src.html (Scala.js + Laminar inlined offline, epic #172). -->"))
+      "     socle-ui/html/socle.src.html (Scala.js + Laminar inlined offline, epic #172). -->\n" +
+      "<!-- Socle. Copyright (C) 2026 Iban Guinebert. Licensed under the GNU AGPL-3.0-only with an\n" +
+      "     additional permission (https://github.com/socless/socle/blob/main/LICENSING.md).\n" +
+      "     This page bundles elkjs (EPL-2.0), IBM Plex (SIL OFL 1.1), the Scala.js library (Apache-2.0),\n" +
+      "     Laminar, Airstream, ew, tuplez, scala-js-dom and upickle (MIT): see THIRD_PARTY_NOTICES.md in\n" +
+      "     that repository. The EPL-2.0 and OFL-1.1 texts are in the #socle-licenses element below. -->"))
+    // The texts of the inlined third-party licences, kept inert in the page.
+    val texts = uiLicenseTexts().map(p => os.read(p.path)).mkString("\n\n")
+    if (texts.contains("</script")) sys.error("a licence text contains '</script'")
+    html = html.replaceFirst("(?i)</body>", quote(s"<script type=\"text/plain\" id=\"socle-licenses\">\n$texts\n</script>\n</body>"))
 
     if (html.contains("unpkg.com")) sys.error("dist still references unpkg.com (offline guarantee broken)")
     if (html.contains("fonts.googleapis.com") || html.contains("fonts.gstatic.com"))

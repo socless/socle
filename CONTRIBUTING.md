@@ -3,6 +3,12 @@
 Socle is a Mill plugin for Chisel that exports elaborated hardware designs to
 `design.json` for a single-file interactive web UI.
 
+## Licence and contributor agreement
+
+Socle is licensed under the AGPL-3.0 and also offered under commercial licences
+([LICENSING.md](LICENSING.md)). To keep that possible, contributions are accepted under the
+[Contributor License Agreement](CLA.md): opening a pull request means you accept it.
+
 ## Prerequisites
 
 | Tool | Version |

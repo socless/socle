@@ -11,6 +11,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ### Changed
 
+- Socle is now licensed under the **GNU AGPL-3.0** (was MIT), with an additional permission
+  for its EPL libraries (ELK, elkjs, EMF, LSP4J); see LICENSING.md. A commercial licence is
+  available for closed-source tools, and contributions go through a contributor agreement
+  (CLA.md). The jars and the single-file UI now carry the third-party notices and licence
+  texts (THIRD_PARTY_NOTICES.md, `legal/`).
+
+### Changed
+
 - The VS Code extension moved to its own repository,
   [socless/socle-vscode](https://github.com/socless/socle-vscode), with its own
   releases (from 0.23.0, each bundling a pinned Socle language server). Socle's
