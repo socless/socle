@@ -8,11 +8,12 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-02
+
 ### Added
 
 - A click on a coloured `clk` pin or a legend row lights that clock domain:
   the other instances fade.
-
 - A logic block opens like a module: double-click it (or its `↵`) to see its
   registers, operators and wires, with its pins as ports. The breadcrumb names
   it (`logic`) and takes you back.
