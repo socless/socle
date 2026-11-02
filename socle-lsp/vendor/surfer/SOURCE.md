@@ -19,7 +19,7 @@ component; Socle itself is licensed under the AGPL-3.0.
 | File | Bytes | sha256 |
 |---|---|---|
 | `surfer.js` | 95027 | `c86f8a0e34ad8420ef62fb5f5d62cd5efbf6c45fcdbd45b755f322140fb4cb0a` |
-| `surfer_bg.wasm` | 12871342 | `20e7d2fd28ca7ef97fa0bb624e5e430400e1954de1c15399737bd2cbbc21e723` |
+| `surfer_bg.wasm` | 12867015 | `58f9f3ac47a3d621324016333bdfa8626386795ccba6f12d34ea3b93270ccce3` |
 
 ## Why it is built, not downloaded
 
@@ -44,7 +44,10 @@ Trunk downloaded wasm-bindgen 0.2.118 (matching `Cargo.lock`) and wasm-opt
 git clone --branch v0.7.0 --recurse-submodules https://gitlab.com/surfer-project/surfer.git
 cd surfer
 rustup target add wasm32-unknown-unknown
-RUSTFLAGS="--cfg=web_sys_unstable_apis" \
+RUSTFLAGS="--cfg=web_sys_unstable_apis \
+  --remap-path-prefix=$HOME/.cargo/registry/src=/cargo/registry/src \
+  --remap-path-prefix=$HOME/.cargo/git/checkouts=/cargo/git \
+  --remap-path-prefix=$HOME/.rustup=/rustup --remap-path-prefix=$PWD=/surfer" \
   trunk build --config=surfer/Trunk.toml index.html --release --public-url /dist --features accesskit
 cp surfer/dist/surfer.js surfer/dist/surfer_bg.wasm LICENSE-EUPL-1.2.txt <socle>/socle-lsp/vendor/surfer/
 ```
@@ -59,6 +62,11 @@ Only `surfer.js` and `surfer_bg.wasm` are taken from `surfer/dist`. The rest
 (`index.html` with its analytics script, `sw.js` service worker,
 `integration.js`, `manifest.json`, `surfer.d.ts`) is left out on purpose. The
 module has no `snippets/` imports, so the two files are self-contained.
+
+The `--remap-path-prefix` flags keep the builder's home directory out of the
+wasm: Rust compiles source paths into panic messages, and without them the
+binary names the local cargo registry. Check with
+`strings -n 8 surfer_bg.wasm | grep /home/` (no output).
 
 ## How the page boots it
 
