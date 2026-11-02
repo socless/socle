@@ -41,7 +41,7 @@ object V {
   val scalameta   = "4.17.4"          // socless-lsp syntactic test discovery
   val vscodeLanguageClient = "9.0.1"  // npm, staged into the VS Code extension at packaging
   val vsce        = "3.2.1"           // @vscode/vsce, packages the VS Code extension
-  val publishVer  = "0.20.0"
+  val publishVer  = "0.20.1-SNAPSHOT"
 }
 
 // ─── Common publish boilerplate ─────────────────────────────────────────────
