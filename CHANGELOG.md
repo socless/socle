@@ -10,6 +10,9 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Added
 
+- A click on a coloured `clk` pin or a legend row lights that clock domain:
+  the other instances fade.
+
 - A logic block opens like a module: double-click it (or its `↵`) to see its
   registers, operators and wires, with its pins as ports. The breadcrumb names
   it (`logic`) and takes you back.
@@ -19,6 +22,11 @@ the [GitHub releases](https://github.com/e-ban/SoCless/releases) and
 
 ### Changed
 
+- A box header no longer shows the module kind glyph (`·`, `◆`, `⬢`, `■`); the
+  hierarchy tree keeps it.
+- An open logic block reads as a block: the chip says `block` and counts its
+  registers and operators, and the Inspector lists its pins, registers,
+  operators and memories instead of module metrics.
 - Clock and reset are pins: `clk` (the flip-flop chevron) and `rst` (a ring,
   `(async)` for an AsyncReset) at the bottom of a box's left side, in place of
   the two small marks in its header.

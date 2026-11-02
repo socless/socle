@@ -115,13 +115,22 @@ object Inspector {
 
   private def metaView(mod: ModuleDef, d: Design): Element = {
     val m = mod.metrics
+    // An open logic block (its body is a region): what it holds, and no module
+    // doc or metrics (its source is the enclosing class's).
+    val block = d.regions.contains(mod.name)
+    def count(kind: String) = mod.logic.count(_.kind == kind).toString
     val items: Seq[(String, String)] =
+      if (block)
+        Seq("Block" -> mod.`type`, "Pins" -> mod.ports.length.toString, "Registers" -> count(NodeKind.Reg),
+          "Operators" -> count(NodeKind.Op), "Memories" -> count(NodeKind.Mem), "Connects" -> mod.wires.length.toString)
+      else
       Seq("Type" -> mod.`type`, "Instances" -> mod.children.length.toString, "Connects" -> mod.wires.length.toString) ++
         m.gates.map(g => Seq("Gates" -> g.toString)).getOrElse(Nil) ++
         Seq("Registers" -> m.registers.toString, "Memories" -> m.memories.toString, "LOC" -> m.lines.toString)
     div(styleAttr := s"padding:24px 16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
-      div(styleAttr := s"margin-bottom:12px;font-weight:500;color:${Tokens.ink2}", mod.`type`),
-      docBlock(mod, d),
+      Option.when(block)(dataAttr("block-meta") := mod.name),
+      div(styleAttr := s"margin-bottom:12px;font-weight:500;color:${Tokens.ink2}", if (block) s"${mod.`type`} block" else mod.`type`),
+      if (block) emptyMod else docBlock(mod, d),
       div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-family:${Tokens.mono};font-size:11px",
         items.flatMap { case (k, v) => Seq(
           span(styleAttr := s"color:${Tokens.ink4}", k),

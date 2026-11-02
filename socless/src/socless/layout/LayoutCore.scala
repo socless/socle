@@ -605,7 +605,7 @@ object LayoutCore {
         val toggleW      = if (fold.exists(c => c.foldCount > 0 || c.foldGroup.nonEmpty)) 30.0 else 0.0
         // The header's right group too: the type label (capped at 80px by the UI)
         // and the open mark, so the name keeps its room (#334).
-        // The name is drawn at about 8px a character; the glyph, padding and gaps take about 50px.
+        // The name is drawn at about 8px a character; padding and gaps take about 50px.
         val typeW        = if (kind == NodeKind.Inst) math.min(80.0, fold.fold(0)(_.`type`.length) * 6.5) + 24.0 else 0.0
         val headerTextPx =
           if (kind == NodeKind.Inst) headerText.length * 8.0 + 50.0 + toggleW + typeW

@@ -924,7 +924,10 @@ async function smokeDesignIn(design, ctx) {
           regs: document.querySelectorAll('[data-logic-node]').length,
           sel: !!document.querySelector('[data-logic-node="sel"]'),
           blocks: document.querySelectorAll('[data-block]').length,
+          chip: document.querySelector('[data-module-chip]')?.getAttribute('data-module-chip'),
+          meta: !!document.querySelector('[data-block-meta]'),
         }));
+        if (inside.chip !== 'block' || !inside.meta) note(design, where, `open block: chip ${inside.chip}, Inspector block view ${inside.meta}`);
         if (inside.crumb !== 'logic') note(design, where, `open block: breadcrumb shows ${JSON.stringify(inside.crumb)}, not "logic"`);
         if (!inside.regs || !inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
         opened.length = 0;
@@ -3119,6 +3122,46 @@ async function smokeDesignIn(design, ctx) {
     // Leave a view the user set, as the checks below expect (an automatic fit
     // refits when a bundle grows the canvas, #207).
     await click('Reset to 100%'); await page.waitForTimeout(300);
+  }
+  // Clock domains: AXISystem served again with `periph` on its own clock. A
+  // click on a legend row (or a coloured clk pin) fades the other domain's
+  // instances; a second click, or a click on the background, lights none.
+  if (design === 'axisystem') {
+    const where = 'clock domains';
+    const orig = await (await page.request.get(`${BASE}/${design}/design.json`)).text();
+    const d = JSON.parse(orig);
+    for (const c of d.modules.find((m) => m.name === d.top).children) if (c.name === 'periph') c.clock = 'periphClk';
+    const serve = async (body, stamp) => {
+      await page.unroute('**/design.json').catch(() => {});
+      await page.route('**/design.json', (rt) => rt.fulfill({ contentType: 'application/json', body,
+        headers: { 'Last-Modified': `Wed, 01 Jan ${stamp} 00:00:00 GMT` } }));
+    };
+    await serve(JSON.stringify(d), 2032);
+    const shown = await page.waitForSelector('[data-clock-legend] [data-legend-domain="periphClk"]', { timeout: 10000 }).then(() => true).catch(() => false);
+    if (!shown) note(design, where, 'no legend for two domains');
+    else {
+      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      const faded = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-box-inst].domoff')).map((b) => b.getAttribute('data-box-inst')).sort().join(','));
+      if (!(await page.locator('[data-box-domain="periphClk"]').count())) note(design, where, 'periph has no domain stripe');
+      await page.locator('[data-legend-domain="periphClk"]').click();
+      await page.waitForTimeout(150);
+      const lit = await faded();
+      if (lit !== 'cpu,dma,mem,xbar') note(design, where, `legend click fades ${JSON.stringify(lit)}, not the clock domain`);
+      await page.locator('[data-legend-domain="periphClk"]').click();
+      await page.waitForTimeout(150);
+      if (await faded()) note(design, where, 'a second click leaves boxes faded');
+      // A real click: a synthetic one after an earlier drag is swallowed (no pointerdown).
+      await page.locator('[data-clk-domain="clock"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `clk pin click: ${e.message}`));
+      await page.waitForTimeout(150);
+      if ((await faded()) !== 'periph') note(design, where, `clk pin click fades ${JSON.stringify(await faded())}, not periph`);
+      await page.keyboard.press('Escape');
+    }
+    await serve(orig, 2033);
+    await page.waitForFunction(() => !document.querySelector('[data-clock-legend]'), null, { timeout: 10000 })
+      .catch(() => note(design, where, 'restore: the legend stays with one domain'));
+    await page.unroute('**/design.json');
+    await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+    drain(where);
   }
   // #334: a box's anatomy. No + or − text, clk and rst pins at the bottom of
   // the West side (no header marks), and an open bundle's fields hang from a guide line.

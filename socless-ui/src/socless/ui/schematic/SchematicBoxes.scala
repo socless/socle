@@ -351,9 +351,9 @@ private[schematic] object SchematicBoxes {
     * the bottom of its West side (no wire): the flip-flop chevron in its clock
     * domain's colour, and a ring marked `(async)` for an AsyncReset. With a
     * domain colour, a stripe along the left edge spans these two rows, under
-    * the pins. */
+    * the pins. A coloured `clk` pin lights its domain on a click (`onDomain`). */
   def clockPins(id: String, boxH: Double, clk: Boolean, rst: Boolean, async: Boolean,
-                clock: String, reset: String, domain: Option[String]): Seq[ReactiveElement.Base] = {
+                clock: String, reset: String, domain: Option[String], onDomain: () => Unit): Seq[ReactiveElement.Base] = {
     val step  = socless.layout.LayoutCore.PortStep
     val lastY = boxH - socless.layout.LayoutCore.PortPad - step / 2
     val rstY  = lastY
@@ -362,8 +362,13 @@ private[schematic] object SchematicBoxes {
     def label(y: Double, color: String, parts: Modifier[HtmlElement]*) =
       div(cls := "scl-ck", styleAttr := s"position:absolute;top:${y - 8}px;left:14px;height:16px;display:flex;align-items:center;gap:5px;" +
         s"font-family:${Tokens.mono};font-size:var(--sch-label);color:$color;white-space:nowrap;pointer-events:none", parts)
+    // A click target over the pin's row (chevron and name) when it has a domain colour.
+    val hit = domain.map(_ => div(dataAttr("clk-domain") := clock, dataAttr("pan-block") := "1",
+      styleAttr := s"position:absolute;left:-4px;top:${clkY - 9}px;width:44px;height:18px;cursor:pointer;z-index:1",
+      onClick --> { (e: dom.MouseEvent) => e.stopPropagation(); onDomain() },
+      onDblClick --> { (e: dom.MouseEvent) => e.stopPropagation() }))
     val clkEl = Option.when(clk)(div(dataAttr("clk-pin") := id,
-      title := (if (clock.nonEmpty) s"clock: $clock" else "clock input"),
+      title := (if (clock.nonEmpty) s"clock: $clock" + (if (domain.isDefined) " (click: light this domain)" else "") else "clock input"),
       svg.svg(svg.width := "9", svg.height := "12",
         svg.style := s"position:absolute;left:-1px;top:${clkY - 6}px;overflow:visible;pointer-events:none",
         svg.path(svg.d := "M0.8 1 L7.5 6 L0.8 11", svg.fill := "none", svg.stroke := ink, svg.strokeWidth := "1.6")),
@@ -378,7 +383,7 @@ private[schematic] object SchematicBoxes {
         styleAttr := s"position:absolute;left:-1px;top:${clkY - 10}px;height:${bottom - clkY + 20}px;width:3px;" +
           s"background:$col;border-radius:0 2px 2px 0;pointer-events:none")
     }
-    stripe.toSeq ++ clkEl.toSeq ++ rstEl.toSeq
+    stripe.toSeq ++ clkEl.toSeq ++ rstEl.toSeq ++ hit.filter(_ => clk).toSeq
   }
 
   def renderPortRows(ctx: Ctx, g: Geom, n: LaidNodeR, rows: Seq[RowModel.Row], side: String,

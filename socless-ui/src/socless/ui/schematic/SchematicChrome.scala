@@ -3,7 +3,7 @@ package socless.ui.schematic
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socless.schema.ModuleDef
+import socless.schema.{ModuleDef, NodeKind}
 import socless.js.BrowserLayout.LaidOut
 import socless.ui.theme._
 import SchematicGeom.Geom
@@ -36,20 +36,25 @@ private[schematic] object SchematicChrome {
   )
 
   // ── chrome (top-left chips) ──
+  /** `blockSig`: the module in view is an open logic block (its chip reads `block`). */
   def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String],
              matchSig: Signal[Option[(Int, Int)]] = Val(None),
-             focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => ()): Element =
+             focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => (),
+             blockSig: Signal[Boolean] = Val(false)): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
-        child <-- moduleSig.map {
-          case Some(mod) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
-            span(styleAttr := s"color:${Tokens.ink4}", "module"), span(styleAttr := s"color:${Tokens.ink}", mod.`type`))
-          case None => emptyNode
+        child <-- Signal.combine(moduleSig, blockSig).map {
+          case (Some(mod), block) => div(dataAttr("module-chip") := (if (block) "block" else "module"),
+            styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
+            span(styleAttr := s"color:${Tokens.ink4}", if (block) "block" else "module"), span(styleAttr := s"color:${Tokens.ink}", mod.`type`))
+          case (None, _) => emptyNode
         },
-        child <-- moduleSig.map {
-          case Some(mod) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono}",
-            s"${mod.children.length} inst · ${mod.wires.length} connects")
-          case None => emptyNode
+        // A block holds logic, not instances: its registers and operators.
+        child <-- Signal.combine(moduleSig, blockSig).map {
+          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono}",
+            if (block) s"${mod.logic.count(_.kind == NodeKind.Reg)} reg · ${mod.logic.count(_.kind == NodeKind.Op)} op · ${mod.wires.length} connects"
+            else s"${mod.children.length} inst · ${mod.wires.length} connects")
+          case (None, _) => emptyNode
         },
         // Filter box (issue #121): dims non-matching boxes + wires.
         div(styleAttr <-- filterVar.signal.map(f =>
@@ -84,16 +89,21 @@ private[schematic] object SchematicChrome {
     )
 
   /** The clock domains of `m` and their instances, when it has two or more
-    * (bottom-right, above the zoom controls). */
-  def clockLegend(m: socless.schema.ModuleDef): Option[Element] = {
+    * (bottom-right, above the zoom controls). A click on a domain lights it
+    * (`toggle`), and the lit one (`active`) reads bold. */
+  def clockLegend(m: socless.schema.ModuleDef, active: Signal[Option[String]], toggle: String => Unit): Option[Element] = {
     val colors = SchematicColors.clockDomains(m)
     Option.when(colors.nonEmpty)(
       div(dataAttr("clock-legend") := "1",
         styleAttr := s"position:absolute;bottom:46px;right:12px;z-index:3;max-width:320px;display:flex;flex-direction:column;gap:3px;" +
-          s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:6px 9px;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2};pointer-events:none",
+          s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:6px 9px;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2}",
         m.children.map(_.clock).filter(_.nonEmpty).distinct.map { d =>
           val insts = m.children.filter(_.clock == d).map(_.name)
-          div(dataAttr("legend-domain") := d, styleAttr := "display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis",
+          div(dataAttr("legend-domain") := d, title := s"Light the $d domain",
+            dataAttr("lit") <-- active.map(a => if (a.contains(d)) "1" else "0"),
+            styleAttr <-- active.map(a => "display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" +
+              (if (a.contains(d)) "font-weight:700" else "")),
+            onClick --> { _ => toggle(d) },
             span(styleAttr := s"width:10px;height:10px;border-radius:2px;flex-shrink:0;background:${colors(d)}"),
             span(styleAttr := s"color:${Tokens.ink}", d),
             span(styleAttr := "overflow:hidden;text-overflow:ellipsis", s"(${insts.mkString(", ")})"))

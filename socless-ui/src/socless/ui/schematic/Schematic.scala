@@ -619,7 +619,6 @@ object Schematic {
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
               onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
-              span(cls := "scl-glyph", styleAttr := "width:12px;display:inline-flex;justify-content:center;font-size:10px", Glyphs.of(childMod)),
               // A fold box's name (and count) never shrinks: only the signature ellipsizes.
               span(dataAttr("box-name") := n.id,
                 styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" +
@@ -649,7 +648,7 @@ object Schematic {
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.westRows, PinSide.West),
             SchematicBoxes.renderPortRows(boxCtx, g, n, boxInfo.eastRows, PinSide.East),
             SchematicBoxes.clockPins(n.id, boxInfo.boxH, hasClock, hasReset,
-              childMod.exists(LayoutCore.asyncReset), ch.clock, ch.reset, domain),
+              childMod.exists(LayoutCore.asyncReset), ch.clock, ch.reset, domain, () => hl.toggleDomain(ch.clock)),
             // The name drawn at a fixed screen size in the overview (#334); last,
             // so the header stays the box's first child.
             SchematicBoxes.overviewName(n.id, if (isFolded) s"${n.id} × ${ch.foldCount}" else n.id, n.w.toDouble),
@@ -821,7 +820,8 @@ object Schematic {
       styleAttr := "flex:1;position:relative;overflow:hidden",
       styleTag(Highlight.css),
       hl.bind(filterDimSig, focusClassSig),
-      SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff),
+      SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
+        Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) }),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
@@ -857,7 +857,7 @@ object Schematic {
               zoomBy         = zoomBy,
               fit            = () => fitNow(),
               // A click on the background also stops following a net.
-              clearSelection = () => { selectedVar.set(None); hl.follow(None) },
+              clearSelection = () => { selectedVar.set(None); hl.follow(None); hl.domainVar.set(None) },
               clearFollow    = () => hl.follow(None),
               keysBlocked    = () => fsmOpenVar.now().isDefined || keysBlocked(),
               back           = () => history.walk(_.back),
@@ -957,7 +957,7 @@ object Schematic {
       // load clears them (`history.reset`, from App).
       designSig.changes --> { _ => engineCache.clear() },
       // The clock domains' legend, bottom-right above the zoom controls.
-      child.maybe <-- geomSig.map(_.map(_.mod)).distinct.map(_.flatMap(SchematicChrome.clockLegend)),
+      child.maybe <-- geomSig.map(_.map(_.mod)).distinct.map(_.flatMap(SchematicChrome.clockLegend(_, hl.domainVar.signal, hl.toggleDomain))),
       // Minimap, shown only when content overflows the viewport at this zoom.
       // Its node rects are built once per geometry (the element is rebuilt only
       // when the geometry changes or it shows or hides); pan and zoom move just
@@ -987,7 +987,7 @@ object Schematic {
       // module's fit.
       // The tooltip and the box outline go too (the box is gone).
       pathSig.map(_.mkString("/")).changes --> { _ =>
-        filterVar.set(""); if (gestures != null) gestures.cancel(); tooltip.hide(); hl.clearBox()
+        filterVar.set(""); if (gestures != null) gestures.cancel(); tooltip.hide(); hl.clearBox(); hl.domainVar.set(None)
       },
       // A rebuild replaces what the card describes; a pan or zoom moves it away
       // from the pointer.

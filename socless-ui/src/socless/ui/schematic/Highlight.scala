@@ -68,7 +68,14 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
   // The followed net: its wires, and its pins, boundary stubs and field rows.
   private val wireFol = new Channel("follow")
   private val markFol = new Channel("follow")
-  private val all = Seq(wireHl, wireHov, wireOff, boxSel, boxPeer, boxOff, pinSel, pinHov, boxOut, wireOut, wireFol, markFol)
+  // A lit clock domain: the other instances fade.
+  private val boxDomOff = new Channel("domoff")
+  private val all = Seq(wireHl, wireHov, wireOff, boxSel, boxPeer, boxOff, pinSel, pinHov, boxOut, wireOut, wireFol, markFol, boxDomOff)
+
+  /** The clock domain lit from a `clk` pin or the legend (None: none). */
+  val domainVar: Var[Option[String]] = Var(None)
+  /** Light the domain `d`, or unlight it when it is the lit one. */
+  def toggleDomain(d: String): Unit = domainVar.update(cur => if (cur.contains(d)) None else Some(d))
 
   /** Swap in the registry of a fresh render and apply the current state to it.
     * The old registry's elements are gone, so the channels start empty. */
@@ -80,7 +87,11 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
     applyBoxHover()
     applyDim()
     applyFollow()
+    applyDomain(domainVar.now())
   }
+
+  private def applyDomain(d: Option[String]): Unit =
+    boxDomOff.set(d.fold(Set.empty[dom.Element])(reg.domainOff))
 
   /** The geometry of the elements shown (null before the first render). */
   def geom: Geom = reg.geom
@@ -205,6 +216,7 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
     hover.signal.distinct --> { (h: Option[String]) => applyHover(h) },
     filterSig.distinct --> { (f: String) => filter = f; applyDim() },
     focusClassSig.distinct --> { (c: String) => focusClass = c; applyDim() },
+    domainVar.signal.distinct --> { (d: Option[String]) => applyDomain(d) },
   )
 }
 
@@ -281,6 +293,11 @@ object Highlight {
     private lazy val byClock: Map[String, Seq[BoxEntry]] =
       boxes.filter(_.kind == BoxKind.Instance)
         .flatMap(b => geom.childByName.get(b.id).map(ch => ch.clock -> b)).toSeq.groupMap(_._1)(_._2)
+
+    /** The instance boxes outside clock domain `d` (none when no box is in it). */
+    def domainOff(d: String): Set[dom.Element] =
+      if (!byClock.contains(d)) Set.empty
+      else boxes.iterator.filter(b => b.kind == BoxKind.Instance && !byClock(d).contains(b)).map(_.el).toSet
 
     private lazy val wiresByPair: Map[(String, String), Seq[dom.Element]] =
       wires.groupMap(w => (w.from, w.to))(_.el).map { case (k, v) => k -> v.toSeq }
@@ -490,12 +507,11 @@ object Highlight {
     ".scl-b.peer{border-color:var(--accentLine);box-shadow:var(--bsp)}",
     ".scl-b.sel{border-color:var(--accent);box-shadow:var(--bs1)}",
     ".hl-cb .scl-b{background:var(--bf)}",
-    ".scl-glyph{color:var(--ink3)}",
-    ".scl-b.sel .scl-glyph{color:var(--accent)}",
     ".scl-sym{--sym:var(--ink2)}",
     ".scl-sym.sel{--sym:var(--accent)}",
     ".hl-cb .scl-sym{background:var(--bf);border:1px solid var(--borderSoft);border-radius:5px}",
     ".scl-b.off,.scl-sym.off{opacity:.18}",
+    ".scl-b.domoff{opacity:.28}",
     // The hovered block: an outline, so it composes with the selection's border and shadow.
     s".scl-b.ohov,.scl-sym.ohov{outline:2px solid ${Tokens.hov};outline-offset:2px}",
     ".scl-pin{background:var(--ink3)}",
