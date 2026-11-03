@@ -219,6 +219,9 @@ object Layout {
     val (selfLoops, routed) = LayoutCore.splitSelfLoops(prep)
     routed.foreach(e => elkEnds(e).foreach { case (a, b) => ElkGraphUtil.createSimpleEdge(a, b) })
 
+    if (LayoutCore.fastPlacement(prep))
+      root.setProperty(LayeredOptions.NODE_PLACEMENT_STRATEGY, NodePlacementStrategy.BRANDES_KOEPF)
+
     // Run layout.
     new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
 

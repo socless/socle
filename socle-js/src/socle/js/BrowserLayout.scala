@@ -178,7 +178,8 @@ object BrowserLayout {
     if (mode == "optimize") {
       // The Vivado-style "refresh to optimize": push elkjs toward shorter,
       // straighter wires than the backend's defaults (issue #165).
-      opts.updateDynamic("elk.layered.nodePlacement.strategy")("NETWORK_SIMPLEX")
+      opts.updateDynamic("elk.layered.nodePlacement.strategy")(
+        if (LayoutCore.fastPlacement(prep)) "BRANDES_KOEPF" else "NETWORK_SIMPLEX")
       opts.updateDynamic("elk.layered.nodePlacement.favorStraightEdges")("true")
       opts.updateDynamic("elk.layered.thoroughness")("12")
     }

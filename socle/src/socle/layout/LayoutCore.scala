@@ -750,6 +750,16 @@ object LayoutCore {
     prep.edges.partition(e => owner.get(e.fromPath).exists(o => owner.get(e.toPath).contains(o)))
   }
 
+  /** Above this many boxes, both engines place nodes with ELK's Brandes-Koepf
+    * instead of network simplex. Network simplex gives straighter wires, but its
+    * cost grows fast with module size: on VTA's TensorLoadWgt (2229 boxes) it
+    * took 7 s of a 12.6 s export, against 0.3 s for Brandes-Koepf. On mid-size
+    * modules (VME, 313 boxes) Brandes-Koepf draws staircases and is not worth
+    * the half second it saves, hence a high threshold. */
+  val FastPlacementAbove: Int = 1000
+
+  def fastPlacement(prep: Prepared): Boolean = prep.nodes.length > FastPlacementAbove
+
   /** How far a self-loop runs from its box, and how far apart loops on one box
     * stack: inside the 10px ELK keeps between a box and the wires it routes
     * (`spacing.edgeNode`), so a loop never runs along another wire. */
