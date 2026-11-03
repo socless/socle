@@ -689,8 +689,10 @@ async function smokeDesignIn(design, ctx) {
     await settle();
     await expectUnfolded('after +');
     // Expanding a bundle on an unfolded copy grows that box: the engine must
-    // lay it out at its grown height, so the copies never overlap and the gap
-    // between them (the engine's node spacing) does not shrink by the growth.
+    // lay it out at its grown height, so the copies never overlap and keep at
+    // least the engine's smallest in-layer spacing. That is not the gap they
+    // had before: two boxes sit nodeNode (40) apart, or 2 x edgeNode (10 + 10)
+    // when a wire runs between them, and the re-layout may route one through.
     const rects = () => page.evaluate(() => ['cores_0', 'cores_1'].map((m) => {
       const b = document.querySelector(`[data-box-inst="${m}"]`)?.getBoundingClientRect();
       return b && { l: b.left, t: b.top, r: b.right, b: b.bottom };
@@ -731,10 +733,13 @@ async function smokeDesignIn(design, ctx) {
       if (!after[0] || !after[1]) note(design, where, 'after expand: a copy box is missing');
       else {
         const grew = (after[0].b - after[0].t) - (before[0].b - before[0].t);
-        const g0 = gapOf(before), g1 = gapOf(after);
+        const g1 = gapOf(after);
+        // Screen px per layout unit: the content layer's zoom.
+        const z = await page.evaluate(() => parseFloat(document.querySelector('[data-content="1"]').style.getPropertyValue('--z')));
+        const minGap = 20 * z; // 2 x ELK spacing.edgeNode (10), the closest two boxes of a layer get
         if (grew <= 0) note(design, where, `after expand: cores_0 did not grow (${grew}px)`);
         if (g1 <= 0) note(design, where, `after expand: cores_0 overlaps cores_1 ${JSON.stringify(after)}`);
-        else if (g1 < g0 - 2) note(design, where, `after expand: gap between copies shrank ${g0.toFixed(1)} -> ${g1.toFixed(1)}px`);
+        else if (g1 < minGap - 2) note(design, where, `after expand: copies ${g1.toFixed(1)}px apart, under the engine's ${minGap.toFixed(1)}px minimum`);
       }
       await expectUnshifted('after expand');
     }
