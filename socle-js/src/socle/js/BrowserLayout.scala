@@ -153,7 +153,8 @@ object BrowserLayout {
     // JVM orientation. elkjs echoes sources/targets back so extraction needs no
     // index bookkeeping. A `reversed` edge (against its pins' sides)
     // goes in sink->source, with an "r" id so extraction flips it back.
-    val edges = prep.edges.zipWithIndex.map { case (e, i) =>
+    // Self-loops stay out of elkjs: extraction routes them (LayoutCore.selfLoopRoute).
+    val edges = LayoutCore.splitSelfLoops(prep)._2.zipWithIndex.map { case (e, i) =>
       js.Dynamic.literal(
         id = (if (e.reversed) "r" else "e") + i,
         sources = js.Array[String](if (e.reversed) e.fromPath else e.toPath),
@@ -260,7 +261,22 @@ object BrowserLayout {
       else Seq(LaidEdgeR(sinkPin, srcPin, pts.toSeq, jps.toSeq))
     }
 
-    LaidOut(nodes, edges, g.width.toInt.max(1), g.height.toInt.max(1))
+    // Self-loops: under their box, stacked in edge order, as the JVM backend routes them.
+    val pinAt = nodes.iterator.flatMap(n => n.ports.iterator.map(p => p.path -> ((p.x.toDouble, p.y.toDouble, p.side), n)))
+      .toMap
+    val slotOf = scala.collection.mutable.HashMap.empty[String, Int]
+    val loopEdges = LayoutCore.splitSelfLoops(prep)._1.flatMap { e =>
+      for { (src, n) <- pinAt.get(e.toPath); (sink, _) <- pinAt.get(e.fromPath) } yield {
+        val slot = slotOf.getOrElse(n.id, 0); slotOf(n.id) = slot + 1
+        val pts  = LayoutCore.selfLoopRoute(src, sink, (n.x.toDouble, n.y.toDouble, n.w.toDouble, n.h.toDouble), slot)
+        LaidEdgeR(e.fromPath, e.toPath, pts.map { case (x, y) => (x.toInt, y.toInt) }, Nil)
+      }
+    }
+    // The canvas holds the loops too (the padding ELK keeps past the last box).
+    val pad   = 12
+    val loopW = loopEdges.iterator.flatMap(_.points.iterator.map(_._1 + pad)).maxOption.getOrElse(0)
+    val loopH = loopEdges.iterator.flatMap(_.points.iterator.map(_._2 + pad)).maxOption.getOrElse(0)
+    LaidOut(nodes, edges ++ loopEdges, g.width.toInt.max(loopW).max(1), g.height.toInt.max(loopH).max(1))
   }
 
   /** A single ELK engine, created once and reused across every layout call.

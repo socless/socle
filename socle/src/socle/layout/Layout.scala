@@ -215,7 +215,9 @@ object Layout {
     def elkEnds(e: LayoutCore.PreparedEdge): Option[(ElkPort, ElkPort)] =
       for { src <- elkPort.get(e.toPath); dst <- elkPort.get(e.fromPath) }
         yield if (e.reversed) (dst, src) else (src, dst)
-    prep.edges.foreach(e => elkEnds(e).foreach { case (a, b) => ElkGraphUtil.createSimpleEdge(a, b) })
+    // Self-loops stay out of ELK: they are routed below, the same way in both engines.
+    val (selfLoops, routed) = LayoutCore.splitSelfLoops(prep)
+    routed.foreach(e => elkEnds(e).foreach { case (a, b) => ElkGraphUtil.createSimpleEdge(a, b) })
 
     // Run layout.
     new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
@@ -253,7 +255,7 @@ object Layout {
       }
     }.groupBy(_._1).view.mapValues(_.head._2).toMap
 
-    val laidEdges = prep.edges.flatMap { e =>
+    val laidEdges = routed.flatMap { e =>
       // Edge was created source->sink, i.e. from the toPath port to the fromPath
       // port (sink->source when `reversed`: its route is flipped back below).
       val src = elkPort.get(e.toPath)
@@ -290,7 +292,23 @@ object Layout {
       }
     }
 
-    ModuleLayout(laidNodes, laidEdges, root.getWidth.toInt.max(1), root.getHeight.toInt.max(1))
+    // Self-loops: under their box, stacked in edge order (LayoutCore.selfLoopRoute).
+    val pinAt = laidNodes.iterator.flatMap(n => n.ports.iterator.map(p => p.path -> ((p.x.toDouble, p.y.toDouble, p.side), n)))
+      .toMap
+    val slotOf = scala.collection.mutable.HashMap.empty[String, Int]
+    val loopEdges = selfLoops.flatMap { e =>
+      for { (src, n) <- pinAt.get(e.toPath); (sink, _) <- pinAt.get(e.fromPath) } yield {
+        val slot = slotOf.getOrElse(n.id, 0); slotOf(n.id) = slot + 1
+        val pts  = LayoutCore.selfLoopRoute(src, sink, (n.x.toDouble, n.y.toDouble, n.w.toDouble, n.h.toDouble), slot)
+        RoutedEdge(e.fromPath, e.toPath, pts.map { case (x, y) => (x.toInt, y.toInt) }, e.label)
+      }
+    }
+    // The canvas holds the loops too (the padding ELK keeps past the last box).
+    val pad   = 12
+    val loopW = loopEdges.iterator.flatMap(_.points.iterator.map(_._1 + pad)).maxOption.getOrElse(0)
+    val loopH = loopEdges.iterator.flatMap(_.points.iterator.map(_._2 + pad)).maxOption.getOrElse(0)
+    ModuleLayout(laidNodes, laidEdges ++ loopEdges,
+      root.getWidth.toInt.max(loopW).max(1), root.getHeight.toInt.max(loopH).max(1))
   }
 
   /** Compute a layout for every module and attach them to the design. A module

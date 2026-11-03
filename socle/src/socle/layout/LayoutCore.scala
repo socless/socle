@@ -736,6 +736,40 @@ object LayoutCore {
       .filter { case (a, b) => math.abs(b._1 - a._1) >= labelW + 8 }
       .map { case (a, b) => ((a._1 + b._1) / 2, a._2) }
 
+  // ── Self-loops (routed here, not by ELK) ─────────────────────────────────────
+
+  /** `prep`'s edges split into self-loops (both pins on one box: a register
+    * holding its value, a block wired back to itself) and the rest. ELK routes
+    * self-loops from identity-hashed sets, so its routes, and the room it left
+    * around the box, changed with whatever the JVM had hashed first: the same
+    * design laid out differently from one run (or editor session) to the next.
+    * Both engines hand ELK only the rest and route self-loops with
+    * [[selfLoopRoute]]. */
+  def splitSelfLoops(prep: Prepared): (Seq[PreparedEdge], Seq[PreparedEdge]) = {
+    val owner = prep.nodes.iterator.flatMap(n => n.pins.iterator.map(_.path -> n.id)).toMap
+    prep.edges.partition(e => owner.get(e.fromPath).exists(o => owner.get(e.toPath).contains(o)))
+  }
+
+  /** How far a self-loop runs from its box, and how far apart loops on one box
+    * stack: inside the 10px ELK keeps between a box and the wires it routes
+    * (`spacing.edgeNode`), so a loop never runs along another wire. */
+  val SelfLoopGap: Double  = 5.0
+  val SelfLoopStep: Double = 3.0
+
+  /** A self-loop's route: out of the source pin `src` (x, y, side), under the
+    * box `box` (x, y, w, h), back into the sink pin. `slot` (0, 1, ...) is the
+    * loop's index among its box's loops, so they stack. Points run source -> sink. */
+  def selfLoopRoute(src: (Double, Double, String), sink: (Double, Double, String),
+                    box: (Double, Double, Double, Double), slot: Int): Seq[(Double, Double)] = {
+    val (bx, by, bw, bh) = box
+    val d     = SelfLoopGap + slot * SelfLoopStep
+    def out(side: String): Double = if (side == PinSide.West) bx - d else bx + bw + d
+    val below = by + bh + d
+    val pts   = Seq((src._1, src._2), (out(src._3), src._2), (out(src._3), below),
+                    (out(sink._3), below), (out(sink._3), sink._2), (sink._1, sink._2))
+    pts.foldLeft(Vector.empty[(Double, Double)])((acc, p) => if (acc.lastOption.contains(p)) acc else acc :+ p)
+  }
+
   // ── Verification layers apart (a debug band below the design) ───────────────
 
   /** The space between the design and the debug band, the channel the wires
