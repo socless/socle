@@ -537,6 +537,16 @@ object Highlight {
     // stays readable at a fixed screen size.
     ".ov .scl-stubl{opacity:0}",
     ".ov .scl-stubl, .ov .scl-stubl *{pointer-events:none !important}",
+    // An I/O tag keeps its name instead, at a fixed screen size: never shrunk to
+    // the tag, so it runs past it outwards, away from the schematic (an input's
+    // leftwards from its pin side, an output's rightwards), never over a box.
+    s".scl-ovt{display:none;position:absolute;top:50%;transform:translateY(-50%);z-index:2;white-space:nowrap;pointer-events:none;" +
+      s"font-family:${Tokens.mono};font-weight:600;font-size:calc(11px / var(--z));line-height:1.3;color:${Tokens.ink};" +
+      s"background:${Tokens.panel};border:calc(1px / var(--z)) solid ${Tokens.border};border-radius:calc(3px / var(--z));padding:0 calc(4px / var(--z))}",
+    ".scl-ovt.in{right:0}",
+    ".scl-ovt.out{left:0}",
+    ".ov .scl-ovt{display:block}",
+    ".ov [data-boundary-stub]{overflow:visible !important}",
     ".ov .scl-wl:not(.sig){font-size:calc(10px / var(--z))}",
     // A declared port no wire ends on (#332).
     ".scl-nc{opacity:.45}",

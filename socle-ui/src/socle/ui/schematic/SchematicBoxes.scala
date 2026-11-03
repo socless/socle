@@ -147,6 +147,10 @@ private[schematic] object SchematicBoxes {
         s"display:flex;align-items:center;justify-content:center;font-family:${Tokens.mono};font-size:var(--sch-type);color:${Tokens.ink2};overflow:hidden;cursor:pointer",
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       if (!hasLabel) span(styleAttr := "padding:0 6px;text-align:center;word-break:break-all", n.id) else emptyNode,
+      // The tag's name in the overview, where its pin labels fade: at a fixed
+      // screen size, from the tag's pin side outwards (see Highlight's .scl-ovt).
+      div(dataAttr("tag-overview-name") := n.id,
+        cls := (if (n.ports.headOption.exists(_.side == PinSide.West)) "scl-ovt out" else "scl-ovt in"), n.id),
       n.ports.map { p =>
         val pw = if (p.interface) 8 else 3
         val ph = if (p.interface) 12 else 6
