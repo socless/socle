@@ -241,10 +241,13 @@ object IrWalk {
         if (isOpOrConst(n) && (interior.contains(n.id) || (m.layerConsumes.contains(n.id) && !drivers.contains(n.id))))
           members += n.id
       }
-      def consumers(id: String): Seq[String] =
-        wires.iterator
-          .filter(w => stripIdx(w.to.split('.').headOption.getOrElse("")) == id)
-          .map(w => Synthetic.baseOf(stripIdx(w.from.split('.').headOption.getOrElse("")))).toSeq
+      // Built once: rescanning every wire per node per pass was quadratic on large modules.
+      val consumersOf = mutable.HashMap.empty[String, mutable.ArrayBuffer[String]]
+      wires.foreach { w =>
+        consumersOf.getOrElseUpdate(stripIdx(w.to.split('.').headOption.getOrElse("")), mutable.ArrayBuffer.empty) +=
+          Synthetic.baseOf(stripIdx(w.from.split('.').headOption.getOrElse("")))
+      }
+      def consumers(id: String): collection.Seq[String] = consumersOf.getOrElse(id, Nil)
       var changed = true
       while (changed) {
         changed = false
@@ -848,8 +851,17 @@ object IrWalk {
     ): Seq[((String, String), (String, String))] = {
       val trimmed: Seq[(String, String, String, String)] =
         resolvedWithConst.map { case (src, sink) => (src, sink, trim(src), trim(sink)) }
-      val endpoints = trimmed.flatMap { case (_, _, se, ke) => Seq(se, ke) }.toSet
-      def isSplitAncestor(epName: String): Boolean = endpoints.exists(o => o != epName && o.startsWith(epName + "."))
+      // Every proper dot-prefix of an endpoint: `ep` is a split ancestor iff some
+      // endpoint starts with `ep + "."`, i.e. iff `ep` is in this set (one lookup
+      // instead of a scan of all endpoints, which was quadratic on large modules).
+      val ancestors = mutable.HashSet.empty[String]
+      trimmed.foreach { case (_, _, se, ke) =>
+        Seq(se, ke).foreach { o =>
+          var i = o.indexOf('.')
+          while (i >= 0) { ancestors += o.substring(0, i); i = o.indexOf('.', i + 1) }
+        }
+      }
+      def isSplitAncestor(epName: String): Boolean = ancestors.contains(epName)
       def ep(orig: String, t: String): String = if (isSplitAncestor(t)) trimDeep(orig) else t
       trimmed.map { case (src, sink, se, ke) => ((ep(src, se), ep(sink, ke)), (src, sink)) }
     }

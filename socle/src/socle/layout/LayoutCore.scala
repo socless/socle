@@ -236,13 +236,35 @@ object LayoutCore {
   /** Resolve `path` against `module`. Returns None for internal nets / unknown
     * heads (those endpoints are dropped, as in IrWalk). */
   def classify(path: String, module: ModuleDef, design: Design): Option[Endpoint] =
-    classifyWith(path, module, design, design.modules.iterator.map(m => m.name -> m).toMap)
+    classifyWith(path, module, design, design.modules.iterator.map(m => m.name -> m).toMap, new ClassifyIndex(module))
 
-  def classifyWith(path: String, module: ModuleDef, design: Design, modulesByName: Map[String, ModuleDef]): Option[Endpoint] = {
+  /** Per-module lookups for [[classifyWith]], built once per module rather than
+    * once per endpoint (rebuilding them per call was quadratic on large modules).
+    * Maps keep the FIRST element per key, matching the `find` they replace. */
+  final class ClassifyIndex(module: ModuleDef) {
+    private def firstBy[A](xs: Seq[A])(key: A => String): Map[String, A] = {
+      val b = scala.collection.mutable.LinkedHashMap.empty[String, A]
+      xs.foreach(x => if (!b.contains(key(x))) b(key(x)) = x)
+      b.toMap
+    }
+    private def ids(p: LogicNodeDef => Boolean): Set[String] = module.logic.iterator.filter(p).map(_.id).toSet
+    val children: Map[String, InstanceDef] = firstBy(module.children)(_.name)
+    val ports: Map[String, PortDef]        = firstBy(module.ports)(_.name)
+    val logicById: Map[String, LogicNodeDef] = firstBy(module.logic)(_.id)
+    val regs: Map[String, LogicNodeDef]    = firstBy(module.logic.filter(_.kind == NodeKind.Reg))(_.id)
+    val regIds: Set[String]   = regs.keySet
+    val constIds: Set[String] = ids(_.kind == NodeKind.Const)
+    val opIds: Set[String]    = ids(_.kind == NodeKind.Op)
+    val memIds: Set[String]   = ids(_.kind == NodeKind.Mem)
+    val fsmIds: Set[String]   = ids(n => NodeKind.isBox(n.kind))
+  }
+
+  def classifyWith(path: String, module: ModuleDef, design: Design, modulesByName: Map[String, ModuleDef],
+                   ix: ClassifyIndex): Option[Endpoint] = {
     val parts = path.split('.').toIndexedSeq
     if (parts.isEmpty) return None
     val head = stripIdx(parts.head)
-    val instOf = module.children.find(_.name == head)
+    val instOf = ix.children.get(head)
     if (instOf.isDefined && parts.length >= 2) {
       val childMod = modulesByName.get(instOf.get.`type`)
       val portName = stripIdx(parts(1))
@@ -256,19 +278,16 @@ object LayoutCore {
       // driver pin keyed by the whole `const$...` atom). These resolve before the
       // boundary-port fallthrough so a logic node is never mistaken for a port and
       // is never dropped (issue #188 B1).
-      val regIds   = module.logic.iterator.filter(_.kind == NodeKind.Reg).map(_.id).toSet
-      val constIds = module.logic.iterator.filter(_.kind == NodeKind.Const).map(_.id).toSet
-      val opIds    = module.logic.iterator.filter(_.kind == NodeKind.Op).map(_.id).toSet
-      val memIds   = module.logic.iterator.filter(_.kind == NodeKind.Mem).map(_.id).toSet
+      import ix.{regIds, constIds, opIds, memIds}
       // An FSM box has named boundary pins arriving as `<fsmId>.<pin>`, exactly
       // like an instance: the head segment is the box id. Resolve it before the
       // boundary-port fallthrough so the pins are never mistaken for ports or
       // dropped (issue #210).
-      val fsmIds   = module.logic.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
+      val fsmIds   = ix.fsmIds
       def regIface(id: String): Boolean =
-        module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).exists(n => isInterfaceBundle(n.bundle, design))
+        ix.regs.get(id).exists(n => isInterfaceBundle(n.bundle, design))
       def regBundle(id: String): String =
-        module.logic.find(n => n.id == id && n.kind == NodeKind.Reg).map(_.bundle).getOrElse("")
+        ix.regs.get(id).map(_.bundle).getOrElse("")
       val rawHead = stripIdx(parts.head)
       if (rawHead.endsWith("~q") && regIds.contains(rawHead.dropRight(2)))
         return Some(Endpoint(rawHead.dropRight(2), NodeKind.Reg, path, PinSide.East, regIface(rawHead.dropRight(2)), regBundle(rawHead.dropRight(2))))
@@ -298,10 +317,10 @@ object LayoutCore {
         // FSM box pins carry no bundle: the synthesized region ports store no
         // bundle key, so a pin reflects its own (bundleless) port rather than
         // the wire's aggregate type (#237).
-        val boxKind = module.logic.find(_.id == rawHead).map(_.kind).getOrElse(NodeKind.Fsm)
+        val boxKind = ix.logicById.get(rawHead).map(_.kind).getOrElse(NodeKind.Fsm)
         return Some(Endpoint(rawHead, boxKind, path, sideFor(boxKind, dir), false, ""))
       }
-      module.ports.find(_.name == head).map { p =>
+      ix.ports.get(head).map { p =>
         // Each external pin is its OWN boundary node (keyed by full path), not
         // grouped under the port head. A single shared node would force all of
         // a module's I/O into one layer, so inputs could not sit on the left
@@ -388,8 +407,9 @@ object LayoutCore {
     //    Drop clock/reset wires before resolution so their boundary stubs are
     //    also excluded from the layout.
     case class E(w: WireDef, from: Endpoint, to: Endpoint)
+    val ix = new ClassifyIndex(module)
     val resolved: Seq[E] = module.wires.filterNot(isClockReset).flatMap { w =>
-      for { f <- classifyWith(w.from, module, design, modulesByName); t <- classifyWith(w.to, module, design, modulesByName) }
+      for { f <- classifyWith(w.from, module, design, modulesByName, ix); t <- classifyWith(w.to, module, design, modulesByName, ix) }
         yield E(w, f, t)
     }
 
