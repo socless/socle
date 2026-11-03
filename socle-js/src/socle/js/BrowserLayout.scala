@@ -44,6 +44,7 @@ import scala.scalajs.concurrent.JSExecutionContext.Implicits.queue
 }
 
 @js.native private trait ElkEdge extends js.Object {
+  def id: String = js.native
   def sources: js.Array[String] = js.native
   def targets: js.Array[String] = js.native
   def sections: js.UndefOr[js.Array[ElkSection]] = js.native
@@ -150,12 +151,13 @@ object BrowserLayout {
 
     // Edge: source = toPath (driver), target = fromPath (sink), matching the
     // JVM orientation. elkjs echoes sources/targets back so extraction needs no
-    // index bookkeeping.
+    // index bookkeeping. A `reversed` edge (against its pins' sides)
+    // goes in sink->source, with an "r" id so extraction flips it back.
     val edges = prep.edges.zipWithIndex.map { case (e, i) =>
       js.Dynamic.literal(
-        id = s"e$i",
-        sources = js.Array[String](e.toPath),
-        targets = js.Array[String](e.fromPath),
+        id = (if (e.reversed) "r" else "e") + i,
+        sources = js.Array[String](if (e.reversed) e.fromPath else e.toPath),
+        targets = js.Array[String](if (e.reversed) e.toPath else e.fromPath),
       )
     }.toJSArray
 
@@ -228,11 +230,15 @@ object BrowserLayout {
     }
 
     val edges = g.edges.toSeq.flatMap { e =>
+      // Driver and sink pins: a reversed ("r" id) edge was handed in sink->source.
+      val rev            = e.id.startsWith("r")
+      val (srcPin, sinkPin) = if (rev) (e.targets(0), e.sources(0)) else (e.sources(0), e.targets(0))
       val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
       e.sections.toOption.flatMap(_.headOption).foreach { sec =>
         pts += ((sec.startPoint.x.toInt, sec.startPoint.y.toInt))
         sec.bendPoints.toOption.foreach(_.foreach(bp => pts += ((bp.x.toInt, bp.y.toInt))))
         pts += ((sec.endPoint.x.toInt, sec.endPoint.y.toInt))
+        if (rev) { val back = pts.reverse; pts.clear(); pts ++= back }
       }
       // junctionPoints mark where this edge shares a segment with others (the
       // fan-out branch dots, issue #166); pass them through when present.
@@ -242,16 +248,16 @@ object BrowserLayout {
       // route section (<2 points). Rather than drop the wire (it then vanishes
       // from the render), synthesize a straight 2-point route between the two
       // port anchors, in the same node-origin/offset coordinate space the
-      // sectioned points use (mirrors the JVM fix d0e8cba). sources(0) is the
-      // SOURCE pin (toPath) and targets(0) is the SINK pin (fromPath).
+      // sectioned points use (mirrors the JVM fix d0e8cba). srcPin is the
+      // SOURCE pin (toPath) and sinkPin the SINK pin (fromPath).
       if (pts.length < 2) {
         for {
-          src  <- portAnchor.get(e.sources(0))
-          sink <- portAnchor.get(e.targets(0))
+          src  <- portAnchor.get(srcPin)
+          sink <- portAnchor.get(sinkPin)
         } pts ++= Seq(src, sink)
       }
       if (pts.length < 2) Nil
-      else Seq(LaidEdgeR(e.targets(0), e.sources(0), pts.toSeq, jps.toSeq))
+      else Seq(LaidEdgeR(sinkPin, srcPin, pts.toSeq, jps.toSeq))
     }
 
     LaidOut(nodes, edges, g.width.toInt.max(1), g.height.toInt.max(1))
@@ -387,7 +393,6 @@ object BrowserLayout {
                            width: Double, height: Double)
 
   @js.native private trait ElkLabeledEdge extends ElkEdge {
-    def id: String = js.native
     def labels: js.UndefOr[js.Array[ElkPoint]] = js.native
   }
 

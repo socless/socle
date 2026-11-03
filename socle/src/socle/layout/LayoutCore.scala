@@ -358,8 +358,15 @@ object LayoutCore {
 
   /** One edge oriented source->sink. `toPath` is the SOURCE pin (drives), and
     * `fromPath` is the SINK pin, matching [[WireDef]] semantics (from = sink,
-    * to = source). `label` is the merged label of its anti-parallel group. */
-  case class PreparedEdge(fromPath: String, toPath: String, label: String)
+    * to = source). `label` is the merged label of its anti-parallel group.
+    * `reversed`: each engine hands this edge to the layered algorithm sink->source
+    * and maps its route back, because it runs against its pins' sides: out of a
+    * WEST pin or into an EAST pin (a Decoupled `ready`, an output tag's flipped
+    * field). Drawn, such a wire comes back leftwards, so its source belongs on
+    * the right: layered forward, it forms cycles with the data it answers, and
+    * ELK may break them on the data edge (a queue placed after the decoder it
+    * feeds). ELK also rejects it on a FIRST/LAST_SEPARATE tag. Set by [[prepare]]. */
+  case class PreparedEdge(fromPath: String, toPath: String, label: String, reversed: Boolean = false)
 
   case class Prepared(nodes: Seq[PreparedNode], edges: Seq[PreparedEdge])
 
@@ -541,14 +548,6 @@ object LayoutCore {
       }
       .toSeq
 
-    // Pins that drive / receive a collapsed edge. A boundary stub is column-pinned
-    // only when it is purely one-directional: ELK rejects a first-layer node with
-    // an incoming edge or a last-layer node with an outgoing edge, so a pin that
-    // both sends and receives (a Decoupled boundary still carrying `ready`, a
-    // fan-in/out) is left unconstrained and ranks naturally (issue #163).
-    val edgeSources = edges.iterator.map(_.toPath).toSet
-    val edgeSinks   = edges.iterator.map(_.fromPath).toSet
-
     // A declared row is expandable when it has children; any other pin by its type.
     def expandableOf(id: String, kind: String, p: PinSpec): Boolean =
       rowOf.get((id, kind, p.path)).fold(BundleTree.isAggregateType(p.bundle, design))(_.expandable)
@@ -597,17 +596,16 @@ object LayoutCore {
         }
         // An EAST boundary pin drives into the design (a source): pin it to the
         // first column. A WEST one receives (a sink): pin it to the last column.
-        // Skip the constraint for any pin that also carries a back-edge.
+        // Every tag is pinned, also one carrying a wire the other way (a
+        // Decoupled `ready`): that wire is marked `reversed` below, otherwise
+        // the tag would rank among the logic, mid-schematic.
         val side        = laidPins.headOption.map(_.side).getOrElse(PinSide.East)
-        val paths       = laidPins.map(_.path)
-        val anyIncoming = paths.exists(edgeSinks.contains)
-        val anyOutgoing = paths.exists(edgeSources.contains)
         // Only true boundary stubs get column-pinned (issue #163); const nodes
         // share the compact box but rank by dataflow, so they stay unconstrained.
         val lc =
           if (kind != NodeKind.Boundary)                  None
-          else if (side == PinSide.East && !anyIncoming) Some("FIRST_SEPARATE")
-          else if (side == PinSide.West && !anyOutgoing) Some("LAST_SEPARATE")
+          else if (side == PinSide.East) Some("FIRST_SEPARATE")
+          else if (side == PinSide.West) Some("LAST_SEPARATE")
           else                                     None
         val bh = if (stacked) 2 * PortPad + pins.size * PortStep else BoundaryH
         PreparedNode(id, kind, bw, bh, laidPins, lc)
@@ -703,7 +701,30 @@ object LayoutCore {
       }
     }.toSeq
 
-    Prepared(nodes, edges)
+    // A wire between two tags of the same column (an output passed straight to
+    // another output) fits that column in neither direction: the tag at its
+    // wrong end (the driving output, the receiving input) stays unpinned.
+    val nodeOfPin: Map[String, PreparedNode] = nodes.iterator.flatMap(n => n.pins.iterator.map(_.path -> n)).toMap
+    val unpin: Set[String] = edges.iterator.flatMap { e =>
+      (nodeOfPin.get(e.toPath), nodeOfPin.get(e.fromPath)) match {
+        case (Some(s), Some(t)) if s.id != t.id && s.layerConstraint.isDefined && s.layerConstraint == t.layerConstraint =>
+          if (s.layerConstraint.contains("LAST_SEPARATE")) Some(s.id) else Some(t.id)
+        case _ => None
+      }
+    }.toSet
+    val pinned = nodes.map(n => if (unpin(n.id)) n.copy(layerConstraint = None) else n)
+
+    // An edge leaving a WEST pin or entering an EAST pin runs against its pins'
+    // sides (a `ready` back, a tag's flipped field): it goes to the layered
+    // algorithm reversed. This also keeps every edge on a column-pinned tag
+    // pointing the way its column needs (tag pins are EAST for inputs, WEST
+    // for outputs).
+    val sideOf: Map[String, String] = pinned.iterator.flatMap(_.pins.iterator.map(p => p.path -> p.side)).toMap
+    val oriented = edges.map { e =>
+      val rev = sideOf.get(e.toPath).contains(PinSide.West) || sideOf.get(e.fromPath).contains(PinSide.East)
+      if (rev) e.copy(reversed = true) else e
+    }
+    Prepared(pinned, oriented)
   }
 
   /** Where a bundle wire carries its type label (#334): the middle of the

@@ -210,11 +210,12 @@ object Layout {
     }
 
     // Create edges, oriented source->sink for correct left-to-right layering.
-    // PreparedEdge.toPath is the SOURCE, fromPath is the SINK.
-    prep.edges.foreach { e =>
+    // PreparedEdge.toPath is the SOURCE, fromPath is the SINK; a `reversed` edge
+    // goes in sink->source (it runs against its pins' sides, see PreparedEdge).
+    def elkEnds(e: LayoutCore.PreparedEdge): Option[(ElkPort, ElkPort)] =
       for { src <- elkPort.get(e.toPath); dst <- elkPort.get(e.fromPath) }
-        ElkGraphUtil.createSimpleEdge(src, dst)
-    }
+        yield if (e.reversed) (dst, src) else (src, dst)
+    prep.edges.foreach(e => elkEnds(e).foreach { case (a, b) => ElkGraphUtil.createSimpleEdge(a, b) })
 
     // Run layout.
     new RecursiveGraphLayoutEngine().layout(root, new BasicProgressMonitor())
@@ -253,12 +254,13 @@ object Layout {
     }.groupBy(_._1).view.mapValues(_.head._2).toMap
 
     val laidEdges = prep.edges.flatMap { e =>
-      // Edge was created source->sink, i.e. from the toPath port to the fromPath port.
+      // Edge was created source->sink, i.e. from the toPath port to the fromPath
+      // port (sink->source when `reversed`: its route is flipped back below).
       val src = elkPort.get(e.toPath)
       val dst = elkPort.get(e.fromPath)
       (src, dst) match {
         case (Some(s), Some(d)) =>
-          edgeByPortPair.get((s, d)).flatMap { ed =>
+          edgeByPortPair.get(if (e.reversed) (d, s) else (s, d)).flatMap { ed =>
             val pts = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
             val sections = ed.getSections
             if (!sections.isEmpty) {
@@ -266,6 +268,7 @@ object Layout {
               pts += ((sec.getStartX.toInt, sec.getStartY.toInt))
               sec.getBendPoints.asScala.foreach(bp => pts += ((bp.getX.toInt, bp.getY.toInt)))
               pts += ((sec.getEndX.toInt, sec.getEndY.toInt))
+              if (e.reversed) { val back = pts.reverse; pts.clear(); pts ++= back }
             }
             // ELK occasionally lays out an edge's endpoints but emits no route
             // section. Rather than drop the wire (it then vanishes from the
