@@ -76,7 +76,8 @@ java -javaagent:<socle-probe agent jar> \
 `./mill example.socleView <Suite> "<test>"` runs this contract on the bundled
 examples, adapts the capture and serves it in the UI. The `socle-lsp` language
 server runs the same contract from an editor (a View design lens per test, a
-live panel, refresh on save): see [Socle in Neovim](ide-neovim.md) and
+live panel, refresh on save): see [Socle in Neovim](ide-neovim.md),
+[Socle in IntelliJ IDEA](ide-intellij.md) and
 [Socle in VS Code](ide-vscode.md).
 
 ## The IDE view

@@ -36,7 +36,8 @@ There are three ways in, all front doors to the same UI:
   test shows the design that test elaborates in a live panel beside your code
   (no simulator needed, refreshed on save), and a **Simulate** lens runs the
   test with waves and opens them in [Surfer](https://surfer-project.org/). Use
-  the VS Code extension ([docs/ide-vscode.md](docs/ide-vscode.md)) or the
+  the VS Code extension ([docs/ide-vscode.md](docs/ide-vscode.md)), the IntelliJ IDEA plugin
+  ([docs/ide-intellij.md](docs/ide-intellij.md)) or the
   language server in Neovim or any LSP editor
   ([docs/ide-neovim.md](docs/ide-neovim.md); in Neovim, the
   [socle.nvim](https://github.com/socless/socle.nvim) plugin sets it up).
@@ -90,7 +91,9 @@ app](docs/usage-standalone.md)**, the **[Mill plugin](docs/usage-mill.md)** or
 the **[Chisel IDE](docs/ide-vscode.md)**. Each release on the
 [GitHub releases page](https://github.com/socless/socle/releases) attaches the
 standalone jar, the language server jar and the single-file UI; the VS Code
-extension has its own [releases](https://github.com/socless/socle-vscode/releases).
+extension and the IntelliJ plugin have their own releases
+([VS Code](https://github.com/socless/socle-vscode/releases),
+[IntelliJ](https://github.com/socless/socle-intellij/releases)).
 
 <p align="center">
 <picture>
