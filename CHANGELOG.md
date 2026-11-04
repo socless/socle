@@ -9,6 +9,29 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-11-04
+
+### Added
+
+- The zoomed-out overview keeps the I/O tags' names: each tag shows its name at a fixed
+  screen size, on a chip that grows away from its pin side so it never covers a box.
+
+### Changed
+
+- Faster exports of large designs: three per-module lookups are now linear (an 8.8 MB
+  CHIRRTL design went from 44 s to 18 s, with an identical `design.json`), and modules
+  above 1000 boxes are placed with Brandes-Koepf instead of network simplex (a 2229-box
+  module from 7.1 s to 0.3 s). Mid-size modules keep network simplex.
+
+### Fixed
+
+- Every I/O tag stays in its column, including a tag carrying a wire the other way
+  (a Decoupled `ready`), and a wire answering data no longer flips the order of the
+  boxes it connects (a queue placed after the decoder it feeds).
+- Layouts are now the same from one JVM to the next: register hold wires (self-loops)
+  are routed by Socle in both engines instead of by ELK, whose route depended on the
+  JVM's identity hashes.
+
 ## [0.23.0] - 2026-11-02
 
 ### Changed
