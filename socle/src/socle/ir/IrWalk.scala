@@ -70,14 +70,18 @@ object IrWalk {
     if (names.size > max) s"$shown (+${names.size - max} more)" else shown
   }
 
-  def design(c: Circ): Design = {
+  /** @param lines    the source lines the `when` markers point at: which `when`s
+    *                 are user-written blocks (`CodeBlocks`).
+    * @param collapse fold the code blocks into boxes; false keeps their
+    *                 terminals in the module (tests of the routing). */
+  def design(c: Circ, lines: SourceLines = SourceLines.none, collapse: Boolean = true): Design = {
     val bundles = new BundleReg
     // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
     // endpoints needs to read port types off the instance's own module,
     // which lives elsewhere in the circuit. Building it once here is cheaper
     // than searching per wire.
     val byName  = c.modules.map(m => m.name -> m).toMap
-    val built   = c.modules.map(buildModule(_, byName, bundles))
+    val built   = c.modules.map(buildModule(_, byName, bundles, lines, collapse))
     val modules = built.map(_._1)
     // Collapsed-FSM bodies (issue #210): each module contributes zero or more
     // (fsmId -> body) entries; merge into one regions map for the Design.
@@ -140,6 +144,8 @@ object IrWalk {
     m:       Mod,
     byName:  Map[String, Mod],
     bundles: BundleReg,
+    lines:   SourceLines,
+    collapse: Boolean,
   ): (ModuleDef, Map[String, ModuleDef]) = {
     // A port is "connected" if its name is referenced anywhere in the module
     // body (connects, register/memory clocks+resets, node expressions, when
@@ -205,29 +211,87 @@ object IrWalk {
     // Memory nodes (issue #205): mem LogicNodeDefs + address edges, and the
     // connect stream rewritten so mport refs route through encoded mem pins.
     val mem = MemNodes.build(m)
+    // Recognized FSMs, collapsed below.
+    val fsms = FsmDetect.detect(m)
+    // Code blocks: the user's `when` / `switch` blocks (CodeBlocks). A connect
+    // inside one leaves the stream for an assignment terminal of its innermost
+    // block (one per block and sink, an input pin per connect, its output drives
+    // the sink), and each arm condition feeds the block's condition terminal.
+    // The collapse folds the terminals into the block's box.
+    val blocks: Seq[CodeBlock] = CodeBlocks.of(m, lines)
+    // Built once: CodeBlocks.blockOf scans the blocks per call (big modules).
+    val blockOfWhen: Map[Int, String] = blocks.iterator.flatMap(b => b.whenIds.iterator.map(_ -> b.id)).toMap
+    val routed: Seq[(Conn, Option[String])] =
+      mem.conns.map(c => (c, c.whenIds.reverseIterator.flatMap(blockOfWhen.get).nextOption()))
+    val outsideConns: Seq[Conn] = routed.collect { case (c, None) => c }
     // Slice 1 of #210: fold simple depth-1 conditional connects into mux nodes.
     // The folded connects are removed from the stream; the mux nodes are
-    // terminals (like other op nodes) and their pin edges join nodeEdges.
-    val muxResult  = WhenMux.synthesize(mem.conns, name => regNames.contains(stripIdx(name)))
-    val keptConns  = mem.conns.iterator.zipWithIndex
-      .collect { case (c, i) if !muxResult.consumed(i) => c }.toSeq
+    // terminals (like other op nodes) and their pin edges join nodeEdges. It
+    // sees only the connects outside every block.
+    val muxResult  = WhenMux.synthesize(outsideConns, name => regNames.contains(stripIdx(name)))
     val muxIds     = muxResult.nodes.map(_.id).toSet
-    // Recognized FSMs, collapsed below. The `when` conditions an FSM reads
-    // (around its `switch`, or inside a case) are not operands of any node, so
-    // each is an extra input pin of the FSM's first case compare: the collapse
-    // makes it an input pin of the fsm box (no wire inside its body). A
-    // condition that is itself a member op is left out: its operands are wired.
-    val fsms = FsmDetect.detect(m)
-    val fsmCondEdges: Seq[(String, String)] = fsms.flatMap { f =>
-      m.nodes.find(_.name == f.outerCond).filter(n => logicNodeNames.contains(n.name)).toSeq.flatMap { root =>
-        f.condRefs.filterNot(c => logicNodeNames.contains(c) && f.memberNodes.contains(c)).zipWithIndex.map {
-          case (c, k) => (Synthetic.opInPin(root.name, root.operands.size + k), c)
-        }
+    // The stream in source order: kept outside connects, and in place of each
+    // block connect its terminal edges (as connects, so wires keep the marker).
+    val termInputs: mutable.LinkedHashMap[String, Int] = mutable.LinkedHashMap.empty
+    def nextPin(term: String): String = {
+      val k: Int = termInputs.getOrElse(term, 0)
+      termInputs(term) = k + 1
+      Synthetic.opInPin(term, k)
+    }
+    val keptConns: mutable.ArrayBuffer[Conn] = mutable.ArrayBuffer.empty
+    val termBlock: mutable.Map[String, String] = mutable.Map.empty // terminal id -> block id
+    var outsideAt: Int = 0
+    routed.foreach {
+      case (c, None) =>
+        if (!muxResult.consumed(outsideAt)) keptConns += c
+        outsideAt += 1
+      case (c, Some(b)) =>
+        val asg: String = Synthetic.assignId(b, c.lhs)
+        if (!termInputs.contains(asg)) keptConns += Conn(c.lhs, asg, c.src)
+        termBlock(asg) = b
+        keptConns += Conn(nextPin(asg), c.rhs, c.src)
+    }
+    // A block's conditions: its arms', and those of the `when`s that are not
+    // blocks (a library `when`, or no source line to read) around it up to its
+    // parent block or inside it: the block reads them, as it owns the connects
+    // they guard. One pin per signal.
+    val whenById: Map[Int, ChirrtlParser.WhenDecl] = m.whens.map(w => w.id -> w).toMap
+    val armsOf: Map[String, Seq[ChirrtlParser.WhenDecl]] =
+      m.whens.filter(w => blockOfWhen.contains(w.id)).groupBy(w => blockOfWhen(w.id))
+    val innerConds: Map[String, Seq[String]] =
+      m.whens.filterNot(w => blockOfWhen.contains(w.id)).flatMap { w =>
+        w.parents.reverseIterator.flatMap(p => blockOfWhen.get(p._1)).nextOption().map(b => (b, w.cond.trim))
+      }.groupBy(_._1).map { case (b, cs) => b -> cs.map(_._2) }
+    def condsOf(b: CodeBlock): Seq[String] = {
+      val arms: Seq[ChirrtlParser.WhenDecl] = armsOf.getOrElse(b.id, Nil)
+      val outer: Seq[String] = arms.headOption.toSeq.flatMap { root =>
+        root.parents.reverse.takeWhile(p => !blockOfWhen.contains(p._1)).reverse
+          .flatMap(p => whenById.get(p._1)).map(_.cond.trim)
       }
+      (outer ++ arms.map(_.cond.trim) ++ innerConds.getOrElse(b.id, Nil)).distinct
+    }
+    val condEdges: Seq[(String, String)] = blocks.flatMap { b =>
+      termBlock(Synthetic.condId(b.id)) = b.id
+      condsOf(b).map(cond => (nextPin(Synthetic.condId(b.id)), cond))
+    }
+    // Until the code-block collapse (which replaces collapseFsms), an FSM box
+    // takes the terminals of its block and of the blocks nested in it.
+    val fsmTerminals: Map[String, Set[String]] = {
+      val parentOf: Map[String, Option[String]] = blocks.map(b => b.id -> b.parent).toMap
+      def within(b: String, root: String): Boolean =
+        b == root || parentOf.getOrElse(b, None).exists(p => within(p, root))
+      fsms.flatMap { f =>
+        val root: Option[String] = m.whens.find(_.cond == f.outerCond).flatMap(w => blockOfWhen.get(w.id))
+        root.map(r => f.id -> termBlock.iterator.collect { case (t, b) if within(b, r) => t }.toSet)
+      }.toMap
+    }
+    val termLogic: Seq[LogicNodeDef] = termInputs.keys.toSeq.map { id =>
+      LogicNodeDef(id = id, kind = NodeKind.Op, label = "", bundle = "", source = SourceRef.unknown, op = "terminal")
     }
     val (wires, constLogic) =
-      coalesceWires(m, keptConns, byName, bundles, regNames, regType,
-        logicNodeNames ++ muxIds ++ mem.ids, nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ fsmCondEdges)
+      coalesceWires(m, keptConns.toSeq, byName, bundles, regNames, regType,
+        logicNodeNames ++ muxIds ++ mem.ids ++ termInputs.keySet,
+        nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ condEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -235,7 +299,7 @@ object IrWalk {
       gates     = None,
       memories  = m.mems.size,
     )
-    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic
+    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic ++ termLogic
     // Verification-layer flagging (issue #212): mark logic nodes that are Chisel
     // layer content so the UI can hide them behind "show layers". Seeds: nodes
     // declared inside a `layerblock`, or a module-level condition node the layer
@@ -278,7 +342,8 @@ object IrWalk {
     // the parent keeps a single `fsm` box plus the boundary wires (rewired to
     // pins on the box). No FSM detected => parent unchanged, empty regions.
     val (finalLogic, finalWires, regions) =
-      collapseFsms(fsms, layerFlagged, wires)
+      if (collapse) collapseFsms(fsms, fsmTerminals, layerFlagged, wires)
+      else (layerFlagged, wires, Map.empty[String, ModuleDef])
     val moduleDef = ModuleDef(
       name     = m.name,
       `type`   = m.name,
@@ -303,9 +368,10 @@ object IrWalk {
     * are used only for lookups, never for ordering.
     */
   private def collapseFsms(
-    fsms:  Seq[FsmDetect.Fsm],
-    logic: Seq[LogicNodeDef],
-    wires: Seq[WireDef],
+    fsms:      Seq[FsmDetect.Fsm],
+    terminals: Map[String, Set[String]],
+    logic:     Seq[LogicNodeDef],
+    wires:     Seq[WireDef],
   ): (Seq[LogicNodeDef], Seq[WireDef], Map[String, ModuleDef]) = {
     if (fsms.isEmpty) return (logic, wires, Map.empty)
 
@@ -316,7 +382,8 @@ object IrWalk {
     val regionsB    = mutable.LinkedHashMap.empty[String, ModuleDef]
 
     fsms.foreach { f =>
-      val (memberIds, sinkPaths) = fsmMembers(f, parentLogic, parentWires)
+      val (memberIds, sinkPaths) =
+        fsmMembers(f, terminals.getOrElse(f.id, Set.empty), parentLogic, parentWires)
       val (body, nextLogic, nextWires) =
         fsmRewire(f, memberIds, sinkPaths, parentLogic, parentWires)
       regionsB(f.id) = body
@@ -350,9 +417,11 @@ object IrWalk {
 
   /** Resolve `f`'s membership against the current parent state. Returns the set
     * of member node ids (op nodes in `f.memberNodes`, plus const nodes whose
-    * every sourced wire feeds a member) and the sink PATHS the FSM drives. */
+    * every sourced wire feeds a member) and the sink PATHS the FSM drives.
+    * `terminals` are the block terminals inside the FSM's switch: members too. */
   private def fsmMembers(
     f:           FsmDetect.Fsm,
+    terminals:   Set[String],
     parentLogic: Seq[LogicNodeDef],
     parentWires: Seq[WireDef],
   ): (Set[String], Set[String]) = {
@@ -363,7 +432,8 @@ object IrWalk {
     // and contribute nothing here.
     val opMemberIds: Set[String] =
       parentLogic.iterator
-        .filter(n => n.kind != NodeKind.Reg && n.kind != NodeKind.Const && f.memberNodes.contains(n.id))
+        .filter(n => n.kind != NodeKind.Reg && n.kind != NodeKind.Const &&
+          (f.memberNodes.contains(n.id) || terminals.contains(n.id)))
         .map(_.id).toSet
 
     // Full sink PATHS the FSM DRIVES inside the construct (connect-lhs paths under

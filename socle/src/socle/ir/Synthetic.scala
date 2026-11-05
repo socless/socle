@@ -15,6 +15,8 @@ package socle.ir
   *   const$<sink>      synthesized constant node feeding <sink>
   *   mux$<sink>        synthesized mux node feeding <sink>
   *   fsm$<mod>$<reg>   collapsed-FSM node for state register <reg> in <mod>
+  *   asg$<block>$<sink>  assignment terminal: what code block <block> drives <sink> with
+  *   cnd$<block>       condition terminal: the arm conditions of code block <block>
   *   <when|switch|fsm>$<mod>$<line>_<col>[$<copy>]   a user-written code block
   *                     (`CodeBlocks`), named by its Scala marker; `L<whenId>` when unmarked
   * }}}
@@ -29,6 +31,8 @@ object Synthetic {
   val ConstPrefix = "const$"
   val MuxPrefix   = "mux$"
   val MemSep      = "~"
+  val AssignPrefix = "asg$"
+  val CondPrefix   = "cnd$"
 
   /** The i-th input pin of logic-op node `node`: `<node>~in<i>`. */
   def opInPin(node: String, i: Int): String = s"$node$InMarker$i"
@@ -69,6 +73,18 @@ object Synthetic {
 
   /** Synthesized mux-node id feeding `sink`. */
   def muxId(sink: String): String = MuxPrefix + sanitize(sink)
+
+  /** Assignment terminal of code block `block` for `sink`: every connect to
+    * `sink` inside the block feeds one of its input pins, its output drives
+    * `sink`. A `~` (memory pin) is sanitized too, so the id stays one node. */
+  def assignId(block: String, sink: String): String =
+    s"$AssignPrefix$block$$${sanitize(sink).replace('~', '_')}"
+
+  /** Condition terminal of code block `block`: one input pin per arm condition. */
+  def condId(block: String): String = CondPrefix + block
+
+  /** Is `id` an assignment or condition terminal? */
+  def isTerminal(id: String): Boolean = id.startsWith(AssignPrefix) || id.startsWith(CondPrefix)
 
   /** Collapsed-FSM node id for state register `reg` in module `mod`. */
   def fsmId(mod: String, reg: String): String = s"fsm$$$mod$$$reg"
