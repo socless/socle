@@ -424,6 +424,7 @@ object IrWalk {
     // its parent both read joins the parent): the op nodes that feed its
     // condition terminal and that only the block (its nested blocks included)
     // or the cone reads, grown to a fixpoint.
+    val coneOf: mutable.HashMap[String, Set[String]] = mutable.HashMap.empty
     blocks.reverse.foreach { b =>
       val cone: mutable.Set[String] = mutable.Set.empty
       def readInside(sink: String): Boolean =
@@ -438,6 +439,7 @@ object IrWalk {
         changed = next.nonEmpty
         next.foreach { y => cone += y; owner(y) = b.id }
       }
+      coneOf(b.id) = cone.toSet
     }
     val constConsumers: mutable.LinkedHashMap[String, mutable.ArrayBuffer[String]] = mutable.LinkedHashMap.empty
     open.wires.foreach { w =>
@@ -461,16 +463,31 @@ object IrWalk {
     val childrenOf: Map[String, Seq[String]] =
       blocks.flatMap(b => b.parent.map(p => (p, b.id))).groupBy(_._1).map { case (p, cs) => p -> cs.map(_._2) }
     // A box is layer content (hidden with the layers) when it assigns nothing
-    // and all it holds, its op and const nodes and its child boxes, is: a
-    // `when(c) { assert(...) }`. Children first, so a parent sees its children.
+    // and all it holds apart from its condition's cone, its op and const nodes
+    // and its child boxes, is: a `when(c) { assert(...) }`. Its cone (the ops
+    // and the consts only they read) is then layer content too. Children
+    // first, so a parent sees its children.
     val layerNode: Set[String] = open.logic.iterator.filter(_.layer).map(_.id).toSet
     val layerBox: mutable.Set[String] = mutable.Set.empty
+    val layerCone: mutable.Set[String] = mutable.Set.empty
     blocks.reverse.foreach { b =>
       val own: Set[String] = membersOf.getOrElse(b.id, Set.empty[String])
-      val held: Seq[String] = own.filterNot(Synthetic.isTerminal).toSeq ++ childrenOf.getOrElse(b.id, Nil)
+      val ops: Set[String] = coneOf.getOrElse(b.id, Set.empty[String])
+      val consts: Set[String] = own.filter { c =>
+        kindOf.get(c).contains(NodeKind.Const) &&
+          constConsumers.get(c).exists(_.forall(s => nodeOf(s).exists(ops)))
+      }
+      val cone: Set[String] = ops ++ consts
+      val held: Seq[String] = own.filterNot(id => Synthetic.isTerminal(id) || cone(id)).toSeq ++ childrenOf.getOrElse(b.id, Nil)
       val assigns: Boolean = own.exists(_.startsWith(Synthetic.AssignPrefix))
-      if (!assigns && held.nonEmpty && held.forall(id => layerNode(id) || layerBox(id))) layerBox += b.id
+      if (!assigns && held.nonEmpty && held.forall(id => layerNode(id) || layerBox(id))) {
+        layerBox += b.id
+        layerCone ++= cone
+      }
     }
+    val flagged: ModuleDef =
+      if (layerCone.isEmpty) open
+      else open.copy(logic = open.logic.map(n => if (layerCone(n.id)) n.copy(layer = true) else n))
     val groups: Seq[socle.capture.Group] = blocks.reverse.map { b =>
       socle.capture.Group(
         id      = b.id,
@@ -538,7 +555,7 @@ object IrWalk {
     val onNamed: (String, String, String) => Unit = (box, key, name) =>
       if (key.startsWith(AsgKey)) asgPins((box, name)) = key.substring(AsgKey.length)
 
-    val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(open, groups, pinOverride = Some(pinOverride), onNamed = onNamed)
+    val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(flagged, groups, pinOverride = Some(pinOverride), onNamed = onNamed)
     // An expression condition computed inside its box: the cone's root drives
     // an out `cond` pin, labelled as the in pin of a signal would be.
     val outCondLabel: String => String = pin =>

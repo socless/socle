@@ -248,9 +248,17 @@ object CodeBlockCollapseTest extends TestSuite {
       |      layerblock Verification : @[A.scala 20:19]
       |        layerblock Assert : @[A.scala 20:19]
       |          intrinsic(circt_chisel_ifelsefatal<format = "Assertion failed at A.scala:20\n", label = "chisel3_builtin">, clock, _T_3, _T_4) @[A.scala 20:19]
+      |    node _T_5 = gt(io.b, UInt<3>(0h5)) @[A.scala 22:13]
+      |    when _T_5 : @[A.scala 22:20]
+      |      node _T_6 = neq(io.a, UInt<1>(0h0)) @[A.scala 23:25]
+      |      node _T_7 = eq(reset, UInt<1>(0h0)) @[A.scala 23:19]
+      |      skip
+      |      layerblock Verification : @[A.scala 23:19]
+      |        layerblock Assert : @[A.scala 23:19]
+      |          intrinsic(circt_chisel_ifelsefatal<format = "Assertion failed at A.scala:23\n", label = "chisel3_builtin">, clock, _T_6, _T_7) @[A.scala 23:19]
       |""".stripMargin
   private val assertLines: SourceLines = SourceLines.of(Map("A.scala" -> (Seq.fill(14)("//").mkString("\n") +
-    "\n  when(io.valid) {\n    assert(io.a =/= io.b, \"a and b differ\")\n  }\n  when(io.a > 3.U) {\n    r := io.b\n    assert(io.b =/= 0.U)\n  }\n")))
+    "\n  when(io.valid) {\n    assert(io.a =/= io.b, \"a and b differ\")\n  }\n  when(io.a > 3.U) {\n    r := io.b\n    assert(io.b =/= 0.U)\n  }\n  when(io.b > 5.U) {\n    assert(io.a =/= 0.U)\n  }\n")))
 
   private def readFixture(name: String): String = {
     val s = getClass.getResourceAsStream(s"/chirrtl/$name")
@@ -374,9 +382,14 @@ object CodeBlockCollapseTest extends TestSuite {
     test("a box holding only an assertion is layer content") {
       val d = IrWalk.design(parse(assertFir), assertLines)
       val boxes = d.modules.head.logic.filter(n => NodeKind.isBox(n.kind)).map(n => n.label -> n).toMap
-      assert(boxes.keySet == Set("when(io.valid)", "when(io.a > 3.U)"))
+      assert(boxes.keySet == Set("when(io.valid)", "when(io.a > 3.U)", "when(io.b > 5.U)"))
       // Only the assertion: hidden with the layers.
       assert(boxes("when(io.valid)").layer)
+      // Only the assertion and its own condition's cone: hidden too, cone and all.
+      assert(boxes("when(io.b > 5.U)").layer)
+      val exprBody = d.regions(boxes("when(io.b > 5.U)").id)
+      assert(exprBody.logic.exists(_.id == "_T_5"))
+      assert(exprBody.logic.filter(n => n.kind == NodeKind.Op || n.kind == NodeKind.Const).forall(_.layer))
       // It also assigns `r`: design content, with its assertion inside.
       assert(!boxes("when(io.a > 3.U)").layer)
       assert(d.regions(boxes("when(io.a > 3.U)").id).logic.exists(n => n.id == "_T_3" && n.layer))
