@@ -70,6 +70,10 @@ const hintDesigns = new Set();
 // Designs that walked the view history, flew to a block (in the module, from
 // another one), stopped a flight with a drag, and framed a selected wire.
 const historyDesigns = new Set();
+// Designs that walked the history with the Back / Forward buttons, and that
+// opened a leaf module by a double-click with the hierarchy following it.
+const navButtonDesigns = new Set();
+const leafDrillDesigns = new Set();
 const flyDesigns = new Set();
 const flyCrossDesigns = new Set();
 const flightCancelDesigns = new Set();
@@ -511,6 +515,18 @@ async function smokeDesignIn(design, ctx) {
   }
   await expectFitted('first view fit');
 
+  // The schematic's Back and Forward buttons: there, and both disabled on a
+  // fresh load (one view, nowhere to go). The history block walks them.
+  {
+    const st = await page.evaluate(() => ({
+      back: document.querySelector('[data-nav-back]')?.disabled ?? null,
+      fwd: document.querySelector('[data-nav-forward]')?.disabled ?? null,
+    }));
+    if (st.back === null || st.fwd === null) note(design, 'nav buttons', 'no [data-nav-back] / [data-nav-forward] button on the schematic');
+    else if (!st.back || !st.fwd) note(design, 'nav buttons', `Back / Forward enabled on a fresh load: ${JSON.stringify(st)}`);
+  }
+  drain('nav buttons');
+
   // SOURCE indicator (#194): a design fetched from design.json is the "live"
   // source. The top bar must expose it via data-source so the live poller and
   // LIVE badge know to engage; its absence is the migration regression.
@@ -555,13 +571,12 @@ async function smokeDesignIn(design, ctx) {
   }
   drain('editor presets');
 
-  // Fully expand the hierarchy tree (repeat until row count is stable).
-  for (let i = 0; i < 12; i++) {
-    const before = await page.locator('[data-hier-path]').count();
-    const toggles = await page.locator('[data-hier-toggle]').all();
-    for (const t of toggles) { await t.click({ timeout: 1500 }).catch(() => {}); }
-    const after = await page.locator('[data-hier-path]').count();
-    if (after === before) break;
+  // Fully expand the hierarchy tree: open every closed row (a click on an
+  // open one would close it), until none is left.
+  for (let i = 0; i < 200; i++) {
+    const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+    if (!await shut.count()) break;
+    await shut.first().click({ timeout: 1500 }).catch(() => {});
   }
 
   // Drill into every node in the hierarchy and check the app survives.
@@ -2379,6 +2394,8 @@ async function smokeDesignIn(design, ctx) {
       await page.locator(`[data-hier-path="${top}/${child}"]`).first().dispatchEvent('click');
       const C0 = await settle();
       const cChild = await crumbs();
+      if (await page.evaluate(() => document.querySelector('[data-nav-back]')?.disabled !== false))
+        note(design, where, 'the Back button is not enabled after a drill');
       const vc = await vpBox();
       await page.mouse.move(vc.x, vc.y);
       await page.mouse.down();
@@ -2454,9 +2471,99 @@ async function smokeDesignIn(design, ctx) {
           if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}; history ${fmt(await hist())}`);
         }
       }
+      // The Back and Forward buttons walk it like Alt+Left / Alt+Right, are
+      // disabled at an end, and a press leaves the keys to the schematic.
+      {
+        const dis = () => page.evaluate(() => ({
+          back: document.querySelector('[data-nav-back]')?.disabled ?? null,
+          fwd: document.querySelector('[data-nav-forward]')?.disabled ?? null,
+        }));
+        const d0 = await dis();
+        if (d0.back !== false || d0.fwd !== true) note(design, where, `at the end of the history the buttons read ${fmt(d0)}, expected Back enabled and Forward disabled`);
+        await focusSchematic();
+        await page.locator('[data-nav-back]').first().click();
+        const v = await settle();
+        if (!near(v, C1) || await crumbs() !== cChild) note(design, where, `the Back button did not go back: ${fmt(v)} at "${await crumbs()}", expected ${fmt(C1)}`);
+        if (await page.evaluate(() => !!document.activeElement?.closest('[data-nav-back], [data-nav-forward]'))) note(design, where, 'the Back button took the keyboard focus');
+        if ((await dis()).fwd !== false) note(design, where, 'the Forward button is not enabled after a Back');
+        await page.locator('[data-nav-forward]').first().click();
+        const w = await settle();
+        if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the Forward button did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}`);
+        // The keys still act after a press, without focusing the schematic again.
+        await page.keyboard.press('Alt+ArrowLeft');
+        const k = await settle();
+        if (!near(k, C1) || await crumbs() !== cChild) note(design, where, `Alt+Left after a press on the Forward button did not go back: ${fmt(k)} at "${await crumbs()}"`);
+        await key('Alt+ArrowRight');
+        navButtonDesigns.add(design);
+      }
       if (!await page.evaluate(() => Array.isArray(window.__socleHistory && window.__socleHistory().entries))) note(design, where, 'no window.__socleHistory hook');
     }
     drain(where);
+
+    // A double-click opens a leaf module that has content (registers, logic,
+    // wires), and the hierarchy follows the open module: with the tree
+    // collapsed, the drill expands the rows above the leaf's, which shows,
+    // in view and marked current; Back marks its parent again.
+    {
+      const where2 = 'leaf drill';
+      const pane = '[data-pane="hierarchy"]';
+      const esc = (x) => x.replace(/["\\]/g, '\\$&');
+      let tried = 0;
+      // The deepest leaves first: more rows above to expand.
+      const deepest = [...paths].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+      for (const { path: lp, leaf } of deepest) {
+        const segs = lp.split('/');
+        if (!leaf || segs.length < 2 || tried >= 6) continue;
+        const pp = segs.slice(0, -1).join('/'), id = segs[segs.length - 1];
+        tried++;
+        await page.locator(`[data-hier-path="${esc(pp)}"]`).first().dispatchEvent('click').catch(() => {});
+        await settle();
+        const title = page.locator(`[data-box-inst="${esc(id)}"][data-box-drillable="1"]:not([data-fold-group]) > div:first-child`).first();
+        if (!await title.count()) continue;
+        // Collapse the tree at the top (the smoke expanded all of it).
+        const tt = page.locator(`[data-hier-toggle="${esc(top)}"]`).first();
+        if (await tt.count() && (await tt.textContent()) === '▾') await tt.click();
+        const pre = await readView(), preC = await crumbs();
+        await title.dblclick();
+        await settle();
+        const c = await crumbs();
+        if (!c.endsWith(` > ${id}`)) { note(design, where2, `a double-click on the leaf ${lp} did not open it ("${c}")`); break; }
+        await page.waitForTimeout(100); // the pane scrolls on the next frame
+        const t = await page.evaluate(([lp, pane]) => {
+          const row = document.querySelector(`[data-hier-path="${CSS.escape(lp)}"]`);
+          const cur = Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path'));
+          const ups = lp.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'));
+          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.textContent);
+          const p = document.querySelector(pane)?.getBoundingClientRect(), r = row?.getBoundingClientRect();
+          return { row: !!row, cur, open, inView: !!(p && r && r.top >= p.top - 1 && r.bottom <= p.bottom + 1),
+                   active: !!row?.classList.contains('active'), focus: document.activeElement?.closest(pane) ? 'tree' : 'other' };
+        }, [lp, pane]);
+        if (!t.row) note(design, where2, `after opening ${lp} its hierarchy row is not shown (rows above: ${fmt(t.open)})`);
+        else {
+          if (t.cur.length !== 1 || t.cur[0] !== lp || !t.active) note(design, where2, `after opening ${lp} the current rows are ${fmt(t.cur)} (active ${t.active})`);
+          if (t.open.some((g) => g !== '▾')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
+          if (!t.inView) note(design, where2, `after opening ${lp} its hierarchy row is out of view`);
+          if (t.focus === 'tree') note(design, where2, `opening ${lp} moved the focus into the hierarchy`);
+        }
+        await page.locator('[data-nav-back]').first().click();
+        const vb = await settle();
+        if (!near(vb, pre) || await crumbs() !== preC) note(design, where2, `Back from ${lp} did not return to the view before the drill: ${fmt(vb)} at "${await crumbs()}", expected ${fmt(pre)} at "${preC}"`);
+        const back = await page.evaluate(() => Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path')));
+        if (back.length !== 1 || back[0] !== pp) note(design, where2, `after Back from ${lp} the current rows are ${fmt(back)}, expected ${pp}`);
+        leafDrillDesigns.add(design);
+        console.log(`[${design}] leaf drill: double-click opened ${lp}`);
+        break;
+      }
+      // Expand the whole tree again, as the checks below found it.
+      for (let i = 0; i < 200; i++) {
+        const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+        if (!await shut.count()) break;
+        await shut.first().click({ timeout: 1500 }).catch(() => {});
+      }
+      await toTop();
+      await settle();
+    }
+    drain('leaf drill');
 
     // Fly to a block from the palette, on the top module: the instance box
     // farthest from the centre after a zoom out.
@@ -2582,7 +2689,9 @@ async function smokeDesignIn(design, ctx) {
           const vz = await key('z');
           await framed(boxSel(far.id), 'box');
           const h1 = await hist();
-          if (!h0 || !h1 || !(h1.index > h0.index)) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
+          // A new current entry (at the cap of 50 the index stays, the oldest goes).
+          const made = h0 && h1 && (h1.index > h0.index || fmt(h1.entries[h1.index]) !== fmt(h0.entries[h0.index]));
+          if (!made) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
           const back = await key('Alt+ArrowLeft');
           if (near(back, vz)) note(design, where, 'Back after z stayed on the framed view');
         }
@@ -3224,15 +3333,21 @@ async function smokeDesignIn(design, ctx) {
       if (a.marks) note(design, where, 'decode still shows the header clock marks');
       const t = page.locator('[data-bundle-toggle="decode.io.in"]').first();
       const guides = () => page.locator('[data-box-inst="decode"] [data-row-guide]').count();
+      // A real press, not a dispatched click: after a drag (an earlier check
+      // pans) the schematic drops a click no press started.
+      const press = async () => {
+        const r = await t.boundingBox();
+        if (r) await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); else await t.dispatchEvent('click');
+      };
       if (await t.count()) {
         if (!(await guides())) {
-          await t.dispatchEvent('click');
+          await press();
           await page.waitForTimeout(400);
           await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
           await page.waitForTimeout(300);
         }
         if (!(await guides())) note(design, where, 'an open decode.io.in draws no guide line');
-        await t.dispatchEvent('click');
+        await press();
         await page.waitForTimeout(400);
         await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
       } else note(design, where, 'no toggle on decode.io.in');
@@ -3603,7 +3718,8 @@ if (!ONLY && hintDesigns.size === 0) note('(all)', 'hover feedback', 'no design 
 for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesigns], ['Fly to from another module', flyCrossDesigns],
                            ['Drag during a flight', flightCancelDesigns], ['Zoom to a selected wire', zoomWireDesigns],
                            ['Show in parent', locateDesigns], ['Palette pick without an editor open', pickNoOpenDesigns],
-                           ['Drag dropping a waiting fly', stalePendingDesigns]]) {
+                           ['Drag dropping a waiting fly', stalePendingDesigns],
+                           ['Back / Forward buttons', navButtonDesigns], ['Leaf drill with the tree following', leafDrillDesigns]]) {
   console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
   if (!ONLY && set.size === 0) note('(all)', 'history', `no design ran the check: ${what}`);
 }

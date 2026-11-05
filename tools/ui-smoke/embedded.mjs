@@ -265,6 +265,7 @@ async function waitLoaded(frame) {
   await waitLoaded(page);
   for (const [k, sel] of Object.entries(REMOVED)) check('editor panel', (await count(page, sel)) > 0, `${k} present`);
   check('editor panel', (await count(page, '[data-bottom-panel]')) === 1, 'bottom panel open');
+  check('editor panel', (await count(page, '[data-nav-back]')) === 1 && (await count(page, '[data-nav-forward]')) === 1, 'Back / Forward buttons on the schematic');
   check('editor panel', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips on a first visit');
   check('editor panel', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
   await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
@@ -305,7 +306,7 @@ async function waitLoaded(frame) {
   await waitLoaded(page);
   check('embedded', await page.locator('[data-hint-bar]').isVisible(), 'hint bar back after a reload');
   check('embedded', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips after a reload');
-  for (const sel of ['[data-search-trigger]', '[data-help-trigger]', '[data-toggle-pane="bottom"]', '[data-settings-toggle]'])
+  for (const sel of ['[data-search-trigger]', '[data-help-trigger]', '[data-toggle-pane="bottom"]', '[data-settings-toggle]', '[data-nav-back]', '[data-nav-forward]'])
     check('embedded', (await count(page, sel)) === 1, `${sel} kept`);
   await page.click('[data-toggle-pane="bottom"]');
   const tabs = await page.$$eval('[data-bottom-tab]', (els) => els.map((e) => e.getAttribute('data-bottom-tab')));
