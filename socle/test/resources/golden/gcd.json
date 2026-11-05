@@ -562,7 +562,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -711,7 +712,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "x > y"
+          "label": "x > y",
+          "cond": true
         }
       ],
       "children": [],
@@ -943,7 +945,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "busy && x =/= y"
+          "label": "busy && x =/= y",
+          "cond": true
         }
       ],
       "children": [],
@@ -1199,7 +1202,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],

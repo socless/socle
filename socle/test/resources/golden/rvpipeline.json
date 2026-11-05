@@ -1732,7 +1732,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -1918,7 +1919,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.wr.wen && (io.wr.waddr =/= 0.U)"
+          "label": "io.wr.wen && (io.wr.waddr =/= 0.U)",
+          "cond": true
         }
       ],
       "children": [],

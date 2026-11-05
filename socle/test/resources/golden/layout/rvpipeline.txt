@@ -25,7 +25,7 @@ layout Fetch
   node io.imem kind=boundary pins=io.imem:WEST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
   node pc kind=reg pins=pc:WEST,pc~q:EAST
-  node when$Fetch$74_21 kind=block pins=when$Fetch$74_21.io_out_ready:WEST,when$Fetch$74_21.io_out_valid:WEST,when$Fetch$74_21.pc:EAST,when$Fetch$74_21.pc_2:WEST
+  node when$Fetch$74_21 kind=block pins=when$Fetch$74_21.cond:WEST,when$Fetch$74_21.io_out_ready:WEST,when$Fetch$74_21.io_out_valid:WEST,when$Fetch$74_21.pc:EAST,when$Fetch$74_21.pc_2:WEST
   edge io.imem -> const$io_imem_req_bits_wdata
   edge io.imem -> const$io_imem_req_bits_wen
   edge io.imem -> const$io_imem_resp_ready
@@ -55,7 +55,7 @@ layout RegFile
   node io.rd kind=boundary pins=io.rd:EAST:iface
   node io.wr kind=boundary pins=io.wr:EAST:iface
   node regs kind=mem pins=regs~MPORT~a:WEST,regs~MPORT~w:WEST,regs~io_rd_rdata1_MPORT~a:WEST,regs~io_rd_rdata1_MPORT~r:EAST,regs~io_rd_rdata2_MPORT~a:WEST,regs~io_rd_rdata2_MPORT~r:EAST
-  node when$RegFile$133_44 kind=block pins=when$RegFile$133_44.io_wr_waddr:WEST,when$RegFile$133_44.io_wr_wdata:WEST,when$RegFile$133_44.io_wr_wen:WEST,when$RegFile$133_44.regs_MPORT_w:EAST
+  node when$RegFile$133_44 kind=block pins=when$RegFile$133_44.cond:WEST,when$RegFile$133_44.io_wr_waddr:WEST,when$RegFile$133_44.io_wr_wdata:WEST,when$RegFile$133_44.io_wr_wen:WEST,when$RegFile$133_44.regs_MPORT_w:EAST
   edge io.rd -> regs~io_rd_rdata1_MPORT~r
   edge io.rd -> regs~io_rd_rdata2_MPORT~r
   edge regs~MPORT~a -> io.wr

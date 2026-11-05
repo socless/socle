@@ -552,15 +552,21 @@ object IrWalk {
           case _                                      => tempPin(member)
         }
       } else tempPin(external)
+    // Each box's in condition pins, by their final names (flagged `cond` below).
+    val condIn: mutable.Set[(String, String)] = mutable.Set.empty
     val onNamed: (String, String, String) => Unit = (box, key, name) =>
       if (key.startsWith(AsgKey)) asgPins((box, name)) = key.substring(AsgKey.length)
+      else if (key.startsWith("cnd>")) condIn += ((box, name))
 
     val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(flagged, groups, pinOverride = Some(pinOverride), onNamed = onNamed)
     // An expression condition computed inside its box: the cone's root drives
     // an out `cond` pin, labelled as the in pin of a signal would be.
     val outCondLabel: String => String = pin =>
       condShown.getOrElse(pin, CodeBlocks.exprText(nodeDecls, condTextOf.getOrElse(pin, pin)))
-    (collapsed, bodies.map { case (id, body) => id -> spliceTerminals(body, outCondLabel) })
+    (collapsed, bodies.map { case (id, body) =>
+      val flaggedIn: ModuleDef = body.copy(ports = body.ports.map(p => if (condIn((id, p.name))) p.copy(cond = true) else p))
+      id -> spliceTerminals(flaggedIn, outCondLabel)
+    })
   }
 
   // An assignment terminal's output endpoint (`asg$...`, not one of its `~in<k>` pins).
@@ -596,7 +602,7 @@ object IrWalk {
           taken += name
           val label: String = condLabel(w.from)
           condPins += PortDef(name = name, dir = PortDir.Out, bundle = "", doc = "", source = SourceRef.unknown,
-            label = if (label == name) "" else label)
+            label = if (label == name) "" else label, cond = true)
           Seq(w.copy(from = pinPrefix + name))
         case Some(_) => Nil // an assignment terminal's input (spliced below), or a condition read from its in pin
         case None if isAsgOut(w.to) =>

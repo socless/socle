@@ -160,7 +160,7 @@ build** - just `./mill socle-ui.dist`. It parses `design.json` into the typed
 
 **Wire coalescing** — ground-level connects sharing a `<inst>.<port>` prefix are grouped; the count becomes the wire label in the UI.
 
-**Code blocks are boxes** (`CodeBlocks`, `IrWalk.collapseBlocks`): every user-written `when` / `switch` becomes a box labelled as written (`when(io.enable)`) and nested as written; its condition is a `cond` pin, and the registers it assigns stay at module level, fed from the box. A `when` counts as the user's when its marker's Scala line has the call, so export mode needs `--source-root` (the Mill plugin passes it) and view mode reads the lines through the source index. Without source lines only the switches FsmDetect recognises are boxes.
+**Code blocks are boxes** (`CodeBlocks`, `IrWalk.collapseBlocks`): every user-written `when` / `switch` becomes a box labelled as written (`when(io.enable)`) and nested as written; its condition is a `cond` pin (`PortDef.cond`), drawn on the closed box's WEST side even when only the body wires it (`LayoutCore.prepare`), and the registers it assigns stay at module level, fed from the box. A `when` counts as the user's when its marker's Scala line has the call, so export mode needs `--source-root` (the Mill plugin passes it) and view mode reads the lines through the source index. Without source lines only the switches FsmDetect recognises are boxes.
 
 **Plugin task forks a JVM** (`SocleModule.scala`) — `socle` task runs `Launcher` in a separate JVM with the user's exact run classpath, so the plugin doesn't need to share a classloader with user code.
 

@@ -10297,7 +10297,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.wen"
+          "label": "io.wen",
+          "cond": true
         },
         {
           "name": "io_wdata",
@@ -10507,7 +10508,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -10881,7 +10883,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -11275,7 +11278,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -11614,7 +11618,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.wen"
+          "label": "io.wen",
+          "cond": true
         },
         {
           "name": "io_wdata",
@@ -11682,7 +11687,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.wen"
+          "label": "io.wen",
+          "cond": true
         },
         {
           "name": "io_wdata",
@@ -11892,7 +11898,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -12254,7 +12261,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -12404,7 +12412,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -12691,7 +12700,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -13085,7 +13095,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -13459,7 +13470,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.in.fire"
+          "label": "io.in.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -13711,7 +13723,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.wen"
+          "label": "io.wen",
+          "cond": true
         },
         {
           "name": "io_wdata",
@@ -13802,7 +13815,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -13940,7 +13954,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],
@@ -14078,7 +14093,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.out.fire"
+          "label": "io.out.fire",
+          "cond": true
         }
       ],
       "children": [],

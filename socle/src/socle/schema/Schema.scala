@@ -230,6 +230,10 @@ case class PortDef(
   // block's pin is named `io_in_bits_a` (paths address it as `<block>.<pin>`)
   // and labelled `io.in.bits.a` (#333). Empty: shown by `name`. Additive, last.
   label: String = "",
+  // A code-block box's condition pin (`cond`, `cond_2`...): an in pin for a
+  // signal that enters the box, an out pin for an expression computed inside.
+  // A closed box draws it on its WEST side, wired or not. Additive, last.
+  cond: Boolean = false,
 )
 object PortDef { implicit val rw: ReadWriter[PortDef] = macroRW }
 

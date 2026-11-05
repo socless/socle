@@ -379,6 +379,18 @@ object CodeBlockCollapseTest extends TestSuite {
       assert(pairs(d.modules.head.wires).contains((s"$box.cond", "c")))
     }
 
+    test("a closed box shows its expression condition on WEST") {
+      // `when(cpt === 0.U)` is a closed box in the switch's body; its condition
+      // is computed inside it, and still drawn on the closed box.
+      val body = socle.layout.LayoutCore.blockAsModule(sw, erDesign.regions(sw))
+      val box  = body.logic.find(_.label == "when(cpt === 0.U)").get
+      val cond = erDesign.regions(box.id).ports.find(_.cond).get
+      assert(cond.dir == PortDir.Out, cond.label == "cpt === 0.U")
+      val laid = socle.layout.LayoutCore.prepare(body, erDesign).nodes.find(_.id == box.id).get
+      val pin  = laid.pins.find(_.path == s"${box.id}.${cond.name}")
+      assert(pin.exists(_.side == PinSide.West), pin.exists(_.label == "cpt === 0.U"))
+    }
+
     test("a box holding only an assertion is layer content") {
       val d = IrWalk.design(parse(assertFir), assertLines)
       val boxes = d.modules.head.logic.filter(n => NodeKind.isBox(n.kind)).map(n => n.label -> n).toMap

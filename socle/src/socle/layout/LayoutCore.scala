@@ -44,9 +44,10 @@ object LayoutCore {
     * 1 since pins are the declared port rows (#332); 2 since wires end on the
     * pins' centres, block pins follow their peers and layers sit in a debug band
     * (#334); 3 since instances keep rows for their clk and rst pins and logic
-    * blocks are baked as modules to open. Bump it when a bake's pins
+    * blocks are baked as modules to open; 4 since a code-block box shows its
+    * condition pins on WEST, wired or not. Bump it when a bake's pins
     * change meaning, so the UI lays older bakes out again. */
-  val LayoutModel: Int = 3
+  val LayoutModel: Int = 4
   val BoundaryW: Double = 16.0
   val BoundaryH: Double = 28.0
   val LabelGap: Double  = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -471,6 +472,19 @@ object LayoutCore {
     portRows.stubs.foreach { case (id, rows) => seed(id, NodeKind.Boundary, rows) }
     module.children.foreach(c => portRows.inst.get(c.name).foreach(seed(c.name, NodeKind.Inst, _)))
     portRows.regs.foreach { case (id, rows) => seed(id, NodeKind.Reg, rows) }
+    // A code-block box's condition pins come first on its WEST side, wired or
+    // not: an expression computed inside the box drives an out pin nothing
+    // outside reads, and the closed box still shows its condition.
+    val condPins = mutable.Set.empty[(String, String, String)]
+    module.logic.foreach { n =>
+      if (NodeKind.isBox(n.kind)) design.regions.get(n.id).foreach { body =>
+        body.ports.filter(_.cond).foreach { p =>
+          val path = s"${n.id}.${p.name}"
+          pinOrder.getOrElseUpdate((n.id, n.kind), mutable.LinkedHashSet.empty) += path
+          condPins += ((n.id, n.kind, path))
+        }
+      }
+    }
     // e.to is SOURCE; e.from is SINK.
     grouped.foreach { e =>
       vote(e.to,   isSource = true)
@@ -488,7 +502,8 @@ object LayoutCore {
       paths.foreach { path =>
         val k = (nodeId, kind, path)
         val side =
-          if (rowOf.contains(k)) rowOf(k).side
+          if (condPins(k)) PinSide.West
+          else if (rowOf.contains(k)) rowOf(k).side
           else if (eastVotes(k) > westVotes(k)) PinSide.East
           else if (westVotes(k) > eastVotes(k)) PinSide.West
           else if (kind == NodeKind.Boundary) declaredOf.getOrElse(k, PinSide.East)

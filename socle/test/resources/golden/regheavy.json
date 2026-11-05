@@ -3197,7 +3197,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.flush"
+          "label": "io.flush",
+          "cond": true
         },
         {
           "name": "cond_2",
@@ -3209,7 +3210,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.stall"
+          "label": "io.stall",
+          "cond": true
         },
         {
           "name": "io_enable",
@@ -3305,7 +3307,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.enable && io.in.valid"
+          "label": "io.enable && io.in.valid",
+          "cond": true
         }
       ],
       "children": [],
@@ -3714,7 +3717,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "timer === 3.U"
+          "label": "timer === 3.U",
+          "cond": true
         }
       ],
       "children": [],
@@ -3907,7 +3911,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 0"
+          "label": "state === 0",
+          "cond": true
         },
         {
           "name": "cond_2",
@@ -3919,7 +3924,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 1"
+          "label": "state === 1",
+          "cond": true
         },
         {
           "name": "cond_3",
@@ -3931,7 +3937,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 2"
+          "label": "state === 2",
+          "cond": true
         }
       ],
       "children": [],
@@ -4455,7 +4462,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.flush"
+          "label": "io.flush",
+          "cond": true
         },
         {
           "name": "cond_2",
@@ -4467,7 +4475,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.stall"
+          "label": "io.stall",
+          "cond": true
         },
         {
           "name": "io_enable",
@@ -4563,7 +4572,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.enable && io.in.valid"
+          "label": "io.enable && io.in.valid",
+          "cond": true
         }
       ],
       "children": [],
@@ -4984,7 +4994,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "timer === 15.U || io.hint"
+          "label": "timer === 15.U || io.hint",
+          "cond": true
         }
       ],
       "children": [],

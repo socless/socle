@@ -403,12 +403,16 @@ private[schematic] object SchematicBoxes {
             s"background:${Tokens.border};pointer-events:none")
       }
     }
+    // A code-block box's condition pins: shown in full, wired or not (an
+    // expression condition is computed inside the box, its pin wired there).
+    val condRows: Set[String] =
+      g.design.regions.get(n.id).fold(Set.empty[String])(_.ports.iterator.filter(_.cond).map(p => s"${n.id}.${p.name}").toSet)
     guides ++ rows.map { row =>
       val rowY     = row.pinYBaked
       val indentPx = row.depth * 8
       val toggles  = row.isExpandable
       val top      = row.isTopLevel
-      val faint    = if (g.wiredPins(row.path)) emptyMod else cls := "scl-nc"
+      val faint    = if (g.wiredPins(row.path) || condRows(row.path)) emptyMod else cls := "scl-nc"
       val pinAbsX  = if (isWest) 0.0 else n.w.toDouble
       val isVec    = PortModel.isVecOfSignals(row.bundleKey, g.design)
       val shape =

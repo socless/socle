@@ -5,7 +5,7 @@ layout Controller
   node const$_io_enable_T~in1 kind=const pins=const$_io_enable_T~in1:EAST
   node const$_io_flush_T~in1 kind=const pins=const$_io_flush_T~in1:EAST
   node const$_io_stall_T~in1 kind=const pins=const$_io_stall_T~in1:EAST
-  node fsm$Controller$98_17 kind=fsm pins=fsm$Controller$98_17.io_hint:WEST,fsm$Controller$98_17.state:EAST,fsm$Controller$98_17.state_2:WEST,fsm$Controller$98_17.timer:EAST,fsm$Controller$98_17.timer_2:WEST
+  node fsm$Controller$98_17 kind=fsm pins=fsm$Controller$98_17.cond:WEST,fsm$Controller$98_17.cond_2:WEST,fsm$Controller$98_17.cond_3:WEST,fsm$Controller$98_17.io_hint:WEST,fsm$Controller$98_17.state:EAST,fsm$Controller$98_17.state_2:WEST,fsm$Controller$98_17.timer:EAST,fsm$Controller$98_17.timer_2:WEST
   node io.enable kind=boundary pins=io.enable:WEST
   node io.flush kind=boundary pins=io.flush:WEST
   node io.hint kind=boundary pins=io.hint:EAST
@@ -171,7 +171,7 @@ layout RegStage
   node rFlags kind=reg pins=rFlags:WEST,rFlags~q:EAST
   node rTag kind=reg pins=rTag:WEST,rTag~q:EAST
   node rValid kind=reg pins=rValid:WEST,rValid~q:EAST
-  node when$RegStage$52_18 kind=block pins=when$RegStage$52_18.cond:WEST,when$RegStage$52_18.cond_2:WEST,when$RegStage$52_18.io_enable:WEST,when$RegStage$52_18.io_in_bits_data:WEST,when$RegStage$52_18.io_in_bits_flags:WEST,when$RegStage$52_18.io_in_bits_tag:WEST,when$RegStage$52_18.io_in_bits_valid:WEST,when$RegStage$52_18.io_in_valid:WEST,when$RegStage$52_18.rCount:EAST,when$RegStage$52_18.rCount_2:WEST,when$RegStage$52_18.rData:EAST,when$RegStage$52_18.rFlags:EAST,when$RegStage$52_18.rTag:EAST,when$RegStage$52_18.rValid:EAST
+  node when$RegStage$52_18 kind=block pins=when$RegStage$52_18.cond:WEST,when$RegStage$52_18.cond_2:WEST,when$RegStage$52_18.cond_3:WEST,when$RegStage$52_18.io_enable:WEST,when$RegStage$52_18.io_in_bits_data:WEST,when$RegStage$52_18.io_in_bits_flags:WEST,when$RegStage$52_18.io_in_bits_tag:WEST,when$RegStage$52_18.io_in_bits_valid:WEST,when$RegStage$52_18.io_in_valid:WEST,when$RegStage$52_18.rCount:EAST,when$RegStage$52_18.rCount_2:WEST,when$RegStage$52_18.rData:EAST,when$RegStage$52_18.rFlags:EAST,when$RegStage$52_18.rTag:EAST,when$RegStage$52_18.rValid:EAST
   edge _io_in_ready_T_1~in0 -> io.enable
   edge _io_in_ready_T_1~in1 -> _io_in_ready_T
   edge _io_in_ready_T_2~in0 -> io.flush
@@ -216,7 +216,7 @@ layout RegStage_1
   node rFlags kind=reg pins=rFlags:WEST,rFlags~q:EAST
   node rTag kind=reg pins=rTag:WEST,rTag~q:EAST
   node rValid kind=reg pins=rValid:WEST,rValid~q:EAST
-  node when$RegStage_1$52_18 kind=block pins=when$RegStage_1$52_18.cond:WEST,when$RegStage_1$52_18.cond_2:WEST,when$RegStage_1$52_18.io_enable:WEST,when$RegStage_1$52_18.io_in_bits_data:WEST,when$RegStage_1$52_18.io_in_bits_flags:WEST,when$RegStage_1$52_18.io_in_bits_tag:WEST,when$RegStage_1$52_18.io_in_bits_valid:WEST,when$RegStage_1$52_18.io_in_valid:WEST,when$RegStage_1$52_18.rCount:EAST,when$RegStage_1$52_18.rCount_2:WEST,when$RegStage_1$52_18.rData:EAST,when$RegStage_1$52_18.rFlags:EAST,when$RegStage_1$52_18.rTag:EAST,when$RegStage_1$52_18.rValid:EAST
+  node when$RegStage_1$52_18 kind=block pins=when$RegStage_1$52_18.cond:WEST,when$RegStage_1$52_18.cond_2:WEST,when$RegStage_1$52_18.cond_3:WEST,when$RegStage_1$52_18.io_enable:WEST,when$RegStage_1$52_18.io_in_bits_data:WEST,when$RegStage_1$52_18.io_in_bits_flags:WEST,when$RegStage_1$52_18.io_in_bits_tag:WEST,when$RegStage_1$52_18.io_in_bits_valid:WEST,when$RegStage_1$52_18.io_in_valid:WEST,when$RegStage_1$52_18.rCount:EAST,when$RegStage_1$52_18.rCount_2:WEST,when$RegStage_1$52_18.rData:EAST,when$RegStage_1$52_18.rFlags:EAST,when$RegStage_1$52_18.rTag:EAST,when$RegStage_1$52_18.rValid:EAST
   edge _io_in_ready_T_1~in0 -> io.enable
   edge _io_in_ready_T_1~in1 -> _io_in_ready_T
   edge _io_in_ready_T_2~in0 -> io.flush

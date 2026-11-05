@@ -229,7 +229,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.tick"
+          "label": "io.tick",
+          "cond": true
         }
       ],
       "children": [],
@@ -296,7 +297,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.tick"
+          "label": "io.tick",
+          "cond": true
         }
       ],
       "children": [],
@@ -363,7 +365,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "io.tick"
+          "label": "io.tick",
+          "cond": true
         }
       ],
       "children": [],
@@ -454,7 +457,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 0"
+          "label": "state === 0",
+          "cond": true
         },
         {
           "name": "cond_2",
@@ -466,7 +470,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 1"
+          "label": "state === 1",
+          "cond": true
         },
         {
           "name": "cond_3",
@@ -478,7 +483,8 @@
             "line": 0,
             "col": 0
           },
-          "label": "state === 2"
+          "label": "state === 2",
+          "cond": true
         }
       ],
       "children": [],
