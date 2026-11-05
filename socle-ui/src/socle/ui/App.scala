@@ -702,13 +702,16 @@ object App {
       val root: Option[List[String]] =
         if (head == top) Some(List(top))
         else {
+          // Each module expanded once, from the first (shortest) path that
+          // reaches it: a later path to it finds nothing earlier.
           val queue = scala.collection.mutable.Queue((top, List(top)))
+          val seen  = scala.collection.mutable.Set(top)
           var found = Option.empty[List[String]]
           while (found.isEmpty && queue.nonEmpty) {
             val (m, p) = queue.dequeue()
             byName.get(m).foreach(_.children.foreach { c =>
               if (found.isEmpty && c.`type` == head) found = Some(p :+ c.name)
-              queue.enqueue((c.`type`, p :+ c.name))
+              if (seen.add(c.`type`)) queue.enqueue((c.`type`, p :+ c.name))
             })
           }
           found
@@ -811,6 +814,7 @@ object App {
             keysBlocked      = () => helpOpenVar.now(),
             commands         = viewCmds,
             navigate         = showPath,
+            resolves         = p => loader.currentDesign.exists(d => currentModule(d, p).isDefined),
           ),
           // The first-time tips float above the schematic's bottom edge, over it.
           div(styleAttr := "position:relative;flex-shrink:0",

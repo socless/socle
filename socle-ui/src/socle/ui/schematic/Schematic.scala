@@ -89,6 +89,9 @@ object Schematic {
     // Show a drill path (Back / Forward, a fly to another module); false when
     // it does not resolve in the design.
     navigate: List[String] => Boolean = _ => false,
+    // Whether a drill path resolves in the design (what `navigate` would
+    // show), without showing it: the Back and Forward buttons' state.
+    resolves: List[String] => Boolean = _ => false,
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -378,7 +381,8 @@ object Schematic {
       dragging   = () => gestures != null && gestures.busy,
       navigate   = navigate,
       flyTarget  = () => Option.when(prevPathKey != null && settledPathVar.now().contains(prevPathKey) && !pendingVar.now())(prevPathKey)
-                     .flatMap(pk => Option(hl.geom).map(pk -> _)))
+                     .flatMap(pk => Option(hl.geom).map(pk -> _)),
+      resolves   = resolves)
     // A user pan or zoom: the view is theirs from now on. It stops a flight
     // (and drops one still waiting for its layout), and becomes an entry of
     // the history once it settles.
@@ -958,7 +962,7 @@ object Schematic {
       // The history and the followed net stay across a live reload (Back skips
       // entries that no longer resolve, a vanished net lights nothing); a fresh
       // load clears them (`history.reset`, from App).
-      designSig.changes --> { _ => engineCache.clear() },
+      designSig.changes --> { _ => engineCache.clear(); history.refreshCan() },
       // The clock domains' legend, bottom-right above the zoom controls.
       child.maybe <-- geomSig.map(_.map(_.mod)).distinct.map(_.flatMap(SchematicChrome.clockLegend(_, hl.domainVar.signal, hl.toggleDomain))),
       // Minimap, shown only when content overflows the viewport at this zoom.

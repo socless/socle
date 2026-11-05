@@ -173,27 +173,37 @@ object ViewHistory {
       panVar: Var[(Double, Double)], zoomVar: Var[Double], viewSize: () => (Double, Double),
       clamp: Double => Double, fitPending: () => Boolean, takeView: () => Unit,
       dragging: () => Boolean, navigate: List[String] => Boolean,
-      flyTarget: () => Option[(String, Geom)]) {
+      flyTarget: () => Option[(String, Geom)], resolves: List[String] => Boolean = _ => true) {
     private val canVar = Var((false, false))
-    /** Whether there is a view to go back to and one to go forward to (the
-      * Back and Forward buttons). */
+    /** Whether Back and Forward would land somewhere, as [[walk]] does (the
+      * Back and Forward buttons): an entry that way in the module shown or
+      * in a module that still resolves; Back also from a view not settled
+      * yet (it becomes an entry first), and then nothing is forward. */
     val canSig: Signal[(Boolean, Boolean)] = canVar.signal
     private var stack = Stack()
     private[schematic] def hist: Stack = stack
-    private[schematic] def hist_=(s: Stack): Unit = {
-      stack = s
-      val can = (s.canBack, s.canForward)
-      if (canVar.now() != can) canVar.set(can)
-    }
+    private[schematic] def hist_=(s: Stack): Unit = { stack = s; refreshCan() }
+    // The user moved the view since the last entry.
+    private var unsettled = false
+    private def dirty: Boolean = unsettled
+    private def dirty_=(d: Boolean): Unit = if (d != unsettled) { unsettled = d; refreshCan() }
     /** The module path shown. */
-    var curPath: List[String] = Nil
+    private var shown: List[String] = Nil
+    def curPath: List[String] = shown
+    def curPath_=(p: List[String]): Unit = if (p != shown) { shown = p; refreshCan() }
+    /** Recomputes [[canSig]]; also after the design changed (a path may no longer resolve). */
+    def refreshCan(): Unit = {
+      def lands(e: Entry) = e.path == shown || resolves(e.path)
+      val es = stack.entries
+      val back = (dirty && stack.index >= 0) || (0 until math.max(0, stack.index)).exists(i => lands(es(i)))
+      val fwd  = !dirty && (stack.index + 1 until es.size).exists(i => lands(es(i)))
+      if (canVar.now() != ((back, fwd))) canVar.set((back, fwd))
+    }
     // A Back or Forward entry whose module is being shown: its view stands in
     // for the fit (or the module's saved view) and is not pushed again.
     private var restoring = Option.empty[Entry]
     // A box to fly to, (path key, box id), once that module's layout is ready.
     private var flyPending = Option.empty[(String, String)]
-    // The user moved the view since the last entry.
-    private var dirty = false
     private var settleTimer = 0
     val flyer = new Flyer(panVar, zoomVar, viewSize)
 
