@@ -15,6 +15,8 @@ package socle.ir
   *   const$<sink>      synthesized constant node feeding <sink>
   *   mux$<sink>        synthesized mux node feeding <sink>
   *   fsm$<mod>$<reg>   collapsed-FSM node for state register <reg> in <mod>
+  *   <when|switch|fsm>$<mod>$<line>_<col>[$<copy>]   a user-written code block
+  *                     (`CodeBlocks`), named by its Scala marker; `L<whenId>` when unmarked
   * }}}
   *
   * Centralizing the protocol here keeps the producers (pin/id construction) and
@@ -70,4 +72,18 @@ object Synthetic {
 
   /** Collapsed-FSM node id for state register `reg` in module `mod`. */
   def fsmId(mod: String, reg: String): String = s"fsm$$$mod$$$reg"
+
+  /** Code-block id (`CodeBlocks`): `<kind>$<mod>$<line>_<col>`, with `kind` the
+    * id prefix `when`, `switch` or `fsm` (`NodeKind.Fsm`; a `when` chain and a
+    * non-FSM `switch` are both `NodeKind.Block`, so the prefix is passed apart).
+    * Named by the Scala marker, not the CHIRRTL line, so an edit elsewhere does
+    * not rename it; `L<whenId>` without a marker. `copy` counts the blocks on the
+    * same marker in source order (generator loops): `$<copy>` from the second on.
+    * `marker` is the (line, col) of the `@[file line:col]` marker: this file is
+    * shared with socle-js, which has no parser `SrcInfo`. */
+  def blockId(kind: String, module: String, marker: Option[(Int, Int)], whenId: Int, copy: Int): String = {
+    val at = marker.fold(s"L$whenId") { case (line, col) => s"${line}_$col" }
+    val base = s"$kind$$$module$$$at"
+    if (copy > 0) s"$base$$$copy" else base
+  }
 }
