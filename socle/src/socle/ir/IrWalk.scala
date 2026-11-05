@@ -158,7 +158,7 @@ object IrWalk {
     // lowered to UInt<1>) and look up `<inst>.<port>` on the LHS of a connect.
     def driverOf(instName: String, portNames: Seq[String]): String =
       portNames.iterator
-        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
+        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
         .find(_.nonEmpty)
         .getOrElse("")
 
