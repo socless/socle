@@ -5,7 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
-import socle.schema.{Design, ModuleDef, ModuleKind, NodeKind, SourceRef}
+import socle.schema.{Design, ModuleDef, NodeKind, SourceRef}
 import socle.layout.{InstanceFold, LayoutCore}
 import socle.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socle.ui.theme._
@@ -523,13 +523,14 @@ object App {
   }
 
   /** Drill into a child instance: append it to the path (mirrors the JS
-    * drillInto). Leaves and blackboxes have no internals and are not drilled. */
+    * drillInto). Only a module with something inside opens
+    * ([[LayoutCore.opensAsModule]]: not a blackbox, and instances, logic or wires). */
   private def drillInto(inst: String): Unit =
     for {
       d        <- loader.currentDesign
       mod      <- currentModule(d, pathVar.now())
       if openBlock(d, mod, inst).isDefined || mod.children.find(_.name == inst).flatMap(c => d.modules.find(_.name == c.`type`))
-                                                .exists(cm => cm.kind != ModuleKind.External && cm.kind != ModuleKind.Intrinsic)
+                                                .exists(LayoutCore.opensAsModule)
     } pathVar.update(_ :+ inst) // selectedSig cleared by the path-change binder
 
   /** Show `path` when it resolves in the design (the view history's Back and

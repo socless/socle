@@ -64,12 +64,13 @@ private[schematic] object SchematicGeom {
     /** What an instance box stands for and what a double-click on it does:
       * the module it instantiates, an external or intrinsic module (no
       * internals), a folded group of generator copies (double-click unfolds),
-      * drillable (double-click opens). Shared by the box and its tooltip. */
+      * drillable (double-click opens: [[LayoutCore.opensAsModule]], so a leaf
+      * module with registers or code opens too). Shared by the box and its tooltip. */
     def instInfo(ch: InstanceDef): InstInfo = {
       val m        = moduleByName.get(ch.`type`)
       val blackbox = m.exists(x => x.kind == ModuleKind.External || x.kind == ModuleKind.Intrinsic)
       val folded   = ch.foldCount > 0
-      InstInfo(m, blackbox, folded, !folded && m.exists(x => !blackbox && x.children.nonEmpty))
+      InstInfo(m, blackbox, folded, !folded && m.exists(LayoutCore.opensAsModule))
     }
     /** The laid box and pin for a pin path: the first box in layout order, then
       * its first pin with that path (two pins can share a path, #237). */

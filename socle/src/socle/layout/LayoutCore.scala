@@ -180,6 +180,15 @@ object LayoutCore {
     design.regions.toSeq.filter { case (id, _) => ids(id) }.sortBy(_._1).map { case (id, b) => id -> blockAsModule(id, b) }
   }
 
+  /** Whether an instance of `m` opens as a module (a double-click drills in):
+    * not an external or intrinsic module, and something to show inside it:
+    * instances, logic (registers, operators, blocks) or wires. A leaf module
+    * with registers or a code block opens too; ports alone do not count (the
+    * instance's box already shows them). */
+  def opensAsModule(m: ModuleDef): Boolean =
+    m.kind != ModuleKind.External && m.kind != ModuleKind.Intrinsic &&
+      (m.children.nonEmpty || m.logic.nonEmpty || m.wires.nonEmpty)
+
   /** How many clock and reset pins an instance of `m` shows (0 to 2): a `Clock`
     * port, then a `Reset` or `AsyncReset` one (a ground port named `clock` or
     * `reset` counts too, as a top module's implicit reset is a Bool). */
