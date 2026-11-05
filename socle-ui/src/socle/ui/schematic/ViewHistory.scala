@@ -180,13 +180,25 @@ object ViewHistory {
       * in a module that still resolves; Back also from a view not settled
       * yet (it becomes an entry first), and then nothing is forward. */
     val canSig: Signal[(Boolean, Boolean)] = canVar.signal
+    def canNow: (Boolean, Boolean) = canVar.now()
     private var stack = Stack()
     private[schematic] def hist: Stack = stack
-    private[schematic] def hist_=(s: Stack): Unit = { stack = s; refreshCan() }
+    private[schematic] def hist_=(s: Stack): Unit = {
+      val moved = !(s eq stack) && !refitting
+      stack = s; refreshCan()
+      if (moved) onMove()
+    }
+    private var refitting = false
+    /** The user or the app moved: a new entry, a walk, a reset, a pan or zoom
+      * not settled yet (not a refit of the view shown). */
+    var onMove: () => Unit = () => ()
     // The user moved the view since the last entry.
     private var unsettled = false
     private def dirty: Boolean = unsettled
-    private def dirty_=(d: Boolean): Unit = if (d != unsettled) { unsettled = d; refreshCan() }
+    private def dirty_=(d: Boolean): Unit = if (d != unsettled) {
+      unsettled = d; refreshCan()
+      if (d) onMove()
+    }
     /** The module path shown. */
     private var shown: List[String] = Nil
     def curPath: List[String] = shown
@@ -255,7 +267,10 @@ object ViewHistory {
     }
     /** A refit replaced the automatic fit shown: its entry follows it. */
     def refitted(): Unit =
-      if (hist.current.exists(_.path == curPath)) hist = hist.replace(Entry(curPath, panVar.now(), zoomVar.now()))
+      if (hist.current.exists(_.path == curPath)) {
+        refitting = true
+        try hist = hist.replace(Entry(curPath, panVar.now(), zoomVar.now())) finally refitting = false
+      }
 
     /** Flies to a content rect: framed with `margin` px around it, at most
       * `maxZoom`. The flight's end is an entry; the view it leaves too, if it

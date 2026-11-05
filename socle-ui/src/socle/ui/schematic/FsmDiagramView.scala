@@ -61,7 +61,7 @@ private[schematic] object FsmDiagramView {
     Seq(fsm.note, dropped).filter(_.nonEmpty).mkString(" ")
   }
 
-  def render(blockId: String, fsm: FsmDiagram, openSource: SourceRef => Unit): HtmlElement = {
+  def render(blockId: String, fsm: FsmDiagram, openSource: SourceRef => Unit, nav: Option[Element] = None): HtmlElement = {
     // The theme's `--mono` stack, resolved once: a canvas cannot read CSS variables.
     val mono = dom.window.getComputedStyle(dom.document.documentElement).getPropertyValue("--mono").trim match {
       case "" => "monospace"
@@ -160,12 +160,17 @@ private[schematic] object FsmDiagramView {
             layoutVar.set(Some(Left(e.getMessage)))
         }
       },
+      // The schematic's Back / Forward chip, 12 px in like its chrome, and the
+      // note beside it (never over it).
+      Option.when(nav.nonEmpty || note.nonEmpty)(div(
+        styleAttr := "flex:none;display:flex;align-items:flex-start;gap:8px;margin:12px 12px 0",
+        nav.toSeq,
       Option.when(note.nonEmpty)(div(
         dataAttr("fsm-note") := "1",
-        styleAttr := s"flex:none;margin:12px 12px 0;max-width:460px;box-sizing:border-box;padding:6px 10px;" +
+        styleAttr := s"flex:1 1 auto;min-width:0;max-width:460px;box-sizing:border-box;padding:6px 10px;" +
           s"border:1px solid ${Tokens.border};border-left:3px solid ${Tokens.warn};border-radius:4px;background:${Tokens.panel};" +
           s"font-family:${Tokens.mono};font-size:11px;line-height:1.45;color:${Tokens.ink2}",
-        note)),
+        note)))),
       div(
         dataAttr("fsm-scroll") := "1",
         styleAttr := "flex:1 1 auto;min-height:0;overflow:auto;position:relative;cursor:grab;user-select:none",

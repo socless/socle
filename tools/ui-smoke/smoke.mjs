@@ -76,6 +76,9 @@ const navButtonDesigns = new Set();
 const leafDrillDesigns = new Set();
 // The designs with a drillable child of the top and a leaf with content:
 // each must run both checks (a design that skips one fails on its own).
+// The designs with a state diagram: each runs the diagram's Back / Forward check.
+const fsmNavDesigns = new Set();
+const FSM_NAV_DESIGNS = ['fsm-view'];
 const NAV_DESIGNS = ['axisystem', 'rvpipeline', 'deepsoc', 'interconnect', 'datapath', 'scatter', 'deepsoc-view'];
 const flyDesigns = new Set();
 const flyCrossDesigns = new Set();
@@ -1219,6 +1222,50 @@ async function smokeDesignIn(design, ctx) {
       await page.waitForTimeout(200);
       if (!(await schematicShown())) note(design, where, 'Escape after a keyboard open did not bring the schematic back');
       drain(`${where} (close)`);
+    }
+
+    // Back and Forward over the diagram: its own nav chip (Back always
+    // enabled), Back closes it with the module's view untouched, Forward then
+    // reopens it, and Alt+Left closes it too.
+    {
+      const w2 = 'fsm diagram navigation';
+      const view = () => page.evaluate(() => document.querySelector('[data-content]')?.style.transform || '');
+      const crumbsNow = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+      const v0 = await view(), c0 = await crumbsNow();
+      if (await openDiagram('navigation')) {
+        const chip = await page.evaluate((sel) => {
+          const d = document.querySelector(sel);
+          const b = d?.querySelector('[data-nav-back]'), f = d?.querySelector('[data-nav-forward]');
+          if (!b || !f) return null;
+          const r = b.getBoundingClientRect(), dr = d.getBoundingClientRect();
+          const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          const n = d.querySelector('[data-fsm-note]')?.getBoundingClientRect();
+          const overlap = !!n && !(n.left >= r.right || n.right <= r.left || n.top >= r.bottom || n.bottom <= r.top);
+          return { back: !b.disabled, visible: !!top && b.contains(top), inset: [Math.round(r.left - dr.left), Math.round(r.top - dr.top)], overlap };
+        }, diag);
+        if (!chip) note(design, w2, 'no Back / Forward buttons on the state diagram');
+        else {
+          if (!chip.visible) note(design, w2, 'the diagram\'s Back button is covered');
+          if (!chip.back) note(design, w2, 'Back is disabled on the state diagram');
+          if (chip.overlap) note(design, w2, 'the diagram\'s note overlaps its Back / Forward buttons');
+          await page.locator(`${diag} [data-nav-back]`).first().click();
+          await page.waitForTimeout(250);
+          if (await page.locator(diag).count()) note(design, w2, 'Back did not close the diagram');
+          if (await view() !== v0 || await crumbsNow() !== c0) note(design, w2, `Back from the diagram moved the schematic: ${v0} at "${c0}" -> ${await view()} at "${await crumbsNow()}"`);
+          const fwd = page.locator('[data-nav-forward]').first();
+          if (await fwd.isDisabled()) note(design, w2, 'Forward is not enabled after Back closed the diagram');
+          await fwd.click();
+          if (!(await ready())) note(design, w2, 'Forward did not reopen the diagram');
+          else {
+            await page.keyboard.press('Alt+ArrowLeft');
+            await page.waitForTimeout(250);
+            if (await page.locator(diag).count()) note(design, w2, 'Alt+Left did not close the diagram');
+          }
+          if (await page.locator(diag).count()) { await page.keyboard.press('Escape'); await page.waitForTimeout(200); }
+          fsmNavDesigns.add(design);
+        }
+      }
+      drain(w2);
     }
 
     // Live reload with the diagram open, keeping the block: a self-loop, a
@@ -3731,6 +3778,8 @@ for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesig
   console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
   if (!ONLY && set.size === 0) note('(all)', 'history', `no design ran the check: ${what}`);
 }
+for (const d of FSM_NAV_DESIGNS.filter((x) => designs.includes(x) && !fsmNavDesigns.has(x)))
+  note(d, 'navigation', 'skipped the state diagram\'s Back / Forward check');
 for (const [what, set] of [['the Back / Forward buttons', navButtonDesigns], ['the leaf drill with the tree following', leafDrillDesigns]])
   for (const d of NAV_DESIGNS.filter((x) => designs.includes(x) && !set.has(x)))
     note(d, 'navigation', `skipped ${what} (expected on ${NAV_DESIGNS.join(', ')})`);

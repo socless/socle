@@ -399,8 +399,30 @@ object Schematic {
     def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
     def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
-    commands.back = () => history.walk(_.back)
-    commands.forward = () => history.walk(_.forward)
+    // Back and Forward, also over an open state diagram: Back closes it (the
+    // schematic below keeps its view), and Forward reopens it until the user
+    // moves or navigates (`reopenVar`, dropped by the history's `onMove`, a
+    // path change or another diagram). Forward from a diagram closes it and
+    // walks forward, when there is somewhere to go.
+    val reopenVar = Var(Option.empty[(List[String], String)])
+    history.onMove = () => if (reopenVar.now().isDefined) reopenVar.set(None)
+    def navBack(): Unit = fsmOpenVar.now() match {
+      case Some(id) => fsmOpenVar.set(None); reopenVar.set(Some((history.curPath, id)))
+      case None     => history.walk(_.back)
+    }
+    def navForward(): Unit = fsmOpenVar.now() match {
+      case Some(_) => if (history.canNow._2) { fsmOpenVar.set(None); history.walk(_.forward) }
+      case None    => reopenVar.now().filter(_._1 == history.curPath) match {
+        case Some((_, id)) => reopenVar.set(None); fsmOpenVar.set(Some(id))
+        case None          => history.walk(_.forward)
+      }
+    }
+    val navSig: Signal[(Boolean, Boolean)] =
+      Signal.combine(history.canSig, fsmOpenVar.signal, reopenVar.signal).map { case ((b, f), fsm, re) =>
+        if (fsm.isDefined) (true, f) else (b, f || re.isDefined)
+      }
+    commands.back = () => navBack()
+    commands.forward = () => navForward()
     commands.zoomToSelection = () => zoomToSelection()
     // A fresh load: forget the history, any pending flight or settle, the
     // followed net and the modules' saved views (another design's). Called
@@ -828,7 +850,7 @@ object Schematic {
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
         Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
-        history.canSig, () => history.walk(_.back), () => history.walk(_.forward)),
+        navSig, () => navBack(), () => navForward()),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
@@ -867,8 +889,9 @@ object Schematic {
               clearSelection = () => { selectedVar.set(None); hl.follow(None); hl.domainVar.set(None) },
               clearFollow    = () => hl.follow(None),
               keysBlocked    = () => fsmOpenVar.now().isDefined || keysBlocked(),
-              back           = () => history.walk(_.back),
-              forward        = () => history.walk(_.forward),
+              navBlocked     = () => keysBlocked(),
+              back           = () => navBack(),
+              forward        = () => navForward(),
               zoomToSelection = () => zoomToSelection(),
             ), hl)
             gesturesOff = gestures.install()
@@ -956,7 +979,12 @@ object Schematic {
       child.maybe <-- Signal.combine(moduleSig, fsmOpenVar.signal).map {
         case (Some(mod), Some(id)) => mod.logic.find(_.id == id).flatMap(n => n.fsm.map(id -> _))
         case _                     => None
-      }.distinct.map(_.map { case (id, fsm) => FsmDiagramView.render(id, fsm, openSource) }),
+      }.distinct.map(_.map { case (id, fsm) =>
+        FsmDiagramView.render(id, fsm, openSource, Some(SchematicChrome.navButtons(navSig, () => navBack(), () => navForward())))
+      }),
+      // Another diagram opened, or another module shown: nothing to reopen.
+      fsmOpenVar.signal.changes --> { (o: Option[String]) => if (o.isDefined && reopenVar.now().isDefined) reopenVar.set(None) },
+      pathSig.changes --> { _ => if (reopenVar.now().isDefined) reopenVar.set(None) },
       // Drop the memoized engine layouts when the design itself changes (live
       // reload / picker switch): a reused module name can describe new internals.
       // The history and the followed net stay across a live reload (Back skips

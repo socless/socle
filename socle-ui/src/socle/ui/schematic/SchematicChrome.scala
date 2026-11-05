@@ -97,7 +97,7 @@ private[schematic] object SchematicChrome {
     * before the module chip. A press does not take the focus (the schematic's
     * keys keep working); a button with nowhere to go is disabled. Their hover
     * and disabled looks are `.scl-nav-btn` rules in the page template. */
-  private def navButtons(navSig: Signal[(Boolean, Boolean)], onBack: () => Unit, onForward: () => Unit): Element = {
+  def navButtons(navSig: Signal[(Boolean, Boolean)], onBack: () => Unit, onForward: () => Unit): Element = {
     def chevron(points: String) =
       svg.svg(svg.viewBox := "0 0 16 16", svg.width := "14", svg.height := "14",
         svg.style := "display:block;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round",
