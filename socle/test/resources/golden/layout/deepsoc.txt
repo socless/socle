@@ -74,8 +74,6 @@ layout ALU
   edge io.cout -> _sum_T_6
   edge io.out -> _io_out_T_14
 layout Cluster
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
-  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _cores_0_io_in_valid_T kind=op pins=_cores_0_io_in_valid_T:EAST,_cores_0_io_in_valid_T~in0:WEST,_cores_0_io_in_valid_T~in1:WEST
   node _cores_0_io_in_valid_T_1 kind=op pins=_cores_0_io_in_valid_T_1:EAST,_cores_0_io_in_valid_T_1~in0:WEST,_cores_0_io_in_valid_T_1~in1:WEST
   node _cores_0_io_out_ready_T kind=op pins=_cores_0_io_out_ready_T:EAST,_cores_0_io_out_ready_T~in0:WEST,_cores_0_io_out_ready_T~in1:WEST
@@ -96,12 +94,6 @@ layout Cluster
   node _io_out_valid_T_1 kind=op pins=_io_out_valid_T_1:EAST,_io_out_valid_T_1~in0:WEST,_io_out_valid_T_1~in1:WEST
   node _io_out_valid_T_2 kind=op pins=_io_out_valid_T_2:EAST,_io_out_valid_T_2~in0:WEST,_io_out_valid_T_2~in1:WEST,_io_out_valid_T_2~in2:WEST
   node _io_out_valid_T_3 kind=op pins=_io_out_valid_T_3:EAST,_io_out_valid_T_3~in0:WEST,_io_out_valid_T_3~in1:WEST,_io_out_valid_T_3~in2:WEST
-  node _outSel_T kind=op pins=_outSel_T:EAST,_outSel_T~in0:WEST,_outSel_T~in1:WEST
-  node _outSel_T_1 kind=op pins=_outSel_T_1:EAST,_outSel_T_1~in0:WEST,_outSel_T_1~in1:WEST
-  node _outSel_T_3 kind=op pins=_outSel_T_3:EAST,_outSel_T_3~in0:WEST,_outSel_T_3~in1:WEST,_outSel_T_3~in2:WEST
-  node _sel_T kind=op pins=_sel_T:EAST,_sel_T~in0:WEST,_sel_T~in1:WEST
-  node _sel_T_1 kind=op pins=_sel_T_1:EAST,_sel_T_1~in0:WEST,_sel_T_1~in1:WEST
-  node _sel_T_3 kind=op pins=_sel_T_3:EAST,_sel_T_3~in0:WEST,_sel_T_3~in1:WEST,_sel_T_3~in2:WEST
   node const$_cores_0_io_in_valid_T~in1 kind=const pins=const$_cores_0_io_in_valid_T~in1:EAST
   node const$_cores_0_io_out_ready_T~in1 kind=const pins=const$_cores_0_io_out_ready_T~in1:EAST
   node const$_cores_1_io_in_valid_T~in1 kind=const pins=const$_cores_1_io_in_valid_T~in1:EAST
@@ -112,24 +104,14 @@ layout Cluster
   node const$_io_out_bits_T~in1 kind=const pins=const$_io_out_bits_T~in1:EAST
   node const$_io_out_valid_T_1~in1 kind=const pins=const$_io_out_valid_T_1~in1:EAST
   node const$_io_out_valid_T~in1 kind=const pins=const$_io_out_valid_T~in1:EAST
-  node const$_outSel_T_1~in1 kind=const pins=const$_outSel_T_1~in1:EAST
-  node const$_outSel_T_3~in1 kind=const pins=const$_outSel_T_3~in1:EAST
-  node const$_outSel_T~in1 kind=const pins=const$_outSel_T~in1:EAST
-  node const$_sel_T_1~in1 kind=const pins=const$_sel_T_1~in1:EAST
-  node const$_sel_T_3~in1 kind=const pins=const$_sel_T_3~in1:EAST
-  node const$_sel_T~in1 kind=const pins=const$_sel_T~in1:EAST
   node cores_0 kind=inst pins=cores_0.io.in:WEST:iface,cores_0.io.out:EAST:iface
   node cores_1 kind=inst pins=cores_1.io.in:WEST:iface,cores_1.io.out:EAST:iface
   node io.in kind=boundary pins=io.in:EAST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  node mux$outSel kind=op pins=mux$outSel:EAST,mux$outSel~in0:WEST,mux$outSel~in1:WEST,mux$outSel~in2:WEST
-  node mux$sel kind=op pins=mux$sel:EAST,mux$sel~in0:WEST,mux$sel~in1:WEST,mux$sel~in2:WEST
   node outSel kind=reg pins=outSel:WEST,outSel~q:EAST
   node sel kind=reg pins=sel:WEST,sel~q:EAST
-  edge _T_1~in0 -> io.out
-  edge _T_1~in1 -> io.out
-  edge _T~in0 -> io.in
-  edge _T~in1 -> io.in
+  node when$Cluster$139_20 kind=block pins=when$Cluster$139_20.io_in_ready:WEST,when$Cluster$139_20.io_in_valid:WEST,when$Cluster$139_20.sel:EAST,when$Cluster$139_20.sel_2:WEST
+  node when$Cluster$152_21 kind=block pins=when$Cluster$152_21.io_out_ready:WEST,when$Cluster$152_21.io_out_valid:WEST,when$Cluster$152_21.outSel:EAST,when$Cluster$152_21.outSel_2:WEST
   edge _cores_0_io_in_valid_T_1~in0 -> io.in
   edge _cores_0_io_in_valid_T_1~in1 -> _cores_0_io_in_valid_T
   edge _cores_0_io_in_valid_T~in0 -> sel~q
@@ -176,20 +158,6 @@ layout Cluster
   edge _io_out_valid_T_3~in2 -> _io_out_valid_T_2
   edge _io_out_valid_T~in0 -> outSel~q
   edge _io_out_valid_T~in1 -> const$_io_out_valid_T~in1
-  edge _outSel_T_1~in0 -> outSel~q
-  edge _outSel_T_1~in1 -> const$_outSel_T_1~in1
-  edge _outSel_T_3~in0 -> _outSel_T
-  edge _outSel_T_3~in1 -> const$_outSel_T_3~in1
-  edge _outSel_T_3~in2 -> _outSel_T_1
-  edge _outSel_T~in0 -> outSel~q
-  edge _outSel_T~in1 -> const$_outSel_T~in1
-  edge _sel_T_1~in0 -> sel~q
-  edge _sel_T_1~in1 -> const$_sel_T_1~in1
-  edge _sel_T_3~in0 -> _sel_T
-  edge _sel_T_3~in1 -> const$_sel_T_3~in1
-  edge _sel_T_3~in2 -> _sel_T_1
-  edge _sel_T~in0 -> sel~q
-  edge _sel_T~in1 -> const$_sel_T~in1
   edge cores_0.io.in -> _cores_0_io_in_valid_T_1
   edge cores_0.io.in -> io.in
   edge cores_0.io.out -> _cores_0_io_out_ready_T_1
@@ -199,67 +167,260 @@ layout Cluster
   edge io.in -> _io_in_ready_T_3
   edge io.out -> _io_out_bits_T_3
   edge io.out -> _io_out_valid_T_3
-  edge mux$outSel~in0 -> _T_1
-  edge mux$outSel~in1 -> _outSel_T_3
-  edge mux$outSel~in2 -> outSel~q
-  edge mux$sel~in0 -> _T
-  edge mux$sel~in1 -> _sel_T_3
-  edge mux$sel~in2 -> sel~q
-  edge outSel -> mux$outSel
-  edge sel -> mux$sel
+  edge outSel -> when$Cluster$152_21.outSel
+  edge sel -> when$Cluster$139_20.sel
+  edge when$Cluster$139_20.io_in_ready -> io.in
+  edge when$Cluster$139_20.io_in_valid -> io.in
+  edge when$Cluster$139_20.sel_2 -> sel~q
+  edge when$Cluster$152_21.io_out_ready -> io.out
+  edge when$Cluster$152_21.io_out_valid -> io.out
+  edge when$Cluster$152_21.outSel_2 -> outSel~q
+layout Cluster_1
+  node _cores_0_io_in_valid_T kind=op pins=_cores_0_io_in_valid_T:EAST,_cores_0_io_in_valid_T~in0:WEST,_cores_0_io_in_valid_T~in1:WEST
+  node _cores_0_io_in_valid_T_1 kind=op pins=_cores_0_io_in_valid_T_1:EAST,_cores_0_io_in_valid_T_1~in0:WEST,_cores_0_io_in_valid_T_1~in1:WEST
+  node _cores_0_io_out_ready_T kind=op pins=_cores_0_io_out_ready_T:EAST,_cores_0_io_out_ready_T~in0:WEST,_cores_0_io_out_ready_T~in1:WEST
+  node _cores_0_io_out_ready_T_1 kind=op pins=_cores_0_io_out_ready_T_1:EAST,_cores_0_io_out_ready_T_1~in0:WEST,_cores_0_io_out_ready_T_1~in1:WEST
+  node _cores_1_io_in_valid_T kind=op pins=_cores_1_io_in_valid_T:EAST,_cores_1_io_in_valid_T~in0:WEST,_cores_1_io_in_valid_T~in1:WEST
+  node _cores_1_io_in_valid_T_1 kind=op pins=_cores_1_io_in_valid_T_1:EAST,_cores_1_io_in_valid_T_1~in0:WEST,_cores_1_io_in_valid_T_1~in1:WEST
+  node _cores_1_io_out_ready_T kind=op pins=_cores_1_io_out_ready_T:EAST,_cores_1_io_out_ready_T~in0:WEST,_cores_1_io_out_ready_T~in1:WEST
+  node _cores_1_io_out_ready_T_1 kind=op pins=_cores_1_io_out_ready_T_1:EAST,_cores_1_io_out_ready_T_1~in0:WEST,_cores_1_io_out_ready_T_1~in1:WEST
+  node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
+  node _io_in_ready_T_1 kind=op pins=_io_in_ready_T_1:EAST,_io_in_ready_T_1~in0:WEST,_io_in_ready_T_1~in1:WEST
+  node _io_in_ready_T_2 kind=op pins=_io_in_ready_T_2:EAST,_io_in_ready_T_2~in0:WEST,_io_in_ready_T_2~in1:WEST,_io_in_ready_T_2~in2:WEST
+  node _io_in_ready_T_3 kind=op pins=_io_in_ready_T_3:EAST,_io_in_ready_T_3~in0:WEST,_io_in_ready_T_3~in1:WEST,_io_in_ready_T_3~in2:WEST
+  node _io_out_bits_T kind=op pins=_io_out_bits_T:EAST,_io_out_bits_T~in0:WEST,_io_out_bits_T~in1:WEST
+  node _io_out_bits_T_1 kind=op pins=_io_out_bits_T_1:EAST,_io_out_bits_T_1~in0:WEST,_io_out_bits_T_1~in1:WEST
+  node _io_out_bits_T_2 kind=op pins=_io_out_bits_T_2:EAST,_io_out_bits_T_2~in0:WEST,_io_out_bits_T_2~in1:WEST,_io_out_bits_T_2~in2:WEST
+  node _io_out_bits_T_3 kind=op pins=_io_out_bits_T_3:EAST,_io_out_bits_T_3~in0:WEST,_io_out_bits_T_3~in1:WEST,_io_out_bits_T_3~in2:WEST
+  node _io_out_valid_T kind=op pins=_io_out_valid_T:EAST,_io_out_valid_T~in0:WEST,_io_out_valid_T~in1:WEST
+  node _io_out_valid_T_1 kind=op pins=_io_out_valid_T_1:EAST,_io_out_valid_T_1~in0:WEST,_io_out_valid_T_1~in1:WEST
+  node _io_out_valid_T_2 kind=op pins=_io_out_valid_T_2:EAST,_io_out_valid_T_2~in0:WEST,_io_out_valid_T_2~in1:WEST,_io_out_valid_T_2~in2:WEST
+  node _io_out_valid_T_3 kind=op pins=_io_out_valid_T_3:EAST,_io_out_valid_T_3~in0:WEST,_io_out_valid_T_3~in1:WEST,_io_out_valid_T_3~in2:WEST
+  node const$_cores_0_io_in_valid_T~in1 kind=const pins=const$_cores_0_io_in_valid_T~in1:EAST
+  node const$_cores_0_io_out_ready_T~in1 kind=const pins=const$_cores_0_io_out_ready_T~in1:EAST
+  node const$_cores_1_io_in_valid_T~in1 kind=const pins=const$_cores_1_io_in_valid_T~in1:EAST
+  node const$_cores_1_io_out_ready_T~in1 kind=const pins=const$_cores_1_io_out_ready_T~in1:EAST
+  node const$_io_in_ready_T_1~in1 kind=const pins=const$_io_in_ready_T_1~in1:EAST
+  node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
+  node const$_io_out_bits_T_1~in1 kind=const pins=const$_io_out_bits_T_1~in1:EAST
+  node const$_io_out_bits_T~in1 kind=const pins=const$_io_out_bits_T~in1:EAST
+  node const$_io_out_valid_T_1~in1 kind=const pins=const$_io_out_valid_T_1~in1:EAST
+  node const$_io_out_valid_T~in1 kind=const pins=const$_io_out_valid_T~in1:EAST
+  node cores_0 kind=inst pins=cores_0.io.in:WEST:iface,cores_0.io.out:EAST:iface
+  node cores_1 kind=inst pins=cores_1.io.in:WEST:iface,cores_1.io.out:EAST:iface
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node outSel kind=reg pins=outSel:WEST,outSel~q:EAST
+  node sel kind=reg pins=sel:WEST,sel~q:EAST
+  node when$Cluster_1$139_20 kind=block pins=when$Cluster_1$139_20.io_in_ready:WEST,when$Cluster_1$139_20.io_in_valid:WEST,when$Cluster_1$139_20.sel:EAST,when$Cluster_1$139_20.sel_2:WEST
+  node when$Cluster_1$152_21 kind=block pins=when$Cluster_1$152_21.io_out_ready:WEST,when$Cluster_1$152_21.io_out_valid:WEST,when$Cluster_1$152_21.outSel:EAST,when$Cluster_1$152_21.outSel_2:WEST
+  edge _cores_0_io_in_valid_T_1~in0 -> io.in
+  edge _cores_0_io_in_valid_T_1~in1 -> _cores_0_io_in_valid_T
+  edge _cores_0_io_in_valid_T~in0 -> sel~q
+  edge _cores_0_io_in_valid_T~in1 -> const$_cores_0_io_in_valid_T~in1
+  edge _cores_0_io_out_ready_T_1~in0 -> io.out
+  edge _cores_0_io_out_ready_T_1~in1 -> _cores_0_io_out_ready_T
+  edge _cores_0_io_out_ready_T~in0 -> outSel~q
+  edge _cores_0_io_out_ready_T~in1 -> const$_cores_0_io_out_ready_T~in1
+  edge _cores_1_io_in_valid_T_1~in0 -> io.in
+  edge _cores_1_io_in_valid_T_1~in1 -> _cores_1_io_in_valid_T
+  edge _cores_1_io_in_valid_T~in0 -> sel~q
+  edge _cores_1_io_in_valid_T~in1 -> const$_cores_1_io_in_valid_T~in1
+  edge _cores_1_io_out_ready_T_1~in0 -> io.out
+  edge _cores_1_io_out_ready_T_1~in1 -> _cores_1_io_out_ready_T
+  edge _cores_1_io_out_ready_T~in0 -> outSel~q
+  edge _cores_1_io_out_ready_T~in1 -> const$_cores_1_io_out_ready_T~in1
+  edge _io_in_ready_T_1~in0 -> sel~q
+  edge _io_in_ready_T_1~in1 -> const$_io_in_ready_T_1~in1
+  edge _io_in_ready_T_2~in0 -> _io_in_ready_T_1
+  edge _io_in_ready_T_2~in1 -> cores_1.io.in
+  edge _io_in_ready_T_2~in2 -> cores_0.io.in
+  edge _io_in_ready_T_3~in0 -> _io_in_ready_T
+  edge _io_in_ready_T_3~in1 -> cores_0.io.in
+  edge _io_in_ready_T_3~in2 -> _io_in_ready_T_2
+  edge _io_in_ready_T~in0 -> sel~q
+  edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
+  edge _io_out_bits_T_1~in0 -> outSel~q
+  edge _io_out_bits_T_1~in1 -> const$_io_out_bits_T_1~in1
+  edge _io_out_bits_T_2~in0 -> _io_out_bits_T_1
+  edge _io_out_bits_T_2~in1 -> cores_1.io.out
+  edge _io_out_bits_T_2~in2 -> cores_0.io.out
+  edge _io_out_bits_T_3~in0 -> _io_out_bits_T
+  edge _io_out_bits_T_3~in1 -> cores_0.io.out
+  edge _io_out_bits_T_3~in2 -> _io_out_bits_T_2
+  edge _io_out_bits_T~in0 -> outSel~q
+  edge _io_out_bits_T~in1 -> const$_io_out_bits_T~in1
+  edge _io_out_valid_T_1~in0 -> outSel~q
+  edge _io_out_valid_T_1~in1 -> const$_io_out_valid_T_1~in1
+  edge _io_out_valid_T_2~in0 -> _io_out_valid_T_1
+  edge _io_out_valid_T_2~in1 -> cores_1.io.out
+  edge _io_out_valid_T_2~in2 -> cores_0.io.out
+  edge _io_out_valid_T_3~in0 -> _io_out_valid_T
+  edge _io_out_valid_T_3~in1 -> cores_0.io.out
+  edge _io_out_valid_T_3~in2 -> _io_out_valid_T_2
+  edge _io_out_valid_T~in0 -> outSel~q
+  edge _io_out_valid_T~in1 -> const$_io_out_valid_T~in1
+  edge cores_0.io.in -> _cores_0_io_in_valid_T_1
+  edge cores_0.io.in -> io.in
+  edge cores_0.io.out -> _cores_0_io_out_ready_T_1
+  edge cores_1.io.in -> _cores_1_io_in_valid_T_1
+  edge cores_1.io.in -> io.in
+  edge cores_1.io.out -> _cores_1_io_out_ready_T_1
+  edge io.in -> _io_in_ready_T_3
+  edge io.out -> _io_out_bits_T_3
+  edge io.out -> _io_out_valid_T_3
+  edge outSel -> when$Cluster_1$152_21.outSel
+  edge sel -> when$Cluster_1$139_20.sel
+  edge when$Cluster_1$139_20.io_in_ready -> io.in
+  edge when$Cluster_1$139_20.io_in_valid -> io.in
+  edge when$Cluster_1$139_20.sel_2 -> sel~q
+  edge when$Cluster_1$152_21.io_out_ready -> io.out
+  edge when$Cluster_1$152_21.io_out_valid -> io.out
+  edge when$Cluster_1$152_21.outSel_2 -> outSel~q
 layout Core
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
-  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
   node acc kind=reg pins=acc:WEST,acc~q:EAST
   node alu kind=inst pins=alu.io.a:WEST,alu.io.b:WEST,alu.io.cout:EAST,alu.io.op:WEST,alu.io.out:EAST
   node busy kind=reg pins=busy:WEST,busy~q:EAST
   node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
-  node const$alu_io_b kind=const pins=const$alu_io_b:EAST
-  node const$alu_io_op kind=const pins=const$alu_io_op:EAST
   node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
-  node const$mux$busy$1~in1 kind=const pins=const$mux$busy$1~in1:EAST
-  node const$mux$busy~in1 kind=const pins=const$mux$busy~in1:EAST
   node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
-  node const$rf_io_waddr kind=const pins=const$rf_io_waddr:EAST
-  node const$rf_io_wdata kind=const pins=const$rf_io_wdata:EAST
-  node const$rf_io_wen kind=const pins=const$rf_io_wen:EAST
   node io.in kind=boundary pins=io.in:EAST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  node mux$acc kind=op pins=mux$acc:EAST,mux$acc~in0:WEST,mux$acc~in1:WEST,mux$acc~in2:WEST
-  node mux$busy kind=op pins=mux$busy:EAST,mux$busy~in0:WEST,mux$busy~in1:WEST,mux$busy~in2:WEST
-  node mux$busy$1 kind=op pins=mux$busy$1:EAST,mux$busy$1~in0:WEST,mux$busy$1~in1:WEST,mux$busy$1~in2:WEST
   node rf kind=inst pins=rf.io.raddr:WEST,rf.io.rdata:EAST,rf.io.waddr:WEST,rf.io.wdata:WEST,rf.io.wen:WEST
-  edge _T_1~in0 -> io.out
-  edge _T_1~in1 -> io.out
-  edge _T~in0 -> io.in
-  edge _T~in1 -> io.in
+  node when$Core$111_21 kind=block pins=when$Core$111_21.busy:EAST,when$Core$111_21.io_out_ready:WEST,when$Core$111_21.io_out_valid:WEST
+  node when$Core$88_20 kind=block pins=when$Core$88_20.acc:EAST,when$Core$88_20.acc_2:WEST,when$Core$88_20.alu_io_a:EAST,when$Core$88_20.alu_io_b:EAST,when$Core$88_20.alu_io_op:EAST,when$Core$88_20.alu_io_out:WEST,when$Core$88_20.busy:EAST,when$Core$88_20.io_in_bits_data:WEST,when$Core$88_20.io_in_ready:WEST,when$Core$88_20.io_in_valid:WEST,when$Core$88_20.rf_io_waddr:EAST,when$Core$88_20.rf_io_wdata:EAST,when$Core$88_20.rf_io_wen:EAST
   edge _io_in_ready_T~in0 -> busy~q
   edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
-  edge acc -> mux$acc
-  edge alu.io.a -> acc~q
-  edge alu.io.b -> const$alu_io_b
-  edge alu.io.b -> io.in
-  edge alu.io.op -> const$alu_io_op
-  edge busy -> mux$busy
+  edge acc -> when$Core$88_20.acc
+  edge alu.io.a -> when$Core$88_20.alu_io_a
+  edge alu.io.b -> when$Core$88_20.alu_io_b
+  edge alu.io.op -> when$Core$88_20.alu_io_op
+  edge busy -> when$Core$111_21.busy
+  edge busy -> when$Core$88_20.busy
   edge io.in -> _io_in_ready_T
   edge io.out -> busy~q
   edge io.out -> const$io_out_bits_valid
   edge io.out -> rf.io.rdata
-  edge mux$acc~in0 -> _T
-  edge mux$acc~in1 -> alu.io.out
-  edge mux$acc~in2 -> acc~q
-  edge mux$busy$1~in0 -> _T
-  edge mux$busy$1~in1 -> const$mux$busy$1~in1
-  edge mux$busy$1~in2 -> busy~q
-  edge mux$busy~in0 -> _T_1
-  edge mux$busy~in1 -> const$mux$busy~in1
-  edge mux$busy~in2 -> mux$busy$1
   edge rf.io.raddr -> const$rf_io_raddr
-  edge rf.io.waddr -> const$rf_io_waddr
-  edge rf.io.wdata -> alu.io.out
-  edge rf.io.wdata -> const$rf_io_wdata
-  edge rf.io.wen -> const$rf_io_wen
+  edge rf.io.waddr -> when$Core$88_20.rf_io_waddr
+  edge rf.io.wdata -> when$Core$88_20.rf_io_wdata
+  edge rf.io.wen -> when$Core$88_20.rf_io_wen
+  edge when$Core$111_21.io_out_ready -> io.out
+  edge when$Core$111_21.io_out_valid -> io.out
+  edge when$Core$88_20.acc_2 -> acc~q
+  edge when$Core$88_20.alu_io_out -> alu.io.out
+  edge when$Core$88_20.io_in_bits_data -> io.in
+  edge when$Core$88_20.io_in_ready -> io.in
+  edge when$Core$88_20.io_in_valid -> io.in
+layout Core_1
+  node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
+  node acc kind=reg pins=acc:WEST,acc~q:EAST
+  node alu kind=inst pins=alu.io.a:WEST,alu.io.b:WEST,alu.io.cout:EAST,alu.io.op:WEST,alu.io.out:EAST
+  node busy kind=reg pins=busy:WEST,busy~q:EAST
+  node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
+  node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
+  node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node rf kind=inst pins=rf.io.raddr:WEST,rf.io.rdata:EAST,rf.io.waddr:WEST,rf.io.wdata:WEST,rf.io.wen:WEST
+  node when$Core_1$111_21 kind=block pins=when$Core_1$111_21.busy:EAST,when$Core_1$111_21.io_out_ready:WEST,when$Core_1$111_21.io_out_valid:WEST
+  node when$Core_1$88_20 kind=block pins=when$Core_1$88_20.acc:EAST,when$Core_1$88_20.acc_2:WEST,when$Core_1$88_20.alu_io_a:EAST,when$Core_1$88_20.alu_io_b:EAST,when$Core_1$88_20.alu_io_op:EAST,when$Core_1$88_20.alu_io_out:WEST,when$Core_1$88_20.busy:EAST,when$Core_1$88_20.io_in_bits_data:WEST,when$Core_1$88_20.io_in_ready:WEST,when$Core_1$88_20.io_in_valid:WEST,when$Core_1$88_20.rf_io_waddr:EAST,when$Core_1$88_20.rf_io_wdata:EAST,when$Core_1$88_20.rf_io_wen:EAST
+  edge _io_in_ready_T~in0 -> busy~q
+  edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
+  edge acc -> when$Core_1$88_20.acc
+  edge alu.io.a -> when$Core_1$88_20.alu_io_a
+  edge alu.io.b -> when$Core_1$88_20.alu_io_b
+  edge alu.io.op -> when$Core_1$88_20.alu_io_op
+  edge busy -> when$Core_1$111_21.busy
+  edge busy -> when$Core_1$88_20.busy
+  edge io.in -> _io_in_ready_T
+  edge io.out -> busy~q
+  edge io.out -> const$io_out_bits_valid
+  edge io.out -> rf.io.rdata
+  edge rf.io.raddr -> const$rf_io_raddr
+  edge rf.io.waddr -> when$Core_1$88_20.rf_io_waddr
+  edge rf.io.wdata -> when$Core_1$88_20.rf_io_wdata
+  edge rf.io.wen -> when$Core_1$88_20.rf_io_wen
+  edge when$Core_1$111_21.io_out_ready -> io.out
+  edge when$Core_1$111_21.io_out_valid -> io.out
+  edge when$Core_1$88_20.acc_2 -> acc~q
+  edge when$Core_1$88_20.alu_io_out -> alu.io.out
+  edge when$Core_1$88_20.io_in_bits_data -> io.in
+  edge when$Core_1$88_20.io_in_ready -> io.in
+  edge when$Core_1$88_20.io_in_valid -> io.in
+layout Core_2
+  node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
+  node acc kind=reg pins=acc:WEST,acc~q:EAST
+  node alu kind=inst pins=alu.io.a:WEST,alu.io.b:WEST,alu.io.cout:EAST,alu.io.op:WEST,alu.io.out:EAST
+  node busy kind=reg pins=busy:WEST,busy~q:EAST
+  node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
+  node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
+  node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node rf kind=inst pins=rf.io.raddr:WEST,rf.io.rdata:EAST,rf.io.waddr:WEST,rf.io.wdata:WEST,rf.io.wen:WEST
+  node when$Core_2$111_21 kind=block pins=when$Core_2$111_21.busy:EAST,when$Core_2$111_21.io_out_ready:WEST,when$Core_2$111_21.io_out_valid:WEST
+  node when$Core_2$88_20 kind=block pins=when$Core_2$88_20.acc:EAST,when$Core_2$88_20.acc_2:WEST,when$Core_2$88_20.alu_io_a:EAST,when$Core_2$88_20.alu_io_b:EAST,when$Core_2$88_20.alu_io_op:EAST,when$Core_2$88_20.alu_io_out:WEST,when$Core_2$88_20.busy:EAST,when$Core_2$88_20.io_in_bits_data:WEST,when$Core_2$88_20.io_in_ready:WEST,when$Core_2$88_20.io_in_valid:WEST,when$Core_2$88_20.rf_io_waddr:EAST,when$Core_2$88_20.rf_io_wdata:EAST,when$Core_2$88_20.rf_io_wen:EAST
+  edge _io_in_ready_T~in0 -> busy~q
+  edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
+  edge acc -> when$Core_2$88_20.acc
+  edge alu.io.a -> when$Core_2$88_20.alu_io_a
+  edge alu.io.b -> when$Core_2$88_20.alu_io_b
+  edge alu.io.op -> when$Core_2$88_20.alu_io_op
+  edge busy -> when$Core_2$111_21.busy
+  edge busy -> when$Core_2$88_20.busy
+  edge io.in -> _io_in_ready_T
+  edge io.out -> busy~q
+  edge io.out -> const$io_out_bits_valid
+  edge io.out -> rf.io.rdata
+  edge rf.io.raddr -> const$rf_io_raddr
+  edge rf.io.waddr -> when$Core_2$88_20.rf_io_waddr
+  edge rf.io.wdata -> when$Core_2$88_20.rf_io_wdata
+  edge rf.io.wen -> when$Core_2$88_20.rf_io_wen
+  edge when$Core_2$111_21.io_out_ready -> io.out
+  edge when$Core_2$111_21.io_out_valid -> io.out
+  edge when$Core_2$88_20.acc_2 -> acc~q
+  edge when$Core_2$88_20.alu_io_out -> alu.io.out
+  edge when$Core_2$88_20.io_in_bits_data -> io.in
+  edge when$Core_2$88_20.io_in_ready -> io.in
+  edge when$Core_2$88_20.io_in_valid -> io.in
+layout Core_3
+  node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
+  node acc kind=reg pins=acc:WEST,acc~q:EAST
+  node alu kind=inst pins=alu.io.a:WEST,alu.io.b:WEST,alu.io.cout:EAST,alu.io.op:WEST,alu.io.out:EAST
+  node busy kind=reg pins=busy:WEST,busy~q:EAST
+  node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
+  node const$io_out_bits_valid kind=const pins=const$io_out_bits_valid:EAST
+  node const$rf_io_raddr kind=const pins=const$rf_io_raddr:EAST
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node rf kind=inst pins=rf.io.raddr:WEST,rf.io.rdata:EAST,rf.io.waddr:WEST,rf.io.wdata:WEST,rf.io.wen:WEST
+  node when$Core_3$111_21 kind=block pins=when$Core_3$111_21.busy:EAST,when$Core_3$111_21.io_out_ready:WEST,when$Core_3$111_21.io_out_valid:WEST
+  node when$Core_3$88_20 kind=block pins=when$Core_3$88_20.acc:EAST,when$Core_3$88_20.acc_2:WEST,when$Core_3$88_20.alu_io_a:EAST,when$Core_3$88_20.alu_io_b:EAST,when$Core_3$88_20.alu_io_op:EAST,when$Core_3$88_20.alu_io_out:WEST,when$Core_3$88_20.busy:EAST,when$Core_3$88_20.io_in_bits_data:WEST,when$Core_3$88_20.io_in_ready:WEST,when$Core_3$88_20.io_in_valid:WEST,when$Core_3$88_20.rf_io_waddr:EAST,when$Core_3$88_20.rf_io_wdata:EAST,when$Core_3$88_20.rf_io_wen:EAST
+  edge _io_in_ready_T~in0 -> busy~q
+  edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
+  edge acc -> when$Core_3$88_20.acc
+  edge alu.io.a -> when$Core_3$88_20.alu_io_a
+  edge alu.io.b -> when$Core_3$88_20.alu_io_b
+  edge alu.io.op -> when$Core_3$88_20.alu_io_op
+  edge busy -> when$Core_3$111_21.busy
+  edge busy -> when$Core_3$88_20.busy
+  edge io.in -> _io_in_ready_T
+  edge io.out -> busy~q
+  edge io.out -> const$io_out_bits_valid
+  edge io.out -> rf.io.rdata
+  edge rf.io.raddr -> const$rf_io_raddr
+  edge rf.io.waddr -> when$Core_3$88_20.rf_io_waddr
+  edge rf.io.wdata -> when$Core_3$88_20.rf_io_wdata
+  edge rf.io.wen -> when$Core_3$88_20.rf_io_wen
+  edge when$Core_3$111_21.io_out_ready -> io.out
+  edge when$Core_3$111_21.io_out_valid -> io.out
+  edge when$Core_3$88_20.acc_2 -> acc~q
+  edge when$Core_3$88_20.alu_io_out -> alu.io.out
+  edge when$Core_3$88_20.io_in_bits_data -> io.in
+  edge when$Core_3$88_20.io_in_ready -> io.in
+  edge when$Core_3$88_20.io_in_valid -> io.in
 layout DeepSoc
   node cluster0 kind=inst pins=cluster0.io.in:WEST:iface,cluster0.io.out:EAST:iface
   node cluster1 kind=inst pins=cluster1.io.in:WEST:iface,cluster1.io.out:EAST:iface
@@ -386,17 +547,301 @@ layout RegFile
   node io.wdata kind=boundary pins=io.wdata:EAST
   node io.wen kind=boundary pins=io.wen:EAST
   node mem kind=mem pins=mem~MPORT~a:WEST,mem~MPORT~w:WEST,mem~io_rdata_MPORT~a:WEST,mem~io_rdata_MPORT~r:EAST
+  node when$RegFile$65_16 kind=block pins=when$RegFile$65_16.cond:WEST,when$RegFile$65_16.io_wdata:WEST,when$RegFile$65_16.mem_MPORT_w:EAST
   edge io.rdata -> mem~io_rdata_MPORT~r
   edge mem~MPORT~a -> io.waddr
-  edge mem~MPORT~w -> io.wdata
+  edge mem~MPORT~w -> when$RegFile$65_16.mem_MPORT_w
   edge mem~io_rdata_MPORT~a -> io.raddr
+  edge when$RegFile$65_16.cond -> io.wen
+  edge when$RegFile$65_16.io_wdata -> io.wdata
+layout RegFile_1
+  node io.raddr kind=boundary pins=io.raddr:EAST
+  node io.rdata kind=boundary pins=io.rdata:WEST
+  node io.waddr kind=boundary pins=io.waddr:EAST
+  node io.wdata kind=boundary pins=io.wdata:EAST
+  node io.wen kind=boundary pins=io.wen:EAST
+  node mem kind=mem pins=mem~MPORT~a:WEST,mem~MPORT~w:WEST,mem~io_rdata_MPORT~a:WEST,mem~io_rdata_MPORT~r:EAST
+  node when$RegFile_1$65_16 kind=block pins=when$RegFile_1$65_16.cond:WEST,when$RegFile_1$65_16.io_wdata:WEST,when$RegFile_1$65_16.mem_MPORT_w:EAST
+  edge io.rdata -> mem~io_rdata_MPORT~r
+  edge mem~MPORT~a -> io.waddr
+  edge mem~MPORT~w -> when$RegFile_1$65_16.mem_MPORT_w
+  edge mem~io_rdata_MPORT~a -> io.raddr
+  edge when$RegFile_1$65_16.cond -> io.wen
+  edge when$RegFile_1$65_16.io_wdata -> io.wdata
+layout RegFile_2
+  node io.raddr kind=boundary pins=io.raddr:EAST
+  node io.rdata kind=boundary pins=io.rdata:WEST
+  node io.waddr kind=boundary pins=io.waddr:EAST
+  node io.wdata kind=boundary pins=io.wdata:EAST
+  node io.wen kind=boundary pins=io.wen:EAST
+  node mem kind=mem pins=mem~MPORT~a:WEST,mem~MPORT~w:WEST,mem~io_rdata_MPORT~a:WEST,mem~io_rdata_MPORT~r:EAST
+  node when$RegFile_2$65_16 kind=block pins=when$RegFile_2$65_16.cond:WEST,when$RegFile_2$65_16.io_wdata:WEST,when$RegFile_2$65_16.mem_MPORT_w:EAST
+  edge io.rdata -> mem~io_rdata_MPORT~r
+  edge mem~MPORT~a -> io.waddr
+  edge mem~MPORT~w -> when$RegFile_2$65_16.mem_MPORT_w
+  edge mem~io_rdata_MPORT~a -> io.raddr
+  edge when$RegFile_2$65_16.cond -> io.wen
+  edge when$RegFile_2$65_16.io_wdata -> io.wdata
+layout RegFile_3
+  node io.raddr kind=boundary pins=io.raddr:EAST
+  node io.rdata kind=boundary pins=io.rdata:WEST
+  node io.waddr kind=boundary pins=io.waddr:EAST
+  node io.wdata kind=boundary pins=io.wdata:EAST
+  node io.wen kind=boundary pins=io.wen:EAST
+  node mem kind=mem pins=mem~MPORT~a:WEST,mem~MPORT~w:WEST,mem~io_rdata_MPORT~a:WEST,mem~io_rdata_MPORT~r:EAST
+  node when$RegFile_3$65_16 kind=block pins=when$RegFile_3$65_16.cond:WEST,when$RegFile_3$65_16.io_wdata:WEST,when$RegFile_3$65_16.mem_MPORT_w:EAST
+  edge io.rdata -> mem~io_rdata_MPORT~r
+  edge mem~MPORT~a -> io.waddr
+  edge mem~MPORT~w -> when$RegFile_3$65_16.mem_MPORT_w
+  edge mem~io_rdata_MPORT~a -> io.raddr
+  edge when$RegFile_3$65_16.cond -> io.wen
+  edge when$RegFile_3$65_16.io_wdata -> io.wdata
+layout when$Cluster$139_20
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _sel_T kind=op pins=_sel_T:EAST,_sel_T~in0:WEST,_sel_T~in1:WEST
+  node _sel_T_1 kind=op pins=_sel_T_1:EAST,_sel_T_1~in0:WEST,_sel_T_1~in1:WEST
+  node _sel_T_3 kind=op pins=_sel_T_3:EAST,_sel_T_3~in0:WEST,_sel_T_3~in1:WEST,_sel_T_3~in2:WEST
+  node const$_sel_T_1~in1 kind=const pins=const$_sel_T_1~in1:EAST
+  node const$_sel_T_3~in1 kind=const pins=const$_sel_T_3~in1:EAST
+  node const$_sel_T~in1 kind=const pins=const$_sel_T~in1:EAST
+  node io_in_ready kind=boundary pins=io_in_ready:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node sel kind=boundary pins=sel:WEST
+  node sel_2 kind=boundary pins=sel_2:EAST
+  edge _T~in0 -> io_in_ready
+  edge _T~in1 -> io_in_valid
+  edge _sel_T_1~in0 -> sel_2
+  edge _sel_T_1~in1 -> const$_sel_T_1~in1
+  edge _sel_T_3~in0 -> _sel_T
+  edge _sel_T_3~in1 -> const$_sel_T_3~in1
+  edge _sel_T_3~in2 -> _sel_T_1
+  edge _sel_T~in0 -> sel_2
+  edge _sel_T~in1 -> const$_sel_T~in1
+  edge sel -> _sel_T_3
+layout when$Cluster$152_21
+  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _outSel_T kind=op pins=_outSel_T:EAST,_outSel_T~in0:WEST,_outSel_T~in1:WEST
+  node _outSel_T_1 kind=op pins=_outSel_T_1:EAST,_outSel_T_1~in0:WEST,_outSel_T_1~in1:WEST
+  node _outSel_T_3 kind=op pins=_outSel_T_3:EAST,_outSel_T_3~in0:WEST,_outSel_T_3~in1:WEST,_outSel_T_3~in2:WEST
+  node const$_outSel_T_1~in1 kind=const pins=const$_outSel_T_1~in1:EAST
+  node const$_outSel_T_3~in1 kind=const pins=const$_outSel_T_3~in1:EAST
+  node const$_outSel_T~in1 kind=const pins=const$_outSel_T~in1:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  node outSel kind=boundary pins=outSel:WEST
+  node outSel_2 kind=boundary pins=outSel_2:EAST
+  edge _T_1~in0 -> io_out_ready
+  edge _T_1~in1 -> io_out_valid
+  edge _outSel_T_1~in0 -> outSel_2
+  edge _outSel_T_1~in1 -> const$_outSel_T_1~in1
+  edge _outSel_T_3~in0 -> _outSel_T
+  edge _outSel_T_3~in1 -> const$_outSel_T_3~in1
+  edge _outSel_T_3~in2 -> _outSel_T_1
+  edge _outSel_T~in0 -> outSel_2
+  edge _outSel_T~in1 -> const$_outSel_T~in1
+  edge outSel -> _outSel_T_3
+layout when$Core$111_21
+  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core$111_21$busy~in0 kind=const pins=const$asg$when$Core$111_21$busy~in0:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  edge _T_1~in0 -> io_out_ready
+  edge _T_1~in1 -> io_out_valid
+  edge busy -> const$asg$when$Core$111_21$busy~in0
+layout when$Core$88_20
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node acc kind=boundary pins=acc:WEST
+  node acc_2 kind=boundary pins=acc_2:EAST
+  node alu_io_a kind=boundary pins=alu_io_a:WEST
+  node alu_io_b kind=boundary pins=alu_io_b:WEST
+  node alu_io_op kind=boundary pins=alu_io_op:WEST
+  node alu_io_out kind=boundary pins=alu_io_out:EAST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core$88_20$alu_io_b~in1:EAST
+  node const$asg$when$Core$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core$88_20$alu_io_op~in0:EAST
+  node const$asg$when$Core$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core$88_20$alu_io_op~in1:EAST
+  node const$asg$when$Core$88_20$busy~in0 kind=const pins=const$asg$when$Core$88_20$busy~in0:EAST
+  node const$asg$when$Core$88_20$rf_io_waddr~in0 kind=const pins=const$asg$when$Core$88_20$rf_io_waddr~in0:EAST
+  node const$asg$when$Core$88_20$rf_io_waddr~in1 kind=const pins=const$asg$when$Core$88_20$rf_io_waddr~in1:EAST
+  node const$asg$when$Core$88_20$rf_io_wdata~in1 kind=const pins=const$asg$when$Core$88_20$rf_io_wdata~in1:EAST
+  node const$asg$when$Core$88_20$rf_io_wen~in0 kind=const pins=const$asg$when$Core$88_20$rf_io_wen~in0:EAST
+  node const$asg$when$Core$88_20$rf_io_wen~in1 kind=const pins=const$asg$when$Core$88_20$rf_io_wen~in1:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_ready kind=boundary pins=io_in_ready:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rf_io_waddr kind=boundary pins=rf_io_waddr:WEST
+  node rf_io_wdata kind=boundary pins=rf_io_wdata:WEST
+  node rf_io_wen kind=boundary pins=rf_io_wen:WEST
+  edge _T~in0 -> io_in_ready
+  edge _T~in1 -> io_in_valid
+  edge acc -> alu_io_out
+  edge alu_io_a -> acc_2
+  edge alu_io_b -> const$asg$when$Core$88_20$alu_io_b~in1
+  edge alu_io_b -> io_in_bits_data
+  edge alu_io_op -> const$asg$when$Core$88_20$alu_io_op~in0
+  edge alu_io_op -> const$asg$when$Core$88_20$alu_io_op~in1
+  edge busy -> const$asg$when$Core$88_20$busy~in0
+  edge rf_io_waddr -> const$asg$when$Core$88_20$rf_io_waddr~in0
+  edge rf_io_waddr -> const$asg$when$Core$88_20$rf_io_waddr~in1
+  edge rf_io_wdata -> alu_io_out
+  edge rf_io_wdata -> const$asg$when$Core$88_20$rf_io_wdata~in1
+  edge rf_io_wen -> const$asg$when$Core$88_20$rf_io_wen~in0
+  edge rf_io_wen -> const$asg$when$Core$88_20$rf_io_wen~in1
+layout when$Core_1$111_21
+  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_1$111_21$busy~in0 kind=const pins=const$asg$when$Core_1$111_21$busy~in0:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  edge _T_1~in0 -> io_out_ready
+  edge _T_1~in1 -> io_out_valid
+  edge busy -> const$asg$when$Core_1$111_21$busy~in0
+layout when$Core_1$88_20
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node acc kind=boundary pins=acc:WEST
+  node acc_2 kind=boundary pins=acc_2:EAST
+  node alu_io_a kind=boundary pins=alu_io_a:WEST
+  node alu_io_b kind=boundary pins=alu_io_b:WEST
+  node alu_io_op kind=boundary pins=alu_io_op:WEST
+  node alu_io_out kind=boundary pins=alu_io_out:EAST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_1$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_1$88_20$alu_io_b~in1:EAST
+  node const$asg$when$Core_1$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_1$88_20$alu_io_op~in0:EAST
+  node const$asg$when$Core_1$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_1$88_20$alu_io_op~in1:EAST
+  node const$asg$when$Core_1$88_20$busy~in0 kind=const pins=const$asg$when$Core_1$88_20$busy~in0:EAST
+  node const$asg$when$Core_1$88_20$rf_io_waddr~in0 kind=const pins=const$asg$when$Core_1$88_20$rf_io_waddr~in0:EAST
+  node const$asg$when$Core_1$88_20$rf_io_waddr~in1 kind=const pins=const$asg$when$Core_1$88_20$rf_io_waddr~in1:EAST
+  node const$asg$when$Core_1$88_20$rf_io_wdata~in1 kind=const pins=const$asg$when$Core_1$88_20$rf_io_wdata~in1:EAST
+  node const$asg$when$Core_1$88_20$rf_io_wen~in0 kind=const pins=const$asg$when$Core_1$88_20$rf_io_wen~in0:EAST
+  node const$asg$when$Core_1$88_20$rf_io_wen~in1 kind=const pins=const$asg$when$Core_1$88_20$rf_io_wen~in1:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_ready kind=boundary pins=io_in_ready:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rf_io_waddr kind=boundary pins=rf_io_waddr:WEST
+  node rf_io_wdata kind=boundary pins=rf_io_wdata:WEST
+  node rf_io_wen kind=boundary pins=rf_io_wen:WEST
+  edge _T~in0 -> io_in_ready
+  edge _T~in1 -> io_in_valid
+  edge acc -> alu_io_out
+  edge alu_io_a -> acc_2
+  edge alu_io_b -> const$asg$when$Core_1$88_20$alu_io_b~in1
+  edge alu_io_b -> io_in_bits_data
+  edge alu_io_op -> const$asg$when$Core_1$88_20$alu_io_op~in0
+  edge alu_io_op -> const$asg$when$Core_1$88_20$alu_io_op~in1
+  edge busy -> const$asg$when$Core_1$88_20$busy~in0
+  edge rf_io_waddr -> const$asg$when$Core_1$88_20$rf_io_waddr~in0
+  edge rf_io_waddr -> const$asg$when$Core_1$88_20$rf_io_waddr~in1
+  edge rf_io_wdata -> alu_io_out
+  edge rf_io_wdata -> const$asg$when$Core_1$88_20$rf_io_wdata~in1
+  edge rf_io_wen -> const$asg$when$Core_1$88_20$rf_io_wen~in0
+  edge rf_io_wen -> const$asg$when$Core_1$88_20$rf_io_wen~in1
+layout when$Core_2$111_21
+  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_2$111_21$busy~in0 kind=const pins=const$asg$when$Core_2$111_21$busy~in0:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  edge _T_1~in0 -> io_out_ready
+  edge _T_1~in1 -> io_out_valid
+  edge busy -> const$asg$when$Core_2$111_21$busy~in0
+layout when$Core_2$88_20
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node acc kind=boundary pins=acc:WEST
+  node acc_2 kind=boundary pins=acc_2:EAST
+  node alu_io_a kind=boundary pins=alu_io_a:WEST
+  node alu_io_b kind=boundary pins=alu_io_b:WEST
+  node alu_io_op kind=boundary pins=alu_io_op:WEST
+  node alu_io_out kind=boundary pins=alu_io_out:EAST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_2$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_2$88_20$alu_io_b~in1:EAST
+  node const$asg$when$Core_2$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_2$88_20$alu_io_op~in0:EAST
+  node const$asg$when$Core_2$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_2$88_20$alu_io_op~in1:EAST
+  node const$asg$when$Core_2$88_20$busy~in0 kind=const pins=const$asg$when$Core_2$88_20$busy~in0:EAST
+  node const$asg$when$Core_2$88_20$rf_io_waddr~in0 kind=const pins=const$asg$when$Core_2$88_20$rf_io_waddr~in0:EAST
+  node const$asg$when$Core_2$88_20$rf_io_waddr~in1 kind=const pins=const$asg$when$Core_2$88_20$rf_io_waddr~in1:EAST
+  node const$asg$when$Core_2$88_20$rf_io_wdata~in1 kind=const pins=const$asg$when$Core_2$88_20$rf_io_wdata~in1:EAST
+  node const$asg$when$Core_2$88_20$rf_io_wen~in0 kind=const pins=const$asg$when$Core_2$88_20$rf_io_wen~in0:EAST
+  node const$asg$when$Core_2$88_20$rf_io_wen~in1 kind=const pins=const$asg$when$Core_2$88_20$rf_io_wen~in1:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_ready kind=boundary pins=io_in_ready:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rf_io_waddr kind=boundary pins=rf_io_waddr:WEST
+  node rf_io_wdata kind=boundary pins=rf_io_wdata:WEST
+  node rf_io_wen kind=boundary pins=rf_io_wen:WEST
+  edge _T~in0 -> io_in_ready
+  edge _T~in1 -> io_in_valid
+  edge acc -> alu_io_out
+  edge alu_io_a -> acc_2
+  edge alu_io_b -> const$asg$when$Core_2$88_20$alu_io_b~in1
+  edge alu_io_b -> io_in_bits_data
+  edge alu_io_op -> const$asg$when$Core_2$88_20$alu_io_op~in0
+  edge alu_io_op -> const$asg$when$Core_2$88_20$alu_io_op~in1
+  edge busy -> const$asg$when$Core_2$88_20$busy~in0
+  edge rf_io_waddr -> const$asg$when$Core_2$88_20$rf_io_waddr~in0
+  edge rf_io_waddr -> const$asg$when$Core_2$88_20$rf_io_waddr~in1
+  edge rf_io_wdata -> alu_io_out
+  edge rf_io_wdata -> const$asg$when$Core_2$88_20$rf_io_wdata~in1
+  edge rf_io_wen -> const$asg$when$Core_2$88_20$rf_io_wen~in0
+  edge rf_io_wen -> const$asg$when$Core_2$88_20$rf_io_wen~in1
+layout when$Core_3$111_21
+  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_3$111_21$busy~in0 kind=const pins=const$asg$when$Core_3$111_21$busy~in0:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  edge _T_1~in0 -> io_out_ready
+  edge _T_1~in1 -> io_out_valid
+  edge busy -> const$asg$when$Core_3$111_21$busy~in0
+layout when$Core_3$88_20
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node acc kind=boundary pins=acc:WEST
+  node acc_2 kind=boundary pins=acc_2:EAST
+  node alu_io_a kind=boundary pins=alu_io_a:WEST
+  node alu_io_b kind=boundary pins=alu_io_b:WEST
+  node alu_io_op kind=boundary pins=alu_io_op:WEST
+  node alu_io_out kind=boundary pins=alu_io_out:EAST
+  node busy kind=boundary pins=busy:WEST
+  node const$asg$when$Core_3$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_3$88_20$alu_io_b~in1:EAST
+  node const$asg$when$Core_3$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_3$88_20$alu_io_op~in0:EAST
+  node const$asg$when$Core_3$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_3$88_20$alu_io_op~in1:EAST
+  node const$asg$when$Core_3$88_20$busy~in0 kind=const pins=const$asg$when$Core_3$88_20$busy~in0:EAST
+  node const$asg$when$Core_3$88_20$rf_io_waddr~in0 kind=const pins=const$asg$when$Core_3$88_20$rf_io_waddr~in0:EAST
+  node const$asg$when$Core_3$88_20$rf_io_waddr~in1 kind=const pins=const$asg$when$Core_3$88_20$rf_io_waddr~in1:EAST
+  node const$asg$when$Core_3$88_20$rf_io_wdata~in1 kind=const pins=const$asg$when$Core_3$88_20$rf_io_wdata~in1:EAST
+  node const$asg$when$Core_3$88_20$rf_io_wen~in0 kind=const pins=const$asg$when$Core_3$88_20$rf_io_wen~in0:EAST
+  node const$asg$when$Core_3$88_20$rf_io_wen~in1 kind=const pins=const$asg$when$Core_3$88_20$rf_io_wen~in1:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_ready kind=boundary pins=io_in_ready:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rf_io_waddr kind=boundary pins=rf_io_waddr:WEST
+  node rf_io_wdata kind=boundary pins=rf_io_wdata:WEST
+  node rf_io_wen kind=boundary pins=rf_io_wen:WEST
+  edge _T~in0 -> io_in_ready
+  edge _T~in1 -> io_in_valid
+  edge acc -> alu_io_out
+  edge alu_io_a -> acc_2
+  edge alu_io_b -> const$asg$when$Core_3$88_20$alu_io_b~in1
+  edge alu_io_b -> io_in_bits_data
+  edge alu_io_op -> const$asg$when$Core_3$88_20$alu_io_op~in0
+  edge alu_io_op -> const$asg$when$Core_3$88_20$alu_io_op~in1
+  edge busy -> const$asg$when$Core_3$88_20$busy~in0
+  edge rf_io_waddr -> const$asg$when$Core_3$88_20$rf_io_waddr~in0
+  edge rf_io_waddr -> const$asg$when$Core_3$88_20$rf_io_waddr~in1
+  edge rf_io_wdata -> alu_io_out
+  edge rf_io_wdata -> const$asg$when$Core_3$88_20$rf_io_wdata~in1
+  edge rf_io_wen -> const$asg$when$Core_3$88_20$rf_io_wen~in0
+  edge rf_io_wen -> const$asg$when$Core_3$88_20$rf_io_wen~in1
+layout when$RegFile$65_16
+  node cond kind=boundary pins=cond:EAST
+  node io_wdata kind=boundary pins=io_wdata:EAST
+  node mem_MPORT_w kind=boundary pins=mem_MPORT_w:WEST
+  edge mem_MPORT_w -> io_wdata
 layoutOf ALU_1 -> ALU
 layoutOf ALU_2 -> ALU
 layoutOf ALU_3 -> ALU
-layoutOf Cluster_1 -> Cluster
-layoutOf Core_1 -> Core
-layoutOf Core_2 -> Core
-layoutOf Core_3 -> Core
-layoutOf RegFile_1 -> RegFile
-layoutOf RegFile_2 -> RegFile
-layoutOf RegFile_3 -> RegFile
+layoutOf when$Cluster_1$139_20 -> when$Cluster$139_20
+layoutOf when$Cluster_1$152_21 -> when$Cluster$152_21
+layoutOf when$RegFile_1$65_16 -> when$RegFile$65_16
+layoutOf when$RegFile_2$65_16 -> when$RegFile$65_16
+layoutOf when$RegFile_3$65_16 -> when$RegFile$65_16

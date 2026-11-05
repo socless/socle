@@ -104,52 +104,8 @@
           }
         },
         {
-          "from": "mux$busy~in1",
-          "to": "const$mux$busy~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$busy$1~in1",
-          "to": "const$mux$busy$1~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$busy$1~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_2~in1",
+          "from": "when$GCD$43_25._T_1",
           "to": "_T_1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$busy~in0",
-          "to": "_T_4",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -161,28 +117,6 @@
         {
           "from": "_io_out_valid_T_1~in1",
           "to": "_io_out_valid_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "busy",
-          "to": "mux$busy",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$busy~in2",
-          "to": "mux$busy$1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -216,8 +150,20 @@
           "fieldLevel": true
         },
         {
+          "from": "busy",
+          "to": "when$GCD$36_20.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 50,
+            "col": 28
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "x",
-          "to": "_x_T",
+          "to": "when$GCD$36_20.x",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -229,7 +175,7 @@
         },
         {
           "from": "y",
-          "to": "_y_T",
+          "to": "when$GCD$36_20.y",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -240,7 +186,43 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_2~in0",
+          "from": "x",
+          "to": "when$GCD$43_25.x",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "y",
+          "to": "when$GCD$43_25.y",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "busy",
+          "to": "when$GCD$50_21.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 50,
+            "col": 28
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$GCD$43_25.busy",
           "to": "busy~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -276,43 +258,31 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$busy$1~in2",
-          "to": "busy~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "x",
+          "from": "when$GCD$36_20.io_in_bits_a",
           "to": "io.in.bits.a",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 44,
-            "col": 21
+            "line": 37,
+            "col": 10
           },
           "fieldLevel": true
         },
         {
-          "from": "y",
+          "from": "when$GCD$36_20.io_in_bits_b",
           "to": "io.in.bits.b",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 44,
-            "col": 46
+            "line": 38,
+            "col": 10
           },
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "when$GCD$36_20.io_in_ready",
           "to": "io.in.ready",
           "bundle": "Decoupled_in",
           "label": "",
@@ -324,7 +294,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$GCD$36_20.io_in_valid",
           "to": "io.in.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -336,7 +306,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_4~in0",
+          "from": "when$GCD$50_21.io_out_ready",
           "to": "io.out.ready",
           "bundle": "Decoupled_out",
           "label": "",
@@ -348,7 +318,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_4~in1",
+          "from": "when$GCD$50_21.io_out_valid",
           "to": "io.out.valid",
           "bundle": "Decoupled_out",
           "label": "",
@@ -372,7 +342,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_3~in0",
+          "from": "when$GCD$43_25.x_2",
           "to": "x~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -385,30 +355,6 @@
         },
         {
           "from": "_io_out_valid_T~in0",
-          "to": "x~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_x_T~in0",
-          "to": "x~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_y_T~in1",
           "to": "x~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -444,7 +390,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_3~in1",
+          "from": "when$GCD$43_25.y_2",
           "to": "y~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -457,30 +403,6 @@
         },
         {
           "from": "_io_out_valid_T~in1",
-          "to": "y~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_x_T~in1",
-          "to": "y~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_y_T~in0",
           "to": "y~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -543,28 +465,6 @@
           }
         },
         {
-          "id": "const$mux$busy~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$busy$1~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "_io_in_ready_T",
           "kind": "op",
           "label": "eq",
@@ -575,18 +475,6 @@
             "col": 18
           },
           "op": "eq"
-        },
-        {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
         },
         {
           "id": "_T_1",
@@ -601,17 +489,346 @@
           "op": "neq"
         },
         {
-          "id": "_T_2",
+          "id": "_io_out_valid_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 48,
+            "col": 36
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_io_out_valid_T_1",
           "kind": "op",
           "label": "and",
           "bundle": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 43,
-            "col": 13
+            "line": 48,
+            "col": 30
           },
           "op": "and"
         },
+        {
+          "id": "when$GCD$50_21",
+          "kind": "block",
+          "label": "when(io.out.fire)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 50,
+            "col": 21
+          }
+        },
+        {
+          "id": "when$GCD$43_25",
+          "kind": "block",
+          "label": "when(busy && x =/= y)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 43,
+            "col": 25
+          }
+        },
+        {
+          "id": "when$GCD$36_20",
+          "kind": "block",
+          "label": "when(io.in.fire)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 36,
+            "col": 20
+          }
+        }
+      ]
+    }
+  ],
+  "layoutConsts": {
+    "headerH": 28,
+    "portStep": 24,
+    "portPad": 18
+  },
+  "regions": {
+    "when$GCD$50_21": {
+      "name": "when$GCD$50_21",
+      "type": "when$GCD$50_21",
+      "doc": "",
+      "source": {
+        "file": "example/src/gcd/GCD.scala",
+        "line": 50,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "busy",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_out_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.ready"
+        },
+        {
+          "name": "io_out_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.valid"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$GCD$50_21.busy",
+          "to": "const$asg$when$GCD$50_21$busy~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 50,
+            "col": 28
+          }
+        },
+        {
+          "from": "_T_4~in0",
+          "to": "when$GCD$50_21.io_out_ready",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_4~in1",
+          "to": "when$GCD$50_21.io_out_valid",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$GCD$50_21$busy~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T_4",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        }
+      ]
+    },
+    "when$GCD$44_17": {
+      "name": "when$GCD$44_17",
+      "type": "when$GCD$44_17",
+      "doc": "",
+      "source": {
+        "file": "example/src/gcd/GCD.scala",
+        "line": 44,
+        "col": 17
+      },
+      "ports": [
+        {
+          "name": "x",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "y",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "x_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "x"
+        },
+        {
+          "name": "y_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "y"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$GCD$44_17.x",
+          "to": "_x_T",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 21
+          }
+        },
+        {
+          "from": "when$GCD$44_17.y",
+          "to": "_y_T",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          }
+        },
+        {
+          "from": "_T_3~in0",
+          "to": "when$GCD$44_17.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_x_T~in0",
+          "to": "when$GCD$44_17.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_y_T~in1",
+          "to": "when$GCD$44_17.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_3~in1",
+          "to": "when$GCD$44_17.y_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_x_T~in1",
+          "to": "when$GCD$44_17.y_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_y_T~in0",
+          "to": "when$GCD$44_17.y_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
         {
           "id": "_T_3",
           "kind": "op",
@@ -647,33 +864,366 @@
             "col": 51
           },
           "op": "sub"
+        }
+      ]
+    },
+    "when$GCD$43_25": {
+      "name": "when$GCD$43_25",
+      "type": "when$GCD$43_25",
+      "doc": "",
+      "source": {
+        "file": "example/src/gcd/GCD.scala",
+        "line": 43,
+        "col": 25
+      },
+      "ports": [
+        {
+          "name": "x",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
         },
         {
-          "id": "_io_out_valid_T",
-          "kind": "op",
-          "label": "eq",
+          "name": "y",
+          "dir": "out",
           "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "_T_1",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "busy",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "x_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "x"
+        },
+        {
+          "name": "y_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "y"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_T_2~in1",
+          "to": "when$GCD$43_25._T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$GCD$43_25.x",
+          "to": "when$GCD$44_17.x",
+          "bundle": "UInt<16>",
+          "label": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 48,
-            "col": 36
+            "line": 44,
+            "col": 21
           },
-          "op": "eq"
+          "fieldLevel": true
         },
         {
-          "id": "_io_out_valid_T_1",
+          "from": "when$GCD$43_25.y",
+          "to": "when$GCD$44_17.y",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_2~in0",
+          "to": "when$GCD$43_25.busy",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$GCD$44_17.x_2",
+          "to": "when$GCD$43_25.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$GCD$44_17.y_2",
+          "to": "when$GCD$43_25.y_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "_T_2",
           "kind": "op",
           "label": "and",
           "bundle": "",
           "source": {
             "file": "example/src/gcd/GCD.scala",
-            "line": 48,
-            "col": 30
+            "line": 43,
+            "col": 13
           },
           "op": "and"
         },
         {
-          "id": "_T_4",
+          "id": "when$GCD$44_17",
+          "kind": "block",
+          "label": "when(x > y)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 17
+          }
+        }
+      ]
+    },
+    "when$GCD$36_20": {
+      "name": "when$GCD$36_20",
+      "type": "when$GCD$36_20",
+      "doc": "",
+      "source": {
+        "file": "example/src/gcd/GCD.scala",
+        "line": 36,
+        "col": 20
+      },
+      "ports": [
+        {
+          "name": "busy",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "x",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "y",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_in_bits_a",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.a"
+        },
+        {
+          "name": "io_in_bits_b",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.b"
+        },
+        {
+          "name": "io_in_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.ready"
+        },
+        {
+          "name": "io_in_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.valid"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$GCD$36_20.busy",
+          "to": "const$asg$when$GCD$36_20$busy~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 39,
+            "col": 10
+          }
+        },
+        {
+          "from": "when$GCD$36_20.x",
+          "to": "when$GCD$36_20.io_in_bits_a",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 37,
+            "col": 10
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$GCD$36_20.y",
+          "to": "when$GCD$36_20.io_in_bits_b",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 38,
+            "col": 10
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$GCD$36_20.io_in_ready",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$GCD$36_20.io_in_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$GCD$36_20$busy~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
           "kind": "op",
           "label": "and",
           "bundle": "",
@@ -683,37 +1233,8 @@
             "col": 35
           },
           "op": "and"
-        },
-        {
-          "id": "mux$busy",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$busy$1",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
         }
       ]
     }
-  ],
-  "layoutConsts": {
-    "headerH": 28,
-    "portStep": 24,
-    "portPad": 18
   }
 }

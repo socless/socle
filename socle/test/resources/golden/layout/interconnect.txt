@@ -74,37 +74,71 @@ layout Aggregator
   edge selIdx~in1 -> const$selIdx~in1
   edge selIdx~in2 -> _selIdx_T
 layout Endpoint
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _io_req_ready_T kind=op pins=_io_req_ready_T:EAST,_io_req_ready_T~in0:WEST,_io_req_ready_T~in1:WEST
   node const$_io_req_ready_T~in1 kind=const pins=const$_io_req_ready_T~in1:EAST
-  node const$mux$valid$1~in1 kind=const pins=const$mux$valid$1~in1:EAST
-  node const$mux$valid~in1 kind=const pins=const$mux$valid~in1:EAST
   node io.ack kind=boundary pins=io.ack:WEST
   node io.busy kind=boundary pins=io.busy:WEST
   node io.req kind=boundary pins=io.req:EAST:iface
-  node mux$reg kind=op pins=mux$reg:EAST,mux$reg~in0:WEST,mux$reg~in1:WEST,mux$reg~in2:WEST
-  node mux$valid kind=op pins=mux$valid:EAST,mux$valid~in0:WEST,mux$valid~in1:WEST,mux$valid~in2:WEST
-  node mux$valid$1 kind=op pins=mux$valid$1:EAST,mux$valid$1~in0:WEST,mux$valid$1~in1:WEST,mux$valid$1~in2:WEST
-  node reg kind=reg pins=reg:WEST,reg~q:EAST
+  node reg kind=reg pins=reg:WEST
   node valid kind=reg pins=valid:WEST,valid~q:EAST
-  edge _T~in0 -> io.req
-  edge _T~in1 -> io.req
+  node when$Endpoint$56_21 kind=block pins=when$Endpoint$56_21.io_req_bits_data_data:WEST,when$Endpoint$56_21.io_req_ready:WEST,when$Endpoint$56_21.io_req_valid:WEST,when$Endpoint$56_21.reg:EAST,when$Endpoint$56_21.valid:EAST
+  node when$Endpoint$60_15 kind=block pins=when$Endpoint$60_15.cond:WEST,when$Endpoint$60_15.valid:EAST
   edge _io_req_ready_T~in0 -> valid~q
   edge _io_req_ready_T~in1 -> const$_io_req_ready_T~in1
   edge io.ack -> valid~q
   edge io.busy -> valid~q
   edge io.req -> _io_req_ready_T
-  edge mux$reg~in0 -> _T
-  edge mux$reg~in1 -> io.req
-  edge mux$reg~in2 -> reg~q
-  edge mux$valid$1~in0 -> _T
-  edge mux$valid$1~in1 -> const$mux$valid$1~in1
-  edge mux$valid$1~in2 -> valid~q
-  edge mux$valid~in0 -> valid~q
-  edge mux$valid~in1 -> const$mux$valid~in1
-  edge mux$valid~in2 -> mux$valid$1
-  edge reg -> mux$reg
-  edge valid -> mux$valid
+  edge reg -> when$Endpoint$56_21.reg
+  edge valid -> when$Endpoint$56_21.valid
+  edge valid -> when$Endpoint$60_15.valid
+  edge when$Endpoint$56_21.io_req_bits_data_data -> io.req
+  edge when$Endpoint$56_21.io_req_ready -> io.req
+  edge when$Endpoint$56_21.io_req_valid -> io.req
+  edge when$Endpoint$60_15.cond -> valid~q
+layout Endpoint_1
+  node _io_req_ready_T kind=op pins=_io_req_ready_T:EAST,_io_req_ready_T~in0:WEST,_io_req_ready_T~in1:WEST
+  node const$_io_req_ready_T~in1 kind=const pins=const$_io_req_ready_T~in1:EAST
+  node io.ack kind=boundary pins=io.ack:WEST
+  node io.busy kind=boundary pins=io.busy:WEST
+  node io.req kind=boundary pins=io.req:EAST:iface
+  node reg kind=reg pins=reg:WEST
+  node valid kind=reg pins=valid:WEST,valid~q:EAST
+  node when$Endpoint_1$56_21 kind=block pins=when$Endpoint_1$56_21.io_req_bits_data_data:WEST,when$Endpoint_1$56_21.io_req_ready:WEST,when$Endpoint_1$56_21.io_req_valid:WEST,when$Endpoint_1$56_21.reg:EAST,when$Endpoint_1$56_21.valid:EAST
+  node when$Endpoint_1$60_15 kind=block pins=when$Endpoint_1$60_15.cond:WEST,when$Endpoint_1$60_15.valid:EAST
+  edge _io_req_ready_T~in0 -> valid~q
+  edge _io_req_ready_T~in1 -> const$_io_req_ready_T~in1
+  edge io.ack -> valid~q
+  edge io.busy -> valid~q
+  edge io.req -> _io_req_ready_T
+  edge reg -> when$Endpoint_1$56_21.reg
+  edge valid -> when$Endpoint_1$56_21.valid
+  edge valid -> when$Endpoint_1$60_15.valid
+  edge when$Endpoint_1$56_21.io_req_bits_data_data -> io.req
+  edge when$Endpoint_1$56_21.io_req_ready -> io.req
+  edge when$Endpoint_1$56_21.io_req_valid -> io.req
+  edge when$Endpoint_1$60_15.cond -> valid~q
+layout Endpoint_2
+  node _io_req_ready_T kind=op pins=_io_req_ready_T:EAST,_io_req_ready_T~in0:WEST,_io_req_ready_T~in1:WEST
+  node const$_io_req_ready_T~in1 kind=const pins=const$_io_req_ready_T~in1:EAST
+  node io.ack kind=boundary pins=io.ack:WEST
+  node io.busy kind=boundary pins=io.busy:WEST
+  node io.req kind=boundary pins=io.req:EAST:iface
+  node reg kind=reg pins=reg:WEST
+  node valid kind=reg pins=valid:WEST,valid~q:EAST
+  node when$Endpoint_2$56_21 kind=block pins=when$Endpoint_2$56_21.io_req_bits_data_data:WEST,when$Endpoint_2$56_21.io_req_ready:WEST,when$Endpoint_2$56_21.io_req_valid:WEST,when$Endpoint_2$56_21.reg:EAST,when$Endpoint_2$56_21.valid:EAST
+  node when$Endpoint_2$60_15 kind=block pins=when$Endpoint_2$60_15.cond:WEST,when$Endpoint_2$60_15.valid:EAST
+  edge _io_req_ready_T~in0 -> valid~q
+  edge _io_req_ready_T~in1 -> const$_io_req_ready_T~in1
+  edge io.ack -> valid~q
+  edge io.busy -> valid~q
+  edge io.req -> _io_req_ready_T
+  edge reg -> when$Endpoint_2$56_21.reg
+  edge valid -> when$Endpoint_2$56_21.valid
+  edge valid -> when$Endpoint_2$60_15.valid
+  edge when$Endpoint_2$56_21.io_req_bits_data_data -> io.req
+  edge when$Endpoint_2$56_21.io_req_ready -> io.req
+  edge when$Endpoint_2$56_21.io_req_valid -> io.req
+  edge when$Endpoint_2$60_15.cond -> valid~q
 layout Interconnect
   node agg kind=inst pins=agg.io.in:WEST:iface,agg.io.out:EAST:iface
   node const$agg_io_in_0__valid kind=const pins=const$agg_io_in_0__valid:EAST
@@ -249,7 +283,56 @@ layout Queue2_SocPayload
   edge wrap_1~in1 -> const$wrap_1~in1
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
-layoutOf Endpoint_1 -> Endpoint
-layoutOf Endpoint_2 -> Endpoint
+layout when$Endpoint$56_21
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node const$asg$when$Endpoint$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint$56_21$valid~in0:EAST
+  node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
+  node io_req_ready kind=boundary pins=io_req_ready:EAST
+  node io_req_valid kind=boundary pins=io_req_valid:EAST
+  node reg kind=boundary pins=reg:WEST
+  node valid kind=boundary pins=valid:WEST
+  edge _T~in0 -> io_req_ready
+  edge _T~in1 -> io_req_valid
+  edge reg -> io_req_bits_data_data
+  edge valid -> const$asg$when$Endpoint$56_21$valid~in0
+layout when$Endpoint$60_15
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$Endpoint$60_15$valid~in0 kind=const pins=const$asg$when$Endpoint$60_15$valid~in0:EAST
+  node valid kind=boundary pins=valid:WEST
+  edge valid -> const$asg$when$Endpoint$60_15$valid~in0
+layout when$Endpoint_1$56_21
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node const$asg$when$Endpoint_1$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint_1$56_21$valid~in0:EAST
+  node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
+  node io_req_ready kind=boundary pins=io_req_ready:EAST
+  node io_req_valid kind=boundary pins=io_req_valid:EAST
+  node reg kind=boundary pins=reg:WEST
+  node valid kind=boundary pins=valid:WEST
+  edge _T~in0 -> io_req_ready
+  edge _T~in1 -> io_req_valid
+  edge reg -> io_req_bits_data_data
+  edge valid -> const$asg$when$Endpoint_1$56_21$valid~in0
+layout when$Endpoint_1$60_15
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$Endpoint_1$60_15$valid~in0 kind=const pins=const$asg$when$Endpoint_1$60_15$valid~in0:EAST
+  node valid kind=boundary pins=valid:WEST
+  edge valid -> const$asg$when$Endpoint_1$60_15$valid~in0
+layout when$Endpoint_2$56_21
+  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node const$asg$when$Endpoint_2$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint_2$56_21$valid~in0:EAST
+  node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
+  node io_req_ready kind=boundary pins=io_req_ready:EAST
+  node io_req_valid kind=boundary pins=io_req_valid:EAST
+  node reg kind=boundary pins=reg:WEST
+  node valid kind=boundary pins=valid:WEST
+  edge _T~in0 -> io_req_ready
+  edge _T~in1 -> io_req_valid
+  edge reg -> io_req_bits_data_data
+  edge valid -> const$asg$when$Endpoint_2$56_21$valid~in0
+layout when$Endpoint_2$60_15
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$Endpoint_2$60_15$valid~in0 kind=const pins=const$asg$when$Endpoint_2$60_15$valid~in0:EAST
+  node valid kind=boundary pins=valid:WEST
+  edge valid -> const$asg$when$Endpoint_2$60_15$valid~in0
 layoutOf Queue2_SocPayload_1 -> Queue2_SocPayload
 layoutOf Queue2_SocPayload_2 -> Queue2_SocPayload

@@ -4,21 +4,17 @@ layout LayeredCounter
   node _T_2 kind=op pins=_T_2~in0:WEST,_T_2~in1:WEST
   node _T_3 kind=op pins=_T_3~in0:WEST,_T_3~in1:WEST
   node _T_4 kind=op pins=_T_4~in0:WEST,_T_4~in1:WEST
-  node _count_T kind=op pins=_count_T:EAST,_count_T~in0:WEST,_count_T~in1:WEST
-  node _count_T_2 kind=op pins=_count_T_2:EAST,_count_T_2~in0:WEST,_count_T_2~in1:WEST,_count_T_2~in2:WEST
   node const$_T_1~in1 kind=const pins=const$_T_1~in1:EAST
   node const$_T_2~in1 kind=const pins=const$_T_2~in1:EAST
   node const$_T_3~in1 kind=const pins=const$_T_3~in1:EAST
   node const$_T_4~in1 kind=const pins=const$_T_4~in1:EAST
-  node const$_count_T_2~in1 kind=const pins=const$_count_T_2~in1:EAST
-  node const$_count_T~in1 kind=const pins=const$_count_T~in1:EAST
   node count kind=reg pins=count:WEST,count~q:EAST
   node io.count kind=boundary pins=io.count:WEST
   node io.en kind=boundary pins=io.en:EAST
   node io.limit kind=boundary pins=io.limit:EAST
   node io.wrap kind=boundary pins=io.wrap:WEST
-  node mux$count kind=op pins=mux$count:EAST,mux$count~in0:WEST,mux$count~in1:WEST,mux$count~in2:WEST
   node reset kind=boundary pins=reset:EAST
+  node when$LayeredCounter$29_15 kind=block pins=when$LayeredCounter$29_15.cond:WEST,when$LayeredCounter$29_15.count:EAST,when$LayeredCounter$29_15.count_2:WEST,when$LayeredCounter$29_15.wrap:WEST
   node wrap kind=op pins=wrap:EAST,wrap~in0:WEST,wrap~in1:WEST
   edge _T_1~in0 -> reset
   edge _T_1~in1 -> const$_T_1~in1
@@ -30,16 +26,26 @@ layout LayeredCounter
   edge _T_4~in1 -> const$_T_4~in1
   edge _T~in0 -> count~q
   edge _T~in1 -> io.limit
+  edge count -> when$LayeredCounter$29_15.count
+  edge io.count -> count~q
+  edge io.wrap -> wrap
+  edge when$LayeredCounter$29_15.cond -> io.en
+  edge when$LayeredCounter$29_15.count_2 -> count~q
+  edge when$LayeredCounter$29_15.wrap -> wrap
+  edge wrap~in0 -> count~q
+  edge wrap~in1 -> io.limit
+layout when$LayeredCounter$29_15
+  node _count_T kind=op pins=_count_T:EAST,_count_T~in0:WEST,_count_T~in1:WEST
+  node _count_T_2 kind=op pins=_count_T_2:EAST,_count_T_2~in0:WEST,_count_T_2~in1:WEST,_count_T_2~in2:WEST
+  node cond kind=boundary pins=cond:EAST
+  node const$_count_T_2~in1 kind=const pins=const$_count_T_2~in1:EAST
+  node const$_count_T~in1 kind=const pins=const$_count_T~in1:EAST
+  node count kind=boundary pins=count:WEST
+  node count_2 kind=boundary pins=count_2:EAST
+  node wrap kind=boundary pins=wrap:EAST
   edge _count_T_2~in0 -> wrap
   edge _count_T_2~in1 -> const$_count_T_2~in1
   edge _count_T_2~in2 -> _count_T
-  edge _count_T~in0 -> count~q
+  edge _count_T~in0 -> count_2
   edge _count_T~in1 -> const$_count_T~in1
-  edge count -> mux$count
-  edge io.count -> count~q
-  edge io.wrap -> wrap
-  edge mux$count~in0 -> io.en
-  edge mux$count~in1 -> _count_T_2
-  edge mux$count~in2 -> count~q
-  edge wrap~in0 -> count~q
-  edge wrap~in1 -> io.limit
+  edge count -> _count_T_2

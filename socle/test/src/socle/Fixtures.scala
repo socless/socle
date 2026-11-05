@@ -22,4 +22,15 @@ object Fixtures {
     "fsm.fir"          -> "fsm",
     "layers.fir"       -> "layers",
   )
+
+  /** The repo root: `socle/test/resources` (holding /chirrtl) is three levels below it.
+    * Fixture markers (`example/src/...`) resolve against it. */
+  def repoRoot: os.Path = {
+    val url = getClass.getResource("/chirrtl")
+    require(url != null, "classpath resource /chirrtl not found")
+    os.Path(new java.io.File(url.toURI)) / os.up / os.up / os.up / os.up
+  }
+
+  /** Source lines of the example sources the fixtures' markers point at. */
+  def lines: SourceLines = SourceLines.fromRoot(repoRoot)
 }

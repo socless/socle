@@ -1586,17 +1586,6 @@
           }
         },
         {
-          "from": "_idCnt_T~in1",
-          "to": "const$_idCnt_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "io.b",
           "to": "const$io_b_ready",
           "bundle": "Decoupled_b",
@@ -1619,42 +1608,20 @@
           }
         },
         {
-          "from": "mux$idCnt~in0",
-          "to": "_T",
-          "bundle": "Wire",
+          "from": "idCnt",
+          "to": "when$AXIMaster$43_21.idCnt",
+          "bundle": "UInt<4>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$idCnt~in1",
-          "to": "_idCnt_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
           }
         },
         {
           "from": "txQ.clock",
           "to": "clock",
           "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "idCnt",
-          "to": "mux$idCnt",
-          "bundle": "UInt<4>",
           "label": "",
           "source": {
             "file": "",
@@ -1758,7 +1725,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_idCnt_T~in0",
+          "from": "when$AXIMaster$43_21.idCnt_2",
           "to": "idCnt~q",
           "bundle": "UInt<4>",
           "label": "",
@@ -1782,19 +1749,7 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$idCnt~in2",
-          "to": "idCnt~q",
-          "bundle": "UInt<4>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T~in0",
+          "from": "when$AXIMaster$43_21.io_ar_ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -1818,7 +1773,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$AXIMaster$43_21.io_ar_valid",
           "to": "io.ar.valid",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -1938,17 +1893,6 @@
           }
         },
         {
-          "id": "const$_idCnt_T~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "const$io_ar_bits_burst",
           "kind": "const",
           "label": "0h1",
@@ -2004,40 +1948,15 @@
           }
         },
         {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
-        },
-        {
-          "id": "_idCnt_T",
-          "kind": "op",
-          "label": "add",
+          "id": "when$AXIMaster$43_21",
+          "kind": "block",
+          "label": "when (io.ar.fire)",
           "bundle": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 43,
-            "col": 38
-          },
-          "op": "add"
-        },
-        {
-          "id": "mux$idCnt",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "col": 21
+          }
         }
       ]
     },
@@ -3416,17 +3335,6 @@
           }
         },
         {
-          "from": "_idCnt_T~in1",
-          "to": "const$_idCnt_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "io.b",
           "to": "const$io_b_ready",
           "bundle": "Decoupled_b",
@@ -3449,42 +3357,20 @@
           }
         },
         {
-          "from": "mux$idCnt~in0",
-          "to": "_T",
-          "bundle": "Wire",
+          "from": "idCnt",
+          "to": "when$AXIMaster_1$43_21.idCnt",
+          "bundle": "UInt<4>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$idCnt~in1",
-          "to": "_idCnt_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
           }
         },
         {
           "from": "txQ.clock",
           "to": "clock",
           "bundle": "Clock",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "idCnt",
-          "to": "mux$idCnt",
-          "bundle": "UInt<4>",
           "label": "",
           "source": {
             "file": "",
@@ -3588,7 +3474,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_idCnt_T~in0",
+          "from": "when$AXIMaster_1$43_21.idCnt_2",
           "to": "idCnt~q",
           "bundle": "UInt<4>",
           "label": "",
@@ -3612,19 +3498,7 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$idCnt~in2",
-          "to": "idCnt~q",
-          "bundle": "UInt<4>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T~in0",
+          "from": "when$AXIMaster_1$43_21.io_ar_ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -3648,7 +3522,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$AXIMaster_1$43_21.io_ar_valid",
           "to": "io.ar.valid",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -3768,17 +3642,6 @@
           }
         },
         {
-          "id": "const$_idCnt_T~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "const$io_ar_bits_burst",
           "kind": "const",
           "label": "0h1",
@@ -3834,40 +3697,15 @@
           }
         },
         {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
-        },
-        {
-          "id": "_idCnt_T",
-          "kind": "op",
-          "label": "add",
+          "id": "when$AXIMaster_1$43_21",
+          "kind": "block",
+          "label": "when (io.ar.fire)",
           "bundle": "",
           "source": {
             "file": "example/src/axisystem/AXISystem.scala",
             "line": 43,
-            "col": 38
-          },
-          "op": "add"
-        },
-        {
-          "id": "mux$idCnt",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "col": 21
+          }
         }
       ]
     },
@@ -7391,5 +7229,331 @@
       "count": 1,
       "message": "1 unconnected port(s): AXISystem.io"
     }
-  ]
+  ],
+  "regions": {
+    "when$AXIMaster$43_21": {
+      "name": "when$AXIMaster$43_21",
+      "type": "when$AXIMaster$43_21",
+      "doc": "",
+      "source": {
+        "file": "example/src/axisystem/AXISystem.scala",
+        "line": 43,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "idCnt",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "idCnt_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "idCnt"
+        },
+        {
+          "name": "io_ar_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.ready"
+        },
+        {
+          "name": "io_ar_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.valid"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_idCnt_T~in1",
+          "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$AXIMaster$43_21.idCnt",
+          "to": "_idCnt_T",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
+          }
+        },
+        {
+          "from": "_idCnt_T~in0",
+          "to": "when$AXIMaster$43_21.idCnt_2",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$AXIMaster$43_21.io_ar_ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$AXIMaster$43_21.io_ar_valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$_idCnt_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_idCnt_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 38
+          },
+          "op": "add"
+        }
+      ]
+    },
+    "when$AXIMaster_1$43_21": {
+      "name": "when$AXIMaster_1$43_21",
+      "type": "when$AXIMaster_1$43_21",
+      "doc": "",
+      "source": {
+        "file": "example/src/axisystem/AXISystem.scala",
+        "line": 43,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "idCnt",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "idCnt_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "idCnt"
+        },
+        {
+          "name": "io_ar_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.ready"
+        },
+        {
+          "name": "io_ar_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.valid"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_idCnt_T~in1",
+          "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$AXIMaster_1$43_21.idCnt",
+          "to": "_idCnt_T",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 29
+          }
+        },
+        {
+          "from": "_idCnt_T~in0",
+          "to": "when$AXIMaster_1$43_21.idCnt_2",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$AXIMaster_1$43_21.io_ar_ready",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$AXIMaster_1$43_21.io_ar_valid",
+          "bundle": "Decoupled_ar",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$_idCnt_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_idCnt_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/axisystem/AXISystem.scala",
+            "line": 43,
+            "col": 38
+          },
+          "op": "add"
+        }
+      ]
+    }
+  }
 }

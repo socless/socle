@@ -66,17 +66,6 @@
       "children": [],
       "wires": [
         {
-          "from": "state",
-          "to": "fsm$TrafficFsm$state.state",
-          "bundle": "UInt<2>",
-          "label": "3× ground connects",
-          "source": {
-            "file": "example/src/fsm/TrafficFsm.scala",
-            "line": 18,
-            "col": 41
-          }
-        },
-        {
           "from": "_io_green_T~in1",
           "to": "const$_io_green_T~in1",
           "bundle": "Wire",
@@ -100,7 +89,19 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$state.io_tick",
+          "from": "state",
+          "to": "fsm$TrafficFsm$15_17.state",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 41
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.io_tick",
           "to": "io.tick",
           "bundle": "UInt<1>",
           "label": "",
@@ -112,7 +113,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$state.state_q",
+          "from": "fsm$TrafficFsm$15_17.state_2",
           "to": "state~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -177,15 +178,16 @@
           "op": "eq"
         },
         {
-          "id": "fsm$TrafficFsm$state",
+          "id": "fsm$TrafficFsm$15_17",
           "kind": "fsm",
-          "label": "FSM: state",
+          "label": "switch(state)",
           "bundle": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 15,
+            "col": 17
+          },
+          "state": "state"
         }
       ]
     }
@@ -196,14 +198,215 @@
     "portPad": 18
   },
   "regions": {
-    "fsm$TrafficFsm$state": {
-      "name": "fsm$TrafficFsm$state",
-      "type": "fsm$TrafficFsm$state",
+    "when$TrafficFsm$18_33": {
+      "name": "when$TrafficFsm$18_33",
+      "type": "when$TrafficFsm$18_33",
       "doc": "",
       "source": {
-        "file": "",
-        "line": 0,
-        "col": 0
+        "file": "example/src/fsm/TrafficFsm.scala",
+        "line": 18,
+        "col": 33
+      },
+      "ports": [
+        {
+          "name": "state",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.tick"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$TrafficFsm$18_33.state",
+          "to": "const$asg$when$TrafficFsm$18_33$state~in0",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 41
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$TrafficFsm$18_33$state~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    },
+    "when$TrafficFsm$17_33": {
+      "name": "when$TrafficFsm$17_33",
+      "type": "when$TrafficFsm$17_33",
+      "doc": "",
+      "source": {
+        "file": "example/src/fsm/TrafficFsm.scala",
+        "line": 17,
+        "col": 33
+      },
+      "ports": [
+        {
+          "name": "state",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.tick"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$TrafficFsm$17_33.state",
+          "to": "const$asg$when$TrafficFsm$17_33$state~in0",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 17,
+            "col": 41
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$TrafficFsm$17_33$state~in0",
+          "kind": "const",
+          "label": "0h2",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    },
+    "when$TrafficFsm$16_33": {
+      "name": "when$TrafficFsm$16_33",
+      "type": "when$TrafficFsm$16_33",
+      "doc": "",
+      "source": {
+        "file": "example/src/fsm/TrafficFsm.scala",
+        "line": 16,
+        "col": 33
+      },
+      "ports": [
+        {
+          "name": "state",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.tick"
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$TrafficFsm$16_33.state",
+          "to": "const$asg$when$TrafficFsm$16_33$state~in0",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 16,
+            "col": 41
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$TrafficFsm$16_33$state~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    },
+    "fsm$TrafficFsm$15_17": {
+      "name": "fsm$TrafficFsm$15_17",
+      "type": "fsm$TrafficFsm$15_17",
+      "doc": "",
+      "source": {
+        "file": "example/src/fsm/TrafficFsm.scala",
+        "line": 15,
+        "col": 17
       },
       "ports": [
         {
@@ -226,10 +429,11 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
+          },
+          "label": "io.tick"
         },
         {
-          "name": "state_q",
+          "name": "state_2",
           "dir": "in",
           "bundle": "",
           "doc": "",
@@ -237,7 +441,8 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
+          },
+          "label": "state"
         }
       ],
       "children": [],
@@ -274,6 +479,114 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.state",
+          "to": "when$TrafficFsm$16_33.state",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 41
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.state",
+          "to": "when$TrafficFsm$17_33.state",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 41
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.state",
+          "to": "when$TrafficFsm$18_33.state",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 41
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$TrafficFsm$16_33.cond",
+          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$TrafficFsm$17_33.cond",
+          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$TrafficFsm$18_33.cond",
+          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "fsm$TrafficFsm$15_17.state_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_2~in1",
+          "to": "fsm$TrafficFsm$15_17.state_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "fsm$TrafficFsm$15_17.state_2",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -284,17 +597,6 @@
       "logic": [
         {
           "id": "const$_T~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$state",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -361,6 +663,39 @@
             "col": 17
           },
           "op": "eq"
+        },
+        {
+          "id": "when$TrafficFsm$18_33",
+          "kind": "block",
+          "label": "when(io.tick)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 18,
+            "col": 33
+          }
+        },
+        {
+          "id": "when$TrafficFsm$17_33",
+          "kind": "block",
+          "label": "when(io.tick)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 17,
+            "col": 33
+          }
+        },
+        {
+          "id": "when$TrafficFsm$16_33",
+          "kind": "block",
+          "label": "when(io.tick)",
+          "bundle": "",
+          "source": {
+            "file": "example/src/fsm/TrafficFsm.scala",
+            "line": 16,
+            "col": 33
+          }
         }
       ]
     }

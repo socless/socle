@@ -70,7 +70,7 @@ object LayoutStructureGoldenTest extends TestSuite {
   /** Render the structural summary of every layout in the design. */
   private def summarize(chirrtlFile: String): String =
     LayoutStructure.summarize(
-      Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(readFixture(chirrtlFile))))
+      Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(readFixture(chirrtlFile)), socle.Fixtures.lines))
     )
 
   private def goldenPath(name: String): java.io.File = {

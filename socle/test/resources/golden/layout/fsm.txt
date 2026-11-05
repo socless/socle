@@ -1,13 +1,28 @@
 layout TrafficFsm
   node _io_green_T kind=op pins=_io_green_T:EAST,_io_green_T~in0:WEST,_io_green_T~in1:WEST
   node const$_io_green_T~in1 kind=const pins=const$_io_green_T~in1:EAST
-  node fsm$TrafficFsm$state kind=fsm pins=fsm$TrafficFsm$state.io_tick:WEST,fsm$TrafficFsm$state.state:EAST,fsm$TrafficFsm$state.state_q:WEST
+  node fsm$TrafficFsm$15_17 kind=fsm pins=fsm$TrafficFsm$15_17.io_tick:WEST,fsm$TrafficFsm$15_17.state:EAST,fsm$TrafficFsm$15_17.state_2:WEST
   node io.green kind=boundary pins=io.green:WEST
   node io.tick kind=boundary pins=io.tick:EAST
   node state kind=reg pins=state:WEST,state~q:EAST
   edge _io_green_T~in0 -> state~q
   edge _io_green_T~in1 -> const$_io_green_T~in1
-  edge fsm$TrafficFsm$state.io_tick -> io.tick
-  edge fsm$TrafficFsm$state.state_q -> state~q
+  edge fsm$TrafficFsm$15_17.io_tick -> io.tick
+  edge fsm$TrafficFsm$15_17.state_2 -> state~q
   edge io.green -> _io_green_T
-  edge state -> fsm$TrafficFsm$state.state
+  edge state -> fsm$TrafficFsm$15_17.state
+layout when$TrafficFsm$16_33
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$TrafficFsm$16_33$state~in0 kind=const pins=const$asg$when$TrafficFsm$16_33$state~in0:EAST
+  node state kind=boundary pins=state:WEST
+  edge state -> const$asg$when$TrafficFsm$16_33$state~in0
+layout when$TrafficFsm$17_33
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$TrafficFsm$17_33$state~in0 kind=const pins=const$asg$when$TrafficFsm$17_33$state~in0:EAST
+  node state kind=boundary pins=state:WEST
+  edge state -> const$asg$when$TrafficFsm$17_33$state~in0
+layout when$TrafficFsm$18_33
+  node cond kind=boundary pins=cond:EAST
+  node const$asg$when$TrafficFsm$18_33$state~in0 kind=const pins=const$asg$when$TrafficFsm$18_33$state~in0:EAST
+  node state kind=boundary pins=state:WEST
+  edge state -> const$asg$when$TrafficFsm$18_33$state~in0

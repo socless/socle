@@ -38,7 +38,7 @@ object SocleExporter {
   ): Design = {
     val chirrtl   = elaborate(gen)
     val parsed    = ChirrtlParser.parse(chirrtl)
-    val core      = IrWalk.design(parsed)
+    val core      = IrWalk.design(parsed, linesOf(sourceRoot))
     val sources   = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     val design    = Layout.withLayouts(core.copy(
       sources    = sources,
@@ -89,8 +89,11 @@ object SocleExporter {
     * Chisel [[export]] path - so a design served from a `.fir` can show source
     * code too (issue #154). Absolute marker paths are read directly; relative
     * ones resolve under `sourceRoot`. */
+  private def linesOf(sourceRoot: Option[Path]): socle.ir.SourceLines =
+    sourceRoot.map(socle.ir.SourceLines.fromRoot).getOrElse(socle.ir.SourceLines.none)
+
   def designFromChirrtl(chirrtl: String, sourceRoot: Option[Path] = None): Design = {
-    val core    = IrWalk.design(ChirrtlParser.parse(chirrtl))
+    val core    = IrWalk.design(ChirrtlParser.parse(chirrtl), linesOf(sourceRoot))
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     Layout.withLayouts(core.copy(
       sources    = sources,

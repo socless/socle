@@ -39,7 +39,7 @@ object GoldenWriter {
       val text = try scala.io.Source.fromInputStream(s, "UTF-8").mkString finally s.close()
 
       val circ   = ChirrtlParser.parse(text)
-      val design = IrWalk.design(circ)
+      val design = IrWalk.design(circ, Fixtures.lines)
       val json   = upickle.default.write(design, indent = 2)
 
       val out = new java.io.File(goldenDir, s"$gname.json")
