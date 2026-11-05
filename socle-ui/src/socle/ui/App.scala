@@ -937,7 +937,12 @@ object App {
               onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)
           }
           path ++ fsm.toSeq.flatMap { id =>
-            val reg = id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id }
+            // The FSM box's register (`state`; it may sit in a block's body),
+            // else the one an older design's id names (`blk$<module>$fsm$<register>`).
+            val state = loader.currentDesign.toSeq
+              .flatMap(d => (d.modules.iterator.flatMap(_.logic) ++ d.regions.valuesIterator.flatMap(_.logic)).find(_.id == id))
+              .map(_.state).find(_.nonEmpty)
+            val reg = state.getOrElse(id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id })
             Seq(span(cls := "scl-crumb-sep", "›"),
               button(cls := "scl-crumb", cls.toggle("active") := true, dataAttr("crumb-fsm") := id,
                 title := "State diagram (Esc closes it)", s"FSM: $reg"))

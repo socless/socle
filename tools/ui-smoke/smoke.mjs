@@ -1006,7 +1006,7 @@ async function smokeDesignIn(design, ctx) {
   // a breadcrumb segment and a live reload that drops the block close it.
   if (design === 'fsm-view') {
     const where = 'fsm diagram';
-    const id = 'blk$TrafficFsm$fsm$state';
+    const id = 'fsm$TrafficFsm$15_17';
     const file = 'example/src/fsm/TrafficFsm.scala';
     const diag = `[data-fsm-diagram="${id}"]`;
     const ready = () => page.waitForSelector(`${diag}[data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);

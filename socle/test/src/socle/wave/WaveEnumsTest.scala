@@ -35,5 +35,20 @@ object WaveEnumsTest extends TestSuite {
         n.copy(fsm = n.fsm.map(d => d.copy(states = d.states.map(_.copy(value = "")))))))))
       assert(WaveEnums.tables(bare, Dut).isEmpty)
     }
+
+    test("an FSM inside a block box still names its states") {
+      val named = FsmDiagram(Seq(FsmState("idle", value = "0"), FsmState("run", value = "1")), Nil)
+      val fsmBox  = LogicNodeDef("fsm$M$5_3", NodeKind.Fsm, "switch(state)", "", SourceRef.unknown,
+        fsm = Some(named), state = "state")
+      val whenBox = LogicNodeDef("when$M$4_1", NodeKind.Block, "when(en)", "", SourceRef.unknown)
+      def body(id: String, logic: Seq[LogicNodeDef]) =
+        ModuleDef(id, id, "", SourceRef.unknown, Nil, Nil, Nil, Metrics(0, 0, 0), logic = logic)
+      val m = body("M", Seq(whenBox, LogicNodeDef("state", NodeKind.Reg, "state", "", SourceRef.unknown)))
+        .copy(signals = Seq(SignalDef("state", "reg", 1, SourceRef.unknown)))
+      val d = Design(top = "M", bundles = Map.empty, modules = Seq(m),
+        regions = Map(whenBox.id -> body(whenBox.id, Seq(fsmBox)), fsmBox.id -> body(fsmBox.id, Nil)))
+      assert(WaveEnums.tables(d, Dut) ==
+        Seq(WaveEnums.Table(s"$Dut.state", "state", Seq(BigInt(0) -> "idle", BigInt(1) -> "run"))))
+    }
   }
 }

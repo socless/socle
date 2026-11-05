@@ -15,23 +15,25 @@ object WaveEnums {
 
   def tables(design: Design, prefix: String): Seq[Table] = {
     val mods = design.modules.iterator.map(m => m.name -> m).toMap
-    def clean(id: String) = id.replaceAll("~[^.\\[]*", "")
-    // The FSMs of a module: (register, states with values).
-    def fsms(m: ModuleDef): Seq[(String, Seq[(BigInt, String)])] = m.logic.flatMap { n =>
-      for {
-        d   <- n.fsm.toSeq
-        reg <- register(m, n).toSeq
-        states = d.states.flatMap(s => scala.util.Try(BigInt(s.value)).toOption.map(_ -> s.name))
-        if states.nonEmpty
-      } yield (reg, states)
+    // The FSMs of a module, at its top level or inside its code-block boxes
+    // (an FSM under a `when`): (register, states with values).
+    def fsms(m: ModuleDef): Seq[(String, Seq[(BigInt, String)])] = {
+      val seen = scala.collection.mutable.Set.empty[String]
+      def nodes(logic: Seq[LogicNodeDef]): Seq[LogicNodeDef] = logic.flatMap { n =>
+        val inside =
+          if (NodeKind.isBox(n.kind) && seen.add(n.id)) design.regions.get(n.id).toSeq.flatMap(r => nodes(r.logic))
+          else Nil
+        n +: inside
+      }
+      nodes(m.logic).flatMap { n =>
+        for {
+          d <- n.fsm.toSeq
+          if n.state.nonEmpty
+          states = d.states.flatMap(s => scala.util.Try(BigInt(s.value)).toOption.map(_ -> s.name))
+          if states.nonEmpty
+        } yield (n.state, states)
+      }
     }
-    // The FSM box's state register: its region's register that is a signal of
-    // the module, else the one its id names (`blk$<module>$fsm$<register>`).
-    def register(m: ModuleDef, n: LogicNodeDef): Option[String] =
-      design.regions.get(n.id).flatMap { r =>
-        val regs = r.logic.filter(_.kind == NodeKind.Reg).map(l => clean(l.id))
-        regs.find(id => m.signals.exists(_.name == id)).orElse(regs.headOption)
-      }.orElse(Option(n.id.lastIndexOf("$fsm$")).filter(_ >= 0).map(i => n.id.substring(i + 5)))
     val out = Seq.newBuilder[Table]
     def walk(m: ModuleDef, path: List[String], depth: Int): Unit = if (depth < 64) {
       fsms(m).foreach { case (reg, states) => out += Table(WaveLayout.tracePath(prefix, path, reg), reg, states) }

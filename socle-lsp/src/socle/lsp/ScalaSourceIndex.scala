@@ -3,6 +3,7 @@ package socle.lsp
 import scala.meta._
 import scala.util.control.NonFatal
 import socle.capture.{Construct, FsmSource, SourceIndex}
+import socle.ir.SourceLines
 import socle.schema.SourceRef
 
 /** A [[SourceIndex]] over the Scala sources under `root`, parse-only
@@ -42,6 +43,16 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
   override def fsm(scalaClass: String, register: String, at: Option[SourceRef]): Option[FsmSource] =
     if (scalaClass.isEmpty || register.isEmpty) None
     else safe(lock.synchronized(findFsm(scalaClass, register).orElse(at.flatMap(fsmAt(register, _))))).flatten
+
+  /** The lines of the files under `root`, read through the same per-file
+    * cache as the parses (re-read when the file's modification time changes). */
+  override val lines: SourceLines = (file: String, line: Int) =>
+    if (line < 1) None
+    else safe(lock.synchronized(for {
+      path <- SocleLanguageServer.openTarget(file, root, Set.empty)
+      e    <- entryOf(path)
+      text <- e.lines.lift(line - 1)
+    } yield text)).flatten
 
   /** Makes the next workspace lookup re-list the files under `root`. */
   def refresh(): Unit = lock.synchronized { byName = None; owners = Map.empty }
@@ -91,13 +102,20 @@ final class ScalaSourceIndex(root: os.Path) extends SourceIndex {
     workspace.getOrElse(obj, Nil).filter(_.t.isObject).flatMap(p => p.index.fsm.get(p.t.id)).flatMap(_.chiselEnum)
 
   /** The file's index, re-parsed when its modification time changed. */
-  private def indexOf(path: os.Path): Option[FileIndex] = safe(os.mtime(path)).flatMap { mtime =>
-    entries.get(path).filter(_.mtime == mtime).getOrElse {
-      parses += 1
-      val e = Entry(mtime, safe(TestDiscovery.parse(os.read(path)).map(FileIndex(_))).flatten)
-      entries += path -> e
-      e
-    }.index
+  private def indexOf(path: os.Path): Option[FileIndex] = entryOf(path).flatMap(_.index)
+
+  /** The file's cache entry (its lines and its parse), renewed when its
+    * modification time changed; `None` when it cannot be read. */
+  private def entryOf(path: os.Path): Option[Entry] = safe(os.mtime(path)).flatMap { mtime =>
+    entries.get(path).filter(_.mtime == mtime).orElse {
+      safe(os.read(path)).map { text =>
+        parses += 1
+        val e = Entry(mtime, text.split("\n", -1).toIndexedSeq.map(_.stripSuffix("\r")),
+          safe(TestDiscovery.parse(text).map(FileIndex(_))).flatten)
+        entries += path -> e
+        e
+      }
+    }
   }
 
   /** Every class, trait and object of the workspace, by simple name. */
@@ -159,7 +177,7 @@ object ScalaSourceIndex {
   /** A template with the file that defines it and that file's index. */
   private final case class Placed(path: os.Path, index: FileIndex, t: Template0)
 
-  private final case class Entry(mtime: Long, index: Option[FileIndex])
+  private final case class Entry(mtime: Long, lines: IndexedSeq[String], index: Option[FileIndex])
 
   /** `None` for any non-fatal failure, and for the StackOverflowError a
     * pathologically deep file gives (fatal to `NonFatal` and `Try`). */

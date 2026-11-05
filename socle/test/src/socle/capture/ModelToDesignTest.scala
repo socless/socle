@@ -81,6 +81,115 @@ object ModelToDesignTest extends TestSuite {
     ModelToDesign.design(model).modules.find(_.name == "X").get
   }
 
+  // The Er1Octet fixture of socle.ir.CodeBlockCollapseTest: a `switch(state)`
+  // under `when(io.enable)`, seven registers, `busy` also assigned at module level.
+  private val erScala: String = {
+    val code = Seq(
+      "  when(io.enable) {",                                                // 36
+      "    switch(state) {",                                                // 37
+      "      is(attente) {",                                                // 38
+      "        when(io.go) {",                                              // 39
+      "          registre := io.din",                                       // 40
+      "          cpt := 7.U",                                               // 41
+      "          busy := true.B",                                           // 42
+      "          state := reception",                                       // 43
+      "        }",                                                          // 44
+      "      }",                                                            // 45
+      "      is(reception) {",                                              // 46
+      "        val decale = registre(6, 0) ## io.miso",                     // 47
+      "        sclk := true.B",                                             // 48
+      "        registre := decale",                                         // 49
+      "        when(cpt === 0.U) {",                                        // 50
+      "          dout := decale; busy := false.B; state := attente",        // 51
+      "        }.otherwise { cpt := cpt - 1.U; state := envoi }",           // 52
+      "      }",                                                            // 53
+      "      is(envoi) { sclk := false.B; mosi := registre(7); state := reception }", // 54
+      "    }",                                                              // 55
+      "  }",                                                                // 56
+    )
+    val pad = Seq.tabulate(35)(i => s"// line ${i + 1}")
+    (pad ++ code).mkString("\n") + "\n"
+  }
+
+  private val erFir: String =
+    """FIRRTL version 7.0.0
+      |circuit Er1Octet :
+      |  public module Er1Octet : @[Er.scala 10:7]
+      |    input clock : Clock @[Er.scala 10:7]
+      |    input reset : UInt<1> @[Er.scala 10:7]
+      |    output io : { flip enable : UInt<1>, flip go : UInt<1>, flip din : UInt<8>, flip miso : UInt<1>, sclk : UInt<1>, mosi : UInt<1>, busy : UInt<1>, dout : UInt<8>, out : { valid : UInt<1>, bits : UInt<8>}} @[Er.scala 11:14]
+      |
+      |    regreset state : UInt<2>, clock, reset, UInt<2>(0h0) @[Er.scala 26:22]
+      |    regreset registre : UInt<8>, clock, reset, UInt<8>(0h0) @[Er.scala 27:25]
+      |    regreset cpt : UInt<3>, clock, reset, UInt<3>(0h0) @[Er.scala 28:20]
+      |    regreset sclk : UInt<1>, clock, reset, UInt<1>(0h0) @[Er.scala 29:21]
+      |    regreset mosi : UInt<1>, clock, reset, UInt<1>(0h0) @[Er.scala 30:21]
+      |    regreset busy : UInt<1>, clock, reset, UInt<1>(0h0) @[Er.scala 31:21]
+      |    regreset dout : UInt<8>, clock, reset, UInt<8>(0h0) @[Er.scala 32:21]
+      |    connect io.sclk, sclk @[Er.scala 34:11]
+      |    connect io.mosi, mosi @[Er.scala 34:28]
+      |    connect io.busy, busy @[Er.scala 34:45]
+      |    connect io.dout, dout @[Er.scala 34:62]
+      |    connect io.out.bits, registre @[Er.scala 34:70]
+      |    connect busy, UInt<1>(0h0) @[Er.scala 35:8]
+      |    when io.enable : @[Er.scala 36:19]
+      |      connect io.out.valid, UInt<1>(0h1) @[Er.scala 36:30]
+      |      node _T = eq(UInt<2>(0h0), state) @[Er.scala 37:19]
+      |      when _T : @[Er.scala 37:19]
+      |        when io.go : @[Er.scala 39:21]
+      |          connect registre, io.din @[Er.scala 40:20]
+      |          connect cpt, UInt<3>(0h7) @[Er.scala 41:15]
+      |          connect busy, UInt<1>(0h1) @[Er.scala 42:16]
+      |          connect state, UInt<2>(0h1) @[Er.scala 43:17]
+      |      else :
+      |        node _T_1 = eq(UInt<2>(0h1), state) @[Er.scala 37:19]
+      |        when _T_1 : @[Er.scala 37:19]
+      |          node _decale_T = bits(registre, 6, 0) @[Er.scala 47:34]
+      |          node decale = cat(_decale_T, io.miso) @[Er.scala 47:40]
+      |          connect sclk, UInt<1>(0h1) @[Er.scala 48:14]
+      |          connect registre, decale @[Er.scala 49:18]
+      |          node _T_2 = eq(cpt, UInt<1>(0h0)) @[Er.scala 50:18]
+      |          when _T_2 : @[Er.scala 50:27]
+      |            connect dout, decale @[Er.scala 51:16]
+      |            connect busy, UInt<1>(0h0) @[Er.scala 51:34]
+      |            connect state, UInt<2>(0h0) @[Er.scala 51:52]
+      |          else :
+      |            node _cpt_T = sub(cpt, UInt<1>(0h1)) @[Er.scala 52:32]
+      |            node _cpt_T_1 = tail(_cpt_T, 1) @[Er.scala 52:32]
+      |            connect cpt, _cpt_T_1 @[Er.scala 52:25]
+      |            connect state, UInt<2>(0h2) @[Er.scala 52:46]
+      |        else :
+      |          node _T_3 = eq(UInt<2>(0h2), state) @[Er.scala 37:19]
+      |          when _T_3 : @[Er.scala 37:19]
+      |            connect sclk, UInt<1>(0h0) @[Er.scala 54:22]
+      |            node _mosi_T = bits(registre, 7, 7) @[Er.scala 54:54]
+      |            connect mosi, _mosi_T @[Er.scala 54:43]
+      |            connect state, UInt<2>(0h1) @[Er.scala 54:64]
+      |""".stripMargin
+
+  /** Er1Octet captured, with an index that reads its lines and its state machine. */
+  private lazy val erCaptured: (CapturedModel, SourceIndex, FsmSource) = {
+    val u1 = CType("chisel3.Bool", "Bool", "unspecified", 1)
+    val u8 = CType("chisel3.UInt", "UInt", "unspecified", 8)
+    def in(t: CType) = t.copy(dir = "in")
+    val io = CType("", "io", "out", -1, Seq(
+      "enable" -> in(u1), "go" -> in(u1), "din" -> in(u8), "miso" -> in(u1),
+      "sclk" -> u1, "mosi" -> u1, "busy" -> u1, "dout" -> u8,
+      "out" -> CType("", "out", "unspecified", -1, Seq("valid" -> u1, "bits" -> u8))))
+    val ports = Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)), CPort("reset", in(u1)), CPort("io", io))
+    val model = CapturedModel("ok", "Er1Octet",
+      Seq(CModule("Er1Octet", "er.Er1Octet", Nil, Some(CSource("Er.scala", 10, 7)), ports, Nil)), chirrtl = erFir)
+    val src = FsmSource(FsmDiagram(Seq(FsmState("attente", initial = true), FsmState("reception"), FsmState("envoi")), Nil),
+      SourceRef("Er.scala", 37, 5))
+    val index = new SourceIndex {
+      def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
+      override def fsm(scalaClass: String, register: String, at: Option[SourceRef]): Option[FsmSource] =
+        if (scalaClass == "er.Er1Octet" && register == "state") Some(src) else None
+      override def lines: socle.ir.SourceLines = socle.ir.SourceLines.of(Map("Er.scala" -> erScala))
+    }
+    (model, index, src)
+  }
+
   private val ClockReset = Set("Clock", "Reset", "AsyncReset")
   /** Endpoint kinds a captured module's wires may end on. */
   private val Kept = Set(NodeKind.Inst, NodeKind.Boundary, NodeKind.Const, NodeKind.Block, NodeKind.Fsm)
@@ -725,16 +834,83 @@ object ModelToDesignTest extends TestSuite {
           if (scalaClass == "fsm.TrafficFsm" && register == "state") Some(FsmSource(diagram, switch)) else None
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
       // as the index gives it, with the encodings FsmEncoding can pair: here
       // only the reset's (the three transitions share one line, which has one connect)
       assert(block.fsm == Some(diagram.copy(states = diagram.states.map(s => if (s.initial) s.copy(value = "0") else s))))
       assert(block.source == switch)
     }
 
+    test("a when around a switch keeps both boxes and the diagram") {
+      val (model, index, _) = erCaptured
+      val d       = ModelToDesign.design(model, Some(index))
+      val m       = d.modules.find(_.name == "Er1Octet").get
+      val enable  = "when$Er1Octet$36_19"
+      val sw      = "fsm$Er1Octet$37_19"
+      val box     = m.logic.find(_.id == enable).get
+      assert(box.kind == NodeKind.Block, box.label == "when(io.enable)")
+      val regs    = Seq("state", "registre", "cpt", "sclk", "mosi", "busy", "dout")
+      check(regs.forall(r => m.logic.exists(n => n.id == r && n.kind == NodeKind.Reg)), s"module logic ${m.logic.map(n => n.id -> n.kind)}")
+      val pairs = m.wires.map(w => (w.from, w.to)).toSet
+      // Each register is written from the box, and read out to its port.
+      for (r <- regs) check(pairs.contains((r, s"$enable.$r")), s"no $r <- $enable.$r in $pairs")
+      for (r <- Seq("sclk", "mosi", "busy", "dout")) check(pairs.contains((s"io.$r", s"$r~q")), s"no io.$r <- $r~q in $pairs")
+      // `busy` keeps its module-level driver too; the condition reaches its pin.
+      check(m.wires.count(_.from == "busy") == 2, s"busy drivers ${m.wires.filter(_.from == "busy")}")
+      check(pairs.contains((s"$enable.cond", "io.enable")), s"no condition wire in $pairs")
+      // The FSM box sits in the when box's body, with its diagram.
+      val inner = d.regions(enable).logic.find(_.id == sw).get
+      assert(inner.kind == NodeKind.Fsm, inner.state == "state")
+      check(inner.fsm.isDefined, s"no diagram on $sw")
+      assert(inner.fsm.get.states.map(_.name) == Seq("attente", "reception", "envoi"))
+      // Nested bodies are regions too.
+      assert(d.regions.contains(sw), d.regions.contains("when$Er1Octet$39_21"))
+    }
+
+    test("with source lines the code blocks keep every port wire") {
+      // The IDE path: the index reads the repo's sources, so gcd's and Core's
+      // `when`s are boxes and the registers they write are plain nodes.
+      val url  = getClass.getResource("/captured")
+      val root = os.Path(new java.io.File(url.toURI)) / os.up / os.up / os.up / os.up
+      val index = new SourceIndex {
+        def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
+        override val lines: socle.ir.SourceLines = socle.ir.SourceLines.fromRoot(root)
+      }
+      var boxed = 0
+      for ((label, cm) <- Seq("gcd" -> gcd, "rvpipeline" -> rvpipeline, "deepsoc" -> deepsoc)) {
+        val d      = ModelToDesign.design(cm, Some(index))
+        val oracle = IrWalk.design(socle.parse.ChirrtlParser.parse(cm.chirrtl), index.lines)
+        for (om <- oracle.modules) {
+          val m = d.modules.find(_.name == om.name).get
+          boxed += m.logic.count(n => n.id.startsWith("when$") || n.id.startsWith("fsm$"))
+          def portOrInst(e: String, in: ModuleDef, des: Design) =
+            LayoutCore.classify(e, in, des).exists(x => x.kind == NodeKind.Inst || x.kind == NodeKind.Boundary)
+          val tied = m.tieOffs.map(_.sink).toSet
+          val consts = om.logic.filter(_.kind == NodeKind.Const).map(_.id).toSet
+          for (w <- om.wires if !ClockReset(w.bundle)) {
+            if (portOrInst(w.from, om, oracle) && !consts(w.to))
+              check(m.wires.exists(_.from == w.from) || tied(w.from), s"[$label] ${om.name}: lost the wire into ${w.from} (<- ${w.to})")
+            if (portOrInst(w.to, om, oracle))
+              check(m.wires.exists(_.to == w.to), s"[$label] ${om.name}: lost the wire out of ${w.to} (-> ${w.from})")
+          }
+          for (w <- m.wires; (e, allowed) <- Seq(w.from -> Set(PortDir.In, PortDir.Inout), w.to -> Set(PortDir.Out, PortDir.Inout))) {
+            val ep = LayoutCore.classify(e, m, d)
+            check(ep.exists(x => (Kept + NodeKind.Reg)(x.kind)), s"[$label] ${m.name}: endpoint $e is ${ep.map(_.kind)}")
+            ep.filter(x => NodeKind.isBox(x.kind)).foreach { x =>
+              val pin = LayoutCore.stripIdx(e.split('.')(1))
+              val dir = d.regions(x.nodeId).ports.find(_.name == pin).map(_.dir)
+              check(dir.exists(allowed), s"[$label] ${m.name}: ${w.from} <- ${w.to} uses pin $pin ($dir)")
+            }
+          }
+        }
+      }
+      // Not vacuous: gcd's and deepsoc's `when`s are boxes.
+      check(boxed > 0, "no code-block box in any fixture")
+    }
+
     test("without an index the fsm block falls back to case literals") {
       val m     = ModelToDesign.design(fsm).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
       assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
         "Transitions are not shown: this view was built without the Scala source index.")))
     }
@@ -744,7 +920,7 @@ object ModelToDesignTest extends TestSuite {
         def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "blk$TrafficFsm$fsm$state").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
       assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
         "Transitions are not available: the state machine's Scala source could not be read.")))
     }

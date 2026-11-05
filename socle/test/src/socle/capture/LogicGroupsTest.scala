@@ -28,17 +28,20 @@ object LogicGroupsTest extends TestSuite {
   private def ids(g: Group) = g.members
 
   val tests = Tests {
-    test("fsm node and its state register form one fsm group") {
-      val m  = module(Seq(node("fsm$M$state", NodeKind.Fsm, at(5)), node("state", NodeKind.Reg, at(4))))
-      val gs = LogicGroups.assign(m, None)
-      assert(gs.size == 1)
-      val g = gs.head
-      assert(g.id == "blk$M$fsm$state", g.kind == NodeKind.Fsm, g.label == "FSM: state",
-        g.members == Set("fsm$M$state", "state"), !g.layer, g.source == at(4))
+    test("an fsm box and its state register stay out of every group") {
+      val m  = module(
+        Seq(node("fsm$M$5_3", NodeKind.Fsm, at(5)).copy(state = "state"), node("state", NodeKind.Reg, at(4))),
+        Seq(w("state", "fsm$M$5_3.state")))
+      assert(LogicGroups.assign(m, None).isEmpty)
     }
-    test("fsm block source is the state register's source") {
-      val m  = module(Seq(node("fsm$M$state", NodeKind.Fsm), node("state", NodeKind.Reg, at(4))))
-      assert(LogicGroups.assign(m, index).head.source == at(4))
+    test("a register a box writes stays plain") {
+      // `r` is written by the box and by a module-level op; `r2` only by the op.
+      val m  = module(
+        Seq(node("when$M$7_1", NodeKind.Block, at(7)), node("a", NodeKind.Op, at(99)),
+          node("r", NodeKind.Reg), node("r2", NodeKind.Reg)),
+        Seq(w("r", "when$M$7_1.r"), w("r", "a"), w("r2", "a")))
+      val gs = LogicGroups.assign(m, index)
+      assert(gs.map(_.id) == Seq("blk$M$logic"), ids(gs.head) == Set("a", "r2"))
     }
     test("ops inside one construct share a generator group") {
       val m  = module(Seq(node("a", NodeKind.Op, at(10)), node("b", NodeKind.Op, at(10))))
@@ -54,13 +57,14 @@ object LogicGroupsTest extends TestSuite {
       assert(ids(gs(0)) == Set("early"), ids(gs(1)) == Set("late"))
       assert(gs(1).label.length == 40, gs(1).label.endsWith("…"))
     }
-    test("no index: fsm and logic only") {
+    test("no index: logic only, the fsm box left out") {
       val m = module(Seq(
-        node("fsm$M$state", NodeKind.Fsm, at(5)), node("state", NodeKind.Reg),
-        node("a", NodeKind.Op, at(10)), node("r", NodeKind.Reg)))
+        node("fsm$M$5_3", NodeKind.Fsm, at(5)), node("state", NodeKind.Reg),
+        node("a", NodeKind.Op, at(10)), node("r", NodeKind.Reg)),
+        Seq(w("state", "fsm$M$5_3.state")))
       val gs = LogicGroups.assign(m, None)
-      assert(gs.map(_.id) == Seq("blk$M$fsm$state", "blk$M$logic"))
-      assert(ids(gs(1)) == Set("a", "r"), gs(1).label == "logic", gs(1).source == modSrc)
+      assert(gs.map(_.id) == Seq("blk$M$logic"))
+      assert(ids(gs(0)) == Set("a", "r"), gs(0).label == "logic", gs(0).source == modSrc)
     }
     test("unknown-position node follows the group it drives") {
       val m = module(
@@ -109,19 +113,18 @@ object LogicGroupsTest extends TestSuite {
       val gs = LogicGroups.assign(m, index)
       assert(gs.map(_.id) == Seq("blk$M$logic"), ids(gs.head) == Set("a", "const$k"))
     }
-    test("const feeding only the fsm group joins it") {
+    test("const feeding only a box stays plain") {
       val m = module(
-        Seq(node("fsm$M$state", NodeKind.Fsm), node("state", NodeKind.Reg), node("const$k", NodeKind.Const)),
-        Seq(w("fsm$M$state~in0", "const$k")))
-      val gs = LogicGroups.assign(m, index)
-      assert(gs.size == 1, ids(gs.head) == Set("fsm$M$state", "state", "const$k"))
+        Seq(node("fsm$M$5_3", NodeKind.Fsm), node("const$k", NodeKind.Const)),
+        Seq(w("fsm$M$5_3.k", "const$k")))
+      assert(LogicGroups.assign(m, index).isEmpty)
     }
-    test("unknown-position op driving only the fsm group joins it") {
+    test("unknown-position op driving only a box goes to logic") {
       val m = module(
-        Seq(node("fsm$M$state", NodeKind.Fsm), node("state", NodeKind.Reg), node("u", NodeKind.Op)),
-        Seq(w("fsm$M$state~in0", "u")))
+        Seq(node("fsm$M$5_3", NodeKind.Fsm), node("u", NodeKind.Op)),
+        Seq(w("fsm$M$5_3.u", "u")))
       val gs = LogicGroups.assign(m, index)
-      assert(gs.size == 1, ids(gs.head) == Set("fsm$M$state", "state", "u"))
+      assert(gs.map(_.id) == Seq("blk$M$logic"), ids(gs.head) == Set("u"))
     }
     test("index gets the scala class, not the type") {
       val m = module(Seq(node("a", NodeKind.Op, at(10)))).copy(`type` = "M_1")

@@ -471,7 +471,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 {
   const { ctx, page, errors } = await open('/fsm/?host=vscode&theme=dark');
   await waitLoaded(page);
-  const id = 'blk$TrafficFsm$fsm$state';
+  const id = 'fsm$TrafficFsm$15_17';
   await page.locator(`[data-fsm="${id}"]`).first().dblclick({ position: { x: 30, y: 8 } }).catch(() => {});
   const shown = await page.waitForSelector(`[data-fsm-diagram="${id}"][data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
   check('fsm', shown, 'a double-click opens the state diagram');

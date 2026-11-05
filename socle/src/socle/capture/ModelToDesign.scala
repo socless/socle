@@ -2,7 +2,7 @@ package socle.capture
 
 import scala.collection.mutable
 
-import socle.ir.FsmDetect
+import socle.ir.{FsmDetect, IrWalk, SourceLines}
 import socle.parse.ChirrtlParser
 import socle.schema._
 
@@ -17,18 +17,22 @@ import socle.schema._
   * CHIRRTL pipeline shows for the same design.
   *
   * Logic and wiring come from the CHIRRTL pipeline (`IrWalk`) of the captured
-  * circuit: each module's logic nodes are grouped (`LogicGroups`, with the
-  * optional source `index`) and collapsed (`LogicBlocks`) into FSM, generator
-  * and logic blocks, whose bodies go to `Design.regions`. A module keeps only
-  * blocks and the consts that feed a block; a const that only ties off ports
-  * or instance pins is dropped with its wires and recorded in `tieOffs`, which
-  * the UI draws as a value stub at the tied pin (no layout node).
-  * A wire is kept when both ends resolve to a port, an instance pin, a block
-  * pin or a const.
+  * circuit, built with the `index`'s source lines: IrWalk's code-block boxes
+  * (each user-written `when` / `switch`, nested as written) stay as built,
+  * with every body they reach copied to `Design.regions`, and the registers
+  * they write stay plain nodes at module level. The other logic nodes are
+  * grouped (`LogicGroups`, with the optional source `index`) and collapsed
+  * (`LogicBlocks`) into generator and logic blocks, whose bodies go to
+  * `Design.regions` too. A const that only ties off ports or instance pins is
+  * dropped with its wires and recorded in `tieOffs`, which the UI draws as a
+  * value stub at the tied pin (no layout node).
+  * A wire is kept when both ends resolve to a port, an instance pin, a box
+  * pin or a plain logic node (a const, a register).
   *
-  * An FSM block carries its state diagram: the `index`'s, with the block's
-  * source moved to the `switch`, else the states from the case literals and a
-  * note that the transitions are unknown.
+  * An FSM box, wherever it sits, carries its state diagram: the `index`'s for
+  * its register (`LogicNodeDef.state`), with the box's source moved to the
+  * `switch`, else the states from the case literals and a note that the
+  * transitions are unknown.
   */
 object ModelToDesign {
 
@@ -46,7 +50,7 @@ object ModelToDesign {
       }
     }.toMap
     lazy val circ      = ChirrtlParser.parse(m.chirrtl)
-    lazy val ir        = WiresFromChirrtl.design(circ)
+    lazy val ir        = WiresFromChirrtl.design(circ, index.fold(SourceLines.none)(_.lines))
     lazy val irModules = ir.modules.map(im => im.name -> im).toMap
     lazy val chirrtlInsts: Map[String, Map[String, ChirrtlParser.SrcInfo]] =
       circ.modules.map { cm =>
@@ -92,13 +96,13 @@ object ModelToDesign {
           val named            = im.copy(scalaClass = c.scalaClass)
           val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName)
           regions ++= bodies
-          regions ++= im.logic.filter(_.kind == NodeKind.Fsm).flatMap(n => ir.regions.get(n.id).map(n.id -> _))
           lazy val caseLits = circ.modules.find(_.name == c.name).toSeq.flatMap(FsmDetect.detect)
             .map(f => f.stateReg -> f.caseLits).toMap
-          val fsmPrefix = s"blk$$${c.name}$$fsm$$"
-          val logic = folded.logic.map {
-            case n if n.kind == NodeKind.Fsm && n.id.startsWith(fsmPrefix) =>
-              val register = n.id.stripPrefix(fsmPrefix)
+          // An FSM box carries its state diagram, on its register (`state`).
+          def withDiagram(n: LogicNodeDef): LogicNodeDef =
+            if (n.kind != NodeKind.Fsm || n.state.isEmpty) n
+            else {
+              val register = n.state
               val at = circ.modules.find(_.name == c.name).flatMap(_.regs.find(_.name == register))
                 .flatMap(_.src).map(s => SourceRef(s.file, s.line, s.col))
               index.flatMap(_.fsm(c.scalaClass, register, at)) match {
@@ -112,8 +116,19 @@ object ModelToDesign {
                   val note = if (index.isEmpty) NoIndexNote else FallbackNote
                   n.copy(fsm = Some(fallbackDiagram(caseLits.getOrElse(register, Nil), note)))
               }
-            case n => n
-          }
+            }
+          // IrWalk's code-block boxes stay as built: copy every body reachable
+          // from the module's boxes (nested boxes included), each FSM box in
+          // them with its diagram.
+          def copyBodies(logic: Seq[LogicNodeDef]): Unit =
+            logic.filter(n => NodeKind.isBox(n.kind) && !regions.contains(n.id)).foreach { n =>
+              ir.regions.get(n.id).foreach { body =>
+                regions(n.id) = body.copy(logic = body.logic.map(withDiagram))
+                copyBodies(body.logic)
+              }
+            }
+          copyBodies(folded.logic)
+          val logic = folded.logic.map(withDiagram)
           (logic, folded.wires)
         case None =>
           (Nil, c.wires.map(w => WireDef(w.from, w.to, "", "", SourceRef.unknown)))
@@ -161,7 +176,9 @@ object ModelToDesign {
       val raw   = collapsedWires.filterNot(w => tieOffs(w.to) || tieOffs(w.from))
       val boxes  = logic.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
       val consts = logic.filter(_.kind == NodeKind.Const).map(_.id).toSet
-      def onLogic(e: String): Boolean = consts.contains(stripIdx(e)) || {
+      // Plain nodes (a register a code block writes, an op): by their head.
+      val plain  = logic.filterNot(n => NodeKind.isBox(n.kind)).map(_.id).toSet
+      def onLogic(e: String): Boolean = consts.contains(stripIdx(e)) || plain.contains(IrWalk.fsmHeadBase(e)) || {
         val parts = e.split('.')
         parts.length >= 2 && boxes.contains(stripIdx(parts.head))
       }
