@@ -1,0 +1,309 @@
+{
+  "top": "SpiSlave",
+  "bundles": {
+    "Io": {
+      "name": "Io",
+      "kind": "Bundle",
+      "channels": [
+        {
+          "name": "sclk",
+          "type": "UInt<1>",
+          "flip": true
+        },
+        {
+          "name": "ss",
+          "type": "UInt<1>",
+          "flip": true
+        },
+        {
+          "name": "mosi",
+          "type": "UInt<1>",
+          "flip": true
+        },
+        {
+          "name": "miso",
+          "type": "UInt<1>",
+          "flip": false
+        }
+      ]
+    }
+  },
+  "modules": [
+    {
+      "name": "SpiSlave",
+      "type": "SpiSlave",
+      "doc": "",
+      "source": {
+        "file": "example/src/domains/SpiSlave.scala",
+        "line": 11,
+        "col": 7
+      },
+      "ports": [
+        {
+          "name": "clock",
+          "dir": "in",
+          "bundle": "Clock",
+          "doc": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 11,
+            "col": 7
+          },
+          "connected": false
+        },
+        {
+          "name": "reset",
+          "dir": "in",
+          "bundle": "UInt<1>",
+          "doc": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 11,
+            "col": 7
+          },
+          "connected": false
+        },
+        {
+          "name": "io",
+          "dir": "out",
+          "bundle": "Io",
+          "doc": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 12,
+            "col": 14
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_fall_T~in1",
+          "to": "const$_fall_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "clk$fall",
+          "to": "_fall_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "miso",
+          "to": "shiftOut~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 31,
+            "col": 8
+          }
+        },
+        {
+          "from": "shiftIn",
+          "to": "io.mosi",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 25,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_fall_T~in0",
+          "to": "io.sclk",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "clk$rise",
+          "to": "io.sclk",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "rst$ssReset",
+          "to": "io.ss",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "io.miso",
+          "to": "miso~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 32,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "shiftIn",
+          "to": "shiftIn~q",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 25,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "shiftOut",
+          "to": "shiftIn~q",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 29,
+            "col": 12
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 3,
+        "wires": 4,
+        "lines": 22
+      },
+      "logic": [
+        {
+          "id": "shiftIn",
+          "kind": "reg",
+          "label": "shiftIn",
+          "bundle": "UInt<8>",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 24,
+            "col": 65
+          },
+          "clock": "rise",
+          "reset": "ssReset"
+        },
+        {
+          "id": "shiftOut",
+          "kind": "reg",
+          "label": "shiftOut",
+          "bundle": "UInt<8>",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 28,
+            "col": 66
+          },
+          "clock": "fall",
+          "reset": "ssReset"
+        },
+        {
+          "id": "miso",
+          "kind": "reg",
+          "label": "miso",
+          "bundle": "UInt<1>",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 30,
+            "col": 41
+          },
+          "clock": "fall"
+        },
+        {
+          "id": "const$_fall_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_fall_T",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/domains/SpiSlave.scala",
+            "line": 20,
+            "col": 25
+          },
+          "op": "eq"
+        },
+        {
+          "id": "clk$rise",
+          "kind": "domain",
+          "label": "rise",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "clock": "rise"
+        },
+        {
+          "id": "clk$fall",
+          "kind": "domain",
+          "label": "fall",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "clock": "fall"
+        },
+        {
+          "id": "rst$ssReset",
+          "kind": "domain",
+          "label": "ssReset",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "reset": "ssReset"
+        }
+      ]
+    }
+  ],
+  "layoutConsts": {
+    "headerH": 28,
+    "portStep": 24,
+    "portPad": 18
+  }
+}

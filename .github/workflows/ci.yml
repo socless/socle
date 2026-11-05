@@ -257,11 +257,11 @@ jobs:
       # One Mill call, so the examples elaborate in parallel; a failure names
       # its task. AXISystem, GCD, RVPipeline, DeepSoc, IoBundles, RegHeavy,
       # TrafficFsm, LayeredCounter (verification layers), Scatter (#237 bundle
-      # direction split), and the captured DeepSoc (instance fold), TrafficFsm
+      # direction split), SpiSlave (clock domains), and the captured DeepSoc (instance fold), TrafficFsm
       # (state diagram) and GCD (internal signals, for the Waveform check)
       # conversions, and BigArray (256 boxes, the smoke's performance guard).
       - name: Elaborate the examples
-        run: ./mill '{example.socleRun,example.socleRunGcd,example.socleRunPipeline,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}'
+        run: ./mill '{example.socleRun,example.socleRunGcd,example.socleRunPipeline,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleRunDomains,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}'
 
       # Standalone, Mill/Python-free UI server (issue #115): serve the bundled
       # dist and convert a .fir in-process. Run as a plain `java -cp` process
@@ -299,7 +299,7 @@ jobs:
       - name: Decide whether the UI smokes run
         id: uismoke
         run: |
-          sel=$(tools/ci/selective.sh selected '{socle-ui.dist,socle.assembly,example.socleRun,example.socleRunPipeline,example.socleRunGcd,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}')
+          sel=$(tools/ci/selective.sh selected '{socle-ui.dist,socle.assembly,example.socleRun,example.socleRunPipeline,example.socleRunGcd,example.socleRunDeepSoc,example.socleRunIoBundles,example.socleRunRegHeavy,example.socleRunFsm,example.socleRunLayers,example.socleRunScatter,example.socleRunDomains,example.socleCapturedDeepSoc,example.socleCapturedFsm,example.socleCapturedGcd,example.socleRunBigArray}')
           changed=""
           if [ "${{ github.event_name }}" = pull_request ]; then
             changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- tools/ui-smoke tools/ci socle/test/resources/chirrtl socle-lsp .github/workflows)

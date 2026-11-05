@@ -21,6 +21,7 @@ object Fixtures {
     "regheavy.fir"     -> "regheavy",
     "fsm.fir"          -> "fsm",
     "layers.fir"       -> "layers",
+    "domains.fir"      -> "domains",
   )
 
   /** The repo root: `socle/test/resources` (holding /chirrtl) is three levels below it.

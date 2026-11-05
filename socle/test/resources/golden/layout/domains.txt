@@ -1,0 +1,23 @@
+layout SpiSlave
+  node _fall_T kind=op pins=_fall_T:EAST,_fall_T~in0:WEST,_fall_T~in1:WEST
+  node clk$fall kind=domain pins=clk$fall:WEST
+  node clk$rise kind=domain pins=clk$rise:WEST
+  node const$_fall_T~in1 kind=const pins=const$_fall_T~in1:EAST
+  node io.miso kind=boundary pins=io.miso:WEST
+  node io.mosi kind=boundary pins=io.mosi:EAST
+  node io.sclk kind=boundary pins=io.sclk:EAST
+  node io.ss kind=boundary pins=io.ss:EAST
+  node miso kind=reg pins=miso:WEST,miso~q:EAST
+  node rst$ssReset kind=domain pins=rst$ssReset:WEST
+  node shiftIn kind=reg pins=shiftIn:WEST,shiftIn~q:EAST
+  node shiftOut kind=reg pins=shiftOut:WEST,shiftOut~q:EAST
+  edge _fall_T~in0 -> io.sclk
+  edge _fall_T~in1 -> const$_fall_T~in1
+  edge clk$fall -> _fall_T
+  edge clk$rise -> io.sclk
+  edge io.miso -> miso~q
+  edge miso -> shiftOut~q
+  edge rst$ssReset -> io.ss
+  edge shiftIn -> io.mosi
+  edge shiftIn -> shiftIn~q
+  edge shiftOut -> shiftIn~q

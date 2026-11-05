@@ -3248,6 +3248,42 @@ async function smokeDesignIn(design, ctx) {
       note(design, 'scattered fields (#237)', 'a [data-bundle-group] row is still drawn');
     if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
   }
+  // Clock domains on registers: SpiSlave's registers run on `rise` and `fall`
+  // (derived from io.sclk), reset by `ssReset` (from io.ss). Each register
+  // shows its domain's bar, the legend lists both, each derived clock or reset
+  // ends on its stub, and a legend click dims the other domain's registers.
+  if (design === 'domains') {
+    const where = 'clock domains';
+    const st = await page.evaluate(() => ({
+      legend: document.querySelectorAll('[data-clock-legend]').length,
+      domains: [...document.querySelectorAll('[data-legend-domain]')].map((e) => e.getAttribute('data-legend-domain')),
+      bars: [...document.querySelectorAll('[data-reg-domain]')].map((e) => e.getAttribute('data-reg-domain')),
+      stubs: [...document.querySelectorAll('[data-domain-stub]')].map((e) => e.getAttribute('data-domain-stub')),
+    }));
+    if (st.legend !== 1) note(design, where, `expected one clock legend, got ${st.legend}`);
+    if (JSON.stringify([...st.domains].sort()) !== JSON.stringify(['fall', 'rise']))
+      note(design, where, `expected legend domains fall, rise; got ${JSON.stringify(st.domains)}`);
+    if (!st.bars.includes('rise') || !st.bars.includes('fall'))
+      note(design, where, `expected register bars on rise and fall, got ${JSON.stringify(st.bars)}`);
+    for (const s of ['rise', 'fall', 'ssReset'])
+      if (!st.stubs.includes(s)) note(design, where, `no domain stub for ${s} (got ${JSON.stringify(st.stubs)})`);
+    const legendRise = page.locator('[data-legend-domain="rise"]').first();
+    if (await legendRise.count()) {
+      await legendRise.dispatchEvent('click');
+      await page.waitForTimeout(300);
+      const lit = await page.evaluate(() => {
+        const off = (sel) => [...document.querySelectorAll(sel)].map((e) => e.closest('[data-box-inst]'))
+          .filter(Boolean).map((b) => b.classList.contains('domoff'));
+        return { fall: off('[data-reg-domain="fall"]'), rise: off('[data-reg-domain="rise"]') };
+      });
+      if (!lit.fall.length || !lit.fall.every(Boolean)) note(design, where, `lighting rise leaves a fall register undimmed: ${JSON.stringify(lit.fall)}`);
+      if (lit.rise.some(Boolean)) note(design, where, `lighting rise dims a rise register: ${JSON.stringify(lit.rise)}`);
+      await legendRise.dispatchEvent('click');
+      await page.waitForTimeout(300);
+      if (await page.locator('.domoff').count()) note(design, where, 'a second legend click leaves boxes dimmed');
+    }
+    console.log(`[${design}] clock domains checked (${st.bars.length} register bars, stubs ${JSON.stringify(st.stubs)})`);
+  }
   // A signal row shows its width once, never also its type (`UInt<8> 8b`).
   {
     const twice = await page.$$eval('.scl-rt', (els) => els.map((e) => e.textContent).filter((t) => /^[SU]Int<\d+> \d+b/.test(t)));

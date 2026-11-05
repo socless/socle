@@ -25,6 +25,7 @@ const designs = [
   ['fsm',          'socleRunFsm',       'TrafficFsm (3-state FSM)'],
   ['layers',       'socleRunLayers',    'LayeredCounter (verification layers)'],
   ['scatter',      'socleRunScatter',   'Scatter (bundle direction split)'],
+  ['domains',      'socleRunDomains',   'SpiSlave (two clock domains)'],
   ['deepsoc-view', 'socleCapturedDeepSoc', 'DeepSoc (captured view)'],
   ['fsm-view',     'socleCapturedFsm',  'TrafficFsm (captured view, diagram)'],
   // 256 boxes in one module: the performance guard only (smoke.mjs smokePerf).

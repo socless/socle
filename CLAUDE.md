@@ -35,6 +35,7 @@ mill example.socleRunRegHeavy  # Register-heavy design (Datapath)
 mill example.socleRunFsm       # TrafficFsm (switch/is FSM)
 mill example.socleRunLayers    # LayeredCounter (verification layers)
 mill example.socleRunScatter   # ScatterDemo (bundle direction split)
+mill example.socleRunDomains   # SpiSlave (two derived clock domains + async reset)
 mill example.socleRunBigArray  # BigArray (16x16 stages: the UI smoke's performance guard)
 ./mill example.socleCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
 ./mill example.socleCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
@@ -114,6 +115,7 @@ example/src/
   iobundles/             # Vec-of-bundle ports and nested/mixed-direction bundles: Interconnect
   regheavy/              # Register-heavy design: Datapath
   fsm/ layers/ scatter/  # TrafficFsm, LayeredCounter (verification layers), ScatterDemo
+  domains/               # SpiSlave: registers on rise/fall clocks derived from an input
   bigarray/              # BigArray: 256 boxes in one module (performance guard)
 
 socle-js/src/socle/js/
