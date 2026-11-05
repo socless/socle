@@ -95,9 +95,9 @@ object BlockTerminalsTest extends TestSuite {
   private def erModule: ModuleDef =
     IrWalk.design(parse(erFir), erLines, collapse = false).modules.find(_.name == "Er1Octet").get
 
-  private val go     = "when$Er1Octet$39_21"
-  private val sw     = "fsm$Er1Octet$37_19"
-  private val enable = "when$Er1Octet$36_19"
+  private val go     = "when$Er1Octet$when_io_go$0"
+  private val sw     = "fsm$Er1Octet$switch_state$0"
+  private val enable = "when$Er1Octet$when_io_enable$0"
 
   val tests = Tests {
 

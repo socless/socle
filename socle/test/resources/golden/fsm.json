@@ -90,7 +90,7 @@
         },
         {
           "from": "state",
-          "to": "fsm$TrafficFsm$15_17.state",
+          "to": "fsm$TrafficFsm$switch_state$0.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -101,7 +101,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$15_17.io_tick",
+          "from": "fsm$TrafficFsm$switch_state$0.io_tick",
           "to": "io.tick",
           "bundle": "UInt<1>",
           "label": "",
@@ -113,7 +113,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$15_17.state_2",
+          "from": "fsm$TrafficFsm$switch_state$0.state_2",
           "to": "state~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -178,7 +178,7 @@
           "op": "eq"
         },
         {
-          "id": "fsm$TrafficFsm$15_17",
+          "id": "fsm$TrafficFsm$switch_state$0",
           "kind": "fsm",
           "label": "switch(state)",
           "bundle": "",
@@ -198,9 +198,9 @@
     "portPad": 18
   },
   "regions": {
-    "when$TrafficFsm$18_33": {
-      "name": "when$TrafficFsm$18_33",
-      "type": "when$TrafficFsm$18_33",
+    "when$TrafficFsm$when_io_tick$2": {
+      "name": "when$TrafficFsm$when_io_tick$2",
+      "type": "when$TrafficFsm$when_io_tick$2",
       "doc": "",
       "source": {
         "file": "example/src/fsm/TrafficFsm.scala",
@@ -236,8 +236,8 @@
       "children": [],
       "wires": [
         {
-          "from": "when$TrafficFsm$18_33.state",
-          "to": "const$asg$when$TrafficFsm$18_33$state~in0",
+          "from": "when$TrafficFsm$when_io_tick$2.state",
+          "to": "const$asg$when$TrafficFsm$when_io_tick$2$state~in0",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -254,7 +254,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$TrafficFsm$18_33$state~in0",
+          "id": "const$asg$when$TrafficFsm$when_io_tick$2$state~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -266,9 +266,9 @@
         }
       ]
     },
-    "when$TrafficFsm$17_33": {
-      "name": "when$TrafficFsm$17_33",
-      "type": "when$TrafficFsm$17_33",
+    "when$TrafficFsm$when_io_tick$1": {
+      "name": "when$TrafficFsm$when_io_tick$1",
+      "type": "when$TrafficFsm$when_io_tick$1",
       "doc": "",
       "source": {
         "file": "example/src/fsm/TrafficFsm.scala",
@@ -304,8 +304,8 @@
       "children": [],
       "wires": [
         {
-          "from": "when$TrafficFsm$17_33.state",
-          "to": "const$asg$when$TrafficFsm$17_33$state~in0",
+          "from": "when$TrafficFsm$when_io_tick$1.state",
+          "to": "const$asg$when$TrafficFsm$when_io_tick$1$state~in0",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -322,7 +322,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$TrafficFsm$17_33$state~in0",
+          "id": "const$asg$when$TrafficFsm$when_io_tick$1$state~in0",
           "kind": "const",
           "label": "0h2",
           "bundle": "",
@@ -334,9 +334,9 @@
         }
       ]
     },
-    "when$TrafficFsm$16_33": {
-      "name": "when$TrafficFsm$16_33",
-      "type": "when$TrafficFsm$16_33",
+    "when$TrafficFsm$when_io_tick$0": {
+      "name": "when$TrafficFsm$when_io_tick$0",
+      "type": "when$TrafficFsm$when_io_tick$0",
       "doc": "",
       "source": {
         "file": "example/src/fsm/TrafficFsm.scala",
@@ -372,8 +372,8 @@
       "children": [],
       "wires": [
         {
-          "from": "when$TrafficFsm$16_33.state",
-          "to": "const$asg$when$TrafficFsm$16_33$state~in0",
+          "from": "when$TrafficFsm$when_io_tick$0.state",
+          "to": "const$asg$when$TrafficFsm$when_io_tick$0$state~in0",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -390,7 +390,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$TrafficFsm$16_33$state~in0",
+          "id": "const$asg$when$TrafficFsm$when_io_tick$0$state~in0",
           "kind": "const",
           "label": "0h1",
           "bundle": "",
@@ -402,9 +402,9 @@
         }
       ]
     },
-    "fsm$TrafficFsm$15_17": {
-      "name": "fsm$TrafficFsm$15_17",
-      "type": "fsm$TrafficFsm$15_17",
+    "fsm$TrafficFsm$switch_state$0": {
+      "name": "fsm$TrafficFsm$switch_state$0",
+      "type": "fsm$TrafficFsm$switch_state$0",
       "doc": "",
       "source": {
         "file": "example/src/fsm/TrafficFsm.scala",
@@ -523,7 +523,7 @@
           }
         },
         {
-          "from": "fsm$TrafficFsm$15_17.cond",
+          "from": "fsm$TrafficFsm$switch_state$0.cond",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -534,7 +534,7 @@
           }
         },
         {
-          "from": "fsm$TrafficFsm$15_17.cond_2",
+          "from": "fsm$TrafficFsm$switch_state$0.cond_2",
           "to": "_T_1",
           "bundle": "Wire",
           "label": "",
@@ -545,7 +545,7 @@
           }
         },
         {
-          "from": "fsm$TrafficFsm$15_17.cond_3",
+          "from": "fsm$TrafficFsm$switch_state$0.cond_3",
           "to": "_T_2",
           "bundle": "Wire",
           "label": "",
@@ -556,8 +556,8 @@
           }
         },
         {
-          "from": "fsm$TrafficFsm$15_17.state",
-          "to": "when$TrafficFsm$16_33.state",
+          "from": "fsm$TrafficFsm$switch_state$0.state",
+          "to": "when$TrafficFsm$when_io_tick$0.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -568,8 +568,8 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$15_17.state",
-          "to": "when$TrafficFsm$17_33.state",
+          "from": "fsm$TrafficFsm$switch_state$0.state",
+          "to": "when$TrafficFsm$when_io_tick$1.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -580,8 +580,8 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$TrafficFsm$15_17.state",
-          "to": "when$TrafficFsm$18_33.state",
+          "from": "fsm$TrafficFsm$switch_state$0.state",
+          "to": "when$TrafficFsm$when_io_tick$2.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -592,8 +592,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$TrafficFsm$16_33.cond",
-          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "from": "when$TrafficFsm$when_io_tick$0.cond",
+          "to": "fsm$TrafficFsm$switch_state$0.io_tick",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -604,8 +604,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$TrafficFsm$17_33.cond",
-          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "from": "when$TrafficFsm$when_io_tick$1.cond",
+          "to": "fsm$TrafficFsm$switch_state$0.io_tick",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -616,8 +616,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$TrafficFsm$18_33.cond",
-          "to": "fsm$TrafficFsm$15_17.io_tick",
+          "from": "when$TrafficFsm$when_io_tick$2.cond",
+          "to": "fsm$TrafficFsm$switch_state$0.io_tick",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -629,7 +629,7 @@
         },
         {
           "from": "_T_1~in1",
-          "to": "fsm$TrafficFsm$15_17.state_2",
+          "to": "fsm$TrafficFsm$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -641,7 +641,7 @@
         },
         {
           "from": "_T_2~in1",
-          "to": "fsm$TrafficFsm$15_17.state_2",
+          "to": "fsm$TrafficFsm$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -653,7 +653,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "fsm$TrafficFsm$15_17.state_2",
+          "to": "fsm$TrafficFsm$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -740,7 +740,7 @@
           "op": "eq"
         },
         {
-          "id": "when$TrafficFsm$18_33",
+          "id": "when$TrafficFsm$when_io_tick$2",
           "kind": "block",
           "label": "when(io.tick)",
           "bundle": "",
@@ -751,7 +751,7 @@
           }
         },
         {
-          "id": "when$TrafficFsm$17_33",
+          "id": "when$TrafficFsm$when_io_tick$1",
           "kind": "block",
           "label": "when(io.tick)",
           "bundle": "",
@@ -762,7 +762,7 @@
           }
         },
         {
-          "id": "when$TrafficFsm$16_33",
+          "id": "when$TrafficFsm$when_io_tick$0",
           "kind": "block",
           "label": "when(io.tick)",
           "bundle": "",

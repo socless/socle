@@ -166,14 +166,22 @@ object CodeBlocks {
       }
     }
 
-    // Ids: named by the root marker; later blocks on the same marker get a copy suffix.
-    val copies: mutable.Map[String, Int] = mutable.Map.empty
+    // Ids: named by the label and its ordinal among the blocks of the same kind
+    // and label, in source order. Each distinct label of a kind gets its own
+    // token: one that another label already sanitized to gets `_2`, `_3`...
+    val tokenOf: mutable.Map[(String, String), String] = mutable.Map.empty // (kind, label) -> token
+    val labelOfToken: mutable.Map[(String, String), String] = mutable.Map.empty // (kind, token) -> label
+    val ordinals: mutable.Map[(String, String), Int] = mutable.Map.empty
     val ids: Map[Builder, String] = built.map { b =>
-      val marker: Option[(Int, Int)] = b.root.src.map(s => (s.line, s.col))
-      val base = Synthetic.blockId(b.idKind, m.name, marker, b.root.id, 0)
-      val n: Int = copies.getOrElse(base, 0)
-      copies(base) = n + 1
-      b -> Synthetic.blockId(b.idKind, m.name, marker, b.root.id, n)
+      val token: String = tokenOf.getOrElseUpdate((b.idKind, b.label), {
+        val base: String = Synthetic.labelToken(b.label)
+        val t: String = (base #:: LazyList.from(2).map(n => s"${base}_$n")).find(t => !labelOfToken.contains((b.idKind, t))).get
+        labelOfToken((b.idKind, t)) = b.label
+        t
+      })
+      val k: Int = ordinals.getOrElse((b.idKind, b.label), 0)
+      ordinals((b.idKind, b.label)) = k + 1
+      b -> Synthetic.blockId(b.idKind, m.name, token, k)
     }.toMap
 
     built.toSeq.map { b =>

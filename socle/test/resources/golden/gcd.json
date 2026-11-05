@@ -140,7 +140,7 @@
         },
         {
           "from": "busy",
-          "to": "when$GCD$36_20.busy",
+          "to": "when$GCD$when_io_in_fire$0.busy",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -152,7 +152,7 @@
         },
         {
           "from": "x",
-          "to": "when$GCD$36_20.x",
+          "to": "when$GCD$when_io_in_fire$0.x",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -164,31 +164,7 @@
         },
         {
           "from": "y",
-          "to": "when$GCD$36_20.y",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 44,
-            "col": 46
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "x",
-          "to": "when$GCD$43_25.x",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 44,
-            "col": 21
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "y",
-          "to": "when$GCD$43_25.y",
+          "to": "when$GCD$when_io_in_fire$0.y",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -200,7 +176,7 @@
         },
         {
           "from": "busy",
-          "to": "when$GCD$50_21.busy",
+          "to": "when$GCD$when_io_out_fire$0.busy",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -211,7 +187,31 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$43_25.busy",
+          "from": "x",
+          "to": "when$GCD$when_busy_x_y$0.x",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 21
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "y",
+          "to": "when$GCD$when_busy_x_y$0.y",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 44,
+            "col": 46
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$GCD$when_busy_x_y$0.busy",
           "to": "busy~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -247,7 +247,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$36_20.io_in_bits_a",
+          "from": "when$GCD$when_io_in_fire$0.io_in_bits_a",
           "to": "io.in.bits.a",
           "bundle": "Decoupled_in",
           "label": "",
@@ -259,7 +259,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$36_20.io_in_bits_b",
+          "from": "when$GCD$when_io_in_fire$0.io_in_bits_b",
           "to": "io.in.bits.b",
           "bundle": "Decoupled_in",
           "label": "",
@@ -271,7 +271,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$36_20.io_in_ready",
+          "from": "when$GCD$when_io_in_fire$0.io_in_ready",
           "to": "io.in.ready",
           "bundle": "Decoupled_in",
           "label": "",
@@ -283,7 +283,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$36_20.io_in_valid",
+          "from": "when$GCD$when_io_in_fire$0.io_in_valid",
           "to": "io.in.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -295,7 +295,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$50_21.io_out_ready",
+          "from": "when$GCD$when_io_out_fire$0.io_out_ready",
           "to": "io.out.ready",
           "bundle": "Decoupled_out",
           "label": "",
@@ -307,7 +307,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$50_21.io_out_valid",
+          "from": "when$GCD$when_io_out_fire$0.io_out_valid",
           "to": "io.out.valid",
           "bundle": "Decoupled_out",
           "label": "",
@@ -319,7 +319,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$43_25.x_2",
+          "from": "when$GCD$when_busy_x_y$0.x_2",
           "to": "x~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -355,7 +355,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$43_25.y_2",
+          "from": "when$GCD$when_busy_x_y$0.y_2",
           "to": "y~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -466,7 +466,7 @@
           "op": "and"
         },
         {
-          "id": "when$GCD$50_21",
+          "id": "when$GCD$when_io_out_fire$0",
           "kind": "block",
           "label": "when(io.out.fire)",
           "bundle": "",
@@ -477,7 +477,7 @@
           }
         },
         {
-          "id": "when$GCD$43_25",
+          "id": "when$GCD$when_busy_x_y$0",
           "kind": "block",
           "label": "when(busy && x =/= y)",
           "bundle": "",
@@ -488,7 +488,7 @@
           }
         },
         {
-          "id": "when$GCD$36_20",
+          "id": "when$GCD$when_io_in_fire$0",
           "kind": "block",
           "label": "when(io.in.fire)",
           "bundle": "",
@@ -507,9 +507,9 @@
     "portPad": 18
   },
   "regions": {
-    "when$GCD$50_21": {
-      "name": "when$GCD$50_21",
-      "type": "when$GCD$50_21",
+    "when$GCD$when_io_out_fire$0": {
+      "name": "when$GCD$when_io_out_fire$0",
+      "type": "when$GCD$when_io_out_fire$0",
       "doc": "",
       "source": {
         "file": "example/src/gcd/GCD.scala",
@@ -569,7 +569,7 @@
       "children": [],
       "wires": [
         {
-          "from": "when$GCD$50_21.cond",
+          "from": "when$GCD$when_io_out_fire$0.cond",
           "to": "_T_4",
           "bundle": "Wire",
           "label": "",
@@ -580,8 +580,8 @@
           }
         },
         {
-          "from": "when$GCD$50_21.busy",
-          "to": "const$asg$when$GCD$50_21$busy~in0",
+          "from": "when$GCD$when_io_out_fire$0.busy",
+          "to": "const$asg$when$GCD$when_io_out_fire$0$busy~in0",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -592,7 +592,7 @@
         },
         {
           "from": "_T_4~in0",
-          "to": "when$GCD$50_21.io_out_ready",
+          "to": "when$GCD$when_io_out_fire$0.io_out_ready",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
@@ -604,7 +604,7 @@
         },
         {
           "from": "_T_4~in1",
-          "to": "when$GCD$50_21.io_out_valid",
+          "to": "when$GCD$when_io_out_fire$0.io_out_valid",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
@@ -622,7 +622,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$GCD$50_21$busy~in0",
+          "id": "const$asg$when$GCD$when_io_out_fire$0$busy~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -646,9 +646,9 @@
         }
       ]
     },
-    "when$GCD$44_17": {
-      "name": "when$GCD$44_17",
-      "type": "when$GCD$44_17",
+    "when$GCD$when_x_y$0": {
+      "name": "when$GCD$when_x_y$0",
+      "type": "when$GCD$when_x_y$0",
       "doc": "",
       "source": {
         "file": "example/src/gcd/GCD.scala",
@@ -719,7 +719,7 @@
       "children": [],
       "wires": [
         {
-          "from": "when$GCD$44_17.cond",
+          "from": "when$GCD$when_x_y$0.cond",
           "to": "_T_3",
           "bundle": "Wire",
           "label": "",
@@ -730,7 +730,7 @@
           }
         },
         {
-          "from": "when$GCD$44_17.x",
+          "from": "when$GCD$when_x_y$0.x",
           "to": "_x_T",
           "bundle": "UInt<16>",
           "label": "",
@@ -741,7 +741,7 @@
           }
         },
         {
-          "from": "when$GCD$44_17.y",
+          "from": "when$GCD$when_x_y$0.y",
           "to": "_y_T",
           "bundle": "UInt<16>",
           "label": "",
@@ -753,7 +753,7 @@
         },
         {
           "from": "_T_3~in0",
-          "to": "when$GCD$44_17.x_2",
+          "to": "when$GCD$when_x_y$0.x_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -765,7 +765,7 @@
         },
         {
           "from": "_x_T~in0",
-          "to": "when$GCD$44_17.x_2",
+          "to": "when$GCD$when_x_y$0.x_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -777,7 +777,7 @@
         },
         {
           "from": "_y_T~in1",
-          "to": "when$GCD$44_17.x_2",
+          "to": "when$GCD$when_x_y$0.x_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -789,7 +789,7 @@
         },
         {
           "from": "_T_3~in1",
-          "to": "when$GCD$44_17.y_2",
+          "to": "when$GCD$when_x_y$0.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -801,7 +801,7 @@
         },
         {
           "from": "_x_T~in1",
-          "to": "when$GCD$44_17.y_2",
+          "to": "when$GCD$when_x_y$0.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -813,7 +813,7 @@
         },
         {
           "from": "_y_T~in0",
-          "to": "when$GCD$44_17.y_2",
+          "to": "when$GCD$when_x_y$0.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -868,9 +868,9 @@
         }
       ]
     },
-    "when$GCD$43_25": {
-      "name": "when$GCD$43_25",
-      "type": "when$GCD$43_25",
+    "when$GCD$when_busy_x_y$0": {
+      "name": "when$GCD$when_busy_x_y$0",
+      "type": "when$GCD$when_busy_x_y$0",
       "doc": "",
       "source": {
         "file": "example/src/gcd/GCD.scala",
@@ -963,7 +963,7 @@
           }
         },
         {
-          "from": "when$GCD$43_25.cond",
+          "from": "when$GCD$when_busy_x_y$0.cond",
           "to": "_T_2",
           "bundle": "Wire",
           "label": "",
@@ -974,8 +974,8 @@
           }
         },
         {
-          "from": "when$GCD$43_25.x",
-          "to": "when$GCD$44_17.x",
+          "from": "when$GCD$when_busy_x_y$0.x",
+          "to": "when$GCD$when_x_y$0.x",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -986,8 +986,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$43_25.y",
-          "to": "when$GCD$44_17.y",
+          "from": "when$GCD$when_busy_x_y$0.y",
+          "to": "when$GCD$when_x_y$0.y",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -999,7 +999,7 @@
         },
         {
           "from": "_T_2~in0",
-          "to": "when$GCD$43_25.busy",
+          "to": "when$GCD$when_busy_x_y$0.busy",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -1011,7 +1011,7 @@
         },
         {
           "from": "_T_1~in0",
-          "to": "when$GCD$43_25.x_2",
+          "to": "when$GCD$when_busy_x_y$0.x_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1022,8 +1022,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$44_17.x_2",
-          "to": "when$GCD$43_25.x_2",
+          "from": "when$GCD$when_x_y$0.x_2",
+          "to": "when$GCD$when_busy_x_y$0.x_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1035,7 +1035,7 @@
         },
         {
           "from": "_T_1~in1",
-          "to": "when$GCD$43_25.y_2",
+          "to": "when$GCD$when_busy_x_y$0.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1046,8 +1046,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$44_17.y_2",
-          "to": "when$GCD$43_25.y_2",
+          "from": "when$GCD$when_x_y$0.y_2",
+          "to": "when$GCD$when_busy_x_y$0.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1089,7 +1089,7 @@
           "op": "and"
         },
         {
-          "id": "when$GCD$44_17",
+          "id": "when$GCD$when_x_y$0",
           "kind": "block",
           "label": "when(x > y)",
           "bundle": "",
@@ -1101,9 +1101,9 @@
         }
       ]
     },
-    "when$GCD$36_20": {
-      "name": "when$GCD$36_20",
-      "type": "when$GCD$36_20",
+    "when$GCD$when_io_in_fire$0": {
+      "name": "when$GCD$when_io_in_fire$0",
+      "type": "when$GCD$when_io_in_fire$0",
       "doc": "",
       "source": {
         "file": "example/src/gcd/GCD.scala",
@@ -1209,7 +1209,7 @@
       "children": [],
       "wires": [
         {
-          "from": "when$GCD$36_20.cond",
+          "from": "when$GCD$when_io_in_fire$0.cond",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -1220,8 +1220,8 @@
           }
         },
         {
-          "from": "when$GCD$36_20.busy",
-          "to": "const$asg$when$GCD$36_20$busy~in0",
+          "from": "when$GCD$when_io_in_fire$0.busy",
+          "to": "const$asg$when$GCD$when_io_in_fire$0$busy~in0",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -1231,8 +1231,8 @@
           }
         },
         {
-          "from": "when$GCD$36_20.x",
-          "to": "when$GCD$36_20.io_in_bits_a",
+          "from": "when$GCD$when_io_in_fire$0.x",
+          "to": "when$GCD$when_io_in_fire$0.io_in_bits_a",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -1243,8 +1243,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$GCD$36_20.y",
-          "to": "when$GCD$36_20.io_in_bits_b",
+          "from": "when$GCD$when_io_in_fire$0.y",
+          "to": "when$GCD$when_io_in_fire$0.io_in_bits_b",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -1256,7 +1256,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$GCD$36_20.io_in_ready",
+          "to": "when$GCD$when_io_in_fire$0.io_in_ready",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -1268,7 +1268,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "when$GCD$36_20.io_in_valid",
+          "to": "when$GCD$when_io_in_fire$0.io_in_valid",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -1286,7 +1286,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$GCD$36_20$busy~in0",
+          "id": "const$asg$when$GCD$when_io_in_fire$0$busy~in0",
           "kind": "const",
           "label": "0h1",
           "bundle": "",

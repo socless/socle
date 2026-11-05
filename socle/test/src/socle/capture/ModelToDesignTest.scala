@@ -899,7 +899,7 @@ object ModelToDesignTest extends TestSuite {
           if (scalaClass == "fsm.TrafficFsm" && register == "state") Some(FsmSource(diagram, switch)) else None
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$switch_state$0").get
       // as the index gives it, with the encodings FsmEncoding can pair: here
       // only the reset's (the three transitions share one line, which has one connect)
       assert(block.fsm == Some(diagram.copy(states = diagram.states.map(s => if (s.initial) s.copy(value = "0") else s))))
@@ -910,8 +910,8 @@ object ModelToDesignTest extends TestSuite {
       val (model, index, _) = erCaptured
       val d       = ModelToDesign.design(model, Some(index))
       val m       = d.modules.find(_.name == "Er1Octet").get
-      val enable  = "when$Er1Octet$36_19"
-      val sw      = "fsm$Er1Octet$37_19"
+      val enable  = "when$Er1Octet$when_io_enable$0"
+      val sw      = "fsm$Er1Octet$switch_state$0"
       val box     = m.logic.find(_.id == enable).get
       assert(box.kind == NodeKind.Block, box.label == "when(io.enable)")
       val regs    = Seq("state", "registre", "cpt", "sclk", "mosi", "busy", "dout")
@@ -929,7 +929,7 @@ object ModelToDesignTest extends TestSuite {
       check(inner.fsm.isDefined, s"no diagram on $sw")
       assert(inner.fsm.get.states.map(_.name) == Seq("attente", "reception", "envoi"))
       // Nested bodies are regions too.
-      assert(d.regions.contains(sw), d.regions.contains("when$Er1Octet$39_21"))
+      assert(d.regions.contains(sw), d.regions.contains("when$Er1Octet$when_io_go$0"))
     }
 
     test("a when in a generator loop and its registers stay in the loop's box") {
@@ -941,14 +941,14 @@ object ModelToDesignTest extends TestSuite {
       val body = d.regions(gen.get.id)
       val held = body.logic.map(_.id).toSet
       // The loop's when boxes and the registers made in the loop are in its box.
-      check(Set("when$LoopWhen$16_21", "when$LoopWhen$16_21$1", "r", "r_1").subsetOf(held), s"loop body $held")
+      check(Set("when$LoopWhen$when_io_sel_i$0", "when$LoopWhen$when_io_sel_i$1", "r", "r_1").subsetOf(held), s"loop body $held")
       // Their bodies open from there.
-      check(d.regions.contains("when$LoopWhen$16_21") && d.regions.contains("when$LoopWhen$16_21$1"), s"regions ${d.regions.keySet}")
+      check(d.regions.contains("when$LoopWhen$when_io_sel_i$0") && d.regions.contains("when$LoopWhen$when_io_sel_i$1"), s"regions ${d.regions.keySet}")
       // `s`, written by the loop and by a when outside it, stays plain, as does
       // the outside when box.
       check(m.logic.exists(n => n.id == "s" && n.kind == NodeKind.Reg), s"module logic ${m.logic.map(_.id)}")
-      check(m.logic.exists(_.id == "when$LoopWhen$19_24"), s"module logic ${m.logic.map(_.id)}")
-      check(!held("s") && !held("when$LoopWhen$19_24"), s"loop body $held")
+      check(m.logic.exists(_.id == "when$LoopWhen$when_io_sel_3_U$0"), s"module logic ${m.logic.map(_.id)}")
+      check(!held("s") && !held("when$LoopWhen$when_io_sel_3_U$0"), s"loop body $held")
       // Every output port is still driven.
       for (p <- Seq("io.o[0]", "io.o[1]", "io.s")) check(m.wires.exists(_.from == p), s"no wire into $p in ${m.wires}")
     }
@@ -1007,7 +1007,7 @@ object ModelToDesignTest extends TestSuite {
 
     test("without an index the fsm block falls back to case literals") {
       val m     = ModelToDesign.design(fsm).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$switch_state$0").get
       assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
         "Transitions are not shown: this view was built without the Scala source index.")))
     }
@@ -1017,7 +1017,7 @@ object ModelToDesignTest extends TestSuite {
         def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] = None
       }
       val m     = ModelToDesign.design(fsm, Some(index)).modules.find(_.name == "TrafficFsm").get
-      val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get
+      val block = m.logic.find(_.id == "fsm$TrafficFsm$switch_state$0").get
       assert(block.fsm == Some(FsmDiagram(Seq(FsmState("0"), FsmState("1"), FsmState("2")), Nil,
         "Transitions are not available: the state machine's Scala source could not be read.")))
     }

@@ -121,7 +121,7 @@
         },
         {
           "from": "count",
-          "to": "when$LayeredCounter$29_15.count",
+          "to": "when$LayeredCounter$when_io_en$0.count",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -143,7 +143,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$LayeredCounter$29_15.count_2",
+          "from": "when$LayeredCounter$when_io_en$0.count_2",
           "to": "count~q",
           "bundle": "UInt<8>",
           "label": "",
@@ -179,7 +179,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$LayeredCounter$29_15.cond",
+          "from": "when$LayeredCounter$when_io_en$0.cond",
           "to": "io.en",
           "bundle": "UInt<1>",
           "label": "",
@@ -263,7 +263,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$LayeredCounter$29_15.wrap",
+          "from": "when$LayeredCounter$when_io_en$0.wrap",
           "to": "wrap",
           "bundle": "Wire",
           "label": "",
@@ -430,7 +430,7 @@
           "layer": true
         },
         {
-          "id": "when$LayeredCounter$29_15",
+          "id": "when$LayeredCounter$when_io_en$0",
           "kind": "block",
           "label": "when(io.en)",
           "bundle": "",
@@ -449,9 +449,9 @@
     "portPad": 18
   },
   "regions": {
-    "when$LayeredCounter$29_15": {
-      "name": "when$LayeredCounter$29_15",
-      "type": "when$LayeredCounter$29_15",
+    "when$LayeredCounter$when_io_en$0": {
+      "name": "when$LayeredCounter$when_io_en$0",
+      "type": "when$LayeredCounter$when_io_en$0",
       "doc": "",
       "source": {
         "file": "example/src/layers/LayeredCounter.scala",
@@ -543,7 +543,7 @@
           }
         },
         {
-          "from": "when$LayeredCounter$29_15.count",
+          "from": "when$LayeredCounter$when_io_en$0.count",
           "to": "_count_T_2",
           "bundle": "UInt<8>",
           "label": "",
@@ -555,7 +555,7 @@
         },
         {
           "from": "_count_T~in0",
-          "to": "when$LayeredCounter$29_15.count_2",
+          "to": "when$LayeredCounter$when_io_en$0.count_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -567,7 +567,7 @@
         },
         {
           "from": "_count_T_2~in0",
-          "to": "when$LayeredCounter$29_15.wrap",
+          "to": "when$LayeredCounter$when_io_en$0.wrap",
           "bundle": "Wire",
           "label": "",
           "source": {

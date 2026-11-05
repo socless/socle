@@ -38,9 +38,9 @@ object WaveEnumsTest extends TestSuite {
 
     test("an FSM inside a block box still names its states") {
       val named = FsmDiagram(Seq(FsmState("idle", value = "0"), FsmState("run", value = "1")), Nil)
-      val fsmBox  = LogicNodeDef("fsm$M$5_3", NodeKind.Fsm, "switch(state)", "", SourceRef.unknown,
+      val fsmBox  = LogicNodeDef("fsm$M$switch_state$0", NodeKind.Fsm, "switch(state)", "", SourceRef.unknown,
         fsm = Some(named), state = "state")
-      val whenBox = LogicNodeDef("when$M$4_1", NodeKind.Block, "when(en)", "", SourceRef.unknown)
+      val whenBox = LogicNodeDef("when$M$when_en$0", NodeKind.Block, "when(en)", "", SourceRef.unknown)
       def body(id: String, logic: Seq[LogicNodeDef]) =
         ModuleDef(id, id, "", SourceRef.unknown, Nil, Nil, Nil, Metrics(0, 0, 0), logic = logic)
       val m = body("M", Seq(whenBox, LogicNodeDef("state", NodeKind.Reg, "state", "", SourceRef.unknown)))

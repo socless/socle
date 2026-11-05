@@ -325,7 +325,7 @@
       "wires": [
         {
           "from": "pc",
-          "to": "when$Fetch$74_21.pc",
+          "to": "when$Fetch$when_io_out_fire$0.pc",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
@@ -395,7 +395,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Fetch$74_21.io_out_ready",
+          "from": "when$Fetch$when_io_out_fire$0.io_out_ready",
           "to": "io.out.ready",
           "bundle": "Decoupled_out",
           "label": "",
@@ -419,7 +419,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Fetch$74_21.io_out_valid",
+          "from": "when$Fetch$when_io_out_fire$0.io_out_valid",
           "to": "io.out.valid",
           "bundle": "Decoupled_out",
           "label": "",
@@ -431,7 +431,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Fetch$74_21.pc_2",
+          "from": "when$Fetch$when_io_out_fire$0.pc_2",
           "to": "pc~q",
           "bundle": "UInt<32>",
           "label": "",
@@ -518,7 +518,7 @@
           }
         },
         {
-          "id": "when$Fetch$74_21",
+          "id": "when$Fetch$when_io_out_fire$0",
           "kind": "block",
           "label": "when(io.out.fire)",
           "bundle": "",
@@ -1151,7 +1151,7 @@
       "wires": [
         {
           "from": "regs~MPORT~w",
-          "to": "when$RegFile$133_44.regs_MPORT_w",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -1185,7 +1185,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegFile$133_44.io_wr_waddr",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr",
           "to": "io.wr.waddr",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1209,7 +1209,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegFile$133_44.io_wr_wdata",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata",
           "to": "io.wr.wdata",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1221,7 +1221,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegFile$133_44.io_wr_wen",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen",
           "to": "io.wr.wen",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1313,7 +1313,7 @@
           }
         },
         {
-          "id": "when$RegFile$133_44",
+          "id": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
           "kind": "block",
           "label": "when(io.wr.wen && (io.wr.waddr =/= 0.U))",
           "bundle": "",
@@ -1665,9 +1665,9 @@
     "portPad": 18
   },
   "regions": {
-    "when$Fetch$74_21": {
-      "name": "when$Fetch$74_21",
-      "type": "when$Fetch$74_21",
+    "when$Fetch$when_io_out_fire$0": {
+      "name": "when$Fetch$when_io_out_fire$0",
+      "type": "when$Fetch$when_io_out_fire$0",
       "doc": "",
       "source": {
         "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1750,7 +1750,7 @@
           }
         },
         {
-          "from": "when$Fetch$74_21.cond",
+          "from": "when$Fetch$when_io_out_fire$0.cond",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -1761,7 +1761,7 @@
           }
         },
         {
-          "from": "when$Fetch$74_21.pc",
+          "from": "when$Fetch$when_io_out_fire$0.pc",
           "to": "_pc_T",
           "bundle": "UInt<32>",
           "label": "",
@@ -1773,7 +1773,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$Fetch$74_21.io_out_ready",
+          "to": "when$Fetch$when_io_out_fire$0.io_out_ready",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
@@ -1785,7 +1785,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "when$Fetch$74_21.io_out_valid",
+          "to": "when$Fetch$when_io_out_fire$0.io_out_valid",
           "bundle": "Decoupled_out",
           "label": "",
           "source": {
@@ -1797,7 +1797,7 @@
         },
         {
           "from": "_pc_T~in0",
-          "to": "when$Fetch$74_21.pc_2",
+          "to": "when$Fetch$when_io_out_fire$0.pc_2",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
@@ -1851,9 +1851,9 @@
         }
       ]
     },
-    "when$RegFile$133_44": {
-      "name": "when$RegFile$133_44",
-      "type": "when$RegFile$133_44",
+    "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0": {
+      "name": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
+      "type": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
       "doc": "",
       "source": {
         "file": "example/src/rvpipeline/RVPipeline.scala",
@@ -1948,7 +1948,7 @@
           }
         },
         {
-          "from": "when$RegFile$133_44.cond",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.cond",
           "to": "_T_1",
           "bundle": "Wire",
           "label": "",
@@ -1959,8 +1959,8 @@
           }
         },
         {
-          "from": "when$RegFile$133_44.regs_MPORT_w",
-          "to": "when$RegFile$133_44.io_wr_wdata",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata",
           "bundle": "Rf_d1479c",
           "label": "",
           "source": {
@@ -1972,7 +1972,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$RegFile$133_44.io_wr_waddr",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr",
           "bundle": "Rf_d1479c",
           "label": "",
           "source": {
@@ -1984,7 +1984,7 @@
         },
         {
           "from": "_T_1~in0",
-          "to": "when$RegFile$133_44.io_wr_wen",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen",
           "bundle": "Rf_d1479c",
           "label": "",
           "source": {

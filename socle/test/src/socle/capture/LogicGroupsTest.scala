@@ -30,16 +30,16 @@ object LogicGroupsTest extends TestSuite {
   val tests = Tests {
     test("an fsm box and its state register stay out of every group") {
       val m  = module(
-        Seq(node("fsm$M$5_3", NodeKind.Fsm, at(5)).copy(state = "state"), node("state", NodeKind.Reg, at(4))),
-        Seq(w("state", "fsm$M$5_3.state")))
+        Seq(node("fsm$M$switch_state$0", NodeKind.Fsm, at(5)).copy(state = "state"), node("state", NodeKind.Reg, at(4))),
+        Seq(w("state", "fsm$M$switch_state$0.state")))
       assert(LogicGroups.assign(m, None).isEmpty)
     }
     test("a register a box writes stays plain") {
       // `r` is written by the box and by a module-level op; `r2` only by the op.
       val m  = module(
-        Seq(node("when$M$7_1", NodeKind.Block, at(7)), node("a", NodeKind.Op, at(99)),
+        Seq(node("when$M$when_en$0", NodeKind.Block, at(7)), node("a", NodeKind.Op, at(99)),
           node("r", NodeKind.Reg), node("r2", NodeKind.Reg)),
-        Seq(w("r", "when$M$7_1.r"), w("r", "a"), w("r2", "a")))
+        Seq(w("r", "when$M$when_en$0.r"), w("r", "a"), w("r2", "a")))
       val gs = LogicGroups.assign(m, index)
       assert(gs.map(_.id) == Seq("blk$M$logic"), ids(gs.head) == Set("a", "r2"))
     }
@@ -59,9 +59,9 @@ object LogicGroupsTest extends TestSuite {
     }
     test("no index: logic only, the fsm box left out") {
       val m = module(Seq(
-        node("fsm$M$5_3", NodeKind.Fsm, at(5)), node("state", NodeKind.Reg),
+        node("fsm$M$switch_state$0", NodeKind.Fsm, at(5)), node("state", NodeKind.Reg),
         node("a", NodeKind.Op, at(10)), node("r", NodeKind.Reg)),
-        Seq(w("state", "fsm$M$5_3.state")))
+        Seq(w("state", "fsm$M$switch_state$0.state")))
       val gs = LogicGroups.assign(m, None)
       assert(gs.map(_.id) == Seq("blk$M$logic"))
       assert(ids(gs(0)) == Set("a", "r"), gs(0).label == "logic", gs(0).source == modSrc)
@@ -115,14 +115,14 @@ object LogicGroupsTest extends TestSuite {
     }
     test("const feeding only a box stays plain") {
       val m = module(
-        Seq(node("fsm$M$5_3", NodeKind.Fsm), node("const$k", NodeKind.Const)),
-        Seq(w("fsm$M$5_3.k", "const$k")))
+        Seq(node("fsm$M$switch_state$0", NodeKind.Fsm), node("const$k", NodeKind.Const)),
+        Seq(w("fsm$M$switch_state$0.k", "const$k")))
       assert(LogicGroups.assign(m, index).isEmpty)
     }
     test("unknown-position op driving only a box goes to logic") {
       val m = module(
-        Seq(node("fsm$M$5_3", NodeKind.Fsm), node("u", NodeKind.Op)),
-        Seq(w("fsm$M$5_3.u", "u")))
+        Seq(node("fsm$M$switch_state$0", NodeKind.Fsm), node("u", NodeKind.Op)),
+        Seq(w("fsm$M$switch_state$0.u", "u")))
       val gs = LogicGroups.assign(m, index)
       assert(gs.map(_.id) == Seq("blk$M$logic"), ids(gs.head) == Set("u"))
     }

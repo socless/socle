@@ -970,8 +970,8 @@ async function smokeDesignIn(design, ctx) {
         drain(`${where} (live reload)`);
         // An FSM block opens its source too. No captured fixture holds an FSM,
         // so the same block is served again as an `fsm` box, named and shaped
-        // as IrWalk names one (a marker id, its register in `state`).
-        const fsmId = 'fsm$Cluster$119_5';
+        // as IrWalk names one (its label and ordinal, its register in `state`).
+        const fsmId = 'fsm$Cluster$switch_state$0';
         const asFsm = JSON.parse(fresh.split('blk$Cluster$logic2').join(fsmId));
         for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) { n.kind = 'fsm'; n.state = 'state'; }
         await page.unroute('**/design.json');
@@ -1015,7 +1015,7 @@ async function smokeDesignIn(design, ctx) {
   // a breadcrumb segment and a live reload that drops the block close it.
   if (design === 'fsm-view') {
     const where = 'fsm diagram';
-    const id = 'fsm$TrafficFsm$15_17';
+    const id = 'fsm$TrafficFsm$switch_state$0';
     const file = 'example/src/fsm/TrafficFsm.scala';
     const diag = `[data-fsm-diagram="${id}"]`;
     const ready = () => page.waitForSelector(`${diag}[data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);

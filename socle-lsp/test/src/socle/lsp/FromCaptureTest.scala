@@ -15,7 +15,7 @@ object FromCaptureTest extends TestSuite {
       ))
       assert(rc == 0)
       val design = upickle.default.read[socle.schema.Design](os.read(out))
-      val fsm = design.modules.flatMap(_.logic).find(_.id == "fsm$TrafficFsm$15_17").flatMap(_.fsm).get
+      val fsm = design.modules.flatMap(_.logic).find(_.id == "fsm$TrafficFsm$switch_state$0").flatMap(_.fsm).get
       assert(fsm.states.map(s => (s.name, s.initial)) == Seq("sRed" -> true, "sGreen" -> false, "sYellow" -> false))
       // each state's encoding in the register, for the waveform viewer's names
       assert(fsm.states.map(_.value) == Seq("0", "1", "2"))

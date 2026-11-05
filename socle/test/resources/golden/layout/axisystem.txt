@@ -21,8 +21,8 @@ layout AXIMaster
   node io.r kind=boundary pins=io.r:EAST:iface
   node io.w kind=boundary pins=io.w:WEST:iface
   node txQ kind=inst pins=txQ.io.count:EAST,txQ.io.deq:EAST:iface,txQ.io.enq:WEST:iface
-  node when$AXIMaster$43_21 kind=block pins=when$AXIMaster$43_21.cond:WEST,when$AXIMaster$43_21.idCnt:EAST,when$AXIMaster$43_21.idCnt_2:WEST,when$AXIMaster$43_21.io_ar_ready:WEST,when$AXIMaster$43_21.io_ar_valid:WEST
-  edge idCnt -> when$AXIMaster$43_21.idCnt
+  node when$AXIMaster$when_io_ar_fire$0 kind=block pins=when$AXIMaster$when_io_ar_fire$0.cond:WEST,when$AXIMaster$when_io_ar_fire$0.idCnt:EAST,when$AXIMaster$when_io_ar_fire$0.idCnt_2:WEST,when$AXIMaster$when_io_ar_fire$0.io_ar_ready:WEST,when$AXIMaster$when_io_ar_fire$0.io_ar_valid:WEST
+  edge idCnt -> when$AXIMaster$when_io_ar_fire$0.idCnt
   edge io.ar -> const$io_ar_bits_burst
   edge io.ar -> const$io_ar_bits_cache
   edge io.ar -> const$io_ar_bits_len
@@ -36,9 +36,9 @@ layout AXIMaster
   edge io.w -> const$io_w_valid
   edge txQ.io.enq -> const$txQ_io_enq_bits
   edge txQ.io.enq -> const$txQ_io_enq_valid
-  edge when$AXIMaster$43_21.idCnt_2 -> idCnt~q
-  edge when$AXIMaster$43_21.io_ar_ready -> io.ar
-  edge when$AXIMaster$43_21.io_ar_valid -> io.ar
+  edge when$AXIMaster$when_io_ar_fire$0.idCnt_2 -> idCnt~q
+  edge when$AXIMaster$when_io_ar_fire$0.io_ar_ready -> io.ar
+  edge when$AXIMaster$when_io_ar_fire$0.io_ar_valid -> io.ar
 layout AXIMaster_1
   node const$io_ar_bits_burst kind=const pins=const$io_ar_bits_burst:EAST
   node const$io_ar_bits_cache kind=const pins=const$io_ar_bits_cache:EAST
@@ -58,8 +58,8 @@ layout AXIMaster_1
   node io.r kind=boundary pins=io.r:EAST:iface
   node io.w kind=boundary pins=io.w:WEST:iface
   node txQ kind=inst pins=txQ.io.count:EAST,txQ.io.deq:EAST:iface,txQ.io.enq:WEST:iface
-  node when$AXIMaster_1$43_21 kind=block pins=when$AXIMaster_1$43_21.cond:WEST,when$AXIMaster_1$43_21.idCnt:EAST,when$AXIMaster_1$43_21.idCnt_2:WEST,when$AXIMaster_1$43_21.io_ar_ready:WEST,when$AXIMaster_1$43_21.io_ar_valid:WEST
-  edge idCnt -> when$AXIMaster_1$43_21.idCnt
+  node when$AXIMaster_1$when_io_ar_fire$0 kind=block pins=when$AXIMaster_1$when_io_ar_fire$0.cond:WEST,when$AXIMaster_1$when_io_ar_fire$0.idCnt:EAST,when$AXIMaster_1$when_io_ar_fire$0.idCnt_2:WEST,when$AXIMaster_1$when_io_ar_fire$0.io_ar_ready:WEST,when$AXIMaster_1$when_io_ar_fire$0.io_ar_valid:WEST
+  edge idCnt -> when$AXIMaster_1$when_io_ar_fire$0.idCnt
   edge io.ar -> const$io_ar_bits_burst
   edge io.ar -> const$io_ar_bits_cache
   edge io.ar -> const$io_ar_bits_len
@@ -73,9 +73,9 @@ layout AXIMaster_1
   edge io.w -> const$io_w_valid
   edge txQ.io.enq -> const$txQ_io_enq_bits
   edge txQ.io.enq -> const$txQ_io_enq_valid
-  edge when$AXIMaster_1$43_21.idCnt_2 -> idCnt~q
-  edge when$AXIMaster_1$43_21.io_ar_ready -> io.ar
-  edge when$AXIMaster_1$43_21.io_ar_valid -> io.ar
+  edge when$AXIMaster_1$when_io_ar_fire$0.idCnt_2 -> idCnt~q
+  edge when$AXIMaster_1$when_io_ar_fire$0.io_ar_ready -> io.ar
+  edge when$AXIMaster_1$when_io_ar_fire$0.io_ar_valid -> io.ar
 layout AXISlave
   node const$io_aw_ready kind=const pins=const$io_aw_ready:EAST
   node const$io_b_valid kind=const pins=const$io_b_valid:EAST
@@ -325,7 +325,7 @@ layout Queue8_UInt32
   edge wrap_1~in1 -> const$wrap_1~in1
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
-layout when$AXIMaster$43_21
+layout when$AXIMaster$when_io_ar_fire$0
   node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _idCnt_T kind=op pins=_idCnt_T:EAST,_idCnt_T~in0:WEST,_idCnt_T~in1:WEST
   node cond kind=boundary pins=cond:WEST
@@ -343,4 +343,4 @@ layout when$AXIMaster$43_21
 layoutOf AXISlave_1 -> AXISlave
 layoutOf Queue4_R_1 -> Queue4_R
 layoutOf Queue8_UInt32_1 -> Queue8_UInt32
-layoutOf when$AXIMaster_1$43_21 -> when$AXIMaster$43_21
+layoutOf when$AXIMaster_1$when_io_ar_fire$0 -> when$AXIMaster$when_io_ar_fire$0

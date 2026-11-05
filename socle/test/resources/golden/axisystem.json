@@ -1609,7 +1609,7 @@
         },
         {
           "from": "idCnt",
-          "to": "when$AXIMaster$43_21.idCnt",
+          "to": "when$AXIMaster$when_io_ar_fire$0.idCnt",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -1725,7 +1725,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster$43_21.idCnt_2",
+          "from": "when$AXIMaster$when_io_ar_fire$0.idCnt_2",
           "to": "idCnt~q",
           "bundle": "UInt<4>",
           "label": "",
@@ -1749,7 +1749,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster$43_21.io_ar_ready",
+          "from": "when$AXIMaster$when_io_ar_fire$0.io_ar_ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -1773,7 +1773,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster$43_21.io_ar_valid",
+          "from": "when$AXIMaster$when_io_ar_fire$0.io_ar_valid",
           "to": "io.ar.valid",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -1948,7 +1948,7 @@
           }
         },
         {
-          "id": "when$AXIMaster$43_21",
+          "id": "when$AXIMaster$when_io_ar_fire$0",
           "kind": "block",
           "label": "when (io.ar.fire)",
           "bundle": "",
@@ -3358,7 +3358,7 @@
         },
         {
           "from": "idCnt",
-          "to": "when$AXIMaster_1$43_21.idCnt",
+          "to": "when$AXIMaster_1$when_io_ar_fire$0.idCnt",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -3474,7 +3474,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster_1$43_21.idCnt_2",
+          "from": "when$AXIMaster_1$when_io_ar_fire$0.idCnt_2",
           "to": "idCnt~q",
           "bundle": "UInt<4>",
           "label": "",
@@ -3498,7 +3498,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster_1$43_21.io_ar_ready",
+          "from": "when$AXIMaster_1$when_io_ar_fire$0.io_ar_ready",
           "to": "io.ar.ready",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -3522,7 +3522,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$AXIMaster_1$43_21.io_ar_valid",
+          "from": "when$AXIMaster_1$when_io_ar_fire$0.io_ar_valid",
           "to": "io.ar.valid",
           "bundle": "Decoupled_ar",
           "label": "",
@@ -3697,7 +3697,7 @@
           }
         },
         {
-          "id": "when$AXIMaster_1$43_21",
+          "id": "when$AXIMaster_1$when_io_ar_fire$0",
           "kind": "block",
           "label": "when (io.ar.fire)",
           "bundle": "",
@@ -7231,9 +7231,9 @@
     }
   ],
   "regions": {
-    "when$AXIMaster$43_21": {
-      "name": "when$AXIMaster$43_21",
-      "type": "when$AXIMaster$43_21",
+    "when$AXIMaster$when_io_ar_fire$0": {
+      "name": "when$AXIMaster$when_io_ar_fire$0",
+      "type": "when$AXIMaster$when_io_ar_fire$0",
       "doc": "",
       "source": {
         "file": "example/src/axisystem/AXISystem.scala",
@@ -7316,7 +7316,7 @@
           }
         },
         {
-          "from": "when$AXIMaster$43_21.cond",
+          "from": "when$AXIMaster$when_io_ar_fire$0.cond",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -7327,7 +7327,7 @@
           }
         },
         {
-          "from": "when$AXIMaster$43_21.idCnt",
+          "from": "when$AXIMaster$when_io_ar_fire$0.idCnt",
           "to": "_idCnt_T",
           "bundle": "UInt<4>",
           "label": "",
@@ -7339,7 +7339,7 @@
         },
         {
           "from": "_idCnt_T~in0",
-          "to": "when$AXIMaster$43_21.idCnt_2",
+          "to": "when$AXIMaster$when_io_ar_fire$0.idCnt_2",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -7351,7 +7351,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$AXIMaster$43_21.io_ar_ready",
+          "to": "when$AXIMaster$when_io_ar_fire$0.io_ar_ready",
           "bundle": "Decoupled_ar",
           "label": "",
           "source": {
@@ -7363,7 +7363,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "when$AXIMaster$43_21.io_ar_valid",
+          "to": "when$AXIMaster$when_io_ar_fire$0.io_ar_valid",
           "bundle": "Decoupled_ar",
           "label": "",
           "source": {
@@ -7417,9 +7417,9 @@
         }
       ]
     },
-    "when$AXIMaster_1$43_21": {
-      "name": "when$AXIMaster_1$43_21",
-      "type": "when$AXIMaster_1$43_21",
+    "when$AXIMaster_1$when_io_ar_fire$0": {
+      "name": "when$AXIMaster_1$when_io_ar_fire$0",
+      "type": "when$AXIMaster_1$when_io_ar_fire$0",
       "doc": "",
       "source": {
         "file": "example/src/axisystem/AXISystem.scala",
@@ -7502,7 +7502,7 @@
           }
         },
         {
-          "from": "when$AXIMaster_1$43_21.cond",
+          "from": "when$AXIMaster_1$when_io_ar_fire$0.cond",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -7513,7 +7513,7 @@
           }
         },
         {
-          "from": "when$AXIMaster_1$43_21.idCnt",
+          "from": "when$AXIMaster_1$when_io_ar_fire$0.idCnt",
           "to": "_idCnt_T",
           "bundle": "UInt<4>",
           "label": "",
@@ -7525,7 +7525,7 @@
         },
         {
           "from": "_idCnt_T~in0",
-          "to": "when$AXIMaster_1$43_21.idCnt_2",
+          "to": "when$AXIMaster_1$when_io_ar_fire$0.idCnt_2",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -7537,7 +7537,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$AXIMaster_1$43_21.io_ar_ready",
+          "to": "when$AXIMaster_1$when_io_ar_fire$0.io_ar_ready",
           "bundle": "Decoupled_ar",
           "label": "",
           "source": {
@@ -7549,7 +7549,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "when$AXIMaster_1$43_21.io_ar_valid",
+          "to": "when$AXIMaster_1$when_io_ar_fire$0.io_ar_valid",
           "bundle": "Decoupled_ar",
           "label": "",
           "source": {

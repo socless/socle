@@ -471,7 +471,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 {
   const { ctx, page, errors } = await open('/fsm/?host=vscode&theme=dark');
   await waitLoaded(page);
-  const id = 'fsm$TrafficFsm$15_17';
+  const id = 'fsm$TrafficFsm$switch_state$0';
   await page.locator(`[data-fsm="${id}"]`).first().dblclick({ position: { x: 30, y: 8 } }).catch(() => {});
   const shown = await page.waitForSelector(`[data-fsm-diagram="${id}"][data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
   check('fsm', shown, 'a double-click opens the state diagram');
@@ -595,7 +595,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
   await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__socleWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
-  await focusAfter('wire from when$GCD$36_20.io_in_bits_a', () => page.locator('[data-wire="when$GCD$36_20.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
+  await focusAfter('wire from when$GCD$when_io_in_fire$0.io_in_bits_a', () => page.locator('[data-wire="when$GCD$when_io_in_fire$0.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
   await focusAfter('bundle io.out', () => page.evaluate(() => window.__socleWave.select('io.out')), P('io_out_valid'));
   // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
   // index): a short panel, then the last signal.

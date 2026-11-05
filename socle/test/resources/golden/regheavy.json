@@ -245,7 +245,7 @@
         },
         {
           "from": "state",
-          "to": "fsm$Controller$98_17.state",
+          "to": "fsm$Controller$switch_state$0.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -257,7 +257,7 @@
         },
         {
           "from": "timer",
-          "to": "fsm$Controller$98_17.timer",
+          "to": "fsm$Controller$switch_state$0.timer",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -268,7 +268,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.io_hint",
+          "from": "fsm$Controller$switch_state$0.io_hint",
           "to": "io.hint",
           "bundle": "UInt<1>",
           "label": "",
@@ -280,7 +280,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.state_2",
+          "from": "fsm$Controller$switch_state$0.state_2",
           "to": "state~q",
           "bundle": "UInt<2>",
           "label": "",
@@ -328,7 +328,7 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.timer_2",
+          "from": "fsm$Controller$switch_state$0.timer_2",
           "to": "timer~q",
           "bundle": "UInt<8>",
           "label": "",
@@ -438,7 +438,7 @@
           "op": "eq"
         },
         {
-          "id": "fsm$Controller$98_17",
+          "id": "fsm$Controller$switch_state$0",
           "kind": "fsm",
           "label": "switch(state)",
           "bundle": "",
@@ -554,7 +554,7 @@
         },
         {
           "from": "rCount",
-          "to": "when$RegStage$52_18.rCount",
+          "to": "when$RegStage$when_io_flush$0.rCount",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -565,7 +565,7 @@
         },
         {
           "from": "rData",
-          "to": "when$RegStage$52_18.rData",
+          "to": "when$RegStage$when_io_flush$0.rData",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
@@ -576,7 +576,7 @@
         },
         {
           "from": "rFlags",
-          "to": "when$RegStage$52_18.rFlags",
+          "to": "when$RegStage$when_io_flush$0.rFlags",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -587,7 +587,7 @@
         },
         {
           "from": "rTag",
-          "to": "when$RegStage$52_18.rTag",
+          "to": "when$RegStage$when_io_flush$0.rTag",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -598,7 +598,7 @@
         },
         {
           "from": "rValid",
-          "to": "when$RegStage$52_18.rValid",
+          "to": "when$RegStage$when_io_flush$0.rValid",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -620,7 +620,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_enable",
+          "from": "when$RegStage$when_io_flush$0.io_enable",
           "to": "io.enable",
           "bundle": "UInt<1>",
           "label": "",
@@ -656,7 +656,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.cond",
+          "from": "when$RegStage$when_io_flush$0.cond",
           "to": "io.flush",
           "bundle": "UInt<1>",
           "label": "",
@@ -668,7 +668,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_in_bits_data",
+          "from": "when$RegStage$when_io_flush$0.io_in_bits_data",
           "to": "io.in.bits.data",
           "bundle": "Decoupled_in",
           "label": "",
@@ -680,7 +680,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_in_bits_flags",
+          "from": "when$RegStage$when_io_flush$0.io_in_bits_flags",
           "to": "io.in.bits.flags",
           "bundle": "Decoupled_in",
           "label": "",
@@ -692,7 +692,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_in_bits_tag",
+          "from": "when$RegStage$when_io_flush$0.io_in_bits_tag",
           "to": "io.in.bits.tag",
           "bundle": "Decoupled_in",
           "label": "",
@@ -704,7 +704,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_in_bits_valid",
+          "from": "when$RegStage$when_io_flush$0.io_in_bits_valid",
           "to": "io.in.bits.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -716,7 +716,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.io_in_valid",
+          "from": "when$RegStage$when_io_flush$0.io_in_valid",
           "to": "io.in.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -740,7 +740,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.cond_2",
+          "from": "when$RegStage$when_io_flush$0.cond_2",
           "to": "io.stall",
           "bundle": "UInt<1>",
           "label": "",
@@ -752,7 +752,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage$52_18.rCount_2",
+          "from": "when$RegStage$when_io_flush$0.rCount_2",
           "to": "rCount~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -956,7 +956,7 @@
           "op": "and"
         },
         {
-          "id": "when$RegStage$52_18",
+          "id": "when$RegStage$when_io_flush$0",
           "kind": "block",
           "label": "when(io.flush)",
           "bundle": "",
@@ -1071,7 +1071,7 @@
         },
         {
           "from": "rCount",
-          "to": "when$RegStage_1$52_18.rCount",
+          "to": "when$RegStage_1$when_io_flush$0.rCount",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1082,7 +1082,7 @@
         },
         {
           "from": "rData",
-          "to": "when$RegStage_1$52_18.rData",
+          "to": "when$RegStage_1$when_io_flush$0.rData",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
@@ -1093,7 +1093,7 @@
         },
         {
           "from": "rFlags",
-          "to": "when$RegStage_1$52_18.rFlags",
+          "to": "when$RegStage_1$when_io_flush$0.rFlags",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -1104,7 +1104,7 @@
         },
         {
           "from": "rTag",
-          "to": "when$RegStage_1$52_18.rTag",
+          "to": "when$RegStage_1$when_io_flush$0.rTag",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -1115,7 +1115,7 @@
         },
         {
           "from": "rValid",
-          "to": "when$RegStage_1$52_18.rValid",
+          "to": "when$RegStage_1$when_io_flush$0.rValid",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -1137,7 +1137,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_enable",
+          "from": "when$RegStage_1$when_io_flush$0.io_enable",
           "to": "io.enable",
           "bundle": "UInt<1>",
           "label": "",
@@ -1173,7 +1173,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.cond",
+          "from": "when$RegStage_1$when_io_flush$0.cond",
           "to": "io.flush",
           "bundle": "UInt<1>",
           "label": "",
@@ -1185,7 +1185,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_in_bits_data",
+          "from": "when$RegStage_1$when_io_flush$0.io_in_bits_data",
           "to": "io.in.bits.data",
           "bundle": "Decoupled_in",
           "label": "",
@@ -1197,7 +1197,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_in_bits_flags",
+          "from": "when$RegStage_1$when_io_flush$0.io_in_bits_flags",
           "to": "io.in.bits.flags",
           "bundle": "Decoupled_in",
           "label": "",
@@ -1209,7 +1209,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_in_bits_tag",
+          "from": "when$RegStage_1$when_io_flush$0.io_in_bits_tag",
           "to": "io.in.bits.tag",
           "bundle": "Decoupled_in",
           "label": "",
@@ -1221,7 +1221,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_in_bits_valid",
+          "from": "when$RegStage_1$when_io_flush$0.io_in_bits_valid",
           "to": "io.in.bits.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -1233,7 +1233,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.io_in_valid",
+          "from": "when$RegStage_1$when_io_flush$0.io_in_valid",
           "to": "io.in.valid",
           "bundle": "Decoupled_in",
           "label": "",
@@ -1257,7 +1257,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.cond_2",
+          "from": "when$RegStage_1$when_io_flush$0.cond_2",
           "to": "io.stall",
           "bundle": "UInt<1>",
           "label": "",
@@ -1269,7 +1269,7 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.rCount_2",
+          "from": "when$RegStage_1$when_io_flush$0.rCount_2",
           "to": "rCount~q",
           "bundle": "UInt<16>",
           "label": "",
@@ -1473,7 +1473,7 @@
           "op": "and"
         },
         {
-          "id": "when$RegStage_1$52_18",
+          "id": "when$RegStage_1$when_io_flush$0",
           "kind": "block",
           "label": "when(io.flush)",
           "bundle": "",
@@ -3122,9 +3122,9 @@
     "portPad": 18
   },
   "regions": {
-    "when$RegStage_1$52_18": {
-      "name": "when$RegStage_1$52_18",
-      "type": "when$RegStage_1$52_18",
+    "when$RegStage_1$when_io_flush$0": {
+      "name": "when$RegStage_1$when_io_flush$0",
+      "type": "when$RegStage_1$when_io_flush$0",
       "doc": "",
       "source": {
         "file": "example/src/regheavy/Datapath.scala",
@@ -3336,7 +3336,7 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.cond_3",
+          "from": "when$RegStage_1$when_io_flush$0.cond_3",
           "to": "_T",
           "bundle": "Wire",
           "label": "",
@@ -3347,8 +3347,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rCount",
-          "to": "const$asg$when$RegStage_1$52_18$rCount~in0",
+          "from": "when$RegStage_1$when_io_flush$0.rCount",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rCount~in0",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -3358,7 +3358,7 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rCount",
+          "from": "when$RegStage_1$when_io_flush$0.rCount",
           "to": "_rCount_T",
           "bundle": "UInt<16>",
           "label": "",
@@ -3369,7 +3369,7 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rCount",
+          "from": "when$RegStage_1$when_io_flush$0.rCount",
           "to": "_rCount_T_2",
           "bundle": "UInt<16>",
           "label": "",
@@ -3380,8 +3380,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rData",
-          "to": "const$asg$when$RegStage_1$52_18$rData~in0",
+          "from": "when$RegStage_1$when_io_flush$0.rData",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rData~in0",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
@@ -3391,8 +3391,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rData",
-          "to": "when$RegStage_1$52_18.io_in_bits_data",
+          "from": "when$RegStage_1$when_io_flush$0.rData",
+          "to": "when$RegStage_1$when_io_flush$0.io_in_bits_data",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -3403,8 +3403,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.rFlags",
-          "to": "const$asg$when$RegStage_1$52_18$rFlags~in0",
+          "from": "when$RegStage_1$when_io_flush$0.rFlags",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rFlags~in0",
           "bundle": "UInt<4>",
           "label": "",
           "source": {
@@ -3414,8 +3414,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rFlags",
-          "to": "when$RegStage_1$52_18.io_in_bits_flags",
+          "from": "when$RegStage_1$when_io_flush$0.rFlags",
+          "to": "when$RegStage_1$when_io_flush$0.io_in_bits_flags",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -3426,8 +3426,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.rTag",
-          "to": "const$asg$when$RegStage_1$52_18$rTag~in0",
+          "from": "when$RegStage_1$when_io_flush$0.rTag",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rTag~in0",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -3437,8 +3437,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rTag",
-          "to": "when$RegStage_1$52_18.io_in_bits_tag",
+          "from": "when$RegStage_1$when_io_flush$0.rTag",
+          "to": "when$RegStage_1$when_io_flush$0.io_in_bits_tag",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -3449,8 +3449,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$RegStage_1$52_18.rValid",
-          "to": "const$asg$when$RegStage_1$52_18$rValid~in0",
+          "from": "when$RegStage_1$when_io_flush$0.rValid",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rValid~in0",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -3460,8 +3460,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rValid",
-          "to": "const$asg$when$RegStage_1$52_18$rValid~in2",
+          "from": "when$RegStage_1$when_io_flush$0.rValid",
+          "to": "const$asg$when$RegStage_1$when_io_flush$0$rValid~in2",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -3471,8 +3471,8 @@
           }
         },
         {
-          "from": "when$RegStage_1$52_18.rValid",
-          "to": "when$RegStage_1$52_18.io_in_bits_valid",
+          "from": "when$RegStage_1$when_io_flush$0.rValid",
+          "to": "when$RegStage_1$when_io_flush$0.io_in_bits_valid",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -3484,7 +3484,7 @@
         },
         {
           "from": "_T~in0",
-          "to": "when$RegStage_1$52_18.io_enable",
+          "to": "when$RegStage_1$when_io_flush$0.io_enable",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -3496,7 +3496,7 @@
         },
         {
           "from": "_T~in1",
-          "to": "when$RegStage_1$52_18.io_in_valid",
+          "to": "when$RegStage_1$when_io_flush$0.io_in_valid",
           "bundle": "Decoupled_in",
           "label": "",
           "source": {
@@ -3508,7 +3508,7 @@
         },
         {
           "from": "_rCount_T_2~in0",
-          "to": "when$RegStage_1$52_18.rCount_2",
+          "to": "when$RegStage_1$when_io_flush$0.rCount_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -3520,7 +3520,7 @@
         },
         {
           "from": "_rCount_T~in0",
-          "to": "when$RegStage_1$52_18.rCount_2",
+          "to": "when$RegStage_1$when_io_flush$0.rCount_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -3538,7 +3538,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$RegStage_1$52_18$rCount~in0",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rCount~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3549,7 +3549,7 @@
           }
         },
         {
-          "id": "const$asg$when$RegStage_1$52_18$rData~in0",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rData~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3560,7 +3560,7 @@
           }
         },
         {
-          "id": "const$asg$when$RegStage_1$52_18$rFlags~in0",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rFlags~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3571,7 +3571,7 @@
           }
         },
         {
-          "id": "const$asg$when$RegStage_1$52_18$rTag~in0",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rTag~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3582,7 +3582,7 @@
           }
         },
         {
-          "id": "const$asg$when$RegStage_1$52_18$rValid~in0",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rValid~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3593,7 +3593,7 @@
           }
         },
         {
-          "id": "const$asg$when$RegStage_1$52_18$rValid~in2",
+          "id": "const$asg$when$RegStage_1$when_io_flush$0$rValid~in2",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3663,9 +3663,9 @@
         }
       ]
     },
-    "when$Controller$108_27": {
-      "name": "when$Controller$108_27",
-      "type": "when$Controller$108_27",
+    "when$Controller$when_timer_3_U$0": {
+      "name": "when$Controller$when_timer_3_U$0",
+      "type": "when$Controller$when_timer_3_U$0",
       "doc": "",
       "source": {
         "file": "example/src/regheavy/Datapath.scala",
@@ -3735,7 +3735,7 @@
           }
         },
         {
-          "from": "when$Controller$108_27.cond",
+          "from": "when$Controller$when_timer_3_U$0.cond",
           "to": "_T_6",
           "bundle": "Wire",
           "label": "",
@@ -3746,8 +3746,8 @@
           }
         },
         {
-          "from": "when$Controller$108_27.state",
-          "to": "const$asg$when$Controller$108_27$state~in0",
+          "from": "when$Controller$when_timer_3_U$0.state",
+          "to": "const$asg$when$Controller$when_timer_3_U$0$state~in0",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -3757,8 +3757,8 @@
           }
         },
         {
-          "from": "when$Controller$108_27.timer",
-          "to": "const$asg$when$Controller$108_27$timer~in0",
+          "from": "when$Controller$when_timer_3_U$0.timer",
+          "to": "const$asg$when$Controller$when_timer_3_U$0$timer~in0",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -3769,7 +3769,7 @@
         },
         {
           "from": "_T_6~in0",
-          "to": "when$Controller$108_27.timer_2",
+          "to": "when$Controller$when_timer_3_U$0.timer_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -3787,7 +3787,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$when$Controller$108_27$timer~in0",
+          "id": "const$asg$when$Controller$when_timer_3_U$0$timer~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -3798,7 +3798,7 @@
           }
         },
         {
-          "id": "const$asg$when$Controller$108_27$state~in0",
+          "id": "const$asg$when$Controller$when_timer_3_U$0$state~in0",
           "kind": "const",
           "label": "0h2",
           "bundle": "",
@@ -3833,9 +3833,767 @@
         }
       ]
     },
-    "fsm$Controller$98_17": {
-      "name": "fsm$Controller$98_17",
-      "type": "fsm$Controller$98_17",
+    "when$RegStage$when_io_flush$0": {
+      "name": "when$RegStage$when_io_flush$0",
+      "type": "when$RegStage$when_io_flush$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/regheavy/Datapath.scala",
+        "line": 52,
+        "col": 18
+      },
+      "ports": [
+        {
+          "name": "rCount",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "rData",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "rFlags",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "rTag",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "rValid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.flush",
+          "cond": true
+        },
+        {
+          "name": "cond_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.stall",
+          "cond": true
+        },
+        {
+          "name": "io_enable",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.enable"
+        },
+        {
+          "name": "io_in_bits_data",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.data"
+        },
+        {
+          "name": "io_in_bits_flags",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.flags"
+        },
+        {
+          "name": "io_in_bits_tag",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.tag"
+        },
+        {
+          "name": "io_in_bits_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.bits.valid"
+        },
+        {
+          "name": "io_in_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.valid"
+        },
+        {
+          "name": "rCount_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "rCount"
+        },
+        {
+          "name": "cond_3",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.enable && io.in.valid",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_rCount_T_2~in1",
+          "to": "const$_rCount_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_rCount_T~in1",
+          "to": "const$_rCount_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.cond_3",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rCount",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rCount~in0",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 57,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rCount",
+          "to": "_rCount_T",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 60,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rCount",
+          "to": "_rCount_T_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 66,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rData",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rData~in0",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 53,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rData",
+          "to": "when$RegStage$when_io_flush$0.io_in_bits_data",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 62,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rFlags",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rFlags~in0",
+          "bundle": "UInt<4>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 55,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rFlags",
+          "to": "when$RegStage$when_io_flush$0.io_in_bits_flags",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 64,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rTag",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rTag~in0",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 54,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rTag",
+          "to": "when$RegStage$when_io_flush$0.io_in_bits_tag",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 63,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rValid",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rValid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 56,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rValid",
+          "to": "const$asg$when$RegStage$when_io_flush$0$rValid~in2",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 68,
+            "col": 12
+          }
+        },
+        {
+          "from": "when$RegStage$when_io_flush$0.rValid",
+          "to": "when$RegStage$when_io_flush$0.io_in_bits_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 65,
+            "col": 12
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$RegStage$when_io_flush$0.io_enable",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$RegStage$when_io_flush$0.io_in_valid",
+          "bundle": "Decoupled_in",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_rCount_T_2~in0",
+          "to": "when$RegStage$when_io_flush$0.rCount_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_rCount_T~in0",
+          "to": "when$RegStage$when_io_flush$0.rCount_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rCount~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rData~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rFlags~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rTag~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rValid~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$RegStage$when_io_flush$0$rValid~in2",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_rCount_T_2~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_rCount_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_rCount_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 60,
+            "col": 22
+          },
+          "op": "add"
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 61,
+            "col": 24
+          },
+          "op": "and"
+        },
+        {
+          "id": "_rCount_T_2",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 66,
+            "col": 22
+          },
+          "op": "add"
+        }
+      ]
+    },
+    "when$Controller$when_timer_15_U_io_hint$0": {
+      "name": "when$Controller$when_timer_15_U_io_hint$0",
+      "type": "when$Controller$when_timer_15_U_io_hint$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/regheavy/Datapath.scala",
+        "line": 101,
+        "col": 39
+      },
+      "ports": [
+        {
+          "name": "state",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "timer",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_hint",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.hint"
+        },
+        {
+          "name": "timer_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "timer"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "timer === 15.U || io.hint",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_T_2~in1",
+          "to": "const$_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_3~in0",
+          "to": "_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Controller$when_timer_15_U_io_hint$0.cond",
+          "to": "_T_3",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Controller$when_timer_15_U_io_hint$0.state",
+          "to": "const$asg$when$Controller$when_timer_15_U_io_hint$0$state~in0",
+          "bundle": "UInt<2>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 102,
+            "col": 15
+          }
+        },
+        {
+          "from": "when$Controller$when_timer_15_U_io_hint$0.timer",
+          "to": "const$asg$when$Controller$when_timer_15_U_io_hint$0$timer~in0",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 103,
+            "col": 15
+          }
+        },
+        {
+          "from": "_T_3~in1",
+          "to": "when$Controller$when_timer_15_U_io_hint$0.io_hint",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_2~in0",
+          "to": "when$Controller$when_timer_15_U_io_hint$0.timer_2",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Controller$when_timer_15_U_io_hint$0$timer~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$asg$when$Controller$when_timer_15_U_io_hint$0$state~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_T_2~in1",
+          "kind": "const",
+          "label": "0hf",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 101,
+            "col": 18
+          },
+          "op": "eq"
+        },
+        {
+          "id": "_T_3",
+          "kind": "op",
+          "label": "or",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 101,
+            "col": 27
+          },
+          "op": "or"
+        }
+      ]
+    },
+    "fsm$Controller$switch_state$0": {
+      "name": "fsm$Controller$switch_state$0",
+      "type": "fsm$Controller$switch_state$0",
       "doc": "",
       "source": {
         "file": "example/src/regheavy/Datapath.scala",
@@ -3999,7 +4757,7 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.cond",
+          "from": "fsm$Controller$switch_state$0.cond",
           "to": "_T_1",
           "bundle": "Wire",
           "label": "",
@@ -4010,7 +4768,7 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.cond_2",
+          "from": "fsm$Controller$switch_state$0.cond_2",
           "to": "_T_5",
           "bundle": "Wire",
           "label": "",
@@ -4021,7 +4779,7 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.cond_3",
+          "from": "fsm$Controller$switch_state$0.cond_3",
           "to": "_T_8",
           "bundle": "Wire",
           "label": "",
@@ -4032,8 +4790,8 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.state",
-          "to": "const$asg$fsm$Controller$98_17$state~in0",
+          "from": "fsm$Controller$switch_state$0.state",
+          "to": "const$asg$fsm$Controller$switch_state$0$state~in0",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4043,8 +4801,8 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.timer",
-          "to": "const$asg$fsm$Controller$98_17$timer~in2",
+          "from": "fsm$Controller$switch_state$0.timer",
+          "to": "const$asg$fsm$Controller$switch_state$0$timer~in2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4054,7 +4812,7 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.timer",
+          "from": "fsm$Controller$switch_state$0.timer",
           "to": "_timer_T",
           "bundle": "UInt<8>",
           "label": "",
@@ -4065,7 +4823,7 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.timer",
+          "from": "fsm$Controller$switch_state$0.timer",
           "to": "_timer_T_2",
           "bundle": "UInt<8>",
           "label": "",
@@ -4076,8 +4834,8 @@
           }
         },
         {
-          "from": "fsm$Controller$98_17.state",
-          "to": "when$Controller$101_39.state",
+          "from": "fsm$Controller$switch_state$0.state",
+          "to": "when$Controller$when_timer_15_U_io_hint$0.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4088,8 +4846,8 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.timer",
-          "to": "when$Controller$101_39.timer",
+          "from": "fsm$Controller$switch_state$0.timer",
+          "to": "when$Controller$when_timer_15_U_io_hint$0.timer",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4100,8 +4858,8 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.state",
-          "to": "when$Controller$108_27.state",
+          "from": "fsm$Controller$switch_state$0.state",
+          "to": "when$Controller$when_timer_3_U$0.state",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4112,8 +4870,8 @@
           "fieldLevel": true
         },
         {
-          "from": "fsm$Controller$98_17.timer",
-          "to": "when$Controller$108_27.timer",
+          "from": "fsm$Controller$switch_state$0.timer",
+          "to": "when$Controller$when_timer_3_U$0.timer",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4124,8 +4882,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Controller$101_39.io_hint",
-          "to": "fsm$Controller$98_17.io_hint",
+          "from": "when$Controller$when_timer_15_U_io_hint$0.io_hint",
+          "to": "fsm$Controller$switch_state$0.io_hint",
           "bundle": "UInt<1>",
           "label": "",
           "source": {
@@ -4137,7 +4895,7 @@
         },
         {
           "from": "_T_1~in1",
-          "to": "fsm$Controller$98_17.state_2",
+          "to": "fsm$Controller$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4149,7 +4907,7 @@
         },
         {
           "from": "_T_5~in1",
-          "to": "fsm$Controller$98_17.state_2",
+          "to": "fsm$Controller$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4161,7 +4919,7 @@
         },
         {
           "from": "_T_8~in1",
-          "to": "fsm$Controller$98_17.state_2",
+          "to": "fsm$Controller$switch_state$0.state_2",
           "bundle": "UInt<2>",
           "label": "",
           "source": {
@@ -4172,8 +4930,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Controller$101_39.timer_2",
-          "to": "fsm$Controller$98_17.timer_2",
+          "from": "when$Controller$when_timer_15_U_io_hint$0.timer_2",
+          "to": "fsm$Controller$switch_state$0.timer_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4184,8 +4942,8 @@
           "fieldLevel": true
         },
         {
-          "from": "when$Controller$108_27.timer_2",
-          "to": "fsm$Controller$98_17.timer_2",
+          "from": "when$Controller$when_timer_3_U$0.timer_2",
+          "to": "fsm$Controller$switch_state$0.timer_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4197,7 +4955,7 @@
         },
         {
           "from": "_timer_T_2~in0",
-          "to": "fsm$Controller$98_17.timer_2",
+          "to": "fsm$Controller$switch_state$0.timer_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4209,7 +4967,7 @@
         },
         {
           "from": "_timer_T~in0",
-          "to": "fsm$Controller$98_17.timer_2",
+          "to": "fsm$Controller$switch_state$0.timer_2",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
@@ -4227,7 +4985,7 @@
       },
       "logic": [
         {
-          "id": "const$asg$fsm$Controller$98_17$state~in0",
+          "id": "const$asg$fsm$Controller$switch_state$0$state~in0",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -4238,7 +4996,7 @@
           }
         },
         {
-          "id": "const$asg$fsm$Controller$98_17$timer~in2",
+          "id": "const$asg$fsm$Controller$switch_state$0$timer~in2",
           "kind": "const",
           "label": "0h0",
           "bundle": "",
@@ -4364,7 +5122,7 @@
           "op": "eq"
         },
         {
-          "id": "when$Controller$108_27",
+          "id": "when$Controller$when_timer_3_U$0",
           "kind": "block",
           "label": "when(timer === 3.U)",
           "bundle": "",
@@ -4375,7 +5133,7 @@
           }
         },
         {
-          "id": "when$Controller$101_39",
+          "id": "when$Controller$when_timer_15_U_io_hint$0",
           "kind": "block",
           "label": "when(timer === 15.U || io.hint)",
           "bundle": "",
@@ -4384,764 +5142,6 @@
             "line": 101,
             "col": 39
           }
-        }
-      ]
-    },
-    "when$RegStage$52_18": {
-      "name": "when$RegStage$52_18",
-      "type": "when$RegStage$52_18",
-      "doc": "",
-      "source": {
-        "file": "example/src/regheavy/Datapath.scala",
-        "line": 52,
-        "col": 18
-      },
-      "ports": [
-        {
-          "name": "rCount",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "rData",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "rFlags",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "rTag",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "rValid",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "cond",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.flush",
-          "cond": true
-        },
-        {
-          "name": "cond_2",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.stall",
-          "cond": true
-        },
-        {
-          "name": "io_enable",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.enable"
-        },
-        {
-          "name": "io_in_bits_data",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.in.bits.data"
-        },
-        {
-          "name": "io_in_bits_flags",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.in.bits.flags"
-        },
-        {
-          "name": "io_in_bits_tag",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.in.bits.tag"
-        },
-        {
-          "name": "io_in_bits_valid",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.in.bits.valid"
-        },
-        {
-          "name": "io_in_valid",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.in.valid"
-        },
-        {
-          "name": "rCount_2",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "rCount"
-        },
-        {
-          "name": "cond_3",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.enable && io.in.valid",
-          "cond": true
-        }
-      ],
-      "children": [],
-      "wires": [
-        {
-          "from": "_rCount_T_2~in1",
-          "to": "const$_rCount_T_2~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_rCount_T~in1",
-          "to": "const$_rCount_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.cond_3",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rCount",
-          "to": "const$asg$when$RegStage$52_18$rCount~in0",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 57,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rCount",
-          "to": "_rCount_T",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 60,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rCount",
-          "to": "_rCount_T_2",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 66,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rData",
-          "to": "const$asg$when$RegStage$52_18$rData~in0",
-          "bundle": "UInt<32>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 53,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rData",
-          "to": "when$RegStage$52_18.io_in_bits_data",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 62,
-            "col": 12
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "when$RegStage$52_18.rFlags",
-          "to": "const$asg$when$RegStage$52_18$rFlags~in0",
-          "bundle": "UInt<4>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 55,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rFlags",
-          "to": "when$RegStage$52_18.io_in_bits_flags",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 64,
-            "col": 12
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "when$RegStage$52_18.rTag",
-          "to": "const$asg$when$RegStage$52_18$rTag~in0",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 54,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rTag",
-          "to": "when$RegStage$52_18.io_in_bits_tag",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 63,
-            "col": 12
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "when$RegStage$52_18.rValid",
-          "to": "const$asg$when$RegStage$52_18$rValid~in0",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 56,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rValid",
-          "to": "const$asg$when$RegStage$52_18$rValid~in2",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 68,
-            "col": 12
-          }
-        },
-        {
-          "from": "when$RegStage$52_18.rValid",
-          "to": "when$RegStage$52_18.io_in_bits_valid",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 65,
-            "col": 12
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T~in0",
-          "to": "when$RegStage$52_18.io_enable",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T~in1",
-          "to": "when$RegStage$52_18.io_in_valid",
-          "bundle": "Decoupled_in",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_rCount_T_2~in0",
-          "to": "when$RegStage$52_18.rCount_2",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_rCount_T~in0",
-          "to": "when$RegStage$52_18.rCount_2",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        }
-      ],
-      "metrics": {
-        "registers": 0,
-        "wires": 0,
-        "lines": 0
-      },
-      "logic": [
-        {
-          "id": "const$asg$when$RegStage$52_18$rCount~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$RegStage$52_18$rData~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$RegStage$52_18$rFlags~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$RegStage$52_18$rTag~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$RegStage$52_18$rValid~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$RegStage$52_18$rValid~in2",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_rCount_T_2~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_rCount_T~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_rCount_T",
-          "kind": "op",
-          "label": "add",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 60,
-            "col": 22
-          },
-          "op": "add"
-        },
-        {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 61,
-            "col": 24
-          },
-          "op": "and"
-        },
-        {
-          "id": "_rCount_T_2",
-          "kind": "op",
-          "label": "add",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 66,
-            "col": 22
-          },
-          "op": "add"
-        }
-      ]
-    },
-    "when$Controller$101_39": {
-      "name": "when$Controller$101_39",
-      "type": "when$Controller$101_39",
-      "doc": "",
-      "source": {
-        "file": "example/src/regheavy/Datapath.scala",
-        "line": 101,
-        "col": 39
-      },
-      "ports": [
-        {
-          "name": "state",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "timer",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "name": "io_hint",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "io.hint"
-        },
-        {
-          "name": "timer_2",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "timer"
-        },
-        {
-          "name": "cond",
-          "dir": "out",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "label": "timer === 15.U || io.hint",
-          "cond": true
-        }
-      ],
-      "children": [],
-      "wires": [
-        {
-          "from": "_T_2~in1",
-          "to": "const$_T_2~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_3~in0",
-          "to": "_T_2",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "when$Controller$101_39.cond",
-          "to": "_T_3",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "when$Controller$101_39.state",
-          "to": "const$asg$when$Controller$101_39$state~in0",
-          "bundle": "UInt<2>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 102,
-            "col": 15
-          }
-        },
-        {
-          "from": "when$Controller$101_39.timer",
-          "to": "const$asg$when$Controller$101_39$timer~in0",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 103,
-            "col": 15
-          }
-        },
-        {
-          "from": "_T_3~in1",
-          "to": "when$Controller$101_39.io_hint",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_2~in0",
-          "to": "when$Controller$101_39.timer_2",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        }
-      ],
-      "metrics": {
-        "registers": 0,
-        "wires": 0,
-        "lines": 0
-      },
-      "logic": [
-        {
-          "id": "const$asg$when$Controller$101_39$timer~in0",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$asg$when$Controller$101_39$state~in0",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_T_2~in1",
-          "kind": "const",
-          "label": "0hf",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_T_2",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 101,
-            "col": 18
-          },
-          "op": "eq"
-        },
-        {
-          "id": "_T_3",
-          "kind": "op",
-          "label": "or",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 101,
-            "col": 27
-          },
-          "op": "or"
         }
       ]
     }

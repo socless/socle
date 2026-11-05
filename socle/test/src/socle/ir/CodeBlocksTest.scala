@@ -245,7 +245,7 @@ object CodeBlocksTest extends TestSuite {
       val blocks = CodeBlocks.of(parse(fir).modules.head, lines)
       assert(blocks.size == 1)
       val b = blocks.head
-      assert(b.kind == NodeKind.Block, b.id == "switch$S$3_17", b.label == "switch(op)")
+      assert(b.kind == NodeKind.Block, b.id == "switch$S$switch_op$0", b.label == "switch(op)")
       assert(b.whenIds.size == 2, b.armConds.isEmpty)
     }
 
@@ -292,15 +292,61 @@ object CodeBlocksTest extends TestSuite {
       assert(b.whenIds.size == 3, b.parent.isEmpty)
     }
 
-    test("ids come from source markers") {
+    test("ids come from labels and order") {
       val ids = CodeBlocks.of(erMod(erFir), erLines).map(_.id)
-      assert(ids == Seq("when$Er1Octet$36_19", "fsm$Er1Octet$37_19", "when$Er1Octet$39_21", "when$Er1Octet$50_27"))
+      assert(ids == Seq("when$Er1Octet$when_io_enable$0", "fsm$Er1Octet$switch_state$0",
+        "when$Er1Octet$when_io_go$0", "when$Er1Octet$when_cpt_0_U$0"))
       val shifted = erFir.replace("circuit Er1Octet :\n", "circuit Er1Octet :\n\n")
       assert(erMod(shifted).whens.head.id != erMod(erFir).whens.head.id)
       assert(CodeBlocks.of(erMod(shifted), erLines).map(_.id) == ids)
     }
 
-    test("a second block on the same marker gets a copy suffix") {
+    // Er1Octet with one line inserted above its blocks (line 36 on): markers
+    // and source lines both move down.
+    def erInserted(line: String): (String, SourceLines) = {
+      val fir = """@\[Er\.scala (\d+):""".r.replaceAllIn(erFir, mt => {
+        val n: Int = mt.group(1).toInt
+        scala.util.matching.Regex.quoteReplacement(s"@[Er.scala ${if (n >= 36) n + 1 else n}:")
+      })
+      val (pad, code) = erScala.linesIterator.toSeq.splitAt(35)
+      (fir, SourceLines.of(Map("Er.scala" -> (pad ++ Seq(line) ++ code).mkString("\n"))))
+    }
+
+    test("an edit above a block does not rename it") {
+      val ids = CodeBlocks.of(erMod(erFir), erLines).map(_.id)
+      Seq("", "  val unrelated = RegInit(0.U(4.W))").foreach { line =>
+        val (fir, lines) = erInserted(line)
+        val moved = CodeBlocks.of(erMod(fir), lines)
+        assert(moved.map(_.src.get.line) != CodeBlocks.of(erMod(erFir), erLines).map(_.src.get.line))
+        assert(moved.map(_.id) == ids)
+      }
+    }
+
+    // Blocks of module G, one per (label, sink), at lines 2, 3...
+    def gBlocks(blocks: Seq[(String, String)]): Seq[String] = {
+      val body = blocks.zipWithIndex.map { case ((c, sink), i) =>
+        s"    when $c : @[G.scala ${i + 2}:${c.length + 10}]\n      connect $sink, UInt<1>(0h1) @[G.scala ${i + 2}:20]\n"
+      }.mkString
+      val fir =
+        "circuit G :\n  module G : @[G.scala 1:7]\n" +
+          "    input go : UInt<1>\n    input en : UInt<1>\n    input a : { b : UInt<1>}\n    input a_b : UInt<1>\n" +
+          "    output p : UInt<1>\n    output q : UInt<1>\n    output r : UInt<1>\n" + body
+      val scala = ("class G {" +: blocks.map { case (c, sink) => s"  when($c) { $sink := 1.U }" }).mkString("\n") + "\n"
+      CodeBlocks.of(parse(fir).modules.head, SourceLines.of(Map("G.scala" -> scala))).map(_.id)
+    }
+
+    test("a block with the same label before another shifts only that label's ordinals") {
+      assert(gBlocks(Seq("go" -> "q", "en" -> "r")) == Seq("when$G$when_go$0", "when$G$when_en$0"))
+      assert(gBlocks(Seq("go" -> "p", "go" -> "q", "en" -> "r")) ==
+        Seq("when$G$when_go$0", "when$G$when_go$1", "when$G$when_en$0"))
+    }
+
+    test("two labels that sanitize alike get distinct ids") {
+      assert(gBlocks(Seq("a.b" -> "p", "a_b" -> "q", "a.b" -> "r")) ==
+        Seq("when$G$when_a_b$0", "when$G$when_a_b_2$0", "when$G$when_a_b$1"))
+    }
+
+    test("generator-loop copies on one marker get consecutive ordinals") {
       val fir =
         """circuit L :
           |  module L : @[L.scala 1:7]
@@ -313,11 +359,14 @@ object CodeBlocksTest extends TestSuite {
           |""".stripMargin
       val lines = SourceLines.of(Map("L.scala" -> "class L {\n  for (i <- 0 until 2)\n  when(a) { o(i) := a }\n}\n"))
       val ids   = CodeBlocks.of(parse(fir).modules.head, lines).map(_.id)
-      assert(ids == Seq("when$L$3_11", "when$L$3_11$1"))
+      assert(ids == Seq("when$L$when_a$0", "when$L$when_a$1"))
     }
 
-    test("blockId falls back to the CHIRRTL line without a marker") {
-      assert(Synthetic.blockId("switch", "M", None, 7, 0) == "switch$M$L7")
+    test("labelToken keeps only identifier chars") {
+      assert(Synthetic.labelToken("when(io.in.fire)") == "when_io_in_fire")
+      assert(Synthetic.labelToken("when(busy && x =/= y)") == "when_busy_x_y")
+      assert(Synthetic.labelToken("switch(state)") == "switch_state")
+      assert(Synthetic.blockId("fsm", "M", "switch_state", 0) == "fsm$M$switch_state$0")
     }
   }
 }

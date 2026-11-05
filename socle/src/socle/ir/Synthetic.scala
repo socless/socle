@@ -16,9 +16,10 @@ package socle.ir
   *   mux$<sink>        synthesized mux node feeding <sink>
   *   asg$<block>$<sink>  assignment terminal: what code block <block> drives <sink> with
   *   cnd$<block>       condition terminal: the arm conditions of code block <block>
-  *   <when|switch|fsm>$<mod>$<line>_<col>[$<copy>]   a user-written code block
-  *                     (`CodeBlocks`), named by its Scala marker; `L<whenId>` when unmarked
-  *                     (`fsm$` for a `switch` FsmDetect recognises)
+  *   <when|switch|fsm>$<mod>$<label>$<k>   a user-written code block (`CodeBlocks`),
+  *                     named by its sanitized label and its ordinal among the
+  *                     module's blocks of that kind and label (`fsm$` for a
+  *                     `switch` FsmDetect recognises)
   * }}}
   *
   * Centralizing the protocol here keeps the producers (pin/id construction) and
@@ -86,17 +87,24 @@ object Synthetic {
   /** Is `id` an assignment or condition terminal? */
   def isTerminal(id: String): Boolean = id.startsWith(AssignPrefix) || id.startsWith(CondPrefix)
 
-  /** Code-block id (`CodeBlocks`): `<kind>$<mod>$<line>_<col>`, with `kind` the
-    * id prefix `when`, `switch` or `fsm` (`NodeKind.Fsm`; a `when` chain and a
-    * non-FSM `switch` are both `NodeKind.Block`, so the prefix is passed apart).
-    * Named by the Scala marker, not the CHIRRTL line, so an edit elsewhere does
-    * not rename it; `L<whenId>` without a marker. `copy` counts the blocks on the
-    * same marker in source order (generator loops): `$<copy>` from the second on.
-    * `marker` is the (line, col) of the `@[file line:col]` marker: this file is
-    * shared with socle-js, which has no parser `SrcInfo`. */
-  def blockId(kind: String, module: String, marker: Option[(Int, Int)], whenId: Int, copy: Int): String = {
-    val at = marker.fold(s"L$whenId") { case (line, col) => s"${line}_$col" }
-    val base = s"$kind$$$module$$$at"
-    if (copy > 0) s"$base$$$copy" else base
+  /** A code block's label as an id token: every char outside `[A-Za-z0-9_]`
+    * becomes `_`, runs of `_` collapse and the ends are trimmed
+    * (`when(io.in.fire)` -> `when_io_in_fire`). Readable, not reversible. */
+  def labelToken(label: String): String = {
+    val t = label.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_").replaceAll("^_+|_+$", "")
+    if (t.isEmpty) "block" else t
   }
+
+  /** Code-block id (`CodeBlocks`): `<kind>$<mod>$<token>$<k>`, with `kind` the
+    * id prefix `when`, `switch` or `fsm` (`NodeKind.Fsm`; a `when` chain and a
+    * non-FSM `switch` are both `NodeKind.Block`, so the prefix is passed apart),
+    * `token` the block's [[labelToken]] (suffixed `_2`, `_3`... by `CodeBlocks`
+    * when two labels of a module sanitize alike) and `k` the 0-based ordinal of
+    * the block among the module's blocks of that kind and label, in source
+    * order (nested blocks and generator-loop copies count in the same
+    * sequence). Named by what the code says, not where it sits, so an edit
+    * above a block does not rename it. Plain strings only: this file is shared
+    * with socle-js, which has no parser types. */
+  def blockId(kind: String, module: String, token: String, k: Int): String =
+    s"$kind$$$module$$$token$$$k"
 }

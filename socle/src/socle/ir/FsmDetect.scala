@@ -16,7 +16,7 @@ import socle.parse.ChirrtlParser.{Mod, NodeDecl}
   * This pass identifies such chains and reports, per recognized FSM, the
   * register being switched on, the chain's root condition and its case
   * literals (in source order). `CodeBlocks` makes such a `switch` an FSM box
-  * (named by its source marker, `fsm$<module>$<line>_<col>`). It is pure and
+  * (named by its label and ordinal, `fsm$<module>$switch_state$0`). It is pure and
   * deterministic: no side effects, results sorted by register.
   */
 object FsmDetect {

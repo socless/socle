@@ -101,9 +101,9 @@ object CodeBlockCollapseTest extends TestSuite {
   private lazy val erDesign: Design = IrWalk.design(parse(erFir), erLines)
   private def erModule: ModuleDef   = erDesign.modules.find(_.name == "Er1Octet").get
 
-  private val enable = "when$Er1Octet$36_19"
-  private val sw     = "fsm$Er1Octet$37_19"
-  private val go     = "when$Er1Octet$39_21"
+  private val enable = "when$Er1Octet$when_io_enable$0"
+  private val sw     = "fsm$Er1Octet$switch_state$0"
+  private val go     = "when$Er1Octet$when_io_go$0"
 
   private val regs = Seq("state", "registre", "cpt", "sclk", "mosi", "busy", "dout")
 
@@ -347,9 +347,9 @@ object CodeBlockCollapseTest extends TestSuite {
     }
 
     test("an expression condition computes into its box's cond pin") {
-      val fire = "when$GCD$36_20"
-      val step = "when$GCD$43_25"
-      val gt   = "when$GCD$44_17"
+      val fire = "when$GCD$when_io_in_fire$0"
+      val step = "when$GCD$when_busy_x_y$0"
+      val gt   = "when$GCD$when_x_y$0"
       for ((box, op, text) <- Seq((fire, "_T", "io.in.fire"), (step, "_T_2", "busy && x =/= y"), (gt, "_T_3", "x > y"))) {
         val body = gcd.regions(box)
         val cond = body.ports.find(_.name == "cond")
@@ -372,7 +372,7 @@ object CodeBlockCollapseTest extends TestSuite {
 
     test("a condition shared with module level stays outside its box") {
       val d   = IrWalk.design(parse(sharedFir), sharedLines)
-      val box = "when$S$3_11"
+      val box = "when$S$when_c$0"
       assert(d.modules.head.logic.exists(_.id == "c"))
       val cond = d.regions(box).ports.find(_.name == "cond").get
       assert(cond.dir == PortDir.In, cond.label == "c")
@@ -431,25 +431,25 @@ object CodeBlockCollapseTest extends TestSuite {
 
     test("a condition on a wire another block assigns is labelled with the condition") {
       val d    = IrWalk.design(parse(fireFir), fireLines)
-      val cond = d.regions("when$F$4_11").ports.find(_.name == "cond").get
+      val cond = d.regions("when$F$when_fire$0").ports.find(_.name == "cond").get
       assert(cond.label == "fire")
       assert(leaks(d).isEmpty)
       // The default `false.B` stays outside, feeding the condition pin.
       assert(unwired(d).isEmpty)
-      assert(pairs(d.modules.head.wires).contains(("when$F$4_11.cond", "when$F$3_11.fire")))
+      assert(pairs(d.modules.head.wires).contains(("when$F$when_fire$0.cond", "when$F$when_a$0.fire")))
     }
 
     test("a sink read from a sibling and assigned keeps one pin in the parent") {
       val d = IrWalk.design(parse(siblingFir), siblingLines)
-      val outs = d.regions("when$G$3_11").ports.filter(_.dir == PortDir.Out).map(_.name)
+      val outs = d.regions("when$G$when_p$0").ports.filter(_.dir == PortDir.Out).map(_.name)
       assert(outs.sorted == Seq("next", "y"))
       assert(leaks(d).isEmpty, unwired(d).isEmpty)
     }
 
     test("a wire assigned in a block gets one pin named after it") {
       val d    = IrWalk.design(parse(wireFir), wireLines)
-      val boxA = "when$W$3_11"
-      val boxB = "when$W$4_11"
+      val boxA = "when$W$when_a$0"
+      val boxB = "when$W$when_b$0"
       val outs = d.regions(boxA).ports.filter(_.dir == PortDir.Out)
       assert(outs.map(_.name) == Seq("next"))
       assert(leaks(d).isEmpty)
@@ -465,7 +465,7 @@ object CodeBlockCollapseTest extends TestSuite {
       val terms = open.logic.filter(n => n.id.startsWith(Synthetic.AssignPrefix)).map(_.id)
       assert(terms.size == 2, terms.distinct.size == 2)
       val d    = IrWalk.design(parse(collideFir), collideLines)
-      val box  = "when$C$3_11"
+      val box  = "when$C$when_en$0"
       val outs = d.regions(box).ports.filter(_.dir == PortDir.Out)
       assert(outs.size == 2)
       val ps = pairs(d.modules.head.wires)
@@ -476,7 +476,7 @@ object CodeBlockCollapseTest extends TestSuite {
     test("a bulk connect inside a block keeps its bundle type") {
       val plain = IrWalk.design(parse(bulkFir)).modules.head.wires.find(_.from == "io.out").get
       val d     = IrWalk.design(parse(bulkFir), bulkLines)
-      val box   = "when$B$3_11"
+      val box   = "when$B$when_en$0"
       val w     = d.modules.head.wires.find(_.from == "io.out").get
       assert(w.to.startsWith(s"$box."), w.bundle == plain.bundle, w.bundle != "Wire")
     }

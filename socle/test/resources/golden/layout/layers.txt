@@ -14,7 +14,7 @@ layout LayeredCounter
   node io.limit kind=boundary pins=io.limit:EAST
   node io.wrap kind=boundary pins=io.wrap:WEST
   node reset kind=boundary pins=reset:EAST
-  node when$LayeredCounter$29_15 kind=block pins=when$LayeredCounter$29_15.cond:WEST,when$LayeredCounter$29_15.count:EAST,when$LayeredCounter$29_15.count_2:WEST,when$LayeredCounter$29_15.wrap:WEST
+  node when$LayeredCounter$when_io_en$0 kind=block pins=when$LayeredCounter$when_io_en$0.cond:WEST,when$LayeredCounter$when_io_en$0.count:EAST,when$LayeredCounter$when_io_en$0.count_2:WEST,when$LayeredCounter$when_io_en$0.wrap:WEST
   node wrap kind=op pins=wrap:EAST,wrap~in0:WEST,wrap~in1:WEST
   edge _T_1~in0 -> reset
   edge _T_1~in1 -> const$_T_1~in1
@@ -26,15 +26,15 @@ layout LayeredCounter
   edge _T_4~in1 -> const$_T_4~in1
   edge _T~in0 -> count~q
   edge _T~in1 -> io.limit
-  edge count -> when$LayeredCounter$29_15.count
+  edge count -> when$LayeredCounter$when_io_en$0.count
   edge io.count -> count~q
   edge io.wrap -> wrap
-  edge when$LayeredCounter$29_15.cond -> io.en
-  edge when$LayeredCounter$29_15.count_2 -> count~q
-  edge when$LayeredCounter$29_15.wrap -> wrap
+  edge when$LayeredCounter$when_io_en$0.cond -> io.en
+  edge when$LayeredCounter$when_io_en$0.count_2 -> count~q
+  edge when$LayeredCounter$when_io_en$0.wrap -> wrap
   edge wrap~in0 -> count~q
   edge wrap~in1 -> io.limit
-layout when$LayeredCounter$29_15
+layout when$LayeredCounter$when_io_en$0
   node _count_T kind=op pins=_count_T:EAST,_count_T~in0:WEST,_count_T~in1:WEST
   node _count_T_2 kind=op pins=_count_T_2:EAST,_count_T_2~in0:WEST,_count_T_2~in1:WEST,_count_T_2~in2:WEST
   node cond kind=boundary pins=cond:EAST
