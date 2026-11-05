@@ -585,7 +585,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
   await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__socleWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
-  await focusAfter('wire from blk$GCD$logic.io_in_bits_a', () => page.locator('[data-wire="blk$GCD$logic.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
+  await focusAfter('wire from when$GCD$36_20.io_in_bits_a', () => page.locator('[data-wire="when$GCD$36_20.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
   await focusAfter('bundle io.out', () => page.evaluate(() => window.__socleWave.select('io.out')), P('io_out_valid'));
   // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
   // index): a short panel, then the last signal.
@@ -627,7 +627,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     await page.evaluate((v) => window.__socleWave.event('goto_declaration', v), P('x'));
     await page.waitForTimeout(800);
     const v = await page.evaluate(() => window.__socleWave.view());
-    check('wave', v.path === '["GCD"]' && v.selection === 'blk$GCD$logic', `Go to declaration of x selects its block ${JSON.stringify(v)}`);
+    check('wave', v.path === '["GCD"]' && v.selection === 'x', `Go to declaration of x selects the register ${JSON.stringify(v)}`);
     const opened = wave.opens.map((o) => JSON.parse(o.body));
     check('wave', opened.length === 1 && /GCD\.scala$/.test(opened[0].file) && opened[0].line === 30, `and opens x's declaration ${JSON.stringify(opened)}`);
     const after = await snap();
@@ -1067,8 +1067,8 @@ let seq1 = -1;
   await status({ state: 'ready', loadedTrace: url, shownSeq: null, dropped: null, event: { kind: 'goto_declaration', variable: P('busy') } });
   await page.waitForTimeout(800);
   const rv = await f.evaluate(() => window.__socleWave.view());
-  check('remote', rv.selection === 'blk$GCD$logic' && (await after(n5)).length === 0,
-    `Go to declaration selects busy's block, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
+  check('remote', rv.selection === 'busy' && (await after(n5)).length === 0,
+    `Go to declaration selects the register busy, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
 
   // The tab closed: nothing is sent; a fresh tab's first status gets Load and Show again.
   await toUi({ type: 'socle-surfer-closed' });

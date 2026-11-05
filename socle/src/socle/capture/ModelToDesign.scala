@@ -36,7 +36,12 @@ import socle.schema._
   */
 object ModelToDesign {
 
-  def design(m: CapturedModel, index: Option[SourceIndex] = None): Design = {
+  /** `lines`: the source lines the code blocks are read from (the index's by
+    * default; a source root's when there is no index). */
+  def design(m: CapturedModel, index: Option[SourceIndex] = None): Design =
+    design(m, index, index.fold(SourceLines.none)(_.lines))
+
+  def design(m: CapturedModel, index: Option[SourceIndex], lines: SourceLines): Design = {
     require(m.status == "ok",
       s"cannot adapt a capture with status '${m.status}'" + (if (m.error.nonEmpty) s": ${m.error}" else ""))
     val reg      = new Registry
@@ -50,7 +55,7 @@ object ModelToDesign {
       }
     }.toMap
     lazy val circ      = ChirrtlParser.parse(m.chirrtl)
-    lazy val ir        = WiresFromChirrtl.design(circ, index.fold(SourceLines.none)(_.lines))
+    lazy val ir        = WiresFromChirrtl.design(circ, lines)
     lazy val irModules = ir.modules.map(im => im.name -> im).toMap
     lazy val chirrtlInsts: Map[String, Map[String, ChirrtlParser.SrcInfo]] =
       circ.modules.map { cm =>

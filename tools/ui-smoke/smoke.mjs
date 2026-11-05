@@ -768,8 +768,9 @@ async function smokeDesignIn(design, ctx) {
   // Tied ports: the captured view drops a constant tie-off from the layout and
   // records it in `tieOffs`; the tied pin shows a `|-` value stub
   // (`data-tied`), and the layout is the same with or without the tie-offs.
-  // Core ties `alu.io.op := 0.U` (0 in both `when` branches); `alu.io.b := 0.U`
-  // is only the else branch's default next to a signal, so it is no tie.
+  // Core ties `rf.io.raddr := 0.U`. `alu.io.op := 0.U` and `rf.io.waddr` are
+  // assigned inside the `when(io.in.fire)` box (code view), so they are its
+  // wires, not ties; `alu.io.b := 0.U` is a default next to a signal, no tie.
   // A derived design gives one pin two values, covered sinks and long lists.
   // It runs before the logic-block checks on purpose: their live reload after
   // this drill into a copy caught a stale hover blanking the Inspector.
@@ -800,21 +801,21 @@ async function smokeDesignIn(design, ctx) {
         .map((e) => e.getAttribute('data-box-inst') || e.getAttribute('data-boundary-stub') || e.getAttribute('data-block') || e.getAttribute('data-logic-node')),
     }));
     const r0 = await read();
-    const op = r0.tied.find((t) => t.pin === 'alu.io.op');
-    if (!op) note(design, where, `no [data-tied="alu.io.op"] stub: ${JSON.stringify(r0.tied.map((t) => t.pin))}`);
+    const op = r0.tied.find((t) => t.pin === 'rf.io.raddr');
+    if (!op) note(design, where, `no [data-tied="rf.io.raddr"] stub: ${JSON.stringify(r0.tied.map((t) => t.pin))}`);
     else {
-      if (op.label !== '0') note(design, where, `alu.io.op stub label ${JSON.stringify(op.label)}`);
-      if (op.title !== 'tied to 0') note(design, where, `alu.io.op stub title ${JSON.stringify(op.title)}`);
-      // A WEST pin: the value label sits left of the alu box.
-      const b = r0.boxes.alu;
+      if (op.label !== '0') note(design, where, `rf.io.raddr stub label ${JSON.stringify(op.label)}`);
+      if (op.title !== 'tied to 0') note(design, where, `rf.io.raddr stub title ${JSON.stringify(op.title)}`);
+      // A WEST pin: the value label sits left of the rf box.
+      const b = r0.boxes.rf;
       if (!b || !op.r || op.r.right > b.left + 1 || op.r.bottom < b.top || op.r.top > b.bottom)
-        note(design, where, `alu.io.op label ${JSON.stringify(op.r)} not beside alu ${JSON.stringify(b)}`);
+        note(design, where, `rf.io.raddr label ${JSON.stringify(op.r)} not beside rf ${JSON.stringify(b)}`);
     }
     // io.out.bits.valid lands on the closed io.out stub (#332).
-    for (const [pin, v] of [['rf.io.raddr', '0'], ['rf.io.waddr', '0'], ['io.out', '1']])
+    for (const [pin, v] of [['rf.io.raddr', '0'], ['io.out', '1']])
       if (!r0.tied.some((t) => t.pin === pin && t.label === v)) note(design, where, `no [data-tied="${pin}"] stub reading ${v}`);
-    // `when` defaults next to another driver are not ties.
-    for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen'])
+    // `when` defaults next to another driver, and assignments inside a `when` box, are not ties.
+    for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen', 'alu.io.op', 'rf.io.waddr'])
       if (r0.tied.some((t) => t.pin === pin)) note(design, where, `the default at ${pin} shows as tied`);
     if (r0.ids.some((id) => (id || '').includes('const$'))) note(design, where, `a const node is laid out: ${r0.ids}`);
     // Derived designs: the same layout without tie-offs; one pin, two values.
@@ -842,8 +843,8 @@ async function smokeDesignIn(design, ctx) {
     // Sinks below a laid pin (`rf.io.raddr[3]`) land on the pin covering it; a
     // tooltip lists at most 10 sinks or `sink = value` lines, then `… and N more`.
     const many = (pre, n, val) => Array.from({ length: n }, (_, i) => ({ sink: `${pre}${i}`, value: val(i) }));
-    await serve((m) => { m.tieOffs = [...m.tieOffs, { sink: 'alu.io.op', value: '3' }, { sink: 'rf.io.raddr[3]', value: '0' },
-      { sink: 'rf.io.waddr.x', value: '1' }, ...many('rf.io.raddr.g', 11, () => '0'), ...many('io.out.bits.valid.f', 12, (i) => String(i))]; });
+    await serve((m) => { m.tieOffs = [...m.tieOffs, { sink: 'alu.io.op', value: '0' }, { sink: 'alu.io.op', value: '3' },
+      { sink: 'rf.io.raddr[3]', value: '0' }, { sink: 'rf.io.waddr', value: '0' }, { sink: 'rf.io.waddr.x', value: '1' }, ...many('rf.io.raddr.g', 11, () => '0'), ...many('io.out.bits.valid.f', 12, (i) => String(i))]; });
     const two = await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '2 tied', null, { timeout: 10000 })
       .then(() => true).catch(() => false);
     await settle();
@@ -859,12 +860,14 @@ async function smokeDesignIn(design, ctx) {
       expect('rf.io.waddr', '2 tied', ['rf.io.waddr = 0', 'rf.io.waddr.x = 1']);
       expect('rf.io.raddr', '0', ['tied to 0', 'rf.io.raddr', 'rf.io.raddr[3]', ...Array.from({ length: 8 }, (_, i) => `rf.io.raddr.g${i}`), '… and 3 more']);
       expect('io.out', '13 tied', ['io.out.bits.valid = 1', ...Array.from({ length: 9 }, (_, i) => `io.out.bits.valid.f${i} = ${i}`), '… and 3 more']);
-      if (tied.length !== r0.tied.length) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length}`);
+      // Only the two pins given ties here (alu.io.op, rf.io.waddr) add a stub.
+      if (tied.length !== r0.tied.length + 2) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length} + 2`);
     }
     // Back to the served design for the checks below.
     await page.unroute('**/design.json');
-    await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '0', null, { timeout: 10000 })
-      .catch(() => note(design, where, 'restore: alu.io.op stub not back to 0'));
+    await page.waitForFunction(() => !document.querySelector('[data-tied="alu.io.op"]')
+      && document.querySelector('[data-tied="rf.io.raddr"]')?.innerText.trim() === '0', null, { timeout: 10000 })
+      .catch(() => note(design, where, 'restore: the alu.io.op stub is not gone or rf.io.raddr not back to 0'));
     await settle();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__tied.png` }).catch(() => {});
     drain(where);
@@ -888,11 +891,14 @@ async function smokeDesignIn(design, ctx) {
           id: b.getAttribute('data-block'),
           label: (b.querySelector('[data-block-label]')?.textContent || '').trim(),
         })),
-        logicNodes: document.querySelectorAll('[data-logic-node]').length,
+        logicNodes: Array.from(document.querySelectorAll('[data-logic-node]')).map((e) => e.getAttribute('data-logic-node')).sort(),
       }));
       if (!r.blocks.length) note(design, where, `${m}: no [data-block] box`);
       for (const b of r.blocks) if (!b.label) note(design, where, `${m}: block ${b.id} has no header label`);
-      if (r.logicNodes) note(design, where, `${m}: ${r.logicNodes} op/reg [data-logic-node] box(es) next to the blocks`);
+      // Only the registers the `when` boxes write sit next to the blocks (code view).
+      const plain = m === 'cluster0' ? ['outSel', 'sel'] : [];
+      if (JSON.stringify(r.logicNodes) !== JSON.stringify(plain))
+        note(design, where, `${m}: [data-logic-node] boxes next to the blocks ${JSON.stringify(r.logicNodes)}, expected ${JSON.stringify(plain)}`);
       if (m === 'cluster0') {
         const id = 'blk$Cluster$logic';
         opened.length = 0;
@@ -920,6 +926,11 @@ async function smokeDesignIn(design, ctx) {
         await page.locator(`[data-wire="io.in"][data-wire-to="${id}.io_in_ready"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
         await expectLine('the wire into a block pin', 136);
         await page.keyboard.press('Escape');
+        // A register a `when` box writes, at module level, opens its declaration.
+        opened.length = 0;
+        await page.locator('[data-logic-node="sel"]').first().dispatchEvent('click').catch((e) => note(design, where, `select sel: ${e.message}`));
+        await expectLine('register sel', 128);
+        await page.keyboard.press('Escape');
         // A double-click opens the block: its contents, its label in the breadcrumb.
         await page.locator(`[data-block="${id}"] [data-block-label]`).first().dblclick({ timeout: 3000 })
           .catch((e) => note(design, where, `open ${id}: ${e.message}`));
@@ -934,10 +945,7 @@ async function smokeDesignIn(design, ctx) {
         }));
         if (inside.chip !== 'block' || !inside.meta) note(design, where, `open block: chip ${inside.chip}, Inspector block view ${inside.meta}`);
         if (inside.crumb !== 'logic') note(design, where, `open block: breadcrumb shows ${JSON.stringify(inside.crumb)}, not "logic"`);
-        if (!inside.regs || !inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
-        opened.length = 0;
-        await page.locator('[data-logic-node="sel"]').first().dispatchEvent('click').catch((e) => note(design, where, `select sel: ${e.message}`));
-        await expectLine('register sel', 128);
+        if (!inside.regs || inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
         drain(`${where} (open block)`);
         // Back to the module.
         await page.locator('.scl-crumb').nth(-2).click({ timeout: 3000 }).catch((e) => note(design, where, `crumb back: ${e.message}`));

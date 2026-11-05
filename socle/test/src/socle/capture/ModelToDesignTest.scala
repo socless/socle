@@ -908,6 +908,17 @@ object ModelToDesignTest extends TestSuite {
       check(boxed > 0, "no code-block box in any fixture")
     }
 
+    test("from a capture with a source root the code blocks are boxes") {
+      val url  = getClass.getResource("/captured")
+      val root = os.Path(new java.io.File(url.toURI)) / os.up / os.up / os.up / os.up
+      val m    = SocleExporter.designFromCaptured(gcd, Some(root)).modules.find(_.name == "GCD").get
+      val whens = m.logic.filter(n => n.kind == NodeKind.Block && n.id.startsWith("when$GCD$"))
+      check(whens.size == 3, s"GCD logic ${m.logic.map(_.id)}")
+      check(Seq("x", "y", "busy").forall(r => m.logic.exists(n => n.id == r && n.kind == NodeKind.Reg)), s"GCD logic ${m.logic.map(_.id)}")
+      // Without a source root, as before: no code-block box.
+      check(!SocleExporter.designFromCaptured(gcd, None).modules.flatMap(_.logic).exists(_.id.startsWith("when$")), "a when box without lines")
+    }
+
     test("without an index the fsm block falls back to case literals") {
       val m     = ModelToDesign.design(fsm).modules.find(_.name == "TrafficFsm").get
       val block = m.logic.find(_.id == "fsm$TrafficFsm$15_17").get

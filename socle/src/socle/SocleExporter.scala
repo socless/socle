@@ -139,7 +139,9 @@ object SocleExporter {
     sourceRoot: Option[Path],
     index:      Option[socle.capture.SourceIndex] = None,
   ): Design = {
-    val core    = socle.capture.ModelToDesign.design(captured, index)
+    // Code blocks read the index's source lines, else the source root's.
+    val lines   = index.map(_.lines).getOrElse(linesOf(sourceRoot))
+    val core    = socle.capture.ModelToDesign.design(captured, index, lines)
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     Layout.withLayouts(core.copy(sources = sources, sourceRoot = sourceRoot.map(_.toString).getOrElse("")))
   }
