@@ -199,6 +199,41 @@ object CodeBlocksTest extends TestSuite {
       assert(b.whenIds.size == 2, b.condNodes == Set("_T", "_T_1"))
     }
 
+    // The Er source with line 37 (the switch) written another way.
+    def erWithSwitch(line37: String): SourceLines =
+      SourceLines.of(Map("Er.scala" -> erScala.replace("    switch(state) {", line37)))
+
+    test("a spaced or qualified switch call is still the FSM") {
+      for ((text, label) <- Seq(
+          "    switch (state) {"             -> "switch (state)",
+          "    chisel3.util.switch(state) {" -> "switch(state)")) {
+        val blocks = CodeBlocks.of(erMod(erFir), erWithSwitch(text))
+        val sw     = blocks.find(_.kind == NodeKind.Fsm)
+        assert(sw.map(_.label).contains(label), sw.exists(_.whenIds.size == 3), blocks.size == 4)
+      }
+    }
+
+    test("a recognised FSM keeps its box when its line has no call") {
+      val blocks = CodeBlocks.of(erMod(erFir), erWithSwitch("    mySwitchHelper(state) {"))
+      assert(blocks.map(_.label) == Seq("when(io.enable)", "switch(state)", "when(io.go)", "when(cpt === 0.U)"))
+      val sw = blocks(1)
+      assert(sw.kind == NodeKind.Fsm, sw.whenIds.size == 3, sw.parent.contains(blocks.head.id))
+    }
+
+    test("a spaced when call is a block") {
+      val fir =
+        """circuit W :
+          |  module W : @[W.scala 1:7]
+          |    input x : UInt<1>
+          |    output o : UInt<1>
+          |    when x : @[W.scala 2:12]
+          |      connect o, x @[W.scala 2:16]
+          |""".stripMargin
+      val lines  = SourceLines.of(Map("W.scala" -> "class W {\n  when (x) { o := x }\n}\n"))
+      val blocks = CodeBlocks.of(parse(fir).modules.head, lines)
+      assert(blocks.map(b => (b.kind, b.label)) == Seq((NodeKind.Block, "when (x)")))
+    }
+
     test("no source lines keeps only FSM switches") {
       val blocks = CodeBlocks.of(erMod(erFir), SourceLines.none)
       assert(blocks.size == 1)

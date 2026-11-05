@@ -37,8 +37,9 @@ object CodeBlocks {
   private val Elsewhen = "elsewhen"
   private val When     = "when"
 
-  // A `.elsewhen(` call, or a `when(` / `switch(` call not part of a longer name.
-  private val CallRe = """\.elsewhen\(|(?<![\w.$])(?:switch|when)\(""".r
+  // A `.elsewhen(` call, or a `when(` / `switch(` call not part of a longer name,
+  // possibly qualified (`chisel3.util.switch(`); a space may precede the `(`.
+  private val CallRe = """\.elsewhen\s*\(|(?<![\w$.])(?:[\w$]+\.)*(?:switch|when)\s*\(""".r
 
   /** The block call a marker points at, as (keyword, call text). Chisel puts the
     * marker on the `{` after the call, so it is the last call starting left of
@@ -47,11 +48,14 @@ object CodeBlocks {
     val calls = CallRe.findAllMatchIn(line).toSeq
     val before = calls.filter(_.start < col - 1)
     (if (before.nonEmpty) before.lastOption else calls.headOption).map { mt =>
+      // The keyword starts after the last `.` (the elsewhen dot or a qualifier).
+      val kwAt: Int = mt.matched.lastIndexOf('.') + 1
+      val word: String = mt.matched.substring(kwAt)
       val kw =
-        if (mt.matched.startsWith(".")) Elsewhen
-        else if (mt.matched.startsWith(Switch)) Switch
+        if (word.startsWith(Elsewhen)) Elsewhen
+        else if (word.startsWith(Switch)) Switch
         else When
-      (kw, balanced(line, mt.start + (if (kw == Elsewhen) 1 else 0), mt.end - 1))
+      (kw, balanced(line, mt.start + kwAt, mt.end - 1))
     }
   }
 
@@ -115,6 +119,13 @@ object CodeBlocks {
         case None    => start(Switch, label, "")
       }
 
+      // Without a call to read: only the switch chains FsmDetect recognises.
+      def fsmOnly(): Unit =
+        elseOf.filter(b => b.idKind == NodeKind.Fsm && joinsSwitch(b)) match {
+          case Some(b) => join(b)
+          case None    => fsmByRoot.get(w.cond).foreach(f => start(NodeKind.Fsm, s"switch(${f.stateReg})", f.stateReg))
+        }
+
       val line: Option[String] = w.src.flatMap(s => lines.line(s.file, s.line))
       line match {
         case Some(text) =>
@@ -130,14 +141,11 @@ object CodeBlocks {
                 case None    => start(When, label, "")
               }
             case Some((_, label)) => start(When, label, "")
-            case None             => () // not a block: its items belong to the enclosing one
+            // No call on the line: not a block (its items belong to the enclosing
+            // one), unless FsmDetect recognises a switch chain there.
+            case None             => fsmOnly()
           }
-        case None =>
-          // No source: only the switch chains FsmDetect recognises.
-          elseOf.filter(b => b.idKind == NodeKind.Fsm && joinsSwitch(b)) match {
-            case Some(b) => join(b)
-            case None    => fsmByRoot.get(w.cond).foreach(f => start(NodeKind.Fsm, s"switch(${f.stateReg})", f.stateReg))
-          }
+        case None => fsmOnly() // no source
       }
     }
 
