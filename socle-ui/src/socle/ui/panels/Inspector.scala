@@ -226,6 +226,7 @@ object Inspector {
     val kindLabel =
       if (isReg) "register" else if (isOp) "operation" else if (isMem) "memory"
       else if (ln.kind == NodeKind.Fsm) "state machine"
+      else if (ln.kind == NodeKind.Domain) (if (ln.reset.nonEmpty) "reset domain" else "clock domain")
       else if (ln.kind != NodeKind.Block) "constant"
       else if (ln.layer) "debug block"
       else if (ln.id.contains("$gen$")) "generator block"
@@ -233,7 +234,9 @@ object Inspector {
     div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
-        if (isOp && ln.op.nonEmpty) s"$kindLabel · ${ln.op}" else kindLabel),
+        if (isOp && ln.op.nonEmpty) s"$kindLabel · ${ln.op}"
+        else if (isReg && ln.clock.nonEmpty) s"$kindLabel · ${ln.clock}${if (ln.reset.nonEmpty) s" · ${ln.reset}" else ""}"
+        else kindLabel),
       if (isReg) {
         div(sectionTitle("Registered type"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",

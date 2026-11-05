@@ -294,10 +294,19 @@ object Highlight {
       boxes.filter(_.kind == BoxKind.Instance)
         .flatMap(b => geom.childByName.get(b.id).map(ch => ch.clock -> b)).toSeq.groupMap(_._1)(_._2)
 
-    /** The instance boxes outside clock domain `d` (none when no box is in it). */
+    // The clock of each box a lit domain dims: an instance's (its child's), a
+    // register's and a domain stub's (their `clock`). Apart from `byClock`,
+    // which only lights an instance's peers.
+    private lazy val clockOfBox: Map[BoxEntry, String] = boxes.iterator.flatMap { b =>
+      if (b.kind == BoxKind.Instance) geom.childByName.get(b.id).map(ch => b -> ch.clock)
+      else geom.logicById.get(b.id).filter(n => n.kind == socle.schema.NodeKind.Reg || n.kind == socle.schema.NodeKind.Domain).map(n => b -> n.clock)
+    }.toMap
+
+    /** The instance, register and domain-stub boxes outside clock domain `d`
+      * (none when no box is in it). */
     def domainOff(d: String): Set[dom.Element] =
-      if (!byClock.contains(d)) Set.empty
-      else boxes.iterator.filter(b => b.kind == BoxKind.Instance && !byClock(d).contains(b)).map(_.el).toSet
+      if (!clockOfBox.valuesIterator.contains(d)) Set.empty
+      else clockOfBox.iterator.collect { case (b, c) if c != d => b.el }.toSet
 
     private lazy val wiresByPair: Map[(String, String), Seq[dom.Element]] =
       wires.groupMap(w => (w.from, w.to))(_.el).map { case (k, v) => k -> v.toSeq }
@@ -511,7 +520,7 @@ object Highlight {
     ".scl-sym.sel{--sym:var(--accent)}",
     ".hl-cb .scl-sym{background:var(--bf);border:1px solid var(--borderSoft);border-radius:5px}",
     ".scl-b.off,.scl-sym.off{opacity:.18}",
-    ".scl-b.domoff{opacity:.28}",
+    ".scl-b.domoff,.scl-sym.domoff{opacity:.28}",
     // The hovered block: an outline, so it composes with the selection's border and shadow.
     s".scl-b.ohov,.scl-sym.ohov{outline:2px solid ${Tokens.hov};outline-offset:2px}",
     ".scl-pin{background:var(--ink3)}",

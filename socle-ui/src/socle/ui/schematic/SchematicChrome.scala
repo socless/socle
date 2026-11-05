@@ -97,8 +97,9 @@ private[schematic] object SchematicChrome {
       div(dataAttr("clock-legend") := "1",
         styleAttr := s"position:absolute;bottom:46px;right:12px;z-index:3;max-width:320px;display:flex;flex-direction:column;gap:3px;" +
           s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:6px 9px;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2}",
-        m.children.map(_.clock).filter(_.nonEmpty).distinct.map { d =>
-          val insts = m.children.filter(_.clock == d).map(_.name)
+        socle.layout.LayoutCore.clockDomains(m).map { d =>
+          val insts = m.children.filter(_.clock == d).map(_.name) ++
+            m.logic.filter(n => n.kind == NodeKind.Reg && n.clock == d).map(_.id)
           div(dataAttr("legend-domain") := d, title := s"Light the $d domain",
             dataAttr("lit") <-- active.map(a => if (a.contains(d)) "1" else "0"),
             styleAttr <-- active.map(a => "display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" +

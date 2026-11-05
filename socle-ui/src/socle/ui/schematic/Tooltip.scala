@@ -215,7 +215,13 @@ object Tooltip {
     val label = ln.map(_.label).filter(_.nonEmpty).getOrElse(id)
     val width = ln.map(l => typed(g, l.bundle)).filter(_.nonEmpty).toSeq
     n.kind match {
-      case NodeKind.Reg => Content("box", id, "register", width, acts("Click: inspect"))
+      case NodeKind.Reg =>
+        val domain = ln.filter(_.clock.nonEmpty).map(l => s"clock ${l.clock}" + (if (l.reset.nonEmpty) s", reset ${l.reset}" else "")).toSeq
+        Content("box", id, "register", width ++ domain, acts("Click: inspect"))
+      case NodeKind.Domain =>
+        val isReset = ln.exists(_.reset.nonEmpty)
+        Content("box", label, if (isReset) "reset domain" else "clock domain",
+          Seq(s"The registers ${if (isReset) "reset" else "clocked"} by $label"), acts("Click: inspect"))
       case NodeKind.Op =>
         val op   = ln.map(_.op).getOrElse("")
         val what = if (op == "mux") "multiplexer" else if (op.isEmpty) "operator" else s"operator $op (${opGlyph(op)})"

@@ -541,7 +541,9 @@ object Schematic {
         val child = g.childByName.get(n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top)
+        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top, g.logicById.get(n.id).flatMap(l => domainColor.get(l.clock)))
+        // A derived clock or reset's stub (`→ fall`), in its domain's colour.
+        else if (n.kind == NodeKind.Domain) SchematicBoxes.domainStub(boxCtx, g, n, top, g.logicById.get(n.id).flatMap(l => domainColor.get(l.clock)))
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
         else if (n.kind == NodeKind.Op) SchematicBoxes.opBox(boxCtx, g, n, top)
