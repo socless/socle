@@ -348,7 +348,7 @@ object IrWalk {
       logic    = layerFlagged,
     )
     // Each code block becomes a box, innermost first; its body goes to the regions.
-    if (collapse) collapseBlocks(m, open, blocks, blockOfWhen, termBlock)
+    if (collapse) collapseBlocks(m, open, blocks, blockOfWhen, termBlock, asgIds.iterator.map { case ((_, lhs), id) => id -> lhs }.toMap)
     else (open, Map.empty[String, ModuleDef])
   }
 
@@ -366,6 +366,7 @@ object IrWalk {
     blocks:      Seq[CodeBlock],
     blockOfWhen: Map[Int, String],
     termBlock:   collection.Map[String, String],
+    asgLhs:      Map[String, String],
   ): (ModuleDef, Map[String, ModuleDef]) = {
     if (blocks.isEmpty) return (open, Map.empty)
     val kindOf: Map[String, String] = open.logic.iterator.map(n => n.id -> n.kind).toMap
@@ -410,18 +411,50 @@ object IrWalk {
       )
     }
 
-    // The sinks a terminal assigns (`X <- asg`): their out pins are named after them.
-    val assigned: Set[String] = open.wires.iterator.filter(w => isAsgOut(w.to)).map(_.from).toSet
+    // Assignment pins, one per sink the block's connects write (not the wire's
+    // far end, which NetTrace moves past a contracted Chisel `Wire`), named
+    // after it: its own terminals' and its child boxes' assignment pins for
+    // that sink. Names are unique per box and never a condition pin's name.
+    val parentOf: Map[String, String] = blocks.flatMap(b => b.parent.map(p => b.id -> p)).toMap
+    val asgPins: mutable.HashMap[(String, String), String] = mutable.HashMap.empty // (box, pin) -> sink
+    val pinOfSink: mutable.HashMap[(String, String), String] = mutable.HashMap.empty // (box, sink) -> pin
+    val usedNames: mutable.HashMap[String, mutable.Set[String]] = mutable.HashMap.empty
+    def isCondName(n: String): Boolean = n == "cond" || n.matches("cond_\\d+")
+    // A memory write pin (`mem~port~w`) is shown as `mem.port`.
+    def sinkLabel(sink: String): String =
+      Synthetic.memPinParts(sink).fold(sink) { case (mem, port, _) => s"$mem.$port" }
     def condText(e: String): String = {
       val i: Int = e.indexOf('.')
       if (i < 0) Synthetic.stripQ(e) else Synthetic.stripQ(e.substring(0, i)) + e.substring(i)
     }
+    def assignPin(box: String, sink: String): Option[(String, String, String)] = {
+      val name: String = pinOfSink.getOrElseUpdate((box, sink), {
+        val used: mutable.Set[String] = usedNames.getOrElseUpdate(box, mutable.Set.empty)
+        val base: String = socle.capture.LogicBlocks.driverPin(sink, Set.empty)._2
+        val n: String = (base #:: LazyList.from(2).map(i => s"${base}_$i")).find(c => !used(c) && !isCondName(c)).get
+        used += n
+        n
+      })
+      asgPins((box, name)) = sink
+      Some((s"asg>$sink", name, sinkLabel(sink)))
+    }
     val pinOverride: socle.capture.LogicBlocks.PinOverride = (member, external, dir) =>
       if (dir == PortDir.In && fsmHeadBase(member).startsWith(Synthetic.CondPrefix))
         Some((s"cnd>$external", "cond", condText(external)))
-      else if (dir == PortDir.Out && assigned(external))
-        Some((s"asg>$external", socle.capture.LogicBlocks.driverPin(external, Set.empty)._2, external))
-      else None
+      else if (dir == PortDir.In && isAsgOut(external) && asgLhs.contains(external))
+        // Read from a block collapsed later (a sibling): named after what it assigns.
+        Some((external, socle.capture.LogicBlocks.driverPin(asgLhs(external), Set.empty)._2, sinkLabel(asgLhs(external))))
+      else if (dir == PortDir.Out && isAsgOut(member) && asgLhs.contains(member))
+        assignPin(termBlock(member), asgLhs(member))
+      else if (dir == PortDir.Out) {
+        val dot: Int = member.indexOf('.')
+        val child: String = if (dot < 0) "" else member.substring(0, dot)
+        val pin: String = member.substring(dot + 1)
+        asgPins.get((child, pin)) match {
+          case Some(sink) if parentOf.contains(child) => assignPin(parentOf(child), sink)
+          case _                                      => None
+        }
+      } else None
 
     val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(open, groups, pinOverride = Some(pinOverride))
     (collapsed, bodies.map { case (id, body) => id -> spliceTerminals(body) })

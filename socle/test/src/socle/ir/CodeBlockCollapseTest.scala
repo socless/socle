@@ -135,6 +135,34 @@ object CodeBlockCollapseTest extends TestSuite {
       |""".stripMargin
   private val bulkLines = SourceLines.of(Map("B.scala" -> "class B {\n// 2\n  when(en) {\n"))
 
+  // A Chisel `Wire` (contracted by NetTrace) assigned in one block and read in
+  // another and at module level: `val next = WireDefault(state)`.
+  private val wireFir: String =
+    """FIRRTL version 7.0.0
+      |circuit W :
+      |  public module W : @[W.scala 1:7]
+      |    input clock : Clock @[W.scala 1:7]
+      |    input reset : UInt<1> @[W.scala 1:7]
+      |    input a : UInt<1> @[W.scala 1:7]
+      |    input b : UInt<1> @[W.scala 1:7]
+      |    input x : UInt<2> @[W.scala 1:7]
+      |    output o : UInt<2> @[W.scala 1:7]
+      |    regreset state : UInt<2>, clock, reset, UInt<2>(0h0) @[W.scala 2:22]
+      |    wire next : UInt<2> @[W.scala 2:40]
+      |    connect next, state @[W.scala 2:40]
+      |    when a : @[W.scala 3:11]
+      |      connect next, x @[W.scala 3:20]
+      |    when b : @[W.scala 4:11]
+      |      connect state, next @[W.scala 4:20]
+      |    connect o, next @[W.scala 5:5]
+      |""".stripMargin
+  private val wireLines = SourceLines.of(Map("W.scala" -> "class W {\n// 2\n  when(a) {\n  when(b) {\n"))
+
+  // No synthetic id in a box's pin names or labels.
+  private def leaks(d: Design): Seq[String] =
+    d.regions.values.toSeq.flatMap(_.ports).flatMap(p => Seq(p.name, p.label))
+      .filter(s => s.contains("asg") || s.contains("cnd") || s.contains("~"))
+
   val tests = Tests {
 
     test("a when around a switch gives a box holding the FSM box") {
@@ -207,6 +235,21 @@ object CodeBlockCollapseTest extends TestSuite {
       def bad(e: String): Boolean = { val h = IrWalk.fsmHeadBase(e); h.startsWith("asg$") || h.startsWith("cnd$") }
       assert(all.forall(_.logic.forall(n => !n.id.startsWith("asg$") && !n.id.startsWith("cnd$"))))
       assert(all.forall(_.wires.forall(w => !bad(w.from) && !bad(w.to))))
+      assert(leaks(erDesign).isEmpty)
+    }
+
+    test("a wire assigned in a block gets one pin named after it") {
+      val d    = IrWalk.design(parse(wireFir), wireLines)
+      val boxA = "when$W$3_11"
+      val boxB = "when$W$4_11"
+      val outs = d.regions(boxA).ports.filter(_.dir == PortDir.Out)
+      assert(outs.map(_.name) == Seq("next"))
+      assert(leaks(d).isEmpty)
+      val ps = pairs(d.modules.head.wires)
+      // Read by the other block and at module level, from the one pin.
+      assert(ps.contains(("o", s"$boxA.next")))
+      assert(ps.exists { case (f, t) => f.startsWith(s"$boxB.") && t == s"$boxA.next" })
+      assert(ps.contains(("state", s"$boxB.state")))
     }
 
     test("two sinks that sanitize alike get distinct terminals") {
