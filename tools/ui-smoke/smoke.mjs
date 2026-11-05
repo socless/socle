@@ -682,9 +682,19 @@ async function smokeDesignIn(design, ctx) {
         else await expectHeader(step, m);
       if (await count('[data-fold-group]')) note(design, where, `${step}: a [data-fold-group] box remains`);
     };
+    // The fold toggle takes no click in the overview (zoomed out past the label
+    // size), so zoom in until the detail shows: at fit, Cluster's code-block
+    // boxes (with their condition pins) can land just under that threshold.
+    const detail = async () => {
+      for (let i = 0; i < 4 && (await count('.ov')); i++) {
+        await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(150);
+      }
+    };
     await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, e.message));
     await settle();
     await expectFolded('initial');
+    await detail();
     await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `unfold: ${e.message}`));
     await settle();
     await expectUnfolded('after +');
@@ -747,9 +757,11 @@ async function smokeDesignIn(design, ctx) {
     // Select a copy (its header, left of the toggle), then fold its group back:
     // the fold removes the selected box, so the selection (and cores_0's expanded
     // bundles) are cleared; both are checked once the copies are back.
+    await detail();
     await page.locator('[data-box-inst="cores_1"] > div').first().click({ position: { x: 20, y: 8 }, timeout: 3000 })
       .catch((e) => note(design, where, `select cores_1: ${e.message}`));
     if (!(await count('[data-inst-inspect="cores_1"]'))) note(design, where, 'cores_1 not selected (no inspector entry)');
+    await detail();
     await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `fold back: ${e.message}`));
     await settle();
     await expectFolded('after -');
