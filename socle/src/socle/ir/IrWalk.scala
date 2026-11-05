@@ -212,9 +212,22 @@ object IrWalk {
     val keptConns  = mem.conns.iterator.zipWithIndex
       .collect { case (c, i) if !muxResult.consumed(i) => c }.toSeq
     val muxIds     = muxResult.nodes.map(_.id).toSet
+    // Recognized FSMs, collapsed below. The `when` conditions an FSM reads
+    // (around its `switch`, or inside a case) are not operands of any node, so
+    // each is an extra input pin of the FSM's first case compare: the collapse
+    // makes it an input pin of the fsm box (no wire inside its body). A
+    // condition that is itself a member op is left out: its operands are wired.
+    val fsms = FsmDetect.detect(m)
+    val fsmCondEdges: Seq[(String, String)] = fsms.flatMap { f =>
+      m.nodes.find(_.name == f.outerCond).filter(n => logicNodeNames.contains(n.name)).toSeq.flatMap { root =>
+        f.condRefs.filterNot(c => logicNodeNames.contains(c) && f.memberNodes.contains(c)).zipWithIndex.map {
+          case (c, k) => (Synthetic.opInPin(root.name, root.operands.size + k), c)
+        }
+      }
+    }
     val (wires, constLogic) =
       coalesceWires(m, keptConns, byName, bundles, regNames, regType,
-        logicNodeNames ++ muxIds ++ mem.ids, nodeEdges ++ muxResult.edges ++ mem.addrEdges)
+        logicNodeNames ++ muxIds ++ mem.ids, nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ fsmCondEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -265,7 +278,7 @@ object IrWalk {
     // the parent keeps a single `fsm` box plus the boundary wires (rewired to
     // pins on the box). No FSM detected => parent unchanged, empty regions.
     val (finalLogic, finalWires, regions) =
-      collapseFsms(m, layerFlagged, wires)
+      collapseFsms(fsms, layerFlagged, wires)
     val moduleDef = ModuleDef(
       name     = m.name,
       `type`   = m.name,
@@ -290,11 +303,10 @@ object IrWalk {
     * are used only for lookups, never for ordering.
     */
   private def collapseFsms(
-    m:     Mod,
+    fsms:  Seq[FsmDetect.Fsm],
     logic: Seq[LogicNodeDef],
     wires: Seq[WireDef],
   ): (Seq[LogicNodeDef], Seq[WireDef], Map[String, ModuleDef]) = {
-    val fsms = FsmDetect.detect(m)
     if (fsms.isEmpty) return (logic, wires, Map.empty)
 
     // Running parent state, mutated per FSM. `parentLogic`/`parentWires` keep

@@ -138,6 +138,12 @@ object FsmDetectTest extends TestSuite {
       assert(f.memberNodes == Set("_T", "_T_1", "_T_2", "_T_3"))
       // a sink written under `en` but outside the switch is not the FSM's
       assert(f.memberSinks == Set("state"))
+      // the conditions it reads besides its case compares: the enclosing `en`
+      assert(f.condRefs == Seq("en"))
+    }
+    test("the conditions inside the cases are condition references") {
+      val f = FsmDetect.detect(mod(fsm.replace("connect state, go", "when go :\n        connect state, UInt<1>(0h1)"))).head
+      assert(f.condRefs == Seq("go"))
     }
     test("regheavy Controller is recognized with state register 'state'") {
       val text = scala.io.Source.fromInputStream(

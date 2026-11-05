@@ -1318,7 +1318,12 @@ async function smokeDesignIn(design, ctx) {
       // The block leaves the baked layouts too, as an export would leave it: an
       // optimized bake is drawn as is, with no re-layout (#335).
       await serve((d) => {
-        for (const m of d.modules) m.logic = (m.logic || []).filter((n) => n.id !== id);
+        // ...and its wires, as a design without the block has none to it
+        const onBlock = (e) => e === id || e.startsWith(`${id}.`);
+        for (const m of d.modules) {
+          m.logic = (m.logic || []).filter((n) => n.id !== id);
+          m.wires = (m.wires || []).filter((w) => !onBlock(w.from) && !onBlock(w.to));
+        }
         for (const l of Object.values(d.layouts || {})) {
           const gone = new Set((l.nodes.find((n) => n.id === id)?.ports || []).map((p) => p.path));
           l.nodes = l.nodes.filter((n) => n.id !== id);

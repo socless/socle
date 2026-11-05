@@ -88,15 +88,28 @@
           }
         },
         {
-          "from": "io",
+          "from": "io.green",
           "to": "_io_green_T",
-          "bundle": "Io",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
             "file": "example/src/fsm/TrafficFsm.scala",
             "line": 20,
             "col": 12
-          }
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "fsm$TrafficFsm$state.io_tick",
+          "to": "io.tick",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         },
         {
           "from": "fsm$TrafficFsm$state.state_q",
@@ -196,6 +209,17 @@
         {
           "name": "state",
           "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_tick",
+          "dir": "in",
           "bundle": "",
           "doc": "",
           "source": {

@@ -41,7 +41,10 @@ object FsmDetect {
     * ordered: consumers needing a stable order must derive it from their own
     * ordered source (e.g. iterate the module's ordered `logic`/`wires` and filter
     * by these sets), never from Set iteration order.
-    * @param caseLits   the literals compared, in chain order. */
+    * @param caseLits   the literals compared, in chain order.
+    * @param condRefs   the `when` conditions the FSM reads besides its case
+    *                   compares, in order: the enclosing `when`s' (around the
+    *                   `switch`), then those inside it (refs or node names). */
   final case class Fsm(
     stateReg:        String,
     id:              String,
@@ -50,6 +53,7 @@ object FsmDetect {
     memberSinks:     Set[String],
     memberSinkPaths: Set[String],
     caseLits:        Seq[String],
+    condRefs:        Seq[String] = Nil,
   )
 
   // Literal shape: UInt<2>(0h0), SInt<3>(...), or bare-width forms.
@@ -154,6 +158,11 @@ object FsmDetect {
           val memberSinks: Set[String]     = guardedConns.map(c => head(c.lhs)).toSet
           val memberSinkPaths: Set[String] = guardedConns.map(c => sinkPath(c.lhs)).toSet
 
+          val condRefs: Seq[String] =
+            (nodeByName.get(rootName).toSeq.flatMap(_.guard) ++ guardedNodes.flatMap(_.guard) ++
+              guardedConns.flatMap(_.guard)).map(_.cond.trim).distinct
+              .filterNot(compareNodeNames.toSet)
+
           Some(Fsm(
             stateReg        = reg,
             id              = Synthetic.fsmId(m.name, reg),
@@ -162,6 +171,7 @@ object FsmDetect {
             memberSinks     = memberSinks,
             memberSinkPaths = memberSinkPaths,
             caseLits        = caseLits,
+            condRefs        = condRefs,
           ))
         }
       }
