@@ -24,23 +24,9 @@ object FsmDetect {
     * @param stateReg   the register R the chain compares.
     * @param id         parent fsm-node id, "fsm$<module>$<R>".
     * @param outerCond  the outermost case-condition node name (e.g. "_T_1").
-    * @param memberNodes node-decl NAMES that are FSM-internal: the eq/asUInt
-    *                   chain-condition nodes (incl. `outerCond` and its asUInt
-    *                   feeder, which sit beside the `switch`) plus every node
-    *                   guarded by `outerCond`.
     * @param memberSinks connect-lhs heads written under the construct
-    *                   (guarded by outerCond), e.g. {"state","timer"}.
-    * @param memberSinkPaths connect-lhs FULL paths written under the construct
-    *                   (guarded by outerCond), with only a trailing vec
-    *                   index stripped but bundle FIELDS kept, e.g.
-    *                   {"io.state","state","timer"}. Used to match sink
-    *                   absorption at field granularity so a sibling bundle field
-    *                   driven outside the FSM is not over-grabbed.
-    *
-    * `memberNodes`, `memberSinks`, and `memberSinkPaths` are membership sets, not
-    * ordered: consumers needing a stable order must derive it from their own
-    * ordered source (e.g. iterate the module's ordered `logic`/`wires` and filter
-    * by these sets), never from Set iteration order.
+    *                   (guarded by outerCond), e.g. {"state","timer"}; a
+    *                   membership set, not ordered.
     * @param caseLits   the literals compared, in chain order.
     * @param condRefs   the `when` conditions the FSM reads besides its case
     *                   compares, in order: the enclosing `when`s' (around the
@@ -49,9 +35,7 @@ object FsmDetect {
     stateReg:        String,
     id:              String,
     outerCond:       String,
-    memberNodes:     Set[String],
     memberSinks:     Set[String],
-    memberSinkPaths: Set[String],
     caseLits:        Seq[String],
     condRefs:        Seq[String] = Nil,
   )
@@ -61,10 +45,6 @@ object FsmDetect {
   private def isLit(s: String): Boolean = LitRe.findFirstIn(s.trim).isDefined
 
   private def head(path: String): String = socle.layout.LayoutCore.pathHead(path)
-
-  /** Full sink path with only a TRAILING vec index stripped, fields kept:
-    * `io.state[0]` -> `io.state`, `io.state` -> `io.state`, `state` -> `state`. */
-  private def sinkPath(path: String): String = path.trim.replaceAll("""\[[^\]]*\]$""", "")
 
   def detect(m: Mod): Seq[Fsm] = {
     val regNames   = m.regs.map(_.name).toSet
@@ -141,22 +121,7 @@ object FsmDetect {
               .map(_.name)
               .toSeq
 
-          // Their asUInt/asSInt feeder node names (the operand that is a node).
-          val feeders: Set[String] = compareNodeNames.flatMap { cn =>
-            nodeByName.get(cn).toSeq.flatMap { n =>
-              n.operands.map(_.trim).filter { op =>
-                nodeByName.get(op).exists(f =>
-                  (f.op == "asUInt" || f.op == "asSInt") && f.operands.size == 1
-                    && regNames.contains(f.operands.head.trim))
-              }
-            }
-          }.toSet
-
-          val memberNodes: Set[String] =
-            compareNodeNames.toSet ++ feeders ++ guardedNodes.map(_.name).toSet
-
-          val memberSinks: Set[String]     = guardedConns.map(c => head(c.lhs)).toSet
-          val memberSinkPaths: Set[String] = guardedConns.map(c => sinkPath(c.lhs)).toSet
+          val memberSinks: Set[String] = guardedConns.map(c => head(c.lhs)).toSet
 
           val condRefs: Seq[String] =
             (nodeByName.get(rootName).toSeq.flatMap(_.guard) ++ guardedNodes.flatMap(_.guard) ++
@@ -167,9 +132,7 @@ object FsmDetect {
             stateReg        = reg,
             id              = Synthetic.fsmId(m.name, reg),
             outerCond       = rootName,
-            memberNodes     = memberNodes,
             memberSinks     = memberSinks,
-            memberSinkPaths = memberSinkPaths,
             caseLits        = caseLits,
             condRefs        = condRefs,
           ))

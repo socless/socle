@@ -53,8 +53,6 @@ object FsmDetectTest extends TestSuite {
       assert(f.id == "fsm$M$state")
       assert(f.outerCond == "_T_1")
       assert(f.memberSinks.contains("state"))
-      assert(f.memberNodes.contains("_T_1") && f.memberNodes.contains("_T_3"))
-      assert(f.memberNodes.contains("_T") && f.memberNodes.contains("_T_2"))
       assert(f.caseLits.size == 2)
     }
     test("a non-register single-when comparison is not an FSM") {
@@ -135,7 +133,6 @@ object FsmDetectTest extends TestSuite {
       assert(f.stateReg == "state")
       assert(f.outerCond == "_T_1")
       assert(f.caseLits.size == 2)
-      assert(f.memberNodes == Set("_T", "_T_1", "_T_2", "_T_3"))
       // a sink written under `en` but outside the switch is not the FSM's
       assert(f.memberSinks == Set("state"))
       // the conditions it reads besides its case compares: the enclosing `en`

@@ -32,7 +32,8 @@ object LogicBlocks {
   /** Names a pin the caller recognises from its wire's member end, external end
     * and direction (`PortDir.In` / `Out`): `Some((key, name, label))`. These
     * pins claim their names before the others; `None` leaves the pin to the
-    * [[PinNamer]]. */
+    * [[PinNamer]]. The name it gives is a base: a name the box already uses
+    * gets `_2`, `_3`..., and `onNamed(group id, key, final name)` reports it. */
   type PinOverride = (String, String, String) => Option[(String, String, String)]
 
   /** The driver-side pin: a register read `X~q` names `X`, an op output `X`
@@ -58,7 +59,8 @@ object LogicBlocks {
 
   def collapse(module: ModuleDef, groups: Seq[Group],
                pinName: PinNamer = (driver, _, boxes) => driverPin(driver, boxes),
-               pinOverride: Option[PinOverride] = None): (ModuleDef, Map[String, ModuleDef]) = {
+               pinOverride: Option[PinOverride] = None,
+               onNamed: (String, String, String) => Unit = (_, _, _) => ()): (ModuleDef, Map[String, ModuleDef]) = {
     var logic  = module.logic
     var wires  = module.wires
     val bodies = mutable.LinkedHashMap.empty[String, ModuleDef]
@@ -67,7 +69,7 @@ object LogicBlocks {
       val members = g.members.intersect(logic.iterator.map(_.id).toSet)
       if (members.nonEmpty) {
         val boxes = logic.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
-        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes), pinOverride, boxes)
+        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes), pinOverride, onNamed, boxes)
         bodies(g.id) = body
         logic = nextLogic
         wires = nextWires
@@ -83,6 +85,7 @@ object LogicBlocks {
     wires:   Seq[WireDef],
     pinOf:   (String, String) => (String, String),
     pinOverride: Option[PinOverride],
+    onNamed: (String, String, String) => Unit,
     boxes:   Set[String],
   ): (ModuleDef, Seq[LogicNodeDef], Seq[WireDef]) = {
     // Exact id first (a const id carries its `~in<i>` suffix), then the head base.
@@ -122,7 +125,7 @@ object LogicBlocks {
         else {
           val dir = if (toMem) PortDir.Out else PortDir.In
           f(if (fromMem) w.from else w.to, if (fromMem) w.to else w.from, dir).map { case (key, name, label) =>
-            putPin(key, name, label, dir)
+            onNamed(g.id, key, putPin(key, name, label, dir))
             i -> ((key, name, label))
           }
         }

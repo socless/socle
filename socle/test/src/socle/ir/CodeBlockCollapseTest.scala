@@ -158,6 +158,56 @@ object CodeBlockCollapseTest extends TestSuite {
       |""".stripMargin
   private val wireLines = SourceLines.of(Map("W.scala" -> "class W {\n// 2\n  when(a) {\n  when(b) {\n"))
 
+  // A `when` on a wire another block assigns: `val fire = WireDefault(false.B)`.
+  private val fireFir: String =
+    """FIRRTL version 7.0.0
+      |circuit F :
+      |  public module F : @[F.scala 1:7]
+      |    input a : UInt<1> @[F.scala 1:7]
+      |    input x : UInt<1> @[F.scala 1:7]
+      |    output o : UInt<1> @[F.scala 1:7]
+      |    wire fire : UInt<1> @[F.scala 2:20]
+      |    connect fire, UInt<1>(0h0) @[F.scala 2:20]
+      |    connect o, UInt<1>(0h0) @[F.scala 2:30]
+      |    when a : @[F.scala 3:11]
+      |      connect fire, x @[F.scala 3:20]
+      |    when fire : @[F.scala 4:11]
+      |      connect o, x @[F.scala 4:20]
+      |""".stripMargin
+  private val fireLines = SourceLines.of(Map("F.scala" -> "class F {\n  val fire = WireDefault(false.B)\n  when(a) {\n  when(fire) {\n"))
+
+  // Under `when(p)`: `when(b)` reads `next` (assigned by its sibling `when(a)`)
+  // and assigns it too, so its in pin takes the name `next` first.
+  private val siblingFir: String =
+    """FIRRTL version 7.0.0
+      |circuit G :
+      |  public module G : @[G.scala 1:7]
+      |    input p : UInt<1> @[G.scala 1:7]
+      |    input a : UInt<1> @[G.scala 1:7]
+      |    input b : UInt<1> @[G.scala 1:7]
+      |    input x : UInt<2> @[G.scala 1:7]
+      |    output y : UInt<2> @[G.scala 1:7]
+      |    output o : UInt<2> @[G.scala 1:7]
+      |    wire next : UInt<2> @[G.scala 2:5]
+      |    connect next, UInt<2>(0h0) @[G.scala 2:5]
+      |    connect y, UInt<2>(0h0) @[G.scala 2:9]
+      |    when p : @[G.scala 3:11]
+      |      when a : @[G.scala 4:11]
+      |        connect next, x @[G.scala 4:20]
+      |      when b : @[G.scala 5:11]
+      |        connect y, next @[G.scala 5:20]
+      |        connect next, UInt<2>(0h3) @[G.scala 5:30]
+      |    connect o, next @[G.scala 6:5]
+      |""".stripMargin
+  private val siblingLines = SourceLines.of(Map("G.scala" -> "class G {\n//2\n  when(p) {\n  when(a) {\n  when(b) {\n"))
+
+  // Every node of a box body touches one of its wires.
+  private def unwired(d: Design): Seq[String] =
+    d.regions.values.toSeq.flatMap { b =>
+      val ends: Set[String] = b.wires.iterator.flatMap(w => Seq(w.from, w.to)).flatMap(e => Seq(e, IrWalk.fsmHeadBase(e))).toSet
+      b.logic.map(_.id).filterNot(ends)
+    }
+
   // No synthetic id in a box's pin names or labels.
   private def leaks(d: Design): Seq[String] =
     d.regions.values.toSeq.flatMap(_.ports).flatMap(p => Seq(p.name, p.label))
@@ -236,6 +286,24 @@ object CodeBlockCollapseTest extends TestSuite {
       assert(all.forall(_.logic.forall(n => !n.id.startsWith("asg$") && !n.id.startsWith("cnd$"))))
       assert(all.forall(_.wires.forall(w => !bad(w.from) && !bad(w.to))))
       assert(leaks(erDesign).isEmpty)
+      assert(unwired(erDesign).isEmpty)
+    }
+
+    test("a condition on a wire another block assigns is labelled with the condition") {
+      val d    = IrWalk.design(parse(fireFir), fireLines)
+      val cond = d.regions("when$F$4_11").ports.find(_.name == "cond").get
+      assert(cond.label == "fire")
+      assert(leaks(d).isEmpty)
+      // The default `false.B` stays outside, feeding the condition pin.
+      assert(unwired(d).isEmpty)
+      assert(pairs(d.modules.head.wires).contains(("when$F$4_11.cond", "when$F$3_11.fire")))
+    }
+
+    test("a sink read from a sibling and assigned keeps one pin in the parent") {
+      val d = IrWalk.design(parse(siblingFir), siblingLines)
+      val outs = d.regions("when$G$3_11").ports.filter(_.dir == PortDir.Out).map(_.name)
+      assert(outs.sorted == Seq("next", "y"))
+      assert(leaks(d).isEmpty, unwired(d).isEmpty)
     }
 
     test("a wire assigned in a block gets one pin named after it") {
