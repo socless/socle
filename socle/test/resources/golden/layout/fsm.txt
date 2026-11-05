@@ -1,7 +1,7 @@
 layout TrafficFsm
   node _io_green_T kind=op pins=_io_green_T:EAST,_io_green_T~in0:WEST,_io_green_T~in1:WEST
   node const$_io_green_T~in1 kind=const pins=const$_io_green_T~in1:EAST
-  node fsm$TrafficFsm$switch_state$0 kind=fsm pins=fsm$TrafficFsm$switch_state$0.cond:WEST,fsm$TrafficFsm$switch_state$0.cond_2:WEST,fsm$TrafficFsm$switch_state$0.cond_3:WEST,fsm$TrafficFsm$switch_state$0.io_tick:WEST,fsm$TrafficFsm$switch_state$0.state:EAST,fsm$TrafficFsm$switch_state$0.state_2:WEST
+  node fsm$TrafficFsm$switch_state$0 kind=fsm pins=fsm$TrafficFsm$switch_state$0.io_tick:WEST,fsm$TrafficFsm$switch_state$0.state:EAST,fsm$TrafficFsm$switch_state$0.state_2:WEST
   node io.green kind=boundary pins=io.green:WEST
   node io.tick kind=boundary pins=io.tick:EAST
   node state kind=reg pins=state:WEST,state~q:EAST

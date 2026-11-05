@@ -44,8 +44,8 @@ object LayoutCore {
     * 1 since pins are the declared port rows (#332); 2 since wires end on the
     * pins' centres, block pins follow their peers and layers sit in a debug band
     * (#334); 3 since instances keep rows for their clk and rst pins and logic
-    * blocks are baked as modules to open; 4 since a code-block box shows its
-    * condition pins on WEST, wired or not. Bump it when a bake's pins
+    * blocks are baked as modules to open; 4 since a code-block box (not an FSM)
+    * shows its condition pins on WEST, wired or not. Bump it when a bake's pins
     * change meaning, so the UI lays older bakes out again. */
   val LayoutModel: Int = 4
   val BoundaryW: Double = 16.0
@@ -474,10 +474,12 @@ object LayoutCore {
     portRows.regs.foreach { case (id, rows) => seed(id, NodeKind.Reg, rows) }
     // A code-block box's condition pins come first on its WEST side, wired or
     // not: an expression computed inside the box drives an out pin nothing
-    // outside reads, and the closed box still shows its condition.
+    // outside reads, and the closed box still shows its condition. Not an FSM
+    // box: it opens its state diagram, and its arm compares (`state === 1`) are
+    // CHIRRTL encodings, not the `is(...)` as written.
     val condPins = mutable.Set.empty[(String, String, String)]
     module.logic.foreach { n =>
-      if (NodeKind.isBox(n.kind)) design.regions.get(n.id).foreach { body =>
+      if (n.kind == NodeKind.Block) design.regions.get(n.id).foreach { body =>
         body.ports.filter(_.cond).foreach { p =>
           val path = s"${n.id}.${p.name}"
           pinOrder.getOrElseUpdate((n.id, n.kind), mutable.LinkedHashSet.empty) += path

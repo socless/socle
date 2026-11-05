@@ -5,7 +5,7 @@ layout Controller
   node const$_io_enable_T~in1 kind=const pins=const$_io_enable_T~in1:EAST
   node const$_io_flush_T~in1 kind=const pins=const$_io_flush_T~in1:EAST
   node const$_io_stall_T~in1 kind=const pins=const$_io_stall_T~in1:EAST
-  node fsm$Controller$switch_state$0 kind=fsm pins=fsm$Controller$switch_state$0.cond:WEST,fsm$Controller$switch_state$0.cond_2:WEST,fsm$Controller$switch_state$0.cond_3:WEST,fsm$Controller$switch_state$0.io_hint:WEST,fsm$Controller$switch_state$0.state:EAST,fsm$Controller$switch_state$0.state_2:WEST,fsm$Controller$switch_state$0.timer:EAST,fsm$Controller$switch_state$0.timer_2:WEST
+  node fsm$Controller$switch_state$0 kind=fsm pins=fsm$Controller$switch_state$0.io_hint:WEST,fsm$Controller$switch_state$0.state:EAST,fsm$Controller$switch_state$0.state_2:WEST,fsm$Controller$switch_state$0.timer:EAST,fsm$Controller$switch_state$0.timer_2:WEST
   node io.enable kind=boundary pins=io.enable:WEST
   node io.flush kind=boundary pins=io.flush:WEST
   node io.hint kind=boundary pins=io.hint:EAST

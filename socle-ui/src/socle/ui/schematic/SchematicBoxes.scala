@@ -405,8 +405,10 @@ private[schematic] object SchematicBoxes {
     }
     // A code-block box's condition pins: shown in full, wired or not (an
     // expression condition is computed inside the box, its pin wired there).
+    // Only a code block's: an FSM box shows none (LayoutCore.prepare).
     val condRows: Set[String] =
-      g.design.regions.get(n.id).fold(Set.empty[String])(_.ports.iterator.filter(_.cond).map(p => s"${n.id}.${p.name}").toSet)
+      if (n.kind != socle.schema.NodeKind.Block) Set.empty[String]
+      else g.design.regions.get(n.id).fold(Set.empty[String])(_.ports.iterator.filter(_.cond).map(p => s"${n.id}.${p.name}").toSet)
     guides ++ rows.map { row =>
       val rowY     = row.pinYBaked
       val indentPx = row.depth * 8
