@@ -2422,6 +2422,25 @@ async function smokeDesignIn(design, ctx) {
         ends: f(['p', 'b', 'b', 'f', 'f', 'f']),
       };
     });
+    // The module step of the previous / next module buttons: past every view
+    // of the module shown, to the latest view of the module before or after.
+    {
+      const steps = await page.evaluate(() => {
+        const f = window.__socleModuleStep;
+        if (!f) return null;
+        const h = ['T', 'T/a', 'T/a', 'T/a/x', 'T/a/x', 'T/a/x', 'T', 'T'];
+        return [
+          ['back over three views of T/a/x to T/a', f(h, 5, 'T/a/x', -1), 2],
+          ['back from T/a to T', f(h, 2, 'T/a', -1), 0],
+          ['back from the start', f(h, 0, 'T', -1), -1],
+          ['forward from T/a to the latest view of T/a/x', f(h, 2, 'T/a', 1), 5],
+          ['forward from T/a/x to the latest view of T', f(h, 3, 'T/a/x', 1), 7],
+          ['forward from the end', f(h, 7, 'T', 1), -1],
+        ];
+      });
+      if (!steps) note(design, where, 'no window.__socleModuleStep hook');
+      else for (const [what, got, want] of steps) if (got !== want) note(design, where, `module step ${what}: landed on ${got}, expected ${want}`);
+    }
     if (!model) note(design, where, 'no window.__socleHistoryModel hook');
     else {
       if (model.cap.size !== 50 || model.cap.index !== 49)
@@ -2595,6 +2614,17 @@ async function smokeDesignIn(design, ctx) {
           if (!t.inView) note(design, where2, `after opening ${lp} its hierarchy row is out of view`);
           if (t.focus === 'tree') note(design, where2, `opening ${lp} moved the focus into the hierarchy`);
         }
+        // Views of the leaf that settle into the history (two pans and a zoom):
+        // one press on the previous module button still goes back to the parent.
+        for (const [dx, dy] of [[40, 25], [-30, 20]]) {
+          const vc = await vpBox();
+          await page.mouse.move(vc.x, vc.y); await page.mouse.down();
+          for (let i = 1; i <= 4; i++) { await page.mouse.move(vc.x + dx * i / 4, vc.y + dy * i / 4); await page.waitForTimeout(16); }
+          await page.mouse.up();
+          await page.waitForTimeout(800);
+        }
+        await key('-');
+        await page.waitForTimeout(800);
         await page.locator('[data-nav-back]').first().click();
         const vb = await settle();
         if (!near(vb, pre) || await crumbs() !== preC) note(design, where2, `Back from ${lp} did not return to the view before the drill: ${fmt(vb)} at "${await crumbs()}", expected ${fmt(pre)} at "${preC}"`);

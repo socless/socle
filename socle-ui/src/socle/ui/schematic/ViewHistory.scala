@@ -50,6 +50,18 @@ object ViewHistory {
     def replace(e: Entry): Stack = if (index < 0) push(e) else copy(entries = entries.updated(index, e))
     def back: Stack = if (canBack) copy(index = index - 1) else this
     def forward: Stack = if (canForward) copy(index = index + 1) else this
+    /** The entry a module step lands on (the Back / Forward buttons), from
+      * module `cur`: `dir` -1 goes past every entry of `cur` to the latest
+      * entry of the module before it, +1 to the latest entry of the next run
+      * of another module. Entries that do not land (`lands`) are skipped. */
+    def moduleStep(dir: Int, cur: List[String], lands: Entry => Boolean): Option[Int] =
+      if (dir < 0) (index - 1 to 0 by -1).find(i => entries(i).path != cur && lands(entries(i)))
+      else (index + 1 until entries.size).find(i => entries(i).path != cur && lands(entries(i))).map { j =>
+        val p = entries(j).path
+        var k = j
+        while (k + 1 < entries.size && entries(k + 1).path == p) k += 1
+        k
+      }
   }
 
   /** A rectangle in content coordinates. */
@@ -205,12 +217,23 @@ object ViewHistory {
     def curPath_=(p: List[String]): Unit = if (p != shown) { shown = p; refreshCan() }
     /** Recomputes [[canSig]]; also after the design changed (a path may no longer resolve). */
     def refreshCan(): Unit = {
-      def lands(e: Entry) = e.path == shown || resolves(e.path)
       val es = stack.entries
       val back = (dirty && stack.index >= 0) || (0 until math.max(0, stack.index)).exists(i => lands(es(i)))
       val fwd  = !dirty && (stack.index + 1 until es.size).exists(i => lands(es(i)))
       if (canVar.now() != ((back, fwd))) canVar.set((back, fwd))
+      // A view not settled is pushed first: it drops the forward entries.
+      val mod = (stack.moduleStep(-1, shown, lands).isDefined, !dirty && stack.moduleStep(1, shown, lands).isDefined)
+      if (canModuleVar.now() != mod) canModuleVar.set(mod)
     }
+    private def lands(e: Entry) = e.path == shown || resolves(e.path)
+    private val canModuleVar = Var((false, false))
+    /** Whether a module step ([[walkModule]]) lands somewhere, back and forward. */
+    val canModuleSig: Signal[(Boolean, Boolean)] = canModuleVar.signal
+    def canModuleNow: (Boolean, Boolean) = canModuleVar.now()
+    /** One module back (-1) or forward (+1): the latest view of the module
+      * before or after this one ([[Stack.moduleStep]]), restored like [[walk]]. */
+    def walkModule(dir: Int): Unit =
+      walk(st => st.moduleStep(dir, curPath, lands).fold(st)(i => st.copy(index = i)))
     // A Back or Forward entry whose module is being shown: its view stands in
     // for the fit (or the module's saved view) and is not pushed again.
     private var restoring = Option.empty[Entry]
@@ -354,6 +377,12 @@ object ViewHistory {
     var flyTo: (List[String], String) => Unit = (_, _) => ()
     var reset: () => Unit = () => ()
   }
+
+  /** Smoke hook: [[Stack.moduleStep]] over entries of `paths` shown at
+    * `index` in module `cur`, every entry landing; -1 when there is none. */
+  def moduleStepDebug(paths: js.Array[String], index: Int, cur: String, dir: Int): Int =
+    Stack(paths.toVector.map(p => Entry(p.split('/').toList, (0.0, 0.0), 1.0)), index)
+      .moduleStep(dir, cur.split('/').toList, _ => true).getOrElse(-1)
 
   /** Smoke hook: the stack after `ops` from empty ("p" pushes a new place,
     * "b" goes back, "f" forward), as {size, index, canForward}. */

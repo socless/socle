@@ -417,8 +417,22 @@ object Schematic {
         case None          => history.walk(_.forward)
       }
     }
+    // The buttons step through modules (the latest view of the previous or
+    // next module, `walkModule`), the keys, side buttons and palette through
+    // every view; a diagram is closed or reopened the same way by both.
+    def moduleBack(): Unit = fsmOpenVar.now() match {
+      case Some(id) => fsmOpenVar.set(None); reopenVar.set(Some((history.curPath, id)))
+      case None     => history.walkModule(-1)
+    }
+    def moduleForward(): Unit = fsmOpenVar.now() match {
+      case Some(_) => if (history.canModuleNow._2) { fsmOpenVar.set(None); history.walkModule(1) }
+      case None    => reopenVar.now().filter(_._1 == history.curPath) match {
+        case Some((_, id)) => reopenVar.set(None); fsmOpenVar.set(Some(id))
+        case None          => history.walkModule(1)
+      }
+    }
     val navSig: Signal[(Boolean, Boolean)] =
-      Signal.combine(history.canSig, fsmOpenVar.signal, reopenVar.signal).map { case ((b, f), fsm, re) =>
+      Signal.combine(history.canModuleSig, fsmOpenVar.signal, reopenVar.signal).map { case ((b, f), fsm, re) =>
         if (fsm.isDefined) (true, f) else (b, f || re.isDefined)
       }
     commands.back = () => navBack()
@@ -850,7 +864,7 @@ object Schematic {
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
         Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
-        navSig, () => navBack(), () => navForward()),
+        navSig, () => moduleBack(), () => moduleForward()),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
@@ -902,6 +916,8 @@ object Schematic {
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleHistory")((() => history.debug()): js.Function0[js.Dynamic])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleHistoryModel")(
               ((ops: js.Array[String]) => ViewHistory.modelDebug(ops)): js.Function1[js.Array[String], js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleModuleStep")(
+              ((ps: js.Array[String], i: Int, cur: String, dir: Int) => ViewHistory.moduleStepDebug(ps, i, cur, dir)): js.Function4[js.Array[String], Int, String, Int, Int])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleFlying")((() => history.flyer.running): js.Function0[Boolean])
             // Smoke test hook: the tooltip card of every box, wire and pin of the view ({n, bad}).
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleTooltipCheck")((() => {
@@ -980,7 +996,7 @@ object Schematic {
         case (Some(mod), Some(id)) => mod.logic.find(_.id == id).flatMap(n => n.fsm.map(id -> _))
         case _                     => None
       }.distinct.map(_.map { case (id, fsm) =>
-        FsmDiagramView.render(id, fsm, openSource, Some(SchematicChrome.navButtons(navSig, () => navBack(), () => navForward())))
+        FsmDiagramView.render(id, fsm, openSource, Some(SchematicChrome.navButtons(navSig, () => moduleBack(), () => moduleForward())))
       }),
       // Another diagram opened, or another module shown: nothing to reopen.
       fsmOpenVar.signal.changes --> { (o: Option[String]) => if (o.isDefined && reopenVar.now().isDefined) reopenVar.set(None) },

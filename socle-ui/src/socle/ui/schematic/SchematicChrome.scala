@@ -37,8 +37,8 @@ private[schematic] object SchematicChrome {
 
   // ── chrome (top-left chips) ──
   /** `blockSig`: the module in view is an open logic block (its chip reads `block`). */
-  /** `navSig`: whether Back and Forward have a view to go to; `onBack` /
-    * `onForward`: what Alt+Left / Alt+Right do. */
+  /** `navSig`: whether the previous / next module buttons have a module to
+    * go to; `onBack` / `onForward`: their steps. */
   def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String],
              matchSig: Signal[Option[(Int, Int)]] = Val(None),
              focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => (),
@@ -93,7 +93,7 @@ private[schematic] object SchematicChrome {
       ),
     )
 
-  /** Back and Forward through the view history, one chip of two buttons
+  /** Previous and next module (the view history a module at a time), one chip of two buttons
     * before the module chip. A press does not take the focus (the schematic's
     * keys keep working); a button with nowhere to go is disabled. Their hover
     * and disabled looks are `.scl-nav-btn` rules in the page template. */
@@ -110,9 +110,9 @@ private[schematic] object SchematicChrome {
         chevron(points))
     div(dataAttr("nav-chip") := "1",
       styleAttr := s"display:flex;align-items:center;height:26px;box-sizing:border-box;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;overflow:hidden",
-      btn("nav-back", "Back (Alt ←)", _._1, onBack, "10,3.5 5.5,8 10,12.5"),
+      btn("nav-back", "Previous module", _._1, onBack, "10,3.5 5.5,8 10,12.5"),
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft}"),
-      btn("nav-forward", "Forward (Alt →)", _._2, onForward, "6,3.5 10.5,8 6,12.5"))
+      btn("nav-forward", "Next module", _._2, onForward, "6,3.5 10.5,8 6,12.5"))
   }
 
   /** The clock domains of `m` and their instances, when it has two or more
