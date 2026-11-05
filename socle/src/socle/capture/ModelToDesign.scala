@@ -185,6 +185,7 @@ object ModelToDesign {
       val consts = logic.filter(_.kind == NodeKind.Const).map(_.id).toSet
       // Plain nodes (a register a code block writes, an op): by their head.
       val plain  = logic.filterNot(n => NodeKind.isBox(n.kind)).map(_.id).toSet
+      val domains = logic.filter(_.kind == NodeKind.Domain).map(_.id).toSet
       def onLogic(e: String): Boolean = consts.contains(stripIdx(e)) || plain.contains(IrWalk.fsmHeadBase(e)) || {
         val parts = e.split('.')
         parts.length >= 2 && boxes.contains(stripIdx(parts.head))
@@ -200,7 +201,10 @@ object ModelToDesign {
             Some(w.copy(bundle = Seq(w.bundle, snk, src).find(ClockResetTypes).getOrElse(src)))
           case (snk, src) if (snk.isDefined || onLogic(w.from)) && (src.isDefined || onLogic(w.to)) =>
             val side = snk.orElse(src)
-            Some(if (side.isEmpty || known(w.bundle, reg)) w else w.copy(bundle = side.get))
+            // A domain sink keeps IrWalk's bundle: the port side's (`Clock`)
+            // would hide the wire and leave the stub dangling.
+            val toDomain: Boolean = domains.contains(stripIdx(w.from))
+            Some(if (side.isEmpty || toDomain || known(w.bundle, reg)) w else w.copy(bundle = side.get))
           case _ => None
         }
       }

@@ -3,7 +3,7 @@ package socle.ir
 import socle.schema._
 import socle.parse._
 import socle.layout._
-import socle.capture.{CapturedModel, ModelToDesign}
+import socle.capture.{CModule, CPort, CType, CapturedModel, ModelToDesign}
 
 import utest._
 
@@ -103,6 +103,65 @@ object RegisterDomainTest extends TestSuite {
       // Instances only, all on `clock`: no colours either.
       val deep = IrWalk.design(ChirrtlParser.parse(read("/chirrtl/deepsoc.fir")))
       deep.modules.foreach(m => assert(LayoutCore.clockDomains(m).isEmpty))
+    }
+
+    test("a derived clock and reset only an instance uses get their sinks") {
+      // `withClockAndReset(fall, ssReset) { Module(new Leaf) }`: the instance's
+      // clock and reset connects are Clock/AsyncReset wires the layout hides.
+      val fir =
+        """circuit Top :
+          |  module Leaf :
+          |    input clock : Clock
+          |    input reset : AsyncReset
+          |    output io : { flip a : UInt<1>, b : UInt<1>}
+          |    connect io.b, io.a
+          |  public module Top :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input io : { sclk : UInt<1>, ss : UInt<1>, a : UInt<1>, flip b : UInt<1>}
+          |    node _fall_T = eq(io.sclk, UInt<1>(0h0))
+          |    node fall = asClock(_fall_T)
+          |    node ssReset = asAsyncReset(io.ss)
+          |    inst leaf of Leaf
+          |    connect leaf.clock, fall
+          |    connect leaf.reset, ssReset
+          |    connect leaf.io.a, io.a
+          |    connect io.b, leaf.io.b
+          |""".stripMargin
+      val top = IrWalk.design(ChirrtlParser.parse(fir)).modules.find(_.name == "Top").get
+      val leaf = top.children.find(_.name == "leaf").get
+      assert(leaf.clock == "fall", leaf.reset == "ssReset")
+      val sinks = top.logic.filter(_.kind == NodeKind.Domain).map(n => n.id -> n).toMap
+      assert(sinks.keySet == Set(Synthetic.clockDomainId("fall"), Synthetic.resetDomainId("ssReset")))
+      // The reset's colour: the one clock of what it resets (the instance).
+      assert(sinks(Synthetic.resetDomainId("ssReset")).clock == "fall")
+      assert(top.wires.exists(w => w.from == Synthetic.clockDomainId("fall") && w.to == "_fall_T"))
+      assert(top.wires.exists(w => w.from == Synthetic.resetDomainId("ssReset") && w.to == "io.ss"))
+    }
+
+    test("in a captured design, a sink fed by a Clock-typed port field keeps its wire shown") {
+      val fir =
+        """circuit M :
+          |  public module M :
+          |    input clock : Clock
+          |    input reset : UInt<1>
+          |    input io : { clk : Clock, d : UInt<1>, flip q : UInt<1>}
+          |    reg r : UInt<1>, io.clk
+          |    connect r, io.d
+          |    connect io.q, r
+          |""".stripMargin
+      val u1 = CType("chisel3.UInt", "UInt", "in", 1)
+      val io = CType("", "io", "in", -1, Seq("clk" -> CType("chisel3.Clock", "Clock", "in", -1), "d" -> u1,
+        "q" -> u1.copy(dir = "out")))
+      val ports = Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)), CPort("reset", u1), CPort("io", io))
+      val model = CapturedModel("ok", "M", Seq(CModule("M", "x.M", Nil, None, ports, Nil)), chirrtl = fir)
+      val d = ModelToDesign.design(model)
+      val m = d.modules.find(_.name == "M").get
+      val sink = Synthetic.clockDomainId("io.clk")
+      assert(m.logic.exists(n => n.id == sink && n.kind == NodeKind.Domain))
+      val w = m.wires.filter(_.from == sink)
+      assert(w.map(_.to) == Seq("io.clk"), w.forall(x => !LayoutCore.isClockReset(x)))
+      assert(LayoutCore.prepare(m, d).edges.exists(_.fromPath == sink))
     }
 
     test("a captured design's instances carry their clock and reset from the CHIRRTL") {

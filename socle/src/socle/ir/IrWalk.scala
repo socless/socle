@@ -194,21 +194,24 @@ object IrWalk {
         clock = if (r.clock.isEmpty) "" else domainOf(m, r.clock),
         reset = if (r.reset.isEmpty) "" else domainOf(m, r.reset))
     }
-    // Domain sinks: each derived clock or reset the registers use (a node or a
-    // port field, not the module's own clock/reset port, which has its clk/rst
-    // rows) gets a sink wired from the signal, so the logic computing it
-    // (`!io.sclk`, `io.ss`) drives something: a short stub labelled with the
-    // domain. A reset's sink takes the one clock of the registers it resets
-    // (its colour), "" when they are on several.
+    // Domain sinks: each derived clock or reset the registers or instances use
+    // (a node or a port field, not the module's own clock/reset port, which has
+    // its clk/rst rows) gets a sink wired from the signal, so the logic
+    // computing it (`!io.sclk`, `io.ss`) drives something: a short stub
+    // labelled with the domain. An instance counts too: its clock connect is a
+    // Clock wire the layout hides. A reset's sink takes the one clock of what
+    // it resets (its colour), "" when that is on several.
     val ownClockReset: Set[String] = m.ports.filter(p => isClockPort(p) || isResetPort(p)).map(_.name).toSet
     def derived(d: String): Boolean =
       d.nonEmpty && (d.head.isLetter || d.head == '_') && !d.contains('(') && !ownClockReset.contains(d)
+    // (clock, reset) of every register, then of every instance.
+    val clocked: Seq[(String, String)] = regLogic.map(n => (n.clock, n.reset)) ++ children.map(c => (c.clock, c.reset))
     val domainLogic: Seq[LogicNodeDef] =
-      regLogic.map(_.clock).filter(derived).distinct.map { d =>
+      clocked.map(_._1).filter(derived).distinct.map { d =>
         LogicNodeDef(id = Synthetic.clockDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
           source = SourceRef.unknown, clock = d)
-      } ++ regLogic.map(_.reset).filter(derived).distinct.map { d =>
-        val clocks: Seq[String] = regLogic.filter(_.reset == d).map(_.clock).distinct
+      } ++ clocked.map(_._2).filter(derived).distinct.map { d =>
+        val clocks: Seq[String] = clocked.filter(_._2 == d).map(_._1).filter(_.nonEmpty).distinct
         LogicNodeDef(id = Synthetic.resetDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
           source = SourceRef.unknown, clock = if (clocks.size == 1) clocks.head else "", reset = d)
       }
