@@ -177,6 +177,56 @@ object CodeBlocksTest extends TestSuite {
       assert(CodeBlocks.of(parse(fir).modules.head, lines).isEmpty)
     }
 
+    // RegEnable's own `when v`, nested in the user's `when en`: its marker is the
+    // RegEnable call (column 19 on the one-liner, 10 on line 4 of the block).
+    def regEnableFir(libMarker: String): String =
+      s"""circuit R :
+         |  module R : @[R.scala 1:7]
+         |    input clock : Clock
+         |    input en : UInt<1>
+         |    input v : UInt<1>
+         |    input d : UInt<8>
+         |    output o : UInt<8>
+         |    reg r : UInt<8>, clock @[R.scala 2:16]
+         |    when en : @[R.scala 3:12]
+         |      reg r_r : UInt<8>, clock @[$libMarker]
+         |      when v : @[$libMarker]
+         |        connect r_r, d @[$libMarker]
+         |      connect r, r_r @[R.scala 3:16]
+         |    connect o, r @[R.scala 6:5]
+         |""".stripMargin
+
+    test("a library when on a one-liner user block is not a second block") {
+      val lines  = SourceLines.of(Map("R.scala" -> "class R {\n  val r = Reg(UInt(8.W))\n  when(en) { r := RegEnable(d, v) }\n}\n"))
+      val m      = parse(regEnableFir("R.scala 3:19")).modules.head
+      val blocks = CodeBlocks.of(m, lines)
+      assert(blocks.map(_.label) == Seq("when(en)"))
+      val lib = m.conns.find(_.lhs == "r_r").get
+      assert(CodeBlocks.blockOf(blocks, lib.whenIds).contains(blocks.head.id))
+    }
+
+    test("a library when inside a multi-line user block joins it") {
+      val src    = "class R {\n  val r = Reg(UInt(8.W))\n  when(en) {\n    r := RegEnable(d, v)\n  }\n}\n"
+      val m      = parse(regEnableFir("R.scala 4:10")).modules.head
+      val blocks = CodeBlocks.of(m, SourceLines.of(Map("R.scala" -> src)))
+      assert(blocks.map(_.label) == Seq("when(en)"))
+      val lib = m.conns.find(_.lhs == "r_r").get
+      assert(CodeBlocks.blockOf(blocks, lib.whenIds).contains(blocks.head.id))
+      // Its connect goes through the user block's box, not a box of its own.
+      val d = IrWalk.design(parse(regEnableFir("R.scala 4:10")), SourceLines.of(Map("R.scala" -> src)))
+      val boxes = d.modules.head.logic.filter(n => NodeKind.isBox(n.kind))
+      assert(boxes.map(_.label) == Seq("when(en)"), d.regions.size == 1)
+    }
+
+    test("callAt takes the call whose brace the marker is on") {
+      assert(CodeBlocks.callAt("  when(en) { r := RegEnable(d, v) }", 19).isEmpty)
+      assert(CodeBlocks.callAt("  when(en) { r := RegEnable(d, v) }", 12).contains(("when", "when(en)")))
+      assert(CodeBlocks.callAt("  when(en) { cnt.inc() }", 14).isEmpty)
+      assert(CodeBlocks.callAt("  when(a) { x := 1.U }.elsewhen(b) { x := 2.U }", 36).contains(("elsewhen", "elsewhen(b)")))
+      // No call left of the marker: none (not a call further right).
+      assert(CodeBlocks.callAt("  val r = RegEnable(d, en); when(x) { o := r }", 11).isEmpty)
+    }
+
     test("a switch that is not an FSM is one block of its arms") {
       val fir =
         """circuit S :

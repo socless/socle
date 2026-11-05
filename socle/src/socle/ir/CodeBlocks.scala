@@ -43,11 +43,17 @@ object CodeBlocks {
 
   /** The block call a marker points at, as (keyword, call text). Chisel puts the
     * marker on the `{` after the call, so it is the last call starting left of
-    * the column (this also splits a one-line `when(a) {..}.elsewhen(b) {..}`). */
+    * the column whose closing parenthesis is followed by nothing but spaces and
+    * that `{` through the column, or that spans the column (a condition left
+    * open on the line). This splits a one-line `when(a) {..}.elsewhen(b) {..}`,
+    * and a library `when` on a user's one-liner (`when(en) { r := RegEnable(d, v) }`,
+    * marker on `RegEnable`) finds no call. */
   private[ir] def callAt(line: String, col: Int): Option[(String, String)] = {
-    val calls = CallRe.findAllMatchIn(line).toSeq
-    val before = calls.filter(_.start < col - 1)
-    (if (before.nonEmpty) before.lastOption else calls.headOption).map { mt =>
+    val at: Int = col - 1
+    CallRe.findAllMatchIn(line).toSeq.filter { mt =>
+      val end: Int = closeOf(line, mt.end - 1)
+      mt.start <= at && (end > at || line.substring(end, math.min(at + 1, line.length)).forall(c => c.isWhitespace || c == '{'))
+    }.lastOption.map { mt =>
       // The keyword starts after the last `.` (the elsewhen dot or a qualifier).
       val kwAt: Int = mt.matched.lastIndexOf('.') + 1
       val word: String = mt.matched.substring(kwAt)
@@ -55,13 +61,13 @@ object CodeBlocks {
         if (word.startsWith(Elsewhen)) Elsewhen
         else if (word.startsWith(Switch)) Switch
         else When
-      (kw, balanced(line, mt.start + kwAt, mt.end - 1))
+      (kw, line.substring(mt.start + kwAt, closeOf(line, mt.end - 1)).trim)
     }
   }
 
-  // The text from `from` through the parenthesis matching the one at `open`;
-  // the rest of the line when it does not close there.
-  private def balanced(line: String, from: Int, open: Int): String = {
+  // The index just past the parenthesis matching the one at `open`; the line's
+  // length when it does not close there.
+  private def closeOf(line: String, open: Int): Int = {
     var depth = 0
     var i     = open
     var end   = line.length
@@ -73,7 +79,7 @@ object CodeBlocks {
       }
       i += 1
     }
-    line.substring(from, end).trim
+    end
   }
 
   // A block while it is built: `idKind` is the id prefix (when / switch / fsm).
