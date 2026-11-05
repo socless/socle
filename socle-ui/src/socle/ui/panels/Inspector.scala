@@ -281,7 +281,21 @@ object Inspector {
           )
         }.getOrElse(emptyNode)
       } else if (isBlock) emptyNode
-      else {
+      else if (ln.kind == NodeKind.Domain) {
+        // A domain stub: what the clock or reset drives, registers then instances.
+        val isReset = ln.reset.nonEmpty
+        val regs  = mod.logic.filter(n => n.kind == NodeKind.Reg && (if (isReset) n.reset == ln.reset else n.clock == ln.clock)).map(_.id)
+        val insts = mod.children.filter(c => if (isReset) c.reset == ln.reset else c.clock == ln.clock).map(_.name)
+        val all   = regs.map("register" -> _) ++ insts.map("instance" -> _)
+        div(dataAttr("domain-members") := ln.id,
+          sectionTitle(s"${if (isReset) "Reset" else "Clocked"} by ${ln.label} (${all.length})"),
+          div(styleAttr := "margin-bottom:12px;display:flex;flex-direction:column;gap:3px",
+            all.map { case (what, id) =>
+              div(styleAttr := s"display:flex;align-items:center;gap:8px;font-family:${Tokens.mono};font-size:10.5px",
+                span(styleAttr := s"color:${Tokens.ink4};flex-shrink:0", what),
+                span(title := id, styleAttr := s"color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap", id))
+            }))
+      } else {
         div(sectionTitle("Value"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))
       },

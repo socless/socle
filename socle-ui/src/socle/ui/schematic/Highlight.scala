@@ -294,19 +294,31 @@ object Highlight {
       boxes.filter(_.kind == BoxKind.Instance)
         .flatMap(b => geom.childByName.get(b.id).map(ch => ch.clock -> b)).toSeq.groupMap(_._1)(_._2)
 
-    // The clock of each box a lit domain dims: an instance's (its child's), a
-    // register's and a domain stub's (their `clock`). Apart from `byClock`,
+    // The clocks of each box a lit domain dims: an instance's (its child's), a
+    // register's and a clock stub's (their `clock`); a reset stub's, every
+    // clock of the registers and instances it resets. Apart from `byClock`,
     // which only lights an instance's peers.
-    private lazy val clockOfBox: Map[BoxEntry, String] = boxes.iterator.flatMap { b =>
-      if (b.kind == BoxKind.Instance) geom.childByName.get(b.id).map(ch => b -> ch.clock)
-      else geom.logicById.get(b.id).filter(n => n.kind == socle.schema.NodeKind.Reg || n.kind == socle.schema.NodeKind.Domain).map(n => b -> n.clock)
-    }.toMap
+    private lazy val clocksOfBox: Map[BoxEntry, Set[String]] = {
+      import socle.schema.NodeKind
+      val mod = geom.mod
+      def resetClocks(r: String): Set[String] =
+        (mod.logic.iterator.filter(n => n.kind == NodeKind.Reg && n.reset == r).map(_.clock) ++
+          mod.children.iterator.filter(_.reset == r).map(_.clock)).toSet
+      boxes.iterator.flatMap { b =>
+        if (b.kind == BoxKind.Instance) geom.childByName.get(b.id).map(ch => b -> Set(ch.clock))
+        else geom.logicById.get(b.id).collect {
+          case n if n.kind == NodeKind.Reg                          => b -> Set(n.clock)
+          case n if n.kind == NodeKind.Domain && n.reset.nonEmpty   => b -> resetClocks(n.reset)
+          case n if n.kind == NodeKind.Domain                       => b -> Set(n.clock)
+        }
+      }.toMap
+    }
 
     /** The instance, register and domain-stub boxes outside clock domain `d`
       * (none when no box is in it). */
     def domainOff(d: String): Set[dom.Element] =
-      if (!clockOfBox.valuesIterator.contains(d)) Set.empty
-      else clockOfBox.iterator.collect { case (b, c) if c != d => b.el }.toSet
+      if (!clocksOfBox.valuesIterator.exists(_.contains(d))) Set.empty
+      else clocksOfBox.iterator.collect { case (b, cs) if !cs.contains(d) => b.el }.toSet
 
     private lazy val wiresByPair: Map[(String, String), Seq[dom.Element]] =
       wires.groupMap(w => (w.from, w.to))(_.el).map { case (k, v) => k -> v.toSeq }
