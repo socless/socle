@@ -691,6 +691,66 @@ object App {
   private def toggle(id: String): Unit =
     expandedVar.update(s => if (s(id)) s - id else s + id)
 
+  /** The hierarchy row of the module open at `path`: the path rooted at the
+    * top, cut before an open block (its module holds it). A path rooted at
+    * another module (the palette jumps to one) starts at that module's first
+    * instance, breadth first. None when the module is not under the top. */
+  private def openRow(d: Design, path: List[String]): Option[List[String]] =
+    path.headOption.flatMap { head =>
+      val byName = d.modules.iterator.map(m => m.name -> m).toMap
+      val top    = topOf(d)
+      val root: Option[List[String]] =
+        if (head == top) Some(List(top))
+        else {
+          val queue = scala.collection.mutable.Queue((top, List(top)))
+          var found = Option.empty[List[String]]
+          while (found.isEmpty && queue.nonEmpty) {
+            val (m, p) = queue.dequeue()
+            byName.get(m).foreach(_.children.foreach { c =>
+              if (found.isEmpty && c.`type` == head) found = Some(p :+ c.name)
+              queue.enqueue((c.`type`, p :+ c.name))
+            })
+          }
+          found
+        }
+      root.map { r =>
+        var row = r
+        var mod = byName.get(head)
+        path.tail.iterator.takeWhile(seg => mod.exists(_.children.exists(_.name == seg))).foreach { seg =>
+          row = row :+ seg
+          mod = mod.flatMap(_.children.find(_.name == seg)).flatMap(c => byName.get(c.`type`))
+        }
+        row
+      }
+    }
+
+  /** The id of the open module's row ([[openRow]]). */
+  private val openRowSig: Signal[Option[String]] =
+    Signal.combine(loader.designSig, pathVar.signal).map {
+      case (Some(d), p) => openRow(d, p).map(_.mkString("/"))
+      case _            => None
+    }.distinct
+
+  /** The rows above the open module's are expanded, so its row shows; rows
+    * the user expanded stay so. */
+  private def expandToOpenRow(id: String): Unit = {
+    val segs = id.split('/').toList
+    val ups  = (1 until segs.length).map(i => segs.take(i).mkString("/"))
+    if (!ups.forall(expandedVar.now())) expandedVar.update(_ ++ ups)
+  }
+
+  /** Scrolls the hierarchy pane, without animation, so the open module's row
+    * is in view (once the rows are rebuilt). */
+  private def scrollToOpenRow(pane: dom.html.Element): Unit =
+    dom.window.requestAnimationFrame { _ =>
+      val row = pane.querySelector("[data-hier-current=\"1\"]")
+      if (row != null && pane.isConnected) {
+        val pr = pane.getBoundingClientRect(); val rr = row.getBoundingClientRect()
+        if (rr.top < pr.top) pane.scrollTop += rr.top - pr.top - 4
+        else if (rr.bottom > pr.bottom) pane.scrollTop += rr.bottom - pr.bottom + 4
+      }
+    }
+
   // ── View ───────────────────────────────────────────────────────────────────
   private def shell(): Element = {
     // Build the toggleable panes once so hiding/showing them (child.maybe below)
@@ -767,6 +827,8 @@ object App {
       pathVar.signal.changes --> { _ =>
         expandedBundlesVar.set(Set.empty); selectedSigVar.set(None); fsmOpenVar.set(None)
       },
+      // The hierarchy follows the open module: the rows above it expand.
+      openRowSig --> { (id: Option[String]) => id.foreach(expandToOpenRow) },
       // Open on select (plan 2): selecting an instance asks the editor to show
       // its module's source: an absolute file, or a repo-relative one embedded
       // in design.sources (the language server resolves it against the
@@ -1027,6 +1089,8 @@ object App {
     }
     div(
       cls := "scl-pane scl-pane-hierarchy", dataAttr("pane") := "hierarchy",
+      // Its row in view when the open module changes, and when the pane shows again.
+      inContext(pane => openRowSig --> { _ => scrollToOpenRow(pane.ref) }),
       div(cls := "scl-pane-title",
         span("HIERARCHY"),
         span(cls := "scl-count", child.text <-- rowsSignal.map(_.length.toString))),
@@ -1054,7 +1118,9 @@ object App {
       )
     div(
       cls := "scl-hier-row",
-      cls.toggle("active") <-- pathVar.signal.map(_.mkString("/") == r.id),
+      // The open module's row (the one holding an open block or diagram).
+      cls.toggle("active") <-- openRowSig.map(_.contains(r.id)),
+      dataAttr("hier-current") <-- openRowSig.map(o => if (o.contains(r.id)) "1" else "0"),
       dataAttr("hier-path") := r.id,
       dataAttr("hier-leaf") := (if (r.isLeaf) "1" else "0"),
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",
