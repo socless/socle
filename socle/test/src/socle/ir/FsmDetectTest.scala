@@ -104,6 +104,41 @@ object FsmDetectTest extends TestSuite {
       val fs = FsmDetect.detect(mod(s))
       assert(fs.map(_.id) == Seq("fsm$M$a", "fsm$M$b")) // sorted, both found
     }
+    test("a switch nested in an enclosing when is recognized") {
+      // when(en) { switch(state) { ... } }: every node of the chain has `en`
+      // as its outermost guard, the case conditions come after it
+      val s =
+        """circuit M :
+          |  module M :
+          |    input clock : Clock
+          |    input en : UInt<1>
+          |    input go : UInt<1>
+          |    output busy : UInt<1>
+          |    regreset state : UInt<1>, clock, reset, UInt<1>(0h0)
+          |    regreset other : UInt<1>, clock, reset, UInt<1>(0h0)
+          |    when en :
+          |      connect other, go
+          |      node _T = asUInt(state)
+          |      node _T_1 = eq(UInt<1>(0h0), _T)
+          |      when _T_1 :
+          |        connect state, go
+          |      else :
+          |        node _T_2 = asUInt(state)
+          |        node _T_3 = eq(UInt<1>(0h1), _T_2)
+          |        when _T_3 :
+          |          connect state, UInt<1>(0h0)
+          |    connect busy, state
+          |""".stripMargin
+      val fs = FsmDetect.detect(mod(s))
+      assert(fs.size == 1)
+      val f = fs.head
+      assert(f.stateReg == "state")
+      assert(f.outerCond == "_T_1")
+      assert(f.caseLits.size == 2)
+      assert(f.memberNodes == Set("_T", "_T_1", "_T_2", "_T_3"))
+      // a sink written under `en` but outside the switch is not the FSM's
+      assert(f.memberSinks == Set("state"))
+    }
     test("regheavy Controller is recognized with state register 'state'") {
       val text = scala.io.Source.fromInputStream(
         getClass.getResourceAsStream("/chirrtl/regheavy.fir")).mkString

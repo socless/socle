@@ -8,9 +8,10 @@ import socle.parse.ChirrtlParser.{Mod, NodeDecl}
   *
   * A `switch(state)` lowers to an outermost `when`/`else` chain whose case
   * conditions are all `eq(R, lit)` comparisons on the SAME register `R`. The
-  * outermost case condition node is declared at module scope; each inner case
-  * condition is declared inside the preceding `else` branch (so its outermost
-  * guard is the outermost case condition).
+  * first case condition node is declared where the `switch` is (module scope,
+  * or inside an enclosing `when`); each inner case condition is declared
+  * inside the preceding `else` branch (so the first case condition is among
+  * its guards, after the enclosing `when`s' conditions).
   *
   * This pass identifies such chains and reports, per recognized FSM, the
   * register being switched on, the chain's case literals (in source order), and
@@ -25,12 +26,12 @@ object FsmDetect {
     * @param outerCond  the outermost case-condition node name (e.g. "_T_1").
     * @param memberNodes node-decl NAMES that are FSM-internal: the eq/asUInt
     *                   chain-condition nodes (incl. `outerCond` and its asUInt
-    *                   feeder, which sit at module scope) plus every node whose
-    *                   outermost guard is `outerCond`.
+    *                   feeder, which sit beside the `switch`) plus every node
+    *                   guarded by `outerCond`.
     * @param memberSinks connect-lhs heads written under the construct
-    *                   (guard.head.cond == outerCond), e.g. {"state","timer"}.
+    *                   (guarded by outerCond), e.g. {"state","timer"}.
     * @param memberSinkPaths connect-lhs FULL paths written under the construct
-    *                   (guard.head.cond == outerCond), with only a trailing vec
+    *                   (guarded by outerCond), with only a trailing vec
     *                   index stripped but bundle FIELDS kept, e.g.
     *                   {"io.state","state","timer"}. Used to match sink
     *                   absorption at field granularity so a sibling bundle field
@@ -91,20 +92,24 @@ object FsmDetect {
         }
       }
 
-    // Nodes/conns indexed by their outermost guard condition (if any).
-    def outerGuard(g: Seq[ChirrtlParser.Guard]): Option[String] =
-      g.headOption.map(_.cond)
+    // Whether a node or conn with guards `g` is inside the `when` on `cond`:
+    // anywhere in the chain, as enclosing `when`s come first.
+    def under(g: Seq[ChirrtlParser.Guard], cond: String): Boolean =
+      g.exists(_.cond == cond)
 
-    // For each candidate root node C (a state-compare), the chain consists of C
-    // plus every state-compare on the SAME register whose outermost guard is C.
+    // For each candidate root node C (a state-compare not itself inside a
+    // compare on the same register, which makes it an inner case), the chain
+    // consists of C plus every state-compare on the SAME register guarded by C.
     val roots = m.nodes.iterator.flatMap { c =>
-      comparedReg(c.name).map { case (reg, lit) => (c.name, reg, lit) }
+      comparedReg(c.name).collect {
+        case (reg, lit) if !c.guard.exists(g => comparedReg(g.cond).exists(_._1 == reg)) => (c.name, reg, lit)
+      }
     }.toSeq
 
     val fsms = roots.flatMap { case (rootName, reg, rootLit) =>
       // Items (nodes or conns) lexically inside the construct rooted at C.
-      val guardedNodes = m.nodes.filter(n => outerGuard(n.guard).contains(rootName))
-      val guardedConns = m.conns.filter(c => outerGuard(c.guard).contains(rootName))
+      val guardedNodes = m.nodes.filter(n => under(n.guard, rootName))
+      val guardedConns = m.conns.filter(c => under(c.guard, rootName))
       val anyGuarded   = guardedNodes.nonEmpty || guardedConns.nonEmpty
 
       // Same-R state-compares inside the else chain.
@@ -146,13 +151,8 @@ object FsmDetect {
           val memberNodes: Set[String] =
             compareNodeNames.toSet ++ feeders ++ guardedNodes.map(_.name).toSet
 
-          val guardedSinkConns =
-            m.conns.iterator
-              .filter(c => c.guard.nonEmpty && c.guard.head.cond == rootName)
-              .toSeq
-
-          val memberSinks: Set[String]     = guardedSinkConns.map(c => head(c.lhs)).toSet
-          val memberSinkPaths: Set[String] = guardedSinkConns.map(c => sinkPath(c.lhs)).toSet
+          val memberSinks: Set[String]     = guardedConns.map(c => head(c.lhs)).toSet
+          val memberSinkPaths: Set[String] = guardedConns.map(c => sinkPath(c.lhs)).toSet
 
           Some(Fsm(
             stateReg        = reg,
