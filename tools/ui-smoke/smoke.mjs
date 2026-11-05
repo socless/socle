@@ -74,6 +74,9 @@ const historyDesigns = new Set();
 // opened a leaf module by a double-click with the hierarchy following it.
 const navButtonDesigns = new Set();
 const leafDrillDesigns = new Set();
+// The designs with a drillable child of the top and a leaf with content:
+// each must run both checks (a design that skips one fails on its own).
+const NAV_DESIGNS = ['axisystem', 'rvpipeline', 'deepsoc', 'interconnect', 'datapath', 'scatter', 'deepsoc-view'];
 const flyDesigns = new Set();
 const flyCrossDesigns = new Set();
 const flightCancelDesigns = new Set();
@@ -2690,7 +2693,12 @@ async function smokeDesignIn(design, ctx) {
           await framed(boxSel(far.id), 'box');
           const h1 = await hist();
           // A new current entry (at the cap of 50 the index stays, the oldest goes).
-          const made = h0 && h1 && (h1.index > h0.index || fmt(h1.entries[h1.index]) !== fmt(h0.entries[h0.index]));
+          // A push: the index grew, or at the cap of 50 (the oldest goes) the
+          // old current entry is now the one below a new current one (a
+          // relayout replacing the current entry in place is not a push).
+          const made = h0 && h1 && (h1.index > h0.index ||
+            (h1.size === h0.size && h1.index === h0.index && h1.index > 0 &&
+             fmt(h1.entries[h1.index - 1]) === fmt(h0.entries[h0.index]) && fmt(h1.entries[h1.index]) !== fmt(h0.entries[h0.index])));
           if (!made) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
           const back = await key('Alt+ArrowLeft');
           if (near(back, vz)) note(design, where, 'Back after z stayed on the framed view');
@@ -3723,6 +3731,9 @@ for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesig
   console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
   if (!ONLY && set.size === 0) note('(all)', 'history', `no design ran the check: ${what}`);
 }
+for (const [what, set] of [['the Back / Forward buttons', navButtonDesigns], ['the leaf drill with the tree following', leafDrillDesigns]])
+  for (const d of NAV_DESIGNS.filter((x) => designs.includes(x) && !set.has(x)))
+    note(d, 'navigation', `skipped ${what} (expected on ${NAV_DESIGNS.join(', ')})`);
 for (const [what, set] of [['Follow a net', followDesigns], ['Follow resolution round trip', followCheckDesigns],
                            ['Reload keeps navigation, a fresh load clears it', reloadNavDesigns],
                            ['Esc closing the ? card keeps the net', escCardDesigns], ['Interface pin dot toggles', pinDotDesigns],
