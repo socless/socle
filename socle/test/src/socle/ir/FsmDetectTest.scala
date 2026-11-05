@@ -50,9 +50,7 @@ object FsmDetectTest extends TestSuite {
       assert(fs.size == 1)
       val f = fs.head
       assert(f.stateReg == "state")
-      assert(f.id == "fsm$M$state")
       assert(f.outerCond == "_T_1")
-      assert(f.memberSinks.contains("state"))
       assert(f.caseLits.size == 2)
     }
     test("a non-register single-when comparison is not an FSM") {
@@ -100,7 +98,7 @@ object FsmDetectTest extends TestSuite {
           |        connect b, UInt<2>(0h0)
           |""".stripMargin
       val fs = FsmDetect.detect(mod(s))
-      assert(fs.map(_.id) == Seq("fsm$M$a", "fsm$M$b")) // sorted, both found
+      assert(fs.map(_.stateReg) == Seq("a", "b")) // sorted, both found
     }
     test("a switch nested in an enclosing when is recognized") {
       // when(en) { switch(state) { ... } }: every node of the chain has `en`
@@ -133,8 +131,6 @@ object FsmDetectTest extends TestSuite {
       assert(f.stateReg == "state")
       assert(f.outerCond == "_T_1")
       assert(f.caseLits.size == 2)
-      // a sink written under `en` but outside the switch is not the FSM's
-      assert(f.memberSinks == Set("state"))
       // the conditions it reads besides its case compares: the enclosing `en`
       assert(f.condRefs == Seq("en"))
     }
@@ -148,8 +144,7 @@ object FsmDetectTest extends TestSuite {
       val controller = parse(text).modules.find(_.name == "Controller").get
       val fs = FsmDetect.detect(controller)
       assert(fs.exists(_.stateReg == "state"))
-      val f = fs.find(_.stateReg == "state").get
-      assert(f.memberSinks.contains("state") && f.memberSinks.contains("timer"))
+      assert(fs.find(_.stateReg == "state").exists(_.caseLits.size == 3))
     }
   }
 }

@@ -14,11 +14,11 @@ package socle.ir
   *   <mem>~<port>~<r|w|a>   memory read-data / write-data / address pin
   *   const$<sink>      synthesized constant node feeding <sink>
   *   mux$<sink>        synthesized mux node feeding <sink>
-  *   fsm$<mod>$<reg>   collapsed-FSM node for state register <reg> in <mod>
   *   asg$<block>$<sink>  assignment terminal: what code block <block> drives <sink> with
   *   cnd$<block>       condition terminal: the arm conditions of code block <block>
   *   <when|switch|fsm>$<mod>$<line>_<col>[$<copy>]   a user-written code block
   *                     (`CodeBlocks`), named by its Scala marker; `L<whenId>` when unmarked
+  *                     (`fsm$` for a `switch` FsmDetect recognises)
   * }}}
   *
   * Centralizing the protocol here keeps the producers (pin/id construction) and
@@ -85,9 +85,6 @@ object Synthetic {
 
   /** Is `id` an assignment or condition terminal? */
   def isTerminal(id: String): Boolean = id.startsWith(AssignPrefix) || id.startsWith(CondPrefix)
-
-  /** Collapsed-FSM node id for state register `reg` in module `mod`. */
-  def fsmId(mod: String, reg: String): String = s"fsm$$$mod$$$reg"
 
   /** Code-block id (`CodeBlocks`): `<kind>$<mod>$<line>_<col>`, with `kind` the
     * id prefix `when`, `switch` or `fsm` (`NodeKind.Fsm`; a `when` chain and a

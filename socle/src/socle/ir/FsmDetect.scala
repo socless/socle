@@ -14,28 +14,23 @@ import socle.parse.ChirrtlParser.{Mod, NodeDecl}
   * its guards, after the enclosing `when`s' conditions).
   *
   * This pass identifies such chains and reports, per recognized FSM, the
-  * register being switched on, the chain's case literals (in source order), and
-  * the set of node names and connect sinks that are internal to the construct.
-  * It is pure and deterministic: no side effects, results sorted by `id`.
+  * register being switched on, the chain's root condition and its case
+  * literals (in source order). `CodeBlocks` makes such a `switch` an FSM box
+  * (named by its source marker, `fsm$<module>$<line>_<col>`). It is pure and
+  * deterministic: no side effects, results sorted by register.
   */
 object FsmDetect {
 
   /** One recognized FSM within a module.
     * @param stateReg   the register R the chain compares.
-    * @param id         parent fsm-node id, "fsm$<module>$<R>".
     * @param outerCond  the outermost case-condition node name (e.g. "_T_1").
-    * @param memberSinks connect-lhs heads written under the construct
-    *                   (guarded by outerCond), e.g. {"state","timer"}; a
-    *                   membership set, not ordered.
     * @param caseLits   the literals compared, in chain order.
     * @param condRefs   the `when` conditions the FSM reads besides its case
     *                   compares, in order: the enclosing `when`s' (around the
     *                   `switch`), then those inside it (refs or node names). */
   final case class Fsm(
     stateReg:        String,
-    id:              String,
     outerCond:       String,
-    memberSinks:     Set[String],
     caseLits:        Seq[String],
     condRefs:        Seq[String] = Nil,
   )
@@ -43,8 +38,6 @@ object FsmDetect {
   // Literal shape: UInt<2>(0h0), SInt<3>(...), or bare-width forms.
   private val LitRe = """^(?:UInt|SInt)(?:<\d+>)?\(.*\)$""".r
   private def isLit(s: String): Boolean = LitRe.findFirstIn(s.trim).isDefined
-
-  private def head(path: String): String = socle.layout.LayoutCore.pathHead(path)
 
   def detect(m: Mod): Seq[Fsm] = {
     val regNames   = m.regs.map(_.name).toSet
@@ -121,8 +114,6 @@ object FsmDetect {
               .map(_.name)
               .toSeq
 
-          val memberSinks: Set[String] = guardedConns.map(c => head(c.lhs)).toSet
-
           val condRefs: Seq[String] =
             (nodeByName.get(rootName).toSeq.flatMap(_.guard) ++ guardedNodes.flatMap(_.guard) ++
               guardedConns.flatMap(_.guard)).map(_.cond.trim).distinct
@@ -130,9 +121,7 @@ object FsmDetect {
 
           Some(Fsm(
             stateReg        = reg,
-            id              = Synthetic.fsmId(m.name, reg),
             outerCond       = rootName,
-            memberSinks     = memberSinks,
             caseLits        = caseLits,
             condRefs        = condRefs,
           ))
@@ -140,9 +129,9 @@ object FsmDetect {
       }
     }
 
-    // One Fsm per matched root; sort by id for determinism. If two roots map to
-    // the same register/id (shouldn't normally happen), dedup by id keeping the
-    // first in source order.
-    fsms.groupBy(_.id).toSeq.map(_._2.head).sortBy(_.id)
+    // One Fsm per matched root; sort by register for determinism. If two roots
+    // map to the same register (shouldn't normally happen), keep the first in
+    // source order.
+    fsms.groupBy(_.stateReg).toSeq.map(_._2.head).sortBy(_.stateReg)
   }
 }

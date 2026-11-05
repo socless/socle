@@ -66,6 +66,11 @@ object SocleExporter {
       Console.err.println(s"[socle] [${w.kind}] ${w.message}${if (w.module.nonEmpty) s" (${w.module})" else ""}")
     )
 
+  /** The source lines under `sourceRoot` (none without one): they tell the
+    * user's `when` / `switch` blocks from a library's (`socle.ir.CodeBlocks`). */
+  private def linesOf(sourceRoot: Option[Path]): socle.ir.SourceLines =
+    sourceRoot.map(socle.ir.SourceLines.fromRoot).getOrElse(socle.ir.SourceLines.none)
+
   /** Convert a CHIRRTL text string to a Socle `design.json` file.
     *
     * Unlike [[export]], this path does not require Chisel or a user class on
@@ -89,9 +94,6 @@ object SocleExporter {
     * Chisel [[export]] path - so a design served from a `.fir` can show source
     * code too (issue #154). Absolute marker paths are read directly; relative
     * ones resolve under `sourceRoot`. */
-  private def linesOf(sourceRoot: Option[Path]): socle.ir.SourceLines =
-    sourceRoot.map(socle.ir.SourceLines.fromRoot).getOrElse(socle.ir.SourceLines.none)
-
   def designFromChirrtl(chirrtl: String, sourceRoot: Option[Path] = None): Design = {
     val core    = IrWalk.design(ChirrtlParser.parse(chirrtl), linesOf(sourceRoot))
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
