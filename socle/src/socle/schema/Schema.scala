@@ -299,6 +299,9 @@ case class LogicNodeDef(
   // every other node and in the CHIRRTL view. Trailing default keeps older
   // design.json loadable.
   fsm: Option[FsmDiagram] = None,
+  // For kind "fsm": its state register. Empty for every other node. Trailing
+  // default keeps older design.json loadable.
+  state: String = "",
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 

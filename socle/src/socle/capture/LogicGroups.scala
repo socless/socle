@@ -40,8 +40,9 @@ object LogicGroups {
 
     val assigned = mutable.LinkedHashMap.empty[String, Key]
 
-    // Rule 1: fsm node + state register (suffix after the last `$`).
-    def stateOf(fsmId: String) = fsmId.substring(fsmId.lastIndexOf('$') + 1)
+    // Rule 1: fsm node + state register (its `state`, else the suffix after the last `$`).
+    def stateOf(fsmId: String) =
+      byId.get(fsmId).map(_.state).filter(_.nonEmpty).getOrElse(fsmId.substring(fsmId.lastIndexOf('$') + 1))
     val fsmKeys = nodes.filter(_.kind == NodeKind.Fsm).map { f =>
       val key = FsmKey(f.id, f.layer)
       assigned(f.id) = key

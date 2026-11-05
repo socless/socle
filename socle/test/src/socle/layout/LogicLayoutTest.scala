@@ -117,7 +117,7 @@ object LogicLayoutTest extends TestSuite {
     test("fsm node lays out as a box with pins") {
       val d = Layout.withLayouts(IrWalk.design(ChirrtlParser.parse(fsmLayoutMod)))
       val lay = d.layouts(d.layoutOf.getOrElse("M", "M"))
-      val box = lay.nodes.find(_.id == "fsm$M$state").get
+      val box = lay.nodes.find(_.kind == "fsm").get
       assert(box.kind == "fsm")
       assert(box.ports.nonEmpty)
     }
