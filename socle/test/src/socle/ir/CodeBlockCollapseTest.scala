@@ -201,6 +201,77 @@ object CodeBlockCollapseTest extends TestSuite {
       |""".stripMargin
   private val siblingLines = SourceLines.of(Map("G.scala" -> "class G {\n//2\n  when(p) {\n  when(a) {\n  when(b) {\n"))
 
+  // A shared condition: `val c = a & b` is read by `when(c)` and at module level.
+  private val sharedFir: String =
+    """FIRRTL version 7.0.0
+      |circuit S :
+      |  public module S : @[S.scala 1:7]
+      |    input a : UInt<1> @[S.scala 1:7]
+      |    input b : UInt<1> @[S.scala 1:7]
+      |    input x : UInt<1> @[S.scala 1:7]
+      |    output o : UInt<1> @[S.scala 1:7]
+      |    output p : UInt<1> @[S.scala 1:7]
+      |    node c = and(a, b) @[S.scala 2:13]
+      |    connect p, UInt<1>(0h0) @[S.scala 2:20]
+      |    when c : @[S.scala 3:11]
+      |      connect p, x @[S.scala 3:20]
+      |    connect o, c @[S.scala 4:5]
+      |""".stripMargin
+  private val sharedLines = SourceLines.of(Map("S.scala" -> "class S {\n  val c = a & b\n  when(c) {\n"))
+
+  // Chisel 7's CHIRRTL for `when(io.valid) { assert(io.a =/= io.b) }` (an assert
+  // only) and `when(io.a > 3.U) { r := io.b; assert(io.b =/= 0.U) }`, as
+  // emitted by ChiselStage.emitCHIRRTL (markers shortened to A.scala).
+  private val assertFir: String =
+    """FIRRTL version 7.0.0
+      |circuit A :
+      |  public module A : @[A.scala 6:7]
+      |    input clock : Clock @[A.scala 6:7]
+      |    input reset : UInt<1> @[A.scala 6:7]
+      |    output io : { flip valid : UInt<1>, flip a : UInt<8>, flip b : UInt<8>, o : UInt<8>} @[A.scala 7:14]
+      |
+      |    regreset r : UInt<8>, clock, reset, UInt<8>(0h0) @[A.scala 13:18]
+      |    connect io.o, r @[A.scala 14:8]
+      |    when io.valid : @[A.scala 15:18]
+      |      node _T = neq(io.a, io.b) @[A.scala 16:25]
+      |      node _T_1 = eq(reset, UInt<1>(0h0)) @[A.scala 16:19]
+      |      skip
+      |      layerblock Verification : @[A.scala 16:19]
+      |        layerblock Assert : @[A.scala 16:19]
+      |          intrinsic(circt_chisel_ifelsefatal<format = "Assertion failed: a and b differ\n", label = "chisel3_builtin">, clock, _T, _T_1) @[A.scala 16:19]
+      |    node _T_2 = gt(io.a, UInt<2>(0h3)) @[A.scala 18:13]
+      |    when _T_2 : @[A.scala 18:20]
+      |      connect r, io.b @[A.scala 19:7]
+      |      node _T_3 = neq(io.b, UInt<1>(0h0)) @[A.scala 20:25]
+      |      node _T_4 = eq(reset, UInt<1>(0h0)) @[A.scala 20:19]
+      |      skip
+      |      layerblock Verification : @[A.scala 20:19]
+      |        layerblock Assert : @[A.scala 20:19]
+      |          intrinsic(circt_chisel_ifelsefatal<format = "Assertion failed at A.scala:20\n", label = "chisel3_builtin">, clock, _T_3, _T_4) @[A.scala 20:19]
+      |""".stripMargin
+  private val assertLines: SourceLines = SourceLines.of(Map("A.scala" -> (Seq.fill(14)("//").mkString("\n") +
+    "\n  when(io.valid) {\n    assert(io.a =/= io.b, \"a and b differ\")\n  }\n  when(io.a > 3.U) {\n    r := io.b\n    assert(io.b =/= 0.U)\n  }\n")))
+
+  private def readFixture(name: String): String = {
+    val s = getClass.getResourceAsStream(s"/chirrtl/$name")
+    require(s != null, s"missing classpath resource /chirrtl/$name")
+    try scala.io.Source.fromInputStream(s, "UTF-8").mkString
+    finally s.close()
+  }
+
+  // The worktree root: `socle/test/resources` (holding /chirrtl) is three levels below.
+  private def repoRoot: os.Path = {
+    val url = getClass.getResource("/chirrtl")
+    require(url != null, "classpath resource /chirrtl not found")
+    os.Path(new java.io.File(url.toURI)) / os.up / os.up / os.up / os.up
+  }
+
+  private lazy val gcd: Design = IrWalk.design(parse(readFixture("gcd.fir")), SourceLines.fromRoot(repoRoot))
+
+  // No box pin is named after a CHIRRTL temp (`_T`, `_T_1`, `_GEN_0`) without a label.
+  private def tempPins(d: Design): Seq[String] =
+    d.regions.values.toSeq.flatMap(_.ports).filter(p => p.name.startsWith("_") && p.label.isEmpty).map(_.name)
+
   // Every node of a box body touches one of its wires.
   private def unwired(d: Design): Seq[String] =
     d.regions.values.toSeq.flatMap { b =>
@@ -265,6 +336,50 @@ object CodeBlockCollapseTest extends TestSuite {
       val goCond = erDesign.regions(go).ports.find(_.name == "cond").get
       assert(goCond.label == "io.go")
       assert(pairs(erDesign.regions(sw).wires).contains((s"$go.cond", s"$sw.io_go")))
+    }
+
+    test("an expression condition computes into its box's cond pin") {
+      val fire = "when$GCD$36_20"
+      val step = "when$GCD$43_25"
+      val gt   = "when$GCD$44_17"
+      for ((box, op, text) <- Seq((fire, "_T", "io.in.fire"), (step, "_T_2", "busy && x =/= y"), (gt, "_T_3", "x > y"))) {
+        val body = gcd.regions(box)
+        val cond = body.ports.find(_.name == "cond")
+        assert(cond.exists(_.dir == PortDir.Out), cond.exists(_.label == text))
+        assert(body.logic.exists(_.id == op))
+        assert(pairs(body.wires).contains((s"$box.cond", op)))
+      }
+      // The whole cone of `busy && x =/= y` is in its box: `x =/= y` too.
+      assert(gcd.regions(step).logic.exists(_.id == "_T_1"))
+      assert(!gcd.modules.head.logic.exists(_.id == "_T_1"))
+      assert(tempPins(gcd).isEmpty, unwired(gcd).isEmpty, leaks(gcd).isEmpty)
+    }
+
+    test("a switch arm's compare drives a cond pin of the switch") {
+      val conds = erDesign.regions(sw).ports.filter(_.name.startsWith("cond"))
+      assert(conds.map(_.label).toSet == Set("state === 0", "state === 1", "state === 2"))
+      assert(conds.forall(_.dir == PortDir.Out))
+      assert(tempPins(erDesign).isEmpty)
+    }
+
+    test("a condition shared with module level stays outside its box") {
+      val d   = IrWalk.design(parse(sharedFir), sharedLines)
+      val box = "when$S$3_11"
+      assert(d.modules.head.logic.exists(_.id == "c"))
+      val cond = d.regions(box).ports.find(_.name == "cond").get
+      assert(cond.dir == PortDir.In, cond.label == "c")
+      assert(pairs(d.modules.head.wires).contains((s"$box.cond", "c")))
+    }
+
+    test("a box holding only an assertion is layer content") {
+      val d = IrWalk.design(parse(assertFir), assertLines)
+      val boxes = d.modules.head.logic.filter(n => NodeKind.isBox(n.kind)).map(n => n.label -> n).toMap
+      assert(boxes.keySet == Set("when(io.valid)", "when(io.a > 3.U)"))
+      // Only the assertion: hidden with the layers.
+      assert(boxes("when(io.valid)").layer)
+      // It also assigns `r`: design content, with its assertion inside.
+      assert(!boxes("when(io.a > 3.U)").layer)
+      assert(d.regions(boxes("when(io.a > 3.U)").id).logic.exists(n => n.id == "_T_3" && n.layer))
     }
 
     test("inside a box an assignment wires its source to its pin") {

@@ -215,16 +215,20 @@ object LogicNodeTest extends TestSuite {
       val m = mod(d, "M")
       val fsm = m.logic.find(_.kind == "fsm").get
       assert(fsm.label == "switch(state)" && fsm.state == "state")
-      // the eq chain nodes are gone from the parent (collapsed)
-      assert(!m.logic.exists(n => n.kind == "op" && n.id == "_T_1"))
-      // the body is stored in Design.regions and holds the chain nodes
+      // the eq chain node only the FSM reads is gone from the parent (collapsed);
+      // `_T_1`, also read by `out`, stays outside and enters on a cond pin
+      assert(!m.logic.exists(n => n.kind == "op" && n.id == "_T_3"))
+      assert(m.logic.exists(n => n.kind == "op" && n.id == "_T_1"))
+      // the body is stored in Design.regions and holds the chain node
       val body = d.regions(fsm.id)
-      assert(body.logic.exists(_.id == "_T_1"))
+      assert(body.logic.exists(_.id == "_T_3"), !body.logic.exists(_.id == "_T_1"))
+      assert(body.ports.exists(p => p.name.startsWith("cond") && p.dir == "in"))
+      assert(body.ports.exists(p => p.name.startsWith("cond") && p.dir == "out" && p.label == "state === 1"))
       // the state register stays parent-level
       assert(m.logic.exists(n => n.kind == "reg" && n.id == "state"))
       // the eq operand const is absorbed into the body, not stranded in the parent
       assert(body.logic.exists(_.kind == "const"))
-      assert(!m.logic.exists(n => n.kind == "const" && n.id.contains("~in")))
+      assert(!m.logic.exists(n => n.kind == "const" && n.id.contains("_T_3~in")))
       // const->op wires live inside the body, not as parent wires/pins
       assert(body.wires.nonEmpty)
       // no parent wire references a node that only exists in the body

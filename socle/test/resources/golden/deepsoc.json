@@ -10496,10 +10496,33 @@
             "col": 0
           },
           "label": "io.in.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_1$88_20.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_1$88_20.acc",
           "to": "when$Core_1$88_20.alu_io_out",
@@ -10847,6 +10870,18 @@
             "col": 0
           },
           "label": "outSel"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
@@ -10876,6 +10911,17 @@
         {
           "from": "_outSel_T~in1",
           "to": "const$_outSel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Cluster_1$152_21.cond",
+          "to": "_T_1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -11218,10 +11264,33 @@
             "col": 0
           },
           "label": "io.in.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_3$88_20.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_3$88_20.acc",
           "to": "when$Core_3$88_20.alu_io_out",
@@ -11812,10 +11881,33 @@
             "col": 0
           },
           "label": "io.in.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core$88_20.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core$88_20.acc",
           "to": "when$Core$88_20.alu_io_out",
@@ -12151,10 +12243,33 @@
             "col": 0
           },
           "label": "io.out.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core$111_21.cond",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core$111_21.busy",
           "to": "const$asg$when$Core$111_21$busy~in0",
@@ -12278,6 +12393,18 @@
             "col": 0
           },
           "label": "sel"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
@@ -12307,6 +12434,17 @@
         {
           "from": "_sel_T~in1",
           "to": "const$_sel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Cluster_1$139_20.cond",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -12542,6 +12680,18 @@
             "col": 0
           },
           "label": "outSel"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
@@ -12571,6 +12721,17 @@
         {
           "from": "_outSel_T~in1",
           "to": "const$_outSel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Cluster$152_21.cond",
+          "to": "_T_1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -12913,10 +13074,33 @@
             "col": 0
           },
           "label": "io.in.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_2$88_20.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_2$88_20.acc",
           "to": "when$Core_2$88_20.alu_io_out",
@@ -13264,6 +13448,18 @@
             "col": 0
           },
           "label": "sel"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
@@ -13293,6 +13489,17 @@
         {
           "from": "_sel_T~in1",
           "to": "const$_sel_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Cluster$139_20.cond",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -13584,10 +13791,33 @@
             "col": 0
           },
           "label": "io.out.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_2$111_21.cond",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_2$111_21.busy",
           "to": "const$asg$when$Core_2$111_21$busy~in0",
@@ -13699,10 +13929,33 @@
             "col": 0
           },
           "label": "io.out.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_3$111_21.cond",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_3$111_21.busy",
           "to": "const$asg$when$Core_3$111_21$busy~in0",
@@ -13814,10 +14067,33 @@
             "col": 0
           },
           "label": "io.out.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Core_1$111_21.cond",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Core_1$111_21.busy",
           "to": "const$asg$when$Core_1$111_21$busy~in0",

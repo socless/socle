@@ -265,24 +265,31 @@ object IrWalk {
     val whenById: Map[Int, ChirrtlParser.WhenDecl] = m.whens.map(w => w.id -> w).toMap
     val armsOf: Map[String, Seq[ChirrtlParser.WhenDecl]] =
       m.whens.filter(w => blockOfWhen.contains(w.id)).groupBy(w => blockOfWhen(w.id))
-    val innerConds: Map[String, Seq[String]] =
+    val innerConds: Map[String, Seq[ChirrtlParser.WhenDecl]] =
       m.whens.filterNot(w => blockOfWhen.contains(w.id)).flatMap { w =>
-        w.parents.reverseIterator.flatMap(p => blockOfWhen.get(p._1)).nextOption().map(b => (b, w.cond.trim))
+        w.parents.reverseIterator.flatMap(p => blockOfWhen.get(p._1)).nextOption().map(b => (b, w))
       }.groupBy(_._1).map { case (b, cs) => b -> cs.map(_._2) }
-    def condsOf(b: CodeBlock): Seq[String] = {
+    def condsOf(b: CodeBlock): Seq[ChirrtlParser.WhenDecl] = {
       val arms: Seq[ChirrtlParser.WhenDecl] = armsOf.getOrElse(b.id, Nil)
-      val outer: Seq[String] = arms.headOption.toSeq.flatMap { root =>
-        root.parents.reverse.takeWhile(p => !blockOfWhen.contains(p._1)).reverse
-          .flatMap(p => whenById.get(p._1)).map(_.cond.trim)
+      val outer: Seq[ChirrtlParser.WhenDecl] = arms.headOption.toSeq.flatMap { root =>
+        root.parents.reverse.takeWhile(p => !blockOfWhen.contains(p._1)).reverse.flatMap(p => whenById.get(p._1))
       }
-      (outer ++ arms.map(_.cond.trim) ++ innerConds.getOrElse(b.id, Nil)).distinct
+      (outer ++ arms ++ innerConds.getOrElse(b.id, Nil)).distinctBy(_.cond.trim)
     }
     // No condition terminal for a block without conditions. Each condition pin
-    // keeps its condition's text (its box pin's label).
+    // keeps its condition's CHIRRTL text, and the arm's source text when the
+    // block's own arm wrote it (`io.in.fire` for `when _T`): its box pin's label.
+    val condShown: mutable.Map[String, String] = mutable.Map.empty
     val condEdges: Seq[(String, String)] = blocks.flatMap { b =>
-      val conds: Seq[String] = condsOf(b)
+      val conds: Seq[ChirrtlParser.WhenDecl] = condsOf(b)
+      val written: Map[String, String] = armsOf.getOrElse(b.id, Nil)
+        .flatMap(a => b.armConds.get(a.id).map(a.cond.trim -> _)).toMap
       if (conds.nonEmpty) termBlock(Synthetic.condId(b.id)) = b.id
-      conds.map(cond => (nextPin(Synthetic.condId(b.id)), cond))
+      conds.map { w =>
+        val pin: String = nextPin(Synthetic.condId(b.id))
+        written.get(w.cond.trim).foreach(condShown(pin) = _)
+        (pin, w.cond.trim)
+      }
     }
     val condTextOf: Map[String, String] = condEdges.toMap
     val termLogic: Seq[LogicNodeDef] = termInputs.keys.toSeq.map { id =>
@@ -351,18 +358,30 @@ object IrWalk {
     )
     // Each code block becomes a box, innermost first; its body goes to the regions.
     if (collapse)
-      collapseBlocks(m, open, blocks, blockOfWhen, termBlock, asgIds.iterator.map { case ((_, lhs), id) => id -> lhs }.toMap, condTextOf)
+      collapseBlocks(m, open, blocks, blockOfWhen, termBlock, asgIds.iterator.map { case ((_, lhs), id) => id -> lhs }.toMap,
+        condTextOf, condShown.toMap)
     else (open, Map.empty[String, ModuleDef])
   }
 
   /** Collapse the code blocks of `m` into boxes (one per block, innermost
     * first, with `LogicBlocks.collapse`) and splice their terminals out of the
-    * bodies. A block's members: the op nodes declared in it (its condition
-    * nodes included, wherever declared), its terminals, the consts that feed
-    * only those, and its child blocks' boxes. Registers and memories stay where
-    * they are declared. A terminal's out pin is named after its sink (one pin
-    * per sink, shared by the block's own and its children's assignments); a
-    * condition pin is `cond` (`cond_2`...), labelled with the condition. */
+    * bodies. A block's members: the op nodes declared in it, its conditions'
+    * expression cones (wherever declared, see below), its terminals, the
+    * consts that feed only those, and its child blocks' boxes. Registers and
+    * memories stay where they are declared. A terminal's out pin is named
+    * after its sink (one pin per sink, shared by the block's own and its
+    * children's assignments).
+    *
+    * Conditions: each condition of a block is one pin of its box, `cond`
+    * (`cond_2`...), labelled with the condition as written (`io.in.fire`), or
+    * else as its expression (`state === 1`), never a CHIRRTL temp. The pin is
+    * the condition's marker in the body, and its direction follows the value:
+    *  - a signal from outside the box (a port, a register, a node the module
+    *    or another box also reads) enters on an in pin `cond`;
+    *  - an expression only the block reads moves into the box with its whole
+    *    cone (every operand node read only by that cone or the block), and the
+    *    cone's root drives an out pin `cond` inside the body (nothing outside
+    *    reads it: it shows what the box computes its arms from). */
   private def collapseBlocks(
     m:           Mod,
     open:        ModuleDef,
@@ -371,20 +390,55 @@ object IrWalk {
     termBlock:   collection.Map[String, String],
     asgLhs:      Map[String, String],
     condTextOf:  Map[String, String],
+    condShown:   Map[String, String],
   ): (ModuleDef, Map[String, ModuleDef]) = {
     if (blocks.isEmpty) return (open, Map.empty)
     val kindOf: Map[String, String] = open.logic.iterator.map(n => n.id -> n.kind).toMap
-    // Node id -> its block: the innermost block it is declared in, a block's
-    // condition nodes, the terminals; then the consts all of whose consumers
+    def nodeOf(e: String): Option[String] =
+      if (kindOf.contains(e)) Some(e) else Some(fsmHeadBase(e)).filter(kindOf.contains)
+    val parentOf: Map[String, String] = blocks.flatMap(b => b.parent.map(p => b.id -> p)).toMap
+    // Is block `x` block `b` or nested in it?
+    @scala.annotation.tailrec
+    def within(b: String, x: String): Boolean = x == b || (parentOf.get(x) match {
+      case Some(p) => within(b, p)
+      case None    => false
+    })
+    // Node id -> its block: the innermost block it is declared in, the
+    // terminals, the condition cones; then the consts all of whose consumers
     // belong to one block (one pass over the wires, indexed by const).
     val owner: mutable.HashMap[String, String] = mutable.HashMap.empty
     m.nodes.foreach { n =>
       n.whenIds.reverseIterator.flatMap(blockOfWhen.get).nextOption().foreach(b => owner(n.name) = b)
     }
-    blocks.foreach(b => b.condNodes.foreach(c => owner(c) = b.id))
     owner ++= termBlock
-    def nodeOf(e: String): Option[String] =
-      if (kindOf.contains(e)) Some(e) else Some(fsmHeadBase(e)).filter(kindOf.contains)
+    // Each node's consumers (the sinks of the wires it drives) and operand
+    // sources, by node id, for the condition cones.
+    val sinksOf: mutable.HashMap[String, mutable.ArrayBuffer[String]] = mutable.HashMap.empty
+    val sourcesOf: mutable.HashMap[String, mutable.ArrayBuffer[String]] = mutable.HashMap.empty
+    open.wires.foreach { w =>
+      nodeOf(w.to).foreach(n => sinksOf.getOrElseUpdate(n, mutable.ArrayBuffer.empty) += w.from)
+      for (snk <- nodeOf(w.from); src <- nodeOf(w.to))
+        sourcesOf.getOrElseUpdate(snk, mutable.ArrayBuffer.empty) += src
+    }
+    // A block's condition cone, children first (a node a child's condition and
+    // its parent both read joins the parent): the op nodes that feed its
+    // condition terminal and that only the block (its nested blocks included)
+    // or the cone reads, grown to a fixpoint.
+    blocks.reverse.foreach { b =>
+      val cone: mutable.Set[String] = mutable.Set.empty
+      def readInside(sink: String): Boolean =
+        nodeOf(sink).exists(id => cone(id) || owner.get(id).exists(within(b.id, _)))
+      def joins(y: String): Boolean =
+        !cone(y) && kindOf.get(y).contains(NodeKind.Op) && !Synthetic.isTerminal(y) &&
+          owner.get(y).forall(o => o == b.id || within(o, b.id)) &&
+          sinksOf.getOrElse(y, Nil).forall(readInside)
+      var changed: Boolean = true
+      while (changed) {
+        val next: Seq[String] = (Seq(Synthetic.condId(b.id)) ++ cone).flatMap(sourcesOf.getOrElse(_, Nil)).distinct.filter(joins)
+        changed = next.nonEmpty
+        next.foreach { y => cone += y; owner(y) = b.id }
+      }
+    }
     val constConsumers: mutable.LinkedHashMap[String, mutable.ArrayBuffer[String]] = mutable.LinkedHashMap.empty
     open.wires.foreach { w =>
       if (kindOf.get(w.to).contains(NodeKind.Const))
@@ -406,13 +460,24 @@ object IrWalk {
         .groupBy(_._1).map { case (b, ms) => b -> ms.map(_._2).toSet }
     val childrenOf: Map[String, Seq[String]] =
       blocks.flatMap(b => b.parent.map(p => (p, b.id))).groupBy(_._1).map { case (p, cs) => p -> cs.map(_._2) }
+    // A box is layer content (hidden with the layers) when it assigns nothing
+    // and all it holds, its op and const nodes and its child boxes, is: a
+    // `when(c) { assert(...) }`. Children first, so a parent sees its children.
+    val layerNode: Set[String] = open.logic.iterator.filter(_.layer).map(_.id).toSet
+    val layerBox: mutable.Set[String] = mutable.Set.empty
+    blocks.reverse.foreach { b =>
+      val own: Set[String] = membersOf.getOrElse(b.id, Set.empty[String])
+      val held: Seq[String] = own.filterNot(Synthetic.isTerminal).toSeq ++ childrenOf.getOrElse(b.id, Nil)
+      val assigns: Boolean = own.exists(_.startsWith(Synthetic.AssignPrefix))
+      if (!assigns && held.nonEmpty && held.forall(id => layerNode(id) || layerBox(id))) layerBox += b.id
+    }
     val groups: Seq[socle.capture.Group] = blocks.reverse.map { b =>
       socle.capture.Group(
         id      = b.id,
         kind    = b.kind,
         label   = b.label,
         source  = b.src.map(toRef).getOrElse(SourceRef.unknown),
-        layer   = false,
+        layer   = layerBox(b.id),
         members = membersOf.getOrElse(b.id, Set.empty[String]) ++ childrenOf.getOrElse(b.id, Nil),
         state   = b.state,
       )
@@ -422,22 +487,34 @@ object IrWalk {
     // far end, which NetTrace moves past a contracted Chisel `Wire`), named
     // after it: its own terminals' and its child boxes' assignment pins for
     // that sink. `asgPins` records each box's final pin names (onNamed).
-    val parentOf: Map[String, String] = blocks.flatMap(b => b.parent.map(p => b.id -> p)).toMap
     val asgPins: mutable.HashMap[(String, String), String] = mutable.HashMap.empty // (box, pin) -> sink
     val AsgKey: String = "asg>"
-    val nodeNames: Set[String] = m.nodes.iterator.map(_.name).toSet
+    val nodeDecls: Map[String, ChirrtlParser.NodeDecl] = m.nodes.iterator.map(n => n.name -> n).toMap
     // A memory write pin (`mem~port~w`) is shown as `mem.port`.
     def sinkLabel(sink: String): String =
       Synthetic.memPinParts(sink).fold(sink) { case (mem, port, _) => s"$mem.$port" }
-    // A condition pin shows its `when`'s condition; a condition that is a node
-    // (`_T`, a cast or compare) shows the signal it traces to, when that is a
-    // user signal (no synthetic `$` id).
-    def condLabel(pin: String, external: String): String = {
+    // A condition pin shows its arm's condition as written; else its `when`'s
+    // condition, where a condition that is a node (`_T`, a cast or compare)
+    // shows the user signal it traces to (no synthetic `$` id, no temp), or
+    // else its expression.
+    def condLabel(pin: String, external: String): String = condShown.getOrElse(pin, {
       val text: String = condTextOf.getOrElse(pin, external)
-      if (nodeNames(text) && !external.contains('$')) {
-        val i: Int = external.indexOf('.')
+      val i: Int = external.indexOf('.')
+      val traced: String =
         if (i < 0) Synthetic.stripQ(external) else Synthetic.stripQ(external.substring(0, i)) + external.substring(i)
-      } else text
+      if (!nodeDecls.contains(text)) text
+      else if (!external.contains('$') && !traced.startsWith("_")) traced
+      else CodeBlocks.exprText(nodeDecls, text)
+    })
+    // A pin from or to a CHIRRTL temp op (`_T_1`, `_x_T`) is labelled with
+    // its expression (`x =/= y`): its name alone says nothing.
+    def tempOp(e: String): Option[String] =
+      nodeOf(e).filter(id => id.startsWith("_") && kindOf.get(id).contains(NodeKind.Op) && !Synthetic.isTerminal(id) &&
+        nodeDecls.contains(id))
+    // The driver-named pin of a temp op, with its expression as the label.
+    def tempPin(driver: String): Option[(String, String, String)] = tempOp(driver).map { id =>
+      val (key, name) = socle.capture.LogicBlocks.driverPin(driver, Set.empty)
+      (key, name, CodeBlocks.exprText(nodeDecls, id))
     }
     def assignPin(sink: String): Option[(String, String, String)] =
       Some((AsgKey + sink, socle.capture.LogicBlocks.driverPin(sink, Set.empty)._2, sinkLabel(sink)))
@@ -455,14 +532,18 @@ object IrWalk {
         val child: String = if (dot < 0) "" else member.substring(0, dot)
         asgPins.get((child, member.substring(dot + 1))) match {
           case Some(sink) if parentOf.contains(child) => assignPin(sink)
-          case _                                      => None
+          case _                                      => tempPin(member)
         }
-      } else None
+      } else tempPin(external)
     val onNamed: (String, String, String) => Unit = (box, key, name) =>
       if (key.startsWith(AsgKey)) asgPins((box, name)) = key.substring(AsgKey.length)
 
     val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(open, groups, pinOverride = Some(pinOverride), onNamed = onNamed)
-    (collapsed, bodies.map { case (id, body) => id -> spliceTerminals(body) })
+    // An expression condition computed inside its box: the cone's root drives
+    // an out `cond` pin, labelled as the in pin of a signal would be.
+    val outCondLabel: String => String = pin =>
+      condShown.getOrElse(pin, CodeBlocks.exprText(nodeDecls, condTextOf.getOrElse(pin, pin)))
+    (collapsed, bodies.map { case (id, body) => id -> spliceTerminals(body, outCondLabel) })
   }
 
   // An assignment terminal's output endpoint (`asg$...`, not one of its `~in<k>` pins).
@@ -470,8 +551,11 @@ object IrWalk {
 
   /** Splice the terminals out of a block body: `X <- asg` and `asg~inK <- Y`
     * become `X <- Y` (through chains of terminals: a wire assigned and read in
-    * one block); condition terminals and their input wires are dropped. */
-  private def spliceTerminals(body: ModuleDef): ModuleDef = {
+    * one block). A condition terminal's input from the box's in pin is dropped
+    * (that pin is the condition's marker); one from a node of the body (an
+    * expression condition computed inside) becomes `<box>.cond <- Y`, on a new
+    * out pin labelled `condLabel(the terminal's pin)`. */
+  private def spliceTerminals(body: ModuleDef, condLabel: String => String): ModuleDef = {
     def termOf(e: String): Option[String] = Some(fsmHeadBase(e)).filter(Synthetic.isTerminal)
     // Each assignment terminal's input wires, in order.
     val inputs: mutable.HashMap[String, mutable.ArrayBuffer[WireDef]] = mutable.HashMap.empty
@@ -485,14 +569,27 @@ object IrWalk {
         if (isAsgOut(w.to)) { if (seen(w.to)) Nil else sources(w.to, seen + w.to) }
         else Seq(w)
       }
+    val taken: mutable.Set[String] = body.ports.iterator.map(_.name).to(mutable.Set)
+    val condPins: mutable.ArrayBuffer[PortDef] = mutable.ArrayBuffer.empty
+    val pinPrefix: String = body.name + "."
     val wires: Seq[WireDef] = body.wires.flatMap { w =>
-      if (termOf(w.from).isDefined) Nil // a terminal's input: spliced below, or a condition read
-      else if (isAsgOut(w.to))
-        sources(w.to, Set(w.to)).map(in => in.copy(from = w.from, bundle = if (in.bundle == "Wire") w.bundle else in.bundle))
-      else Seq(w)
+      termOf(w.from) match {
+        case Some(t) if t.startsWith(Synthetic.CondPrefix) && !w.to.startsWith(pinPrefix) && termOf(w.to).isEmpty =>
+          val name: String = ("cond" #:: LazyList.from(2).map(n => s"cond_$n")).find(!taken(_)).get
+          taken += name
+          val label: String = condLabel(w.from)
+          condPins += PortDef(name = name, dir = PortDir.Out, bundle = "", doc = "", source = SourceRef.unknown,
+            label = if (label == name) "" else label)
+          Seq(w.copy(from = pinPrefix + name))
+        case Some(_) => Nil // an assignment terminal's input (spliced below), or a condition read from its in pin
+        case None if isAsgOut(w.to) =>
+          sources(w.to, Set(w.to)).map(in => in.copy(from = w.from, bundle = if (in.bundle == "Wire") w.bundle else in.bundle))
+        case None => Seq(w)
+      }
     }
     val seen = mutable.LinkedHashSet.empty[(String, String)]
     body.copy(
+      ports = body.ports ++ condPins,
       logic = body.logic.filterNot(n => Synthetic.isTerminal(n.id)),
       wires = wires.filter(w => seen.add((w.from, w.to))),
     )

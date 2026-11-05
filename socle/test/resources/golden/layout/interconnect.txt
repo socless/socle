@@ -284,7 +284,8 @@ layout Queue2_SocPayload
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
 layout when$Endpoint$56_21
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Endpoint$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint$56_21$valid~in0:EAST
   node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
   node io_req_ready kind=boundary pins=io_req_ready:EAST
@@ -293,6 +294,7 @@ layout when$Endpoint$56_21
   node valid kind=boundary pins=valid:WEST
   edge _T~in0 -> io_req_ready
   edge _T~in1 -> io_req_valid
+  edge cond -> _T
   edge reg -> io_req_bits_data_data
   edge valid -> const$asg$when$Endpoint$56_21$valid~in0
 layout when$Endpoint$60_15
@@ -301,7 +303,8 @@ layout when$Endpoint$60_15
   node valid kind=boundary pins=valid:WEST
   edge valid -> const$asg$when$Endpoint$60_15$valid~in0
 layout when$Endpoint_1$56_21
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Endpoint_1$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint_1$56_21$valid~in0:EAST
   node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
   node io_req_ready kind=boundary pins=io_req_ready:EAST
@@ -310,6 +313,7 @@ layout when$Endpoint_1$56_21
   node valid kind=boundary pins=valid:WEST
   edge _T~in0 -> io_req_ready
   edge _T~in1 -> io_req_valid
+  edge cond -> _T
   edge reg -> io_req_bits_data_data
   edge valid -> const$asg$when$Endpoint_1$56_21$valid~in0
 layout when$Endpoint_1$60_15
@@ -318,7 +322,8 @@ layout when$Endpoint_1$60_15
   node valid kind=boundary pins=valid:WEST
   edge valid -> const$asg$when$Endpoint_1$60_15$valid~in0
 layout when$Endpoint_2$56_21
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Endpoint_2$56_21$valid~in0 kind=const pins=const$asg$when$Endpoint_2$56_21$valid~in0:EAST
   node io_req_bits_data_data kind=boundary pins=io_req_bits_data_data:EAST
   node io_req_ready kind=boundary pins=io_req_ready:EAST
@@ -327,6 +332,7 @@ layout when$Endpoint_2$56_21
   node valid kind=boundary pins=valid:WEST
   edge _T~in0 -> io_req_ready
   edge _T~in1 -> io_req_valid
+  edge cond -> _T
   edge reg -> io_req_bits_data_data
   edge valid -> const$asg$when$Endpoint_2$56_21$valid~in0
 layout when$Endpoint_2$60_15

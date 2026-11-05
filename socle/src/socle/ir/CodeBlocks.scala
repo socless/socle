@@ -2,7 +2,7 @@ package socle.ir
 
 import scala.collection.mutable
 import socle.schema.NodeKind
-import socle.parse.ChirrtlParser.{Mod, SrcInfo, WhenDecl}
+import socle.parse.ChirrtlParser.{Mod, NodeDecl, SrcInfo, WhenDecl}
 
 /** One block of the user's code: a `when` chain (its `.elsewhen` arms joined),
   * a `switch` (one arm per `is`), or a `switch` FsmDetect recognises.
@@ -11,9 +11,9 @@ import socle.parse.ChirrtlParser.{Mod, SrcInfo, WhenDecl}
   * @param src       the marker of the block's first `when`.
   * @param whenIds   the CHIRRTL `when`s of its arms (an `else` keeps its `when`'s id).
   * @param parent    the id of the enclosing block, if any.
-  * @param condNodes the arm-condition nodes (and their `asUInt`/`asSInt`
-  *                  feeders), which belong to the block even when declared
-  *                  outside it (the first arm's compare sits beside the `switch`). */
+  * @param armConds  each `when` / `.elsewhen` arm's condition as written
+  *                  (`io.in.fire`, `x > y`), by its `when`'s id; a `switch`
+  *                  arm or an arm whose call does not close on its line has none. */
 case class CodeBlock(
   id:        String,
   kind:      String,
@@ -22,7 +22,7 @@ case class CodeBlock(
   whenIds:   Set[Int],
   parent:    Option[String],
   state:     String = "",
-  condNodes: Set[String] = Set.empty,
+  armConds:  Map[Int, String] = Map.empty,
 )
 
 /** Builds the tree of user-written `when` / `switch` blocks of a module from its
@@ -86,6 +86,14 @@ object CodeBlocks {
   private final class Builder(val root: WhenDecl, val idKind: String, val label: String,
       val state: String, val parent: Option[Builder]) {
     val arms: mutable.ArrayBuffer[WhenDecl] = mutable.ArrayBuffer(root)
+    val armConds: mutable.Map[Int, String]   = mutable.Map.empty
+  }
+
+  // The condition inside a `when(...)` / `.elsewhen(...)` call text, when it closes.
+  private def condOf(call: String): Option[String] = {
+    val open: Int = call.indexOf('(')
+    if (open < 0 || !call.endsWith(")")) None
+    else Some(call.substring(open + 1, call.length - 1).trim).filter(_.nonEmpty)
   }
 
   def of(m: Mod, lines: SourceLines): Seq[CodeBlock] = {
@@ -120,6 +128,8 @@ object CodeBlocks {
         val b = new Builder(w, idKind, label, state, enclosing)
         built += b; blockOfWhen(w.id) = b
       }
+      // A `when` / `.elsewhen` arm keeps its condition as written.
+      def armCond(call: String): Unit = condOf(call).foreach(c => blockOfWhen(w.id).armConds(w.id) = c)
       def startSwitch(label: String): Unit = fsmByRoot.get(w.cond) match {
         case Some(f) => start(NodeKind.Fsm, label, f.stateReg)
         case None    => start(Switch, label, "")
@@ -146,7 +156,8 @@ object CodeBlocks {
                 case Some(b) => join(b)
                 case None    => start(When, label, "")
               }
-            case Some((_, label)) => start(When, label, "")
+              armCond(label)
+            case Some((_, label)) => start(When, label, ""); armCond(label)
             // No call on the line: not a block (its items belong to the enclosing
             // one), unless FsmDetect recognises a switch chain there.
             case None             => fsmOnly()
@@ -166,9 +177,6 @@ object CodeBlocks {
     }.toMap
 
     built.toSeq.map { b =>
-      val condNodes: Set[String] = b.arms.iterator.flatMap { a =>
-        nodeByName.get(a.cond).toSeq.flatMap(n => n.name +: n.operands.map(_.trim).filter(isCast))
-      }.toSet
       CodeBlock(
         id        = ids(b),
         kind      = if (b.idKind == NodeKind.Fsm) NodeKind.Fsm else NodeKind.Block,
@@ -177,9 +185,51 @@ object CodeBlocks {
         whenIds   = b.arms.map(_.id).toSet,
         parent    = b.parent.map(ids),
         state     = b.state,
-        condNodes = condNodes,
+        armConds  = b.armConds.toMap,
       )
     }
+  }
+
+  private val Infix: Map[String, String] = Map(
+    "eq" -> "===", "neq" -> "=/=", "lt" -> "<", "leq" -> "<=", "gt" -> ">", "geq" -> ">=",
+    "and" -> "&", "or" -> "|", "xor" -> "^", "add" -> "+", "sub" -> "-", "mul" -> "*",
+    "div" -> "/", "rem" -> "%", "dshl" -> "<<", "dshr" -> ">>", "cat" -> "##")
+  private val Transparent: Set[String] = Set("asUInt", "asSInt", "asBool", "cvt", "pad", "tail", "head", "")
+  private val LitRe = """[US]Int<\d*>\((-?)0h([0-9a-fA-F]+)\)""".r
+  private val MaxDepth: Int = 4
+
+  /** A CHIRRTL expression shown as Chisel-like text, for a pin that has no
+    * source text: a temp node (`_T`, `_GEN_0`) is expanded into its operation
+    * (`state === 1`, `busy & (x =/= y)`), a named node or a reference keeps its
+    * name, a literal is its value. Never a bare temp: past the depth limit an
+    * operation shows as `...`. */
+  private[socle] def exprText(nodes: Map[String, NodeDecl], e: String): String = {
+    def isLit(t: String): Boolean = LitRe.matches(t.trim)
+    def go(e: String, depth: Int): String = {
+      val t: String = e.trim
+      t match {
+        case LitRe(sign, hex) => sign + BigInt(hex, 16).toString
+        case _ => nodes.get(t) match {
+          case Some(_) if !t.startsWith("_") && depth > 0 => t
+          case Some(_) if depth >= MaxDepth              => "..."
+          case Some(n) =>
+            val args: Seq[String] = n.operands.map(go(_, depth + 1))
+            val shown: String = (n.op, args) match {
+              case (op, Seq(a, b)) if Infix.contains(op) =>
+                // A literal compared with a signal reads signal first: `state === 1`.
+                val swap: Boolean = (op == "eq" || op == "neq") && isLit(n.operands.head) && !isLit(n.operands(1))
+                if (swap) s"$b ${Infix(op)} $a" else s"$a ${Infix(op)} $b"
+              case ("not", Seq(a))                 => s"~$a"
+              case (op, a +: _) if Transparent(op) => a
+              case ("bits", Seq(a, hi, lo))        => s"$a($hi, $lo)"
+              case (op, as)                        => s"$op(${as.mkString(", ")})"
+            }
+            if (depth > 0 && shown.contains(' ')) s"($shown)" else shown
+          case None => t
+        }
+      }
+    }
+    go(e, 0)
   }
 
   /** The innermost block among `whenIds` (outermost first, as on a `Conn`). */

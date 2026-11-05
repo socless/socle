@@ -3294,6 +3294,18 @@
             "col": 0
           },
           "label": "rCount"
+        },
+        {
+          "name": "cond_3",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.enable && io.in.valid"
         }
       ],
       "children": [],
@@ -3312,6 +3324,17 @@
         {
           "from": "_rCount_T~in1",
           "to": "const$_rCount_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegStage_1$52_18.cond_3",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -3680,6 +3703,18 @@
             "col": 0
           },
           "label": "timer"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "timer === 3.U"
         }
       ],
       "children": [],
@@ -3687,6 +3722,17 @@
         {
           "from": "_T_6~in1",
           "to": "const$_T_6~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Controller$108_27.cond",
+          "to": "_T_6",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -3850,6 +3896,42 @@
             "col": 0
           },
           "label": "timer"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 0"
+        },
+        {
+          "name": "cond_2",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 1"
+        },
+        {
+          "name": "cond_3",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 2"
         }
       ],
       "children": [],
@@ -3910,8 +3992,8 @@
           }
         },
         {
-          "from": "_T_2~in1",
-          "to": "const$_T_2~in1",
+          "from": "fsm$Controller$98_17.cond",
+          "to": "_T_1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -3921,8 +4003,19 @@
           }
         },
         {
-          "from": "when$Controller$101_39._T_2",
-          "to": "_T_2",
+          "from": "fsm$Controller$98_17.cond_2",
+          "to": "_T_5",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fsm$Controller$98_17.cond_3",
+          "to": "_T_8",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -4072,7 +4165,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_2~in0",
+          "from": "when$Controller$101_39.timer_2",
           "to": "fsm$Controller$98_17.timer_2",
           "bundle": "UInt<8>",
           "label": "",
@@ -4204,17 +4297,6 @@
           }
         },
         {
-          "id": "const$_T_2~in1",
-          "kind": "const",
-          "label": "0hf",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "_T_1",
           "kind": "op",
           "label": "eq",
@@ -4237,18 +4319,6 @@
             "col": 22
           },
           "op": "add"
-        },
-        {
-          "id": "_T_2",
-          "kind": "op",
-          "label": "eq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/regheavy/Datapath.scala",
-            "line": 101,
-            "col": 18
-          },
-          "op": "eq"
         },
         {
           "id": "_T_5",
@@ -4482,6 +4552,18 @@
             "col": 0
           },
           "label": "rCount"
+        },
+        {
+          "name": "cond_3",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.enable && io.in.valid"
         }
       ],
       "children": [],
@@ -4500,6 +4582,17 @@
         {
           "from": "_rCount_T~in1",
           "to": "const$_rCount_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegStage$52_18.cond_3",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -4858,17 +4951,6 @@
           }
         },
         {
-          "name": "_T_2",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "name": "io_hint",
           "dir": "in",
           "bundle": "",
@@ -4879,13 +4961,59 @@
             "col": 0
           },
           "label": "io.hint"
+        },
+        {
+          "name": "timer_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "timer"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "timer === 15.U || io.hint"
         }
       ],
       "children": [],
       "wires": [
         {
+          "from": "_T_2~in1",
+          "to": "const$_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_T_3~in0",
-          "to": "when$Controller$101_39._T_2",
+          "to": "_T_2",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Controller$101_39.cond",
+          "to": "_T_3",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -4927,6 +5055,18 @@
             "col": 0
           },
           "fieldLevel": true
+        },
+        {
+          "from": "_T_2~in0",
+          "to": "when$Controller$101_39.timer_2",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -4956,6 +5096,29 @@
             "line": 0,
             "col": 0
           }
+        },
+        {
+          "id": "const$_T_2~in1",
+          "kind": "const",
+          "label": "0hf",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T_2",
+          "kind": "op",
+          "label": "eq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/regheavy/Datapath.scala",
+            "line": 101,
+            "col": 18
+          },
+          "op": "eq"
         },
         {
           "id": "_T_3",

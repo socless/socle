@@ -104,17 +104,6 @@
           }
         },
         {
-          "from": "when$GCD$43_25._T_1",
-          "to": "_T_1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "_io_out_valid_T_1~in1",
           "to": "_io_out_valid_T",
           "bundle": "Wire",
@@ -330,18 +319,6 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_1~in0",
-          "to": "x~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "when$GCD$43_25.x_2",
           "to": "x~q",
           "bundle": "UInt<16>",
@@ -374,18 +351,6 @@
             "file": "example/src/gcd/GCD.scala",
             "line": 49,
             "col": 22
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "_T_1~in1",
-          "to": "y~q",
-          "bundle": "UInt<16>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
           },
           "fieldLevel": true
         },
@@ -475,18 +440,6 @@
             "col": 18
           },
           "op": "eq"
-        },
-        {
-          "id": "_T_1",
-          "kind": "op",
-          "label": "neq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/gcd/GCD.scala",
-            "line": 43,
-            "col": 18
-          },
-          "op": "neq"
         },
         {
           "id": "_io_out_valid_T",
@@ -598,10 +551,33 @@
             "col": 0
           },
           "label": "io.out.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$GCD$50_21.cond",
+          "to": "_T_4",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$GCD$50_21.busy",
           "to": "const$asg$when$GCD$50_21$busy~in0",
@@ -724,10 +700,33 @@
             "col": 0
           },
           "label": "y"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "x > y"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$GCD$44_17.cond",
+          "to": "_T_3",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$GCD$44_17.x",
           "to": "_x_T",
@@ -900,17 +899,6 @@
           }
         },
         {
-          "name": "_T_1",
-          "dir": "in",
-          "bundle": "",
-          "doc": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "name": "busy",
           "dir": "in",
           "bundle": "",
@@ -944,13 +932,36 @@
             "col": 0
           },
           "label": "y"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "busy && x =/= y"
         }
       ],
       "children": [],
       "wires": [
         {
           "from": "_T_2~in1",
-          "to": "when$GCD$43_25._T_1",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$GCD$43_25.cond",
+          "to": "_T_2",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -996,8 +1007,32 @@
           "fieldLevel": true
         },
         {
+          "from": "_T_1~in0",
+          "to": "when$GCD$43_25.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
           "from": "when$GCD$44_17.x_2",
           "to": "when$GCD$43_25.x_2",
+          "bundle": "UInt<16>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "when$GCD$43_25.y_2",
           "bundle": "UInt<16>",
           "label": "",
           "source": {
@@ -1026,6 +1061,18 @@
         "lines": 0
       },
       "logic": [
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/gcd/GCD.scala",
+            "line": 43,
+            "col": 18
+          },
+          "op": "neq"
+        },
         {
           "id": "_T_2",
           "kind": "op",
@@ -1141,10 +1188,33 @@
             "col": 0
           },
           "label": "io.in.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.in.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$GCD$36_20.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$GCD$36_20.busy",
           "to": "const$asg$when$GCD$36_20$busy~in0",

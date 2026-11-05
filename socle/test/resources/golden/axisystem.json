@@ -7287,6 +7287,18 @@
             "col": 0
           },
           "label": "io.ar.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.fire"
         }
       ],
       "children": [],
@@ -7294,6 +7306,17 @@
         {
           "from": "_idCnt_T~in1",
           "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$AXIMaster$43_21.cond",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -7449,6 +7472,18 @@
             "col": 0
           },
           "label": "io.ar.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.ar.fire"
         }
       ],
       "children": [],
@@ -7456,6 +7491,17 @@
         {
           "from": "_idCnt_T~in1",
           "to": "const$_idCnt_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$AXIMaster_1$43_21.cond",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {

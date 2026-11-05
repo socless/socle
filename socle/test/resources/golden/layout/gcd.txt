@@ -1,5 +1,4 @@
 layout GCD
-  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
   node _io_out_valid_T kind=op pins=_io_out_valid_T:EAST,_io_out_valid_T~in0:WEST,_io_out_valid_T~in1:WEST
   node _io_out_valid_T_1 kind=op pins=_io_out_valid_T_1:EAST,_io_out_valid_T_1~in0:WEST,_io_out_valid_T_1~in1:WEST
@@ -8,12 +7,10 @@ layout GCD
   node io.in kind=boundary pins=io.in:EAST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
   node when$GCD$36_20 kind=block pins=when$GCD$36_20.busy:EAST,when$GCD$36_20.io_in_bits_a:WEST,when$GCD$36_20.io_in_bits_b:WEST,when$GCD$36_20.io_in_ready:WEST,when$GCD$36_20.io_in_valid:WEST,when$GCD$36_20.x:EAST,when$GCD$36_20.y:EAST
-  node when$GCD$43_25 kind=block pins=when$GCD$43_25._T_1:WEST,when$GCD$43_25.busy:WEST,when$GCD$43_25.x:EAST,when$GCD$43_25.x_2:WEST,when$GCD$43_25.y:EAST,when$GCD$43_25.y_2:WEST
+  node when$GCD$43_25 kind=block pins=when$GCD$43_25.busy:WEST,when$GCD$43_25.x:EAST,when$GCD$43_25.x_2:WEST,when$GCD$43_25.y:EAST,when$GCD$43_25.y_2:WEST
   node when$GCD$50_21 kind=block pins=when$GCD$50_21.busy:EAST,when$GCD$50_21.io_out_ready:WEST,when$GCD$50_21.io_out_valid:WEST
   node x kind=reg pins=x:WEST,x~q:EAST
   node y kind=reg pins=y:WEST,y~q:EAST
-  edge _T_1~in0 -> x~q
-  edge _T_1~in1 -> y~q
   edge _io_in_ready_T~in0 -> busy~q
   edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
   edge _io_out_valid_T_1~in0 -> busy~q
@@ -29,7 +26,6 @@ layout GCD
   edge when$GCD$36_20.io_in_bits_b -> io.in
   edge when$GCD$36_20.io_in_ready -> io.in
   edge when$GCD$36_20.io_in_valid -> io.in
-  edge when$GCD$43_25._T_1 -> _T_1
   edge when$GCD$43_25.busy -> busy~q
   edge when$GCD$43_25.x_2 -> x~q
   edge when$GCD$43_25.y_2 -> y~q
@@ -40,8 +36,9 @@ layout GCD
   edge y -> when$GCD$36_20.y
   edge y -> when$GCD$43_25.y
 layout when$GCD$36_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$GCD$36_20$busy~in0 kind=const pins=const$asg$when$GCD$36_20$busy~in0:EAST
   node io_in_bits_a kind=boundary pins=io_in_bits_a:EAST
   node io_in_bits_b kind=boundary pins=io_in_bits_b:EAST
@@ -52,27 +49,33 @@ layout when$GCD$36_20
   edge _T~in0 -> io_in_ready
   edge _T~in1 -> io_in_valid
   edge busy -> const$asg$when$GCD$36_20$busy~in0
+  edge cond -> _T
   edge x -> io_in_bits_a
   edge y -> io_in_bits_b
 layout when$GCD$43_25
-  node _T_1 kind=boundary pins=_T_1:EAST
-  node _T_2 kind=op pins=_T_2~in0:WEST,_T_2~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_2 kind=op pins=_T_2:EAST,_T_2~in0:WEST,_T_2~in1:WEST
   node busy kind=boundary pins=busy:EAST
+  node cond kind=boundary pins=cond:WEST
   node when$GCD$44_17 kind=block pins=when$GCD$44_17.x:EAST,when$GCD$44_17.x_2:WEST,when$GCD$44_17.y:EAST,when$GCD$44_17.y_2:WEST
   node x kind=boundary pins=x:WEST
   node x_2 kind=boundary pins=x_2:EAST
   node y kind=boundary pins=y:WEST
   node y_2 kind=boundary pins=y_2:EAST
+  edge _T_1~in0 -> x_2
+  edge _T_1~in1 -> y_2
   edge _T_2~in0 -> busy
   edge _T_2~in1 -> _T_1
+  edge cond -> _T_2
   edge when$GCD$44_17.x_2 -> x_2
   edge when$GCD$44_17.y_2 -> y_2
   edge x -> when$GCD$44_17.x
   edge y -> when$GCD$44_17.y
 layout when$GCD$44_17
-  node _T_3 kind=op pins=_T_3~in0:WEST,_T_3~in1:WEST
+  node _T_3 kind=op pins=_T_3:EAST,_T_3~in0:WEST,_T_3~in1:WEST
   node _x_T kind=op pins=_x_T:EAST,_x_T~in0:WEST,_x_T~in1:WEST
   node _y_T kind=op pins=_y_T:EAST,_y_T~in0:WEST,_y_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node x kind=boundary pins=x:WEST
   node x_2 kind=boundary pins=x_2:EAST
   node y kind=boundary pins=y:WEST
@@ -83,14 +86,17 @@ layout when$GCD$44_17
   edge _x_T~in1 -> y_2
   edge _y_T~in0 -> y_2
   edge _y_T~in1 -> x_2
+  edge cond -> _T_3
   edge x -> _x_T
   edge y -> _y_T
 layout when$GCD$50_21
-  node _T_4 kind=op pins=_T_4~in0:WEST,_T_4~in1:WEST
+  node _T_4 kind=op pins=_T_4:EAST,_T_4~in0:WEST,_T_4~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$GCD$50_21$busy~in0 kind=const pins=const$asg$when$GCD$50_21$busy~in0:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
   edge _T_4~in0 -> io_out_ready
   edge _T_4~in1 -> io_out_valid
   edge busy -> const$asg$when$GCD$50_21$busy~in0
+  edge cond -> _T_4

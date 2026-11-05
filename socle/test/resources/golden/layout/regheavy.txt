@@ -245,19 +245,26 @@ layout RegStage_1
   edge when$RegStage_1$52_18.io_in_valid -> io.in
   edge when$RegStage_1$52_18.rCount_2 -> rCount~q
 layout when$Controller$101_39
-  node _T_2 kind=boundary pins=_T_2:EAST
-  node _T_3 kind=op pins=_T_3~in0:WEST,_T_3~in1:WEST
+  node _T_2 kind=op pins=_T_2:EAST,_T_2~in0:WEST,_T_2~in1:WEST
+  node _T_3 kind=op pins=_T_3:EAST,_T_3~in0:WEST,_T_3~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_T_2~in1 kind=const pins=const$_T_2~in1:EAST
   node const$asg$when$Controller$101_39$state~in0 kind=const pins=const$asg$when$Controller$101_39$state~in0:EAST
   node const$asg$when$Controller$101_39$timer~in0 kind=const pins=const$asg$when$Controller$101_39$timer~in0:EAST
   node io_hint kind=boundary pins=io_hint:EAST
   node state kind=boundary pins=state:WEST
   node timer kind=boundary pins=timer:WEST
+  node timer_2 kind=boundary pins=timer_2:EAST
+  edge _T_2~in0 -> timer_2
+  edge _T_2~in1 -> const$_T_2~in1
   edge _T_3~in0 -> _T_2
   edge _T_3~in1 -> io_hint
+  edge cond -> _T_3
   edge state -> const$asg$when$Controller$101_39$state~in0
   edge timer -> const$asg$when$Controller$101_39$timer~in0
 layout when$Controller$108_27
-  node _T_6 kind=op pins=_T_6~in0:WEST,_T_6~in1:WEST
+  node _T_6 kind=op pins=_T_6:EAST,_T_6~in0:WEST,_T_6~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$_T_6~in1 kind=const pins=const$_T_6~in1:EAST
   node const$asg$when$Controller$108_27$state~in0 kind=const pins=const$asg$when$Controller$108_27$state~in0:EAST
   node const$asg$when$Controller$108_27$timer~in0 kind=const pins=const$asg$when$Controller$108_27$timer~in0:EAST
@@ -266,14 +273,16 @@ layout when$Controller$108_27
   node timer_2 kind=boundary pins=timer_2:EAST
   edge _T_6~in0 -> timer_2
   edge _T_6~in1 -> const$_T_6~in1
+  edge cond -> _T_6
   edge state -> const$asg$when$Controller$108_27$state~in0
   edge timer -> const$asg$when$Controller$108_27$timer~in0
 layout when$RegStage$52_18
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _rCount_T kind=op pins=_rCount_T:EAST,_rCount_T~in0:WEST,_rCount_T~in1:WEST
   node _rCount_T_2 kind=op pins=_rCount_T_2:EAST,_rCount_T_2~in0:WEST,_rCount_T_2~in1:WEST
   node cond kind=boundary pins=cond:EAST
   node cond_2 kind=boundary pins=cond_2:EAST
+  node cond_3 kind=boundary pins=cond_3:WEST
   node const$_rCount_T_2~in1 kind=const pins=const$_rCount_T_2~in1:EAST
   node const$_rCount_T~in1 kind=const pins=const$_rCount_T~in1:EAST
   node const$asg$when$RegStage$52_18$rCount~in0 kind=const pins=const$asg$when$RegStage$52_18$rCount~in0:EAST
@@ -300,6 +309,7 @@ layout when$RegStage$52_18
   edge _rCount_T_2~in1 -> const$_rCount_T_2~in1
   edge _rCount_T~in0 -> rCount_2
   edge _rCount_T~in1 -> const$_rCount_T~in1
+  edge cond_3 -> _T
   edge rCount -> _rCount_T
   edge rCount -> _rCount_T_2
   edge rCount -> const$asg$when$RegStage$52_18$rCount~in0
@@ -313,11 +323,12 @@ layout when$RegStage$52_18
   edge rValid -> const$asg$when$RegStage$52_18$rValid~in2
   edge rValid -> io_in_bits_valid
 layout when$RegStage_1$52_18
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _rCount_T kind=op pins=_rCount_T:EAST,_rCount_T~in0:WEST,_rCount_T~in1:WEST
   node _rCount_T_2 kind=op pins=_rCount_T_2:EAST,_rCount_T_2~in0:WEST,_rCount_T_2~in1:WEST
   node cond kind=boundary pins=cond:EAST
   node cond_2 kind=boundary pins=cond_2:EAST
+  node cond_3 kind=boundary pins=cond_3:WEST
   node const$_rCount_T_2~in1 kind=const pins=const$_rCount_T_2~in1:EAST
   node const$_rCount_T~in1 kind=const pins=const$_rCount_T~in1:EAST
   node const$asg$when$RegStage_1$52_18$rCount~in0 kind=const pins=const$asg$when$RegStage_1$52_18$rCount~in0:EAST
@@ -344,6 +355,7 @@ layout when$RegStage_1$52_18
   edge _rCount_T_2~in1 -> const$_rCount_T_2~in1
   edge _rCount_T~in0 -> rCount_2
   edge _rCount_T~in1 -> const$_rCount_T~in1
+  edge cond_3 -> _T
   edge rCount -> _rCount_T
   edge rCount -> _rCount_T_2
   edge rCount -> const$asg$when$RegStage_1$52_18$rCount~in0

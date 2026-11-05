@@ -1150,28 +1150,6 @@
       "children": [],
       "wires": [
         {
-          "from": "_T~in1",
-          "to": "const$_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "when$RegFile$133_44._T",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "regs~MPORT~w",
           "to": "when$RegFile$133_44.regs_MPORT_w",
           "bundle": "Wire",
@@ -1207,7 +1185,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "when$RegFile$133_44.io_wr_waddr",
           "to": "io.wr.waddr",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1286,29 +1264,6 @@
         "memories": 1
       },
       "logic": [
-        {
-          "id": "const$_T~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_T",
-          "kind": "op",
-          "label": "neq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 133,
-            "col": 34
-          },
-          "op": "neq"
-        },
         {
           "id": "regs",
           "kind": "mem",
@@ -1766,6 +1721,18 @@
             "col": 0
           },
           "label": "pc"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire"
         }
       ],
       "children": [],
@@ -1773,6 +1740,17 @@
         {
           "from": "_pc_T~in1",
           "to": "const$_pc_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Fetch$74_21.cond",
+          "to": "_T",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -1895,7 +1873,7 @@
           "label": "regs.MPORT"
         },
         {
-          "name": "_T",
+          "name": "io_wr_waddr",
           "dir": "in",
           "bundle": "",
           "doc": "",
@@ -1903,7 +1881,8 @@
             "file": "",
             "line": 0,
             "col": 0
-          }
+          },
+          "label": "io.wr.waddr"
         },
         {
           "name": "io_wr_wdata",
@@ -1928,13 +1907,47 @@
             "col": 0
           },
           "label": "io.wr.wen"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.wr.wen && (io.wr.waddr =/= 0.U)"
         }
       ],
       "children": [],
       "wires": [
         {
+          "from": "_T~in1",
+          "to": "const$_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
           "from": "_T_1~in1",
-          "to": "when$RegFile$133_44._T",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegFile$133_44.cond",
+          "to": "_T_1",
           "bundle": "Wire",
           "label": "",
           "source": {
@@ -1952,6 +1965,18 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 134,
             "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$RegFile$133_44.io_wr_waddr",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
           },
           "fieldLevel": true
         },
@@ -1974,6 +1999,29 @@
         "lines": 0
       },
       "logic": [
+        {
+          "id": "const$_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 34
+          },
+          "op": "neq"
+        },
         {
           "id": "_T_1",
           "kind": "op",

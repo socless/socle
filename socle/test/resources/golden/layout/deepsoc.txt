@@ -597,10 +597,11 @@ layout RegFile_3
   edge when$RegFile_3$65_16.cond -> io.wen
   edge when$RegFile_3$65_16.io_wdata -> io.wdata
 layout when$Cluster$139_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _sel_T kind=op pins=_sel_T:EAST,_sel_T~in0:WEST,_sel_T~in1:WEST
   node _sel_T_1 kind=op pins=_sel_T_1:EAST,_sel_T_1~in0:WEST,_sel_T_1~in1:WEST
   node _sel_T_3 kind=op pins=_sel_T_3:EAST,_sel_T_3~in0:WEST,_sel_T_3~in1:WEST,_sel_T_3~in2:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$_sel_T_1~in1 kind=const pins=const$_sel_T_1~in1:EAST
   node const$_sel_T_3~in1 kind=const pins=const$_sel_T_3~in1:EAST
   node const$_sel_T~in1 kind=const pins=const$_sel_T~in1:EAST
@@ -617,12 +618,14 @@ layout when$Cluster$139_20
   edge _sel_T_3~in2 -> _sel_T_1
   edge _sel_T~in0 -> sel_2
   edge _sel_T~in1 -> const$_sel_T~in1
+  edge cond -> _T
   edge sel -> _sel_T_3
 layout when$Cluster$152_21
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node _outSel_T kind=op pins=_outSel_T:EAST,_outSel_T~in0:WEST,_outSel_T~in1:WEST
   node _outSel_T_1 kind=op pins=_outSel_T_1:EAST,_outSel_T_1~in0:WEST,_outSel_T_1~in1:WEST
   node _outSel_T_3 kind=op pins=_outSel_T_3:EAST,_outSel_T_3~in0:WEST,_outSel_T_3~in1:WEST,_outSel_T_3~in2:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$_outSel_T_1~in1 kind=const pins=const$_outSel_T_1~in1:EAST
   node const$_outSel_T_3~in1 kind=const pins=const$_outSel_T_3~in1:EAST
   node const$_outSel_T~in1 kind=const pins=const$_outSel_T~in1:EAST
@@ -639,18 +642,21 @@ layout when$Cluster$152_21
   edge _outSel_T_3~in2 -> _outSel_T_1
   edge _outSel_T~in0 -> outSel_2
   edge _outSel_T~in1 -> const$_outSel_T~in1
+  edge cond -> _T_1
   edge outSel -> _outSel_T_3
 layout when$Core$111_21
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core$111_21$busy~in0 kind=const pins=const$asg$when$Core$111_21$busy~in0:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
   edge _T_1~in0 -> io_out_ready
   edge _T_1~in1 -> io_out_valid
   edge busy -> const$asg$when$Core$111_21$busy~in0
+  edge cond -> _T_1
 layout when$Core$88_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node acc kind=boundary pins=acc:WEST
   node acc_2 kind=boundary pins=acc_2:EAST
   node alu_io_a kind=boundary pins=alu_io_a:WEST
@@ -658,6 +664,7 @@ layout when$Core$88_20
   node alu_io_op kind=boundary pins=alu_io_op:WEST
   node alu_io_out kind=boundary pins=alu_io_out:EAST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core$88_20$alu_io_b~in1:EAST
   node const$asg$when$Core$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core$88_20$alu_io_op~in0:EAST
   node const$asg$when$Core$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core$88_20$alu_io_op~in1:EAST
@@ -682,6 +689,7 @@ layout when$Core$88_20
   edge alu_io_op -> const$asg$when$Core$88_20$alu_io_op~in0
   edge alu_io_op -> const$asg$when$Core$88_20$alu_io_op~in1
   edge busy -> const$asg$when$Core$88_20$busy~in0
+  edge cond -> _T
   edge rf_io_waddr -> const$asg$when$Core$88_20$rf_io_waddr~in0
   edge rf_io_waddr -> const$asg$when$Core$88_20$rf_io_waddr~in1
   edge rf_io_wdata -> alu_io_out
@@ -689,16 +697,18 @@ layout when$Core$88_20
   edge rf_io_wen -> const$asg$when$Core$88_20$rf_io_wen~in0
   edge rf_io_wen -> const$asg$when$Core$88_20$rf_io_wen~in1
 layout when$Core_1$111_21
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_1$111_21$busy~in0 kind=const pins=const$asg$when$Core_1$111_21$busy~in0:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
   edge _T_1~in0 -> io_out_ready
   edge _T_1~in1 -> io_out_valid
   edge busy -> const$asg$when$Core_1$111_21$busy~in0
+  edge cond -> _T_1
 layout when$Core_1$88_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node acc kind=boundary pins=acc:WEST
   node acc_2 kind=boundary pins=acc_2:EAST
   node alu_io_a kind=boundary pins=alu_io_a:WEST
@@ -706,6 +716,7 @@ layout when$Core_1$88_20
   node alu_io_op kind=boundary pins=alu_io_op:WEST
   node alu_io_out kind=boundary pins=alu_io_out:EAST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_1$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_1$88_20$alu_io_b~in1:EAST
   node const$asg$when$Core_1$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_1$88_20$alu_io_op~in0:EAST
   node const$asg$when$Core_1$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_1$88_20$alu_io_op~in1:EAST
@@ -730,6 +741,7 @@ layout when$Core_1$88_20
   edge alu_io_op -> const$asg$when$Core_1$88_20$alu_io_op~in0
   edge alu_io_op -> const$asg$when$Core_1$88_20$alu_io_op~in1
   edge busy -> const$asg$when$Core_1$88_20$busy~in0
+  edge cond -> _T
   edge rf_io_waddr -> const$asg$when$Core_1$88_20$rf_io_waddr~in0
   edge rf_io_waddr -> const$asg$when$Core_1$88_20$rf_io_waddr~in1
   edge rf_io_wdata -> alu_io_out
@@ -737,16 +749,18 @@ layout when$Core_1$88_20
   edge rf_io_wen -> const$asg$when$Core_1$88_20$rf_io_wen~in0
   edge rf_io_wen -> const$asg$when$Core_1$88_20$rf_io_wen~in1
 layout when$Core_2$111_21
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_2$111_21$busy~in0 kind=const pins=const$asg$when$Core_2$111_21$busy~in0:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
   edge _T_1~in0 -> io_out_ready
   edge _T_1~in1 -> io_out_valid
   edge busy -> const$asg$when$Core_2$111_21$busy~in0
+  edge cond -> _T_1
 layout when$Core_2$88_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node acc kind=boundary pins=acc:WEST
   node acc_2 kind=boundary pins=acc_2:EAST
   node alu_io_a kind=boundary pins=alu_io_a:WEST
@@ -754,6 +768,7 @@ layout when$Core_2$88_20
   node alu_io_op kind=boundary pins=alu_io_op:WEST
   node alu_io_out kind=boundary pins=alu_io_out:EAST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_2$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_2$88_20$alu_io_b~in1:EAST
   node const$asg$when$Core_2$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_2$88_20$alu_io_op~in0:EAST
   node const$asg$when$Core_2$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_2$88_20$alu_io_op~in1:EAST
@@ -778,6 +793,7 @@ layout when$Core_2$88_20
   edge alu_io_op -> const$asg$when$Core_2$88_20$alu_io_op~in0
   edge alu_io_op -> const$asg$when$Core_2$88_20$alu_io_op~in1
   edge busy -> const$asg$when$Core_2$88_20$busy~in0
+  edge cond -> _T
   edge rf_io_waddr -> const$asg$when$Core_2$88_20$rf_io_waddr~in0
   edge rf_io_waddr -> const$asg$when$Core_2$88_20$rf_io_waddr~in1
   edge rf_io_wdata -> alu_io_out
@@ -785,16 +801,18 @@ layout when$Core_2$88_20
   edge rf_io_wen -> const$asg$when$Core_2$88_20$rf_io_wen~in0
   edge rf_io_wen -> const$asg$when$Core_2$88_20$rf_io_wen~in1
 layout when$Core_3$111_21
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_3$111_21$busy~in0 kind=const pins=const$asg$when$Core_3$111_21$busy~in0:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
   edge _T_1~in0 -> io_out_ready
   edge _T_1~in1 -> io_out_valid
   edge busy -> const$asg$when$Core_3$111_21$busy~in0
+  edge cond -> _T_1
 layout when$Core_3$88_20
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node acc kind=boundary pins=acc:WEST
   node acc_2 kind=boundary pins=acc_2:EAST
   node alu_io_a kind=boundary pins=alu_io_a:WEST
@@ -802,6 +820,7 @@ layout when$Core_3$88_20
   node alu_io_op kind=boundary pins=alu_io_op:WEST
   node alu_io_out kind=boundary pins=alu_io_out:EAST
   node busy kind=boundary pins=busy:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$asg$when$Core_3$88_20$alu_io_b~in1 kind=const pins=const$asg$when$Core_3$88_20$alu_io_b~in1:EAST
   node const$asg$when$Core_3$88_20$alu_io_op~in0 kind=const pins=const$asg$when$Core_3$88_20$alu_io_op~in0:EAST
   node const$asg$when$Core_3$88_20$alu_io_op~in1 kind=const pins=const$asg$when$Core_3$88_20$alu_io_op~in1:EAST
@@ -826,6 +845,7 @@ layout when$Core_3$88_20
   edge alu_io_op -> const$asg$when$Core_3$88_20$alu_io_op~in0
   edge alu_io_op -> const$asg$when$Core_3$88_20$alu_io_op~in1
   edge busy -> const$asg$when$Core_3$88_20$busy~in0
+  edge cond -> _T
   edge rf_io_waddr -> const$asg$when$Core_3$88_20$rf_io_waddr~in0
   edge rf_io_waddr -> const$asg$when$Core_3$88_20$rf_io_waddr~in1
   edge rf_io_wdata -> alu_io_out

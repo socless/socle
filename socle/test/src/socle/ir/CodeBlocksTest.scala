@@ -121,10 +121,10 @@ object CodeBlocksTest extends TestSuite {
       assert(sw.whenIds.size == 3)
       assert(go.parent.contains(sw.id), cpt.parent.contains(sw.id))
       assert(go.kind == NodeKind.Block, cpt.kind == NodeKind.Block)
-      // The first arm's compare sits beside the switch, in the when(io.enable) block.
-      assert(sw.condNodes == Set("_T", "_T_1", "_T_3"))
-      assert(cpt.condNodes == Set("_T_2"))
-      assert(enable.condNodes.isEmpty) // io.enable is a port, not a node
+      // Each when arm keeps its condition as written; a switch arm has none.
+      def condOf(b: CodeBlock): Seq[String] = b.whenIds.toSeq.sorted.flatMap(b.armConds.get)
+      assert(condOf(enable) == Seq("io.enable"), condOf(go) == Seq("io.go"), condOf(cpt) == Seq("cpt === 0.U"))
+      assert(sw.armConds.isEmpty)
     }
 
     test("blockOf is the innermost block") {
@@ -147,7 +147,7 @@ object CodeBlocksTest extends TestSuite {
       def whenId(cond: String) = m.whens.find(_.cond == cond).get.id
       val b = blocks.head
       assert(b.whenIds == Set(whenId("io.flush"), whenId("io.stall"), whenId("_T")))
-      assert(b.condNodes == Set("_T"))
+      assert(b.armConds == Map(whenId("io.flush") -> "io.flush", whenId("io.stall") -> "io.stall", whenId("_T") -> "io.enable && io.in.valid"))
       assert(b.kind == NodeKind.Block, b.parent.isEmpty)
     }
 
@@ -246,7 +246,7 @@ object CodeBlocksTest extends TestSuite {
       assert(blocks.size == 1)
       val b = blocks.head
       assert(b.kind == NodeKind.Block, b.id == "switch$S$3_17", b.label == "switch(op)")
-      assert(b.whenIds.size == 2, b.condNodes == Set("_T", "_T_1"))
+      assert(b.whenIds.size == 2, b.armConds.isEmpty)
     }
 
     // The Er source with line 37 (the switch) written another way.

@@ -52,21 +52,17 @@ layout RVPipeline
   edge wb.io.dmem -> io.dmem
   edge wb.io.in -> exec.io.out
 layout RegFile
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
-  node const$_T~in1 kind=const pins=const$_T~in1:EAST
   node io.rd kind=boundary pins=io.rd:EAST:iface
   node io.wr kind=boundary pins=io.wr:EAST:iface
   node regs kind=mem pins=regs~MPORT~a:WEST,regs~MPORT~w:WEST,regs~io_rd_rdata1_MPORT~a:WEST,regs~io_rd_rdata1_MPORT~r:EAST,regs~io_rd_rdata2_MPORT~a:WEST,regs~io_rd_rdata2_MPORT~r:EAST
-  node when$RegFile$133_44 kind=block pins=when$RegFile$133_44._T:WEST,when$RegFile$133_44.io_wr_wdata:WEST,when$RegFile$133_44.io_wr_wen:WEST,when$RegFile$133_44.regs_MPORT_w:EAST
-  edge _T~in0 -> io.wr
-  edge _T~in1 -> const$_T~in1
+  node when$RegFile$133_44 kind=block pins=when$RegFile$133_44.io_wr_waddr:WEST,when$RegFile$133_44.io_wr_wdata:WEST,when$RegFile$133_44.io_wr_wen:WEST,when$RegFile$133_44.regs_MPORT_w:EAST
   edge io.rd -> regs~io_rd_rdata1_MPORT~r
   edge io.rd -> regs~io_rd_rdata2_MPORT~r
   edge regs~MPORT~a -> io.wr
   edge regs~MPORT~w -> when$RegFile$133_44.regs_MPORT_w
   edge regs~io_rd_rdata1_MPORT~a -> io.rd
   edge regs~io_rd_rdata2_MPORT~a -> io.rd
-  edge when$RegFile$133_44._T -> _T
+  edge when$RegFile$133_44.io_wr_waddr -> io.wr
   edge when$RegFile$133_44.io_wr_wdata -> io.wr
   edge when$RegFile$133_44.io_wr_wen -> io.wr
 layout WB
@@ -85,8 +81,9 @@ layout WB
   edge io.rf -> _io_rf_wen_T
   edge io.rf -> io.in
 layout when$Fetch$74_21
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _pc_T kind=op pins=_pc_T:EAST,_pc_T~in0:WEST,_pc_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$_pc_T~in1 kind=const pins=const$_pc_T~in1:EAST
   node io_out_ready kind=boundary pins=io_out_ready:EAST
   node io_out_valid kind=boundary pins=io_out_valid:EAST
@@ -96,13 +93,20 @@ layout when$Fetch$74_21
   edge _T~in1 -> io_out_valid
   edge _pc_T~in0 -> pc_2
   edge _pc_T~in1 -> const$_pc_T~in1
+  edge cond -> _T
   edge pc -> _pc_T
 layout when$RegFile$133_44
-  node _T kind=boundary pins=_T:EAST
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_T~in1 kind=const pins=const$_T~in1:EAST
+  node io_wr_waddr kind=boundary pins=io_wr_waddr:EAST
   node io_wr_wdata kind=boundary pins=io_wr_wdata:EAST
   node io_wr_wen kind=boundary pins=io_wr_wen:EAST
   node regs_MPORT_w kind=boundary pins=regs_MPORT_w:WEST
   edge _T_1~in0 -> io_wr_wen
   edge _T_1~in1 -> _T
+  edge _T~in0 -> io_wr_waddr
+  edge _T~in1 -> const$_T~in1
+  edge cond -> _T_1
   edge regs_MPORT_w -> io_wr_wdata

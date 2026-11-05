@@ -326,8 +326,9 @@ layout Queue8_UInt32
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
 layout when$AXIMaster$43_21
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
   node _idCnt_T kind=op pins=_idCnt_T:EAST,_idCnt_T~in0:WEST,_idCnt_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
   node const$_idCnt_T~in1 kind=const pins=const$_idCnt_T~in1:EAST
   node idCnt kind=boundary pins=idCnt:WEST
   node idCnt_2 kind=boundary pins=idCnt_2:EAST
@@ -337,6 +338,7 @@ layout when$AXIMaster$43_21
   edge _T~in1 -> io_ar_valid
   edge _idCnt_T~in0 -> idCnt_2
   edge _idCnt_T~in1 -> const$_idCnt_T~in1
+  edge cond -> _T
   edge idCnt -> _idCnt_T
 layoutOf AXISlave_1 -> AXISlave
 layoutOf Queue4_R_1 -> Queue4_R

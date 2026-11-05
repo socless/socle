@@ -443,6 +443,42 @@
             "col": 0
           },
           "label": "state"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 0"
+        },
+        {
+          "name": "cond_2",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 1"
+        },
+        {
+          "name": "cond_3",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "state === 2"
         }
       ],
       "children": [],
@@ -472,6 +508,39 @@
         {
           "from": "_T_2~in0",
           "to": "const$_T_2~in0",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.cond_2",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "fsm$TrafficFsm$15_17.cond_3",
+          "to": "_T_2",
           "bundle": "Wire",
           "label": "",
           "source": {

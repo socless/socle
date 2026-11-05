@@ -6350,10 +6350,33 @@
             "col": 0
           },
           "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Endpoint_2$56_21.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Endpoint_2$56_21.reg",
           "to": "when$Endpoint_2$56_21.io_req_bits_data_data",
@@ -6634,10 +6657,33 @@
             "col": 0
           },
           "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Endpoint$56_21.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Endpoint$56_21.reg",
           "to": "when$Endpoint$56_21.io_req_bits_data_data",
@@ -6851,10 +6897,33 @@
             "col": 0
           },
           "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire"
         }
       ],
       "children": [],
       "wires": [
+        {
+          "from": "when$Endpoint_1$56_21.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
         {
           "from": "when$Endpoint_1$56_21.reg",
           "to": "when$Endpoint_1$56_21.io_req_bits_data_data",
