@@ -174,7 +174,17 @@ object ViewHistory {
       clamp: Double => Double, fitPending: () => Boolean, takeView: () => Unit,
       dragging: () => Boolean, navigate: List[String] => Boolean,
       flyTarget: () => Option[(String, Geom)]) {
-    private[schematic] var hist = Stack()
+    private val canVar = Var((false, false))
+    /** Whether there is a view to go back to and one to go forward to (the
+      * Back and Forward buttons). */
+    val canSig: Signal[(Boolean, Boolean)] = canVar.signal
+    private var stack = Stack()
+    private[schematic] def hist: Stack = stack
+    private[schematic] def hist_=(s: Stack): Unit = {
+      stack = s
+      val can = (s.canBack, s.canForward)
+      if (canVar.now() != can) canVar.set(can)
+    }
     /** The module path shown. */
     var curPath: List[String] = Nil
     // A Back or Forward entry whose module is being shown: its view stands in

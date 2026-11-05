@@ -823,7 +823,8 @@ object Schematic {
       styleTag(Highlight.css),
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
-        Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) }),
+        Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
+        history.canSig, () => history.walk(_.back), () => history.walk(_.forward)),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
