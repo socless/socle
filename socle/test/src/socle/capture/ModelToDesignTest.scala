@@ -190,6 +190,71 @@ object ModelToDesignTest extends TestSuite {
     (model, index, src)
   }
 
+  // `for (i <- 0 until 2) { val r = RegInit(0.U); when(io.sel(i)) { r := io.d; s := io.d } }`
+  // and, outside the loop, `when(io.sel === 3.U) { s := 0.U }` (ChiselStage's
+  // CHIRRTL, markers shortened to L.scala). `s` is written inside and outside it.
+  private val loopScala: String = Seq(
+    "package loop", "", "import chisel3._", "", "",
+    "class LoopWhen extends Module {",                       // 6
+    "  val io = IO(new Bundle {",                            // 7
+    "    val sel = Input(UInt(2.W))",
+    "    val d   = Input(UInt(8.W))",
+    "    val o   = Output(Vec(2, UInt(8.W)))",
+    "    val s   = Output(UInt(8.W))",
+    "  })",
+    "  val s = RegInit(0.U(8.W))",                           // 13
+    "  for (i <- 0 until 2) {",                              // 14
+    "    val r = RegInit(0.U(8.W))",                         // 15
+    "    when(io.sel(i)) { r := io.d; s := io.d }",          // 16
+    "    io.o(i) := r",                                      // 17
+    "  }",                                                   // 18
+    "  when(io.sel === 3.U) { s := 0.U }",                   // 19
+    "  io.s := s",                                           // 20
+    "}").mkString("\n") + "\n"
+  private val loopFir: String =
+    """FIRRTL version 7.0.0
+      |circuit LoopWhen :
+      |  public module LoopWhen : @[L.scala 6:7]
+      |    input clock : Clock @[L.scala 6:7]
+      |    input reset : UInt<1> @[L.scala 6:7]
+      |    output io : { flip sel : UInt<2>, flip d : UInt<8>, o : UInt<8>[2], s : UInt<8>} @[L.scala 7:14]
+      |
+      |    regreset s : UInt<8>, clock, reset, UInt<8>(0h0) @[L.scala 13:18]
+      |    regreset r : UInt<8>, clock, reset, UInt<8>(0h0) @[L.scala 15:20]
+      |    node _T = bits(io.sel, 0, 0) @[L.scala 16:16]
+      |    when _T : @[L.scala 16:21]
+      |      connect r, io.d @[L.scala 16:25]
+      |      connect s, io.d @[L.scala 16:36]
+      |    connect io.o[0], r @[L.scala 17:13]
+      |    regreset r_1 : UInt<8>, clock, reset, UInt<8>(0h0) @[L.scala 15:20]
+      |    node _T_1 = bits(io.sel, 1, 1) @[L.scala 16:16]
+      |    when _T_1 : @[L.scala 16:21]
+      |      connect r_1, io.d @[L.scala 16:25]
+      |      connect s, io.d @[L.scala 16:36]
+      |    connect io.o[1], r_1 @[L.scala 17:13]
+      |    node _T_2 = eq(io.sel, UInt<2>(0h3)) @[L.scala 19:15]
+      |    when _T_2 : @[L.scala 19:24]
+      |      connect s, UInt<1>(0h0) @[L.scala 19:28]
+      |    connect io.s, s @[L.scala 20:8]
+      |""".stripMargin
+  private lazy val loopCaptured: (CapturedModel, SourceIndex) = {
+    val u2 = CType("chisel3.UInt", "UInt", "in", 2)
+    val u8 = CType("chisel3.UInt", "UInt", "unspecified", 8)
+    val io = CType("", "io", "out", -1, Seq("sel" -> u2, "d" -> u8.copy(dir = "in"),
+      "o" -> CType("chisel3.Vec", "Vec", "unspecified", -1, Seq("0" -> u8), vecLen = 2), "s" -> u8))
+    val ports = Seq(CPort("clock", CType("chisel3.Clock", "Clock", "in", -1)),
+      CPort("reset", CType("chisel3.Bool", "Bool", "in", 1)), CPort("io", io))
+    val model = CapturedModel("ok", "LoopWhen",
+      Seq(CModule("LoopWhen", "loop.LoopWhen", Nil, Some(CSource("L.scala", 6, 7)), ports, Nil)), chirrtl = loopFir)
+    val loop = Construct("for14", "for (i <- 0 until 2)", SourceRef("L.scala", 14, 3))
+    val index = new SourceIndex {
+      def construct(scalaClass: String, file: String, line: Int, col: Int): Option[Construct] =
+        if (file == "L.scala" && line >= 14 && line <= 18) Some(loop) else None
+      override def lines: socle.ir.SourceLines = socle.ir.SourceLines.of(Map("L.scala" -> loopScala))
+    }
+    (model, index)
+  }
+
   private val ClockReset = Set("Clock", "Reset", "AsyncReset")
   /** Endpoint kinds a captured module's wires may end on. */
   private val Kept = Set(NodeKind.Inst, NodeKind.Boundary, NodeKind.Const, NodeKind.Block, NodeKind.Fsm)
@@ -865,6 +930,27 @@ object ModelToDesignTest extends TestSuite {
       assert(inner.fsm.get.states.map(_.name) == Seq("attente", "reception", "envoi"))
       // Nested bodies are regions too.
       assert(d.regions.contains(sw), d.regions.contains("when$Er1Octet$39_21"))
+    }
+
+    test("a when in a generator loop and its registers stay in the loop's box") {
+      val (model, index) = loopCaptured
+      val d    = ModelToDesign.design(model, Some(index))
+      val m    = d.modules.find(_.name == "LoopWhen").get
+      val gen  = m.logic.find(n => n.kind == NodeKind.Block && n.label == "for (i <- 0 until 2)")
+      check(gen.isDefined, s"module logic ${m.logic.map(n => n.id -> n.label)}")
+      val body = d.regions(gen.get.id)
+      val held = body.logic.map(_.id).toSet
+      // The loop's when boxes and the registers made in the loop are in its box.
+      check(Set("when$LoopWhen$16_21", "when$LoopWhen$16_21$1", "r", "r_1").subsetOf(held), s"loop body $held")
+      // Their bodies open from there.
+      check(d.regions.contains("when$LoopWhen$16_21") && d.regions.contains("when$LoopWhen$16_21$1"), s"regions ${d.regions.keySet}")
+      // `s`, written by the loop and by a when outside it, stays plain, as does
+      // the outside when box.
+      check(m.logic.exists(n => n.id == "s" && n.kind == NodeKind.Reg), s"module logic ${m.logic.map(_.id)}")
+      check(m.logic.exists(_.id == "when$LoopWhen$19_24"), s"module logic ${m.logic.map(_.id)}")
+      check(!held("s") && !held("when$LoopWhen$19_24"), s"loop body $held")
+      // Every output port is still driven.
+      for (p <- Seq("io.o[0]", "io.o[1]", "io.s")) check(m.wires.exists(_.from == p), s"no wire into $p in ${m.wires}")
     }
 
     test("with source lines the code blocks keep every port wire") {

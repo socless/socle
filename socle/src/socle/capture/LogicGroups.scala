@@ -6,17 +6,20 @@ import scala.collection.mutable
 
 /** Decides which logic nodes of a module belong together as one box. Pure.
   * The module's code-block boxes (IrWalk's `when` / `switch` boxes, kinds
-  * block and fsm) are never members, and a register a box writes stays a
-  * plain node at module level, as the code declares it. Rules, in order:
-  * (2) layer nodes never join non-layer groups; (3) an op or mem whose source
-  * the index maps to a construct joins that construct; (4) an unknown-position
-  * node joins the one group it drives; (5) a register joins the one generator
-  * group that holds all its D drivers; (6) a const joins the one group that
-  * holds all its consumers, else stays a plain node; (7) everything else goes
-  * to `logic`. Rules 4 and 5 run to a fixpoint before rule 7, then rules 4 and
-  * 6 run again over the completed assignment so they can reach `logic`.
-  * (Rule 1, an FSM group around the state register, is gone: the FSM box is
-  * IrWalk's.) */
+  * block and fsm) only ever join a generator group, and a register a box
+  * writes stays a plain node at module level, as the code declares it, unless
+  * rule 5 places it in a generator group. Rules, in order: (2) layer nodes
+  * never join non-layer groups; (3) an op, a mem or a code-block box whose
+  * source the index maps to a construct joins that construct (a `when` in a
+  * `for` loop: the loop's box holds the copies); (4) an unknown-position node
+  * joins the one group it drives; (5) a register joins the one generator group
+  * that holds all its D drivers (a box among them: a register made in a loop
+  * and written by the loop's `when`s); (6) a const joins the one group that
+  * holds all its consumers, else stays a plain node; (7) everything else but a
+  * box or a register a box writes goes to `logic`. Rules 4 and 5 run to a
+  * fixpoint before rule 7, then rules 4 and 6 run again over the completed
+  * assignment so they can reach `logic`. (Rule 1, an FSM group around the
+  * state register, is gone: the FSM box is IrWalk's.) */
 object LogicGroups {
 
   private val MaxLabel = 40
@@ -41,10 +44,11 @@ object LogicGroups {
 
     val assigned = mutable.LinkedHashMap.empty[String, Key]
 
-    // Rule 3: op/mem with a source the index maps to a construct.
+    // Rule 3: op/mem/code-block box with a source the index maps to a construct.
     index.foreach { idx =>
       nodes.foreach { n =>
-        if ((n.kind == NodeKind.Op || n.kind == NodeKind.Mem) && !assigned.contains(n.id) && n.source.file.nonEmpty)
+        if ((n.kind == NodeKind.Op || n.kind == NodeKind.Mem || NodeKind.isBox(n.kind)) && !assigned.contains(n.id) &&
+            n.source.file.nonEmpty)
           idx.construct(module.scalaClass, n.source.file, n.source.line, n.source.col)
             .foreach(c => assigned(n.id) = GenKey(n.layer, c))
       }
@@ -81,7 +85,7 @@ object LogicGroups {
     }
     def follow(n: LogicNodeDef): Option[Key] = single(consumers.getOrElse(n.id, Nil), n.layer)
 
-    // A register a code-block box writes stays plain.
+    // A register a code-block box writes stays plain (unless rule 5 places it).
     val boxes = nodes.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
     def boxWritten(n: LogicNodeDef) =
       n.kind == NodeKind.Reg && drivers.get(n.id).exists(_.exists(_.exists(boxes)))

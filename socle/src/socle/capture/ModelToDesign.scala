@@ -100,7 +100,6 @@ object ModelToDesign {
         case Some(im) =>
           val named            = im.copy(scalaClass = c.scalaClass)
           val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName)
-          regions ++= bodies
           lazy val caseLits = circ.modules.find(_.name == c.name).toSeq.flatMap(FsmDetect.detect)
             .map(f => f.stateReg -> f.caseLits).toMap
           // An FSM box carries its state diagram, on its register (`state`).
@@ -123,8 +122,9 @@ object ModelToDesign {
               }
             }
           // IrWalk's code-block boxes stay as built: copy every body reachable
-          // from the module's boxes (nested boxes included), each FSM box in
-          // them with its diagram.
+          // from the module's boxes and from the generator groups' bodies (a
+          // `when` in a loop), nested boxes included, each FSM box in them with
+          // its diagram.
           def copyBodies(logic: Seq[LogicNodeDef]): Unit =
             logic.filter(n => NodeKind.isBox(n.kind) && !regions.contains(n.id)).foreach { n =>
               ir.regions.get(n.id).foreach { body =>
@@ -132,7 +132,9 @@ object ModelToDesign {
                 copyBodies(body.logic)
               }
             }
+          bodies.foreach { case (id, body) => regions(id) = body.copy(logic = body.logic.map(withDiagram)) }
           copyBodies(folded.logic)
+          bodies.valuesIterator.foreach(body => copyBodies(body.logic))
           val logic = folded.logic.map(withDiagram)
           (logic, folded.wires)
         case None =>
