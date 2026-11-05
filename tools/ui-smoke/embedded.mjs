@@ -510,8 +510,18 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   };
   const P = (leaf) => `${PREFIX}.${leaf}`;
   // GCD's edge stubs are its ports `io.in` and `io.out` (#332): a click on a
-  // field's port selects that port.
-  const stub = (id) => page.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first().click();
+  // field's port selects that port. A focus may have flown the view so that
+  // the stub lies outside the canvas (a transform, nothing to scroll): fit first.
+  const stub = async (id) => {
+    const loc = page.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first();
+    const shown = await loc.evaluate((e) => {
+      const r = e.getBoundingClientRect();
+      const v = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+      return r.top >= v.top && r.bottom <= v.bottom && r.left >= v.left && r.right <= v.right;
+    }).catch(() => true);
+    if (!shown) { await page.locator('button[title="Fit to view"]').first().click(); await page.waitForTimeout(400); }
+    await loc.click();
+  };
 
   // No trace yet: the Waveform tab is there and explains how to get one; selecting is harmless.
   await page.click('[data-toggle-pane="bottom"]'); // embedded, the bottom panel starts closed

@@ -969,10 +969,11 @@ async function smokeDesignIn(design, ctx) {
         }
         drain(`${where} (live reload)`);
         // An FSM block opens its source too. No captured fixture holds an FSM,
-        // so the same block is served again as an `fsm` box.
-        const fsmId = 'blk$Cluster$fsm$state';
+        // so the same block is served again as an `fsm` box, named and shaped
+        // as IrWalk names one (a marker id, its register in `state`).
+        const fsmId = 'fsm$Cluster$119_5';
         const asFsm = JSON.parse(fresh.split('blk$Cluster$logic2').join(fsmId));
-        for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) n.kind = 'fsm';
+        for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) { n.kind = 'fsm'; n.state = 'state'; }
         await page.unroute('**/design.json');
         await page.route('**/design.json', (rt) => rt.fulfill({
           contentType: 'application/json', body: JSON.stringify(asFsm),
@@ -1124,6 +1125,14 @@ async function smokeDesignIn(design, ctx) {
       }
       for (let i = 0; i < r.states.length; i++) for (let j = i + 1; j < r.states.length; j++)
         if (overlaps(r.states[i].box, r.states[j].box)) note(design, where, `${r.states[i].name} overlaps ${r.states[j].name}`);
+      // The box id (a source marker) names no register: the crumb reads the
+      // box's `state` field.
+      const stateField = await page.evaluate(async (box) => {
+        const d = await (await fetch('design.json')).json();
+        const all = [...d.modules.flatMap((m) => m.logic || []), ...Object.values(d.regions || {}).flatMap((b) => b.logic || [])];
+        return all.find((n) => n.id === box)?.state ?? null;
+      }, id).catch((e) => `error: ${e.message}`);
+      if (stateField !== 'state') note(design, where, `${id} carries state ${JSON.stringify(stateField)}, not "state"`);
       const cs = await crumbs();
       if (cs[cs.length - 1] !== 'FSM: state') note(design, where, `last breadcrumb ${JSON.stringify(cs)}`);
       // The start dot sits above the initial state (it is laid out in the first layer).
