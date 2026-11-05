@@ -81,10 +81,15 @@ object RegisterDomainTest extends TestSuite {
       val prep = LayoutCore.prepare(slave, design)
       val fall = prep.nodes.find(_.id == Synthetic.clockDomainId("fall")).get
       assert(fall.kind == NodeKind.Domain, fall.pins.map(_.side) == Seq(PinSide.West), fall.layerConstraint.isEmpty)
+      // At a fixed position, the middle of its left edge, so both engines (which
+      // keep a non-boundary node's pins where prepare puts them) agree.
+      assert(fall.pins.head.x == 0.0, fall.pins.head.y == fall.height / 2)
       assert(prep.edges.exists(e => e.fromPath == Synthetic.clockDomainId("fall") && e.toPath == "_fall_T"))
       val laid = Layout.layout(slave, design)
       val box  = laid.nodes.find(_.id == Synthetic.clockDomainId("fall")).get
       assert(box.w > 0, box.h > 0)
+      val pin  = box.ports.head
+      assert(pin.x <= box.x, box.x - pin.x <= 8, pin.y == box.y + box.h / 2)
       assert(laid.edges.exists(e => e.from == Synthetic.clockDomainId("fall")))
     }
 

@@ -154,20 +154,23 @@ private[schematic] object SchematicBoxes {
     val ink   = domain.getOrElse(Tokens.ink2)
     // Its pin's row in the box (the box's middle without one).
     val py: Double = n.ports.headOption.fold(n.h / 2.0)(p => (p.y - n.y).toDouble)
+    val px: Double = n.ports.headOption.fold(0.0)(p => (p.x - n.x).toDouble)
     reg(ctx, n.id, Highlight.BoxKind.Selectable, div(
       cls := "scl-sym",
       dataAttr("logic-node") := n.id,
       dataAttr("box-inst") := n.id,
       dataAttr("domain-stub") := ln.fold("")(l => if (l.reset.nonEmpty) l.reset else l.clock),
+      dataAttr("symbol") := "domain",
       dataAttr("pan-block") := "1",
       styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
         s"overflow:visible;cursor:pointer;transition:opacity .15s;--bf:${SchematicColors.boxFill(n.kind)}",
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
-      // The tag, centred on its pin's row, with the pin's dot at its left edge.
+      // The tag, centred on its pin's row, joined to the pin (where the wire
+      // ends, just left of the box) by a short lead.
       div(styleAttr := s"position:absolute;left:0;top:${py - 8}px;height:16px;box-sizing:border-box;padding:0 6px;" +
         s"display:flex;align-items:center;border:1px solid $ink;border-left-width:3px;border-radius:3px;background:${Tokens.panel};" +
         s"font-family:${Tokens.mono};font-size:var(--sch-label);font-weight:600;color:$ink;white-space:nowrap", label),
-      div(styleAttr := s"position:absolute;left:-1.5px;top:${py - 3}px;width:3px;height:6px;background:$ink;border-radius:1px"),
+      div(styleAttr := s"position:absolute;left:${math.min(0.0, px)}px;top:${py - 0.75}px;width:${math.max(1.0, -px)}px;height:1.5px;background:$ink"),
     ))
   }
 

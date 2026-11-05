@@ -626,7 +626,10 @@ object LayoutCore {
         val stacked = pins.size > 1
         val laidPins = pins.values.toSeq.zipWithIndex.map { case (p, i) =>
           val (x, y) =
-            if (!stacked) (0.0, 0.0)
+            // A domain sink's one pin: the middle of its left edge, fixed, as
+            // both engines keep a non-boundary node's pins where they are put.
+            if (!stacked && kind == NodeKind.Domain) (0.0, BoundaryH / 2)
+            else if (!stacked) (0.0, 0.0)
             else (if (p.side == PinSide.East) bw else 0.0, PortPad + i * PortStep + PortStep / 2)
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), x, y,
             expandableOf(id, kind, p))
