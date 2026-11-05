@@ -394,7 +394,9 @@
             "file": "example/src/gcd/GCD.scala",
             "line": 30,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "y",
@@ -405,7 +407,9 @@
             "file": "example/src/gcd/GCD.scala",
             "line": 31,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "busy",
@@ -416,7 +420,9 @@
             "file": "example/src/gcd/GCD.scala",
             "line": 32,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_in_ready_T~in1",

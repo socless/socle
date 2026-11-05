@@ -322,7 +322,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -333,7 +335,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
@@ -586,7 +590,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -597,7 +603,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
@@ -850,7 +858,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -861,7 +871,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
@@ -2613,7 +2625,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -2624,7 +2638,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -2635,7 +2651,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",
@@ -3906,7 +3924,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -3917,7 +3937,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -3928,7 +3950,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",
@@ -5199,7 +5223,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -5210,7 +5236,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -5221,7 +5249,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",

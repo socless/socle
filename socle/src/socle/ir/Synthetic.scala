@@ -17,6 +17,8 @@ package socle.ir
   *   mux$<sink>        synthesized mux node feeding <sink>
   *   asg$<block>$<sink>  assignment terminal: what code block <block> drives <sink> with
   *   cnd$<block>       condition terminal: the arm conditions of code block <block>
+  *   clk$<domain>      clock domain sink: the stub a derived clock drives
+  *   rst$<domain>      reset domain sink: the stub a derived reset drives
   *   <when|switch|fsm>$<mod>$<label>$<k>   a user-written code block (`CodeBlocks`),
   *                     named by its sanitized label and its ordinal among the
   *                     module's blocks of that kind and label (`fsm$` for a
@@ -35,6 +37,8 @@ object Synthetic {
   val MemSep      = "~"
   val AssignPrefix = "asg$"
   val CondPrefix   = "cnd$"
+  val ClockDomainPrefix = "clk$"
+  val ResetDomainPrefix = "rst$"
 
   /** The i-th input pin of logic-op node `node`: `<node>~in<i>`. */
   def opInPin(node: String, i: Int): String = s"$node$InMarker$i"
@@ -89,6 +93,12 @@ object Synthetic {
 
   /** Condition terminal of code block `block`: one input pin per arm condition. */
   def condId(block: String): String = CondPrefix + block
+
+  /** Domain sink of the derived clock `domain` (`fall`, `io.sclk`). */
+  def clockDomainId(domain: String): String = ClockDomainPrefix + sanitize(domain)
+
+  /** Domain sink of the derived reset `domain` (`ssReset`). */
+  def resetDomainId(domain: String): String = ResetDomainPrefix + sanitize(domain)
 
   /** Is `id` an assignment or condition terminal? */
   def isTerminal(id: String): Boolean = id.startsWith(AssignPrefix) || id.startsWith(CondPrefix)

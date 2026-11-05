@@ -162,10 +162,13 @@ object IrWalk {
     // it share a domain. We find that port on the *child* module's interface
     // (clock by type or name, reset by type or name since reset is often
     // lowered to UInt<1>) and look up `<inst>.<port>` on the LHS of a connect.
+    // The driver is named like a register's domain (`domainOf`), so an instance
+    // and a register on one clock share it.
     def driverOf(instName: String, portNames: Seq[String]): String =
       portNames.iterator
         .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
         .find(_.nonEmpty)
+        .map(domainOf(m, _))
         .getOrElse("")
 
     val children = m.insts.map { i =>
@@ -187,8 +190,29 @@ object IrWalk {
     val regLogic: Seq[LogicNodeDef] = m.regs.map { r =>
       val key = registerType(r.tpe, r.name, bundles)
       LogicNodeDef(id = r.name, kind = NodeKind.Reg, label = r.name, bundle = key,
-        source = r.src.map(toRef).getOrElse(SourceRef.unknown))
+        source = r.src.map(toRef).getOrElse(SourceRef.unknown),
+        clock = if (r.clock.isEmpty) "" else domainOf(m, r.clock),
+        reset = if (r.reset.isEmpty) "" else domainOf(m, r.reset))
     }
+    // Domain sinks: each derived clock or reset the registers use (a node or a
+    // port field, not the module's own clock/reset port, which has its clk/rst
+    // rows) gets a sink wired from the signal, so the logic computing it
+    // (`!io.sclk`, `io.ss`) drives something: a short stub labelled with the
+    // domain. A reset's sink takes the one clock of the registers it resets
+    // (its colour), "" when they are on several.
+    val ownClockReset: Set[String] = m.ports.filter(p => isClockPort(p) || isResetPort(p)).map(_.name).toSet
+    def derived(d: String): Boolean =
+      d.nonEmpty && (d.head.isLetter || d.head == '_') && !d.contains('(') && !ownClockReset.contains(d)
+    val domainLogic: Seq[LogicNodeDef] =
+      regLogic.map(_.clock).filter(derived).distinct.map { d =>
+        LogicNodeDef(id = Synthetic.clockDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
+          source = SourceRef.unknown, clock = d)
+      } ++ regLogic.map(_.reset).filter(derived).distinct.map { d =>
+        val clocks: Seq[String] = regLogic.filter(_.reset == d).map(_.clock).distinct
+        LogicNodeDef(id = Synthetic.resetDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
+          source = SourceRef.unknown, clock = if (clocks.size == 1) clocks.head else "", reset = d)
+      }
+    val domainEdges: Seq[(String, String)] = domainLogic.map(n => (n.id, n.label))
     val regType: Map[String, String] = regLogic.map(n => n.id -> n.bundle).toMap
     // Combinational logic nodes (issue #188 B2). Logic ops render as nodes whose
     // value is a net terminal (input pins `_T~in<i>`, output `_T`); plumbing ops
@@ -295,10 +319,10 @@ object IrWalk {
     val termLogic: Seq[LogicNodeDef] = termInputs.keys.toSeq.map { id =>
       LogicNodeDef(id = id, kind = NodeKind.Op, label = "", bundle = "", source = SourceRef.unknown, op = "terminal")
     }
-    val (wires, constLogic) =
+    val (coalesced, constLogic) =
       coalesceWires(m, keptConns.toSeq, byName, bundles, regNames, regType,
-        logicNodeNames ++ muxIds ++ mem.ids ++ termInputs.keySet,
-        nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ condEdges)
+        logicNodeNames ++ muxIds ++ mem.ids ++ termInputs.keySet ++ domainLogic.map(_.id),
+        nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ condEdges ++ domainEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -306,7 +330,12 @@ object IrWalk {
       gates     = None,
       memories  = m.mems.size,
     )
-    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic ++ termLogic
+    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic ++ termLogic ++ domainLogic
+    // A domain sink's wire is a stub, never hidden as a clock/reset wire (the
+    // layout drops those): a Clock-typed source keeps the plain `Wire` label.
+    val domainIds: Set[String] = domainLogic.map(_.id).toSet
+    val wires: Seq[WireDef] = coalesced.map(w =>
+      if (domainIds(w.from) && LayoutCore.isClockReset(w)) w.copy(bundle = "Wire") else w)
     // Verification-layer flagging (issue #212): mark logic nodes that are Chisel
     // layer content so the UI can hide them behind "show layers". Seeds: nodes
     // declared inside a `layerblock`, or a module-level condition node the layer
@@ -784,6 +813,24 @@ object IrWalk {
   // strong signal; a name fallback catches reset lowered to UInt<1> (common
   // after some passes) and clocks named clk. Mirrors the UI's clock/reset
   // de-emphasis heuristic so the two stay consistent.
+  /** A clock or reset signal as the user named it: `ref`, through the CHIRRTL
+    * temps (`_T`) that only cast or alias one signal (`_T = asAsyncReset(reset)`
+    * is `reset`). A user-named node (`fall = asClock(_fall_T)`) is its own
+    * name, as Chisel names a node after its Scala val. */
+  private[ir] def domainOf(m: Mod, ref: String): String = {
+    val castOps: Set[String] = Set("", "asClock", "asAsyncReset", "asUInt", "asSInt", "cvt")
+    @scala.annotation.tailrec
+    def go(r: String, hops: Int): String =
+      if (!r.startsWith("_") || hops > 64) r
+      else m.nodes.find(_.name == r) match {
+        case Some(n) if castOps(n.op) && n.operands.size == 1 &&
+            n.operands.head.headOption.exists(c => c.isLetter || c == '_') && !n.operands.head.contains('(') =>
+          go(n.operands.head, hops + 1)
+        case _ => r
+      }
+    go(ref.trim, 0)
+  }
+
   private def isClockPort(p: ChirrtlParser.Port): Boolean = p.tpe match {
     case GroundT("Clock", _) => true
     case _                   => { val n = p.name.toLowerCase; n == "clock" || n == "clk" }

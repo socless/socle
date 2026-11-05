@@ -482,7 +482,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 65,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$io_imem_req_bits_wdata",

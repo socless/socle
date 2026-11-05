@@ -302,7 +302,9 @@
             "file": "example/src/layers/LayeredCounter.scala",
             "line": 26,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_T_1~in1",

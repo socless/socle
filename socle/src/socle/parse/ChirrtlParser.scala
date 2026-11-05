@@ -53,7 +53,11 @@ object ChirrtlParser {
     */
   case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false,
       // the `regreset` init operand as written (`UInt<2>(0h0)`); None for a plain reg
-      init: Option[String] = None)
+      init: Option[String] = None,
+      // the clock operand as written (`clock`, `fall`); "" when unreadable
+      clock: String = "",
+      // the `regreset` reset operand as written (`reset`, `_T`); "" for a plain reg
+      reset: String = "")
 
   /** A wire declaration inside a module body: `wire <name> : <type>`. Kept for
     * the probe view's signal list; the classic IrWalk path does not read it. */
@@ -443,8 +447,11 @@ object ChirrtlParser {
       // Parse the type prefix; of the operands after it, keep a regreset's init.
       val (tpe, rest) = parseType(typeStr.trim)
       val ops  = rest.trim.stripPrefix(",").split(",", 3).map(_.trim)
-      val init = Option.when(line.trim.startsWith("regreset") && ops.length == 3 && ops(2).nonEmpty)(ops(2))
-      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt)), init = init))
+      val isRegReset: Boolean = line.trim.startsWith("regreset")
+      val init = Option.when(isRegReset && ops.length == 3 && ops(2).nonEmpty)(ops(2))
+      val clock: String = if (ops.nonEmpty) ops(0) else ""
+      val reset: String = if (isRegReset && ops.length >= 2) ops(1) else ""
+      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt)), init = init, clock = clock, reset = reset))
     case WireRe(name, typeStr, srcOpt) =>
       val (tpe, _) = parseType(typeStr.trim)
       Some(WireDecl(name, tpe, parseSrc(Option(srcOpt))))

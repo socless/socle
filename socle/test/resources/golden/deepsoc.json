@@ -1555,7 +1555,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 83,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "busy",
@@ -1566,7 +1568,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_in_ready_T~in1",
@@ -3074,7 +3078,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 83,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "busy",
@@ -3085,7 +3091,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_in_ready_T~in1",
@@ -4046,7 +4054,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 128,
             "col": 20
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "outSel",
@@ -4057,7 +4067,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 144,
             "col": 23
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_cores_0_io_in_valid_T~in1",
@@ -5870,7 +5882,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 83,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "busy",
@@ -5881,7 +5895,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_in_ready_T~in1",
@@ -7389,7 +7405,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 83,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "busy",
@@ -7400,7 +7418,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 84,
             "col": 21
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_in_ready_T~in1",
@@ -8361,7 +8381,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 128,
             "col": 20
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "outSel",
@@ -8372,7 +8394,9 @@
             "file": "example/src/deephier/DeepSoc.scala",
             "line": 144,
             "col": 23
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_cores_0_io_in_valid_T~in1",
@@ -9536,7 +9560,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -9547,7 +9573,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -9558,7 +9586,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",

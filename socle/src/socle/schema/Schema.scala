@@ -25,6 +25,11 @@ object NodeKind {
   val Block    = "block"
   /** Memory node: a cmem/smem with read/write access ports (issue #205). */
   val Mem      = "mem"
+  /** Domain sink: a derived clock or reset (`fall = (!io.sclk).asClock`) that
+    * registers use. Its one input pin is wired from the logic computing the
+    * signal, which would otherwise drive nothing; drawn as a short labelled
+    * stub (`→ fall`). Not made for a module's own clock/reset port. */
+  val Domain   = "domain"
 
   /** A box with named pins and a body in `Design.regions`: an FSM or a block. */
   def isBox(kind: String): Boolean = kind == Fsm || kind == Block
@@ -306,6 +311,15 @@ case class LogicNodeDef(
   // For kind "fsm": its state register. Empty for every other node. Trailing
   // default keeps older design.json loadable.
   state: String = "",
+  // For kind "reg": its clock and reset domain, the signal as the user named it
+  // (`clock`, `fall`; `reset`, `ssReset`), named like `InstanceDef.clock`;
+  // reset is "" for a register without one. For kind "domain": `clock` is the
+  // clock domain it stands for (or, for a reset, the one clock of the
+  // registers it resets, "" when they are on several) and `reset` the reset
+  // domain ("" for a clock). Empty for every other node. Trailing defaults
+  // keep older design.json loadable.
+  clock: String = "",
+  reset: String = "",
 )
 object LogicNodeDef { implicit val rw: ReadWriter[LogicNodeDef] = macroRW }
 

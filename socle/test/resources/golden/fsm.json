@@ -152,7 +152,9 @@
             "file": "example/src/fsm/TrafficFsm.scala",
             "line": 14,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_green_T~in1",

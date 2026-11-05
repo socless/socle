@@ -210,8 +210,12 @@ object ModelToDesign {
         doc        = "",
         source     = c.source.map(s => SourceRef(s.file, s.line, s.col)).getOrElse(SourceRef.unknown),
         ports      = ports(c.name).map { case (n, d, k) => PortDef(n, d, k.key, "", SourceRef.unknown) },
-        children   = c.instances.map(i => InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module),
-          foldGroup = foldGroups.getOrElse(i.name, ""))),
+        children   = c.instances.map { i =>
+          // Its clock and reset domain, from the CHIRRTL walk when the capture has it.
+          val ir: Option[InstanceDef] = if (m.chirrtl.nonEmpty) irModules.get(c.name).flatMap(_.children.find(_.name == i.name)) else None
+          InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module),
+            foldGroup = foldGroups.getOrElse(i.name, ""), clock = ir.fold("")(_.clock), reset = ir.fold("")(_.reset))
+        },
         wires      = wires,
         // The CHIRRTL walk's counts (registers, connects, lines, memories), when the capture has it (#333).
         metrics    = irModule.map(_.metrics).getOrElse(Metrics(0, 0, 0)),

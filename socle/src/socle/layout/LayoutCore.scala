@@ -188,6 +188,19 @@ object LayoutCore {
   def hasClockPort(m: ModuleDef): Boolean = m.ports.exists(p => p.bundle == "Clock")
   def hasResetPort(m: ModuleDef): Boolean =
     m.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset" || (p.name == "reset" && bit(p)))
+  /** The clock domains of `m`, in order of first use: its instances' clocks,
+    * then its registers'. Empty when it has fewer than two, as one domain is
+    * not worth a colour. */
+  def clockDomains(m: ModuleDef): Seq[String] = {
+    val ds: Seq[String] =
+      (m.children.iterator.map(_.clock) ++ m.logic.iterator.filter(_.kind == NodeKind.Reg).map(_.clock))
+        .filter(_.nonEmpty).toSeq.distinct
+    if (ds.size < 2) Nil else ds
+  }
+
+  /** A domain sink's label: the domain it stands for, after an arrow (`→ fall`). */
+  def domainLabel(n: LogicNodeDef): String = s"→ ${n.label}"
+
   /** Whether `m`'s reset is asynchronous. */
   def asyncReset(m: ModuleDef): Boolean = m.ports.exists(_.bundle == "AsyncReset")
 
@@ -257,6 +270,7 @@ object LayoutCore {
     val constIds: Set[String] = ids(_.kind == NodeKind.Const)
     val opIds: Set[String]    = ids(_.kind == NodeKind.Op)
     val memIds: Set[String]   = ids(_.kind == NodeKind.Mem)
+    val domainIds: Set[String] = ids(_.kind == NodeKind.Domain)
     val fsmIds: Set[String]   = ids(n => NodeKind.isBox(n.kind))
   }
 
@@ -296,6 +310,9 @@ object LayoutCore {
         return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead), regBundle(rawHead)))
       if (constIds.contains(rawHead))
         return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false, ""))
+      // A domain sink: its one pin receives the clock or reset (WEST).
+      if (ix.domainIds.contains(rawHead))
+        return Some(Endpoint(rawHead, NodeKind.Domain, path, PinSide.West, false, ""))
       Synthetic.memPinParts(rawHead) match {
         case Some((memId, _, role)) if memIds.contains(memId) =>
           // Memory pins: read-data drives rightward (EAST); address + write-data
@@ -587,7 +604,9 @@ object LayoutCore {
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
       // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
       // into the instance branch below (header + D/Q port rows).
-      val compact = kind == NodeKind.Boundary || kind == NodeKind.Const
+      // A domain sink is a stub too, sized to its `→ fall` label and, like a
+      // const, ranked by dataflow (next to its source), not column-pinned.
+      val compact = kind == NodeKind.Boundary || kind == NodeKind.Const || kind == NodeKind.Domain
       if (compact) {
         // Boundary/const: compact, but at least wide enough for the label (if any).
         // A const shows ONLY its literal value (the logic node's `label`, e.g.
@@ -595,6 +614,7 @@ object LayoutCore {
         // so size it to that value rather than the pin label (issue #188 follow-up).
         val constLabel =
           if (kind == NodeKind.Const) module.logic.find(_.id == id).map(_.label).filter(_.nonEmpty)
+          else if (kind == NodeKind.Domain) module.logic.find(_.id == id).map(domainLabel)
           else None
         val maxLabelPx = constLabel match {
           case Some(v) => labelPx(v)
