@@ -38,11 +38,15 @@ object LogicBlocks {
 
   /** The driver-side pin: a register read `X~q` names `X`, an op output `X`
     * names `X`, a box pin `<box>.<pin>` names `<pin>`, a port or an instance
-    * keeps its path. A trailing `[i]` is dropped; `head` renames the head of a
+    * keeps its path. A trailing `[i]` is dropped, except on a register
+    * element read (`v~q[0]` names `v_0`, as before the `~q` moved ahead of
+    * the index); `head` renames the head of a
     * non-box driver (the key carries the renamed path). The name maps every
     * non-[A-Za-z0-9_] char to `_`, collapses `__` and trims a trailing `_`. */
   def driverPin(driver: String, boxes: Set[String], head: String => String = identity): (String, String) = {
-    val path  = driver.replaceAll("""\[[^\]]*\]$""", "")
+    // A register element read `v~q[0]` keeps its index (pin `v_0`, one per element).
+    val qRead = stripIdx(driver.takeWhile(_ != '.')).endsWith(Synthetic.QSuffix)
+    val path  = if (qRead) driver else driver.replaceAll("""\[[^\]]*\]$""", "")
     val parts = path.split('.').toList
     val (key, shown) = parts match {
       case h :: pin if pin.nonEmpty && boxes.contains(stripIdx(h)) => (path, pin.mkString("."))

@@ -77,10 +77,10 @@ object LogicBlocksTest extends TestSuite {
       // A register read names the register; inner indices and `__` collapse,
       // a trailing `_` goes; a trailing index is dropped.
       val m = module(Seq(node("_T", NodeKind.Op), node("_T_1", NodeKind.Op), node("_T_2", NodeKind.Op)),
-        Seq(w("_T~in0", "r[0]~q"), w("_T_1~in0", "io.rd[0].idx.valid"), w("_T_2~in0", "io.v[3]")))
+        Seq(w("_T~in0", "r~q[0]"), w("_T_1~in0", "io.rd[0].idx.valid"), w("_T_2~in0", "io.v[3]")))
       val (out, bodies) = LogicBlocks.collapse(m, Seq(group(B, "_T", "_T_1", "_T_2")))
       assert(bodies(B).ports.map(_.name) == Seq("r_0", "io_rd_0_idx_valid", "io_v"))
-      assert(pairs(out.wires) == Seq((s"$B.r_0", "r[0]~q"), (s"$B.io_rd_0_idx_valid", "io.rd[0].idx.valid"), (s"$B.io_v", "io.v[3]")))
+      assert(pairs(out.wires) == Seq((s"$B.r_0", "r~q[0]"), (s"$B.io_rd_0_idx_valid", "io.rd[0].idx.valid"), (s"$B.io_v", "io.v[3]")))
     }
     test("a box pin driver names the pin after the box's pin") {
       val m = module(Seq(node("fsm$M$state", NodeKind.Fsm), node("_T", NodeKind.Op)),

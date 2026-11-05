@@ -935,11 +935,13 @@ object IrWalk {
 
     // A register only ever appears as a SOURCE for its Q-output and a SINK for
     // its D-input; CHIRRTL spells both as the plain reg path. `~q`-suffix the
-    // HEAD segment of any resolved SOURCE that is a register so the Q pin (`r~q`)
-    // is distinct from the D pin (`r`).
+    // register NAME of any resolved SOURCE that is a register so the Q pin (`r~q`)
+    // is distinct from the D pin (`r`). The `~q` goes before any index or field
+    // (`r~q.a`, `v~q[0]`, `v~q[0].a`), so a Vec element's head with its index
+    // stripped is still the Q pin `v~q`.
     private def qSuffix(path: String): String = {
-      val i = path.indexOf('.')
-      if (i < 0) path + "~q" else path.substring(0, i) + "~q" + path.substring(i)
+      val i = path.indexWhere(c => c == '.' || c == '[')
+      if (i < 0) path + Synthetic.QSuffix else path.substring(0, i) + Synthetic.QSuffix + path.substring(i)
     }
     private def isReg(path: String): Boolean = regNames.contains(stripIdx(path.split('.').head))
 

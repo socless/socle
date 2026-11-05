@@ -9,7 +9,8 @@ package socle.ir
   * CHIRRTL names, but are made unambiguous by sanitizing the sink path.
   *
   * {{{
-  *   <node>~q          register Q output pin (the read side of a register)
+  *   <node>~q          register Q output pin (the read side of a register); an
+  *                     index or field follows it (`v~q[0]`, `v~q[0].a`)
   *   <node>~in<i>      i-th input pin of a logic-op node
   *   <mem>~<port>~<r|w|a>   memory read-data / write-data / address pin
   *   const$<sink>      synthesized constant node feeding <sink>
@@ -62,9 +63,14 @@ object Synthetic {
       else { val t = head.indexOf('~'); if (t >= 0) head.substring(0, t) else head }
     }
 
-  /** Strip only a trailing register Q suffix (no `~in` handling). */
-  def stripQ(head: String): String =
-    if (head.endsWith(QSuffix)) head.dropRight(QSuffix.length) else head
+  /** Strip only the register Q suffix of a head (no `~in` handling): `r~q` is
+    * `r`, and a Vec element's `v~q[0]` is `v[0]` (the `~q` follows the register
+    * name, before any index). */
+  def stripQ(head: String): String = {
+    val i    = head.indexOf('[')
+    val name = if (i < 0) head else head.substring(0, i)
+    if (name.endsWith(QSuffix)) name.dropRight(QSuffix.length) + head.substring(name.length) else head
+  }
 
   /** Sanitize a sink path into an identifier-safe token (`.`, `[`, `]` -> `_`). */
   private def sanitize(sink: String): String = sink.replaceAll("[.\\[\\]]", "_")

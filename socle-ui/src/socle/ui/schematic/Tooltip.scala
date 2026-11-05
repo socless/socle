@@ -261,9 +261,11 @@ object Tooltip {
     val dot  = p.indexOf('.')
     val head = if (dot < 0) p else p.substring(0, dot)
     val rest = if (dot < 0) "" else p.substring(dot)
+    // A Vec register element's Q pin `v~q[0]` is `v[0]`: the `~q` precedes the index.
+    val name = head.takeWhile(_ != '[')
     (head match {
       case OpInRe(n, i)              => s"$n.in$i"
-      case _ if head.endsWith("~q") => head.dropRight(2)
+      case _ if name.endsWith("~q") => name.dropRight(2) + head.substring(name.length)
       case _                         => head
     }) + rest
   }
