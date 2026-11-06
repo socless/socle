@@ -9,6 +9,33 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-11-06
+
+### Added
+
+- The schematic shows the Chisel code's own structure: every `when` and `switch` you
+  wrote is a box labelled as written (`when(io.enable)`) and nested as in the code,
+  with its condition on a pin. The registers it assigns stay at module level, fed from
+  the box, and a `switch` state machine's box opens its state diagram. Export mode
+  needs the source root (the Mill plugin passes it); view mode reads the sources
+  through the IDE.
+- Clock domains on registers: each register is coloured with its clock domain, and
+  logic that derives a clock or a reset (`io.sclk` to a rising-edge clock) shows as a
+  small coloured stub. New example: `SpiSlave` (`mill example.socleRunDomains`).
+- Previous / Next module buttons at the top left of the schematic and of the state
+  diagram. On the diagram, Previous closes it and Next reopens it. Alt+Left / Alt+Right,
+  the mouse's side buttons and the palette still step one view at a time.
+- The hierarchy tree follows the module you open: it expands down to it, highlights
+  it and scrolls it into view.
+
+### Fixed
+
+- A state machine inside a `when` (`when(io.enable) { switch(state) { ... } }`) is
+  detected, and the conditions it reads are wired into it.
+- A double-click opens any module with registers, logic or wires, not only modules
+  with sub-instances.
+- A read of one element of a `Vec` register comes from the register's output.
+
 ## [0.24.0] - 2026-11-04
 
 ### Added
