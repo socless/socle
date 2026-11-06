@@ -40,6 +40,7 @@ mill example.socleRunBigArray  # BigArray (16x16 stages: the UI smoke's performa
 ./mill example.socleCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
 ./mill example.socleCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
 ./mill example.socleCapturedGcd      # committed GCD capture -> design.json with its signals (embedded.mjs Waveform check)
+./mill example.socleCapturedPipeline # committed RVPipeline capture -> design.json with its source (README screenshots)
 ./mill example.socleView gcd.GcdSpec "GCD computes gcd(48, 18)"  # view a ChiselSim test's design (probe, no simulation)
 mill show example.socleRun     # Print path to emitted design.json
 
