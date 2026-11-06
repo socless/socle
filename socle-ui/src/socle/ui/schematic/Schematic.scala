@@ -89,6 +89,9 @@ object Schematic {
     // Show a drill path (Back / Forward, a fly to another module); false when
     // it does not resolve in the design.
     navigate: List[String] => Boolean = _ => false,
+    // Whether a drill path resolves in the design (what `navigate` would
+    // show), without showing it: the Back and Forward buttons' state.
+    resolves: List[String] => Boolean = _ => false,
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -378,7 +381,8 @@ object Schematic {
       dragging   = () => gestures != null && gestures.busy,
       navigate   = navigate,
       flyTarget  = () => Option.when(prevPathKey != null && settledPathVar.now().contains(prevPathKey) && !pendingVar.now())(prevPathKey)
-                     .flatMap(pk => Option(hl.geom).map(pk -> _)))
+                     .flatMap(pk => Option(hl.geom).map(pk -> _)),
+      resolves   = resolves)
     // A user pan or zoom: the view is theirs from now on. It stops a flight
     // (and drops one still waiting for its layout), and becomes an entry of
     // the history once it settles.
@@ -395,8 +399,44 @@ object Schematic {
     def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
     def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
-    commands.back = () => history.walk(_.back)
-    commands.forward = () => history.walk(_.forward)
+    // Back and Forward, also over an open state diagram: Back closes it (the
+    // schematic below keeps its view), and Forward reopens it until the user
+    // moves or navigates (`reopenVar`, dropped by the history's `onMove`, a
+    // path change or another diagram). Forward from a diagram closes it and
+    // walks forward, when there is somewhere to go.
+    val reopenVar = Var(Option.empty[(List[String], String)])
+    history.onMove = () => if (reopenVar.now().isDefined) reopenVar.set(None)
+    def navBack(): Unit = fsmOpenVar.now() match {
+      case Some(id) => fsmOpenVar.set(None); reopenVar.set(Some((history.curPath, id)))
+      case None     => history.walk(_.back)
+    }
+    def navForward(): Unit = fsmOpenVar.now() match {
+      case Some(_) => if (history.canNow._2) { fsmOpenVar.set(None); history.walk(_.forward) }
+      case None    => reopenVar.now().filter(_._1 == history.curPath) match {
+        case Some((_, id)) => reopenVar.set(None); fsmOpenVar.set(Some(id))
+        case None          => history.walk(_.forward)
+      }
+    }
+    // The buttons step through modules (the latest view of the previous or
+    // next module, `walkModule`), the keys, side buttons and palette through
+    // every view; a diagram is closed or reopened the same way by both.
+    def moduleBack(): Unit = fsmOpenVar.now() match {
+      case Some(id) => fsmOpenVar.set(None); reopenVar.set(Some((history.curPath, id)))
+      case None     => history.walkModule(-1)
+    }
+    def moduleForward(): Unit = fsmOpenVar.now() match {
+      case Some(_) => if (history.canModuleNow._2) { fsmOpenVar.set(None); history.walkModule(1) }
+      case None    => reopenVar.now().filter(_._1 == history.curPath) match {
+        case Some((_, id)) => reopenVar.set(None); fsmOpenVar.set(Some(id))
+        case None          => history.walkModule(1)
+      }
+    }
+    val navSig: Signal[(Boolean, Boolean)] =
+      Signal.combine(history.canModuleSig, fsmOpenVar.signal, reopenVar.signal).map { case ((b, f), fsm, re) =>
+        if (fsm.isDefined) (true, f) else (b, f || re.isDefined)
+      }
+    commands.back = () => navBack()
+    commands.forward = () => navForward()
     commands.zoomToSelection = () => zoomToSelection()
     // A fresh load: forget the history, any pending flight or settle, the
     // followed net and the modules' saved views (another design's). Called
@@ -541,7 +581,9 @@ object Schematic {
         val child = g.childByName.get(n.id)
         val shift = g.boxShift.shift.getOrElse(n.id, 0.0)
         val top   = n.y + shift
-        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top)
+        if (n.kind == NodeKind.Reg) SchematicBoxes.regBox(boxCtx, g, n, top, g.logicById.get(n.id).flatMap(l => domainColor.get(l.clock)))
+        // A derived clock or reset's stub (`→ fall`), in its domain's colour.
+        else if (n.kind == NodeKind.Domain) SchematicBoxes.domainStub(boxCtx, g, n, top, g.logicById.get(n.id).flatMap(l => domainColor.get(l.clock)))
         // Op nodes have no `children` entry, so (like reg) they must be
         // intercepted before the childless-boundary arm below (issue #188 B2).
         else if (n.kind == NodeKind.Op) SchematicBoxes.opBox(boxCtx, g, n, top)
@@ -821,7 +863,8 @@ object Schematic {
       styleTag(Highlight.css),
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
-        Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) }),
+        Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
+        navSig, () => moduleBack(), () => moduleForward()),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
@@ -860,8 +903,9 @@ object Schematic {
               clearSelection = () => { selectedVar.set(None); hl.follow(None); hl.domainVar.set(None) },
               clearFollow    = () => hl.follow(None),
               keysBlocked    = () => fsmOpenVar.now().isDefined || keysBlocked(),
-              back           = () => history.walk(_.back),
-              forward        = () => history.walk(_.forward),
+              navBlocked     = () => keysBlocked(),
+              back           = () => navBack(),
+              forward        = () => navForward(),
               zoomToSelection = () => zoomToSelection(),
             ), hl)
             gesturesOff = gestures.install()
@@ -872,6 +916,8 @@ object Schematic {
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleHistory")((() => history.debug()): js.Function0[js.Dynamic])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleHistoryModel")(
               ((ops: js.Array[String]) => ViewHistory.modelDebug(ops)): js.Function1[js.Array[String], js.Dynamic])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleModuleStep")(
+              ((ps: js.Array[String], i: Int, cur: String, dir: Int) => ViewHistory.moduleStepDebug(ps, i, cur, dir)): js.Function4[js.Array[String], Int, String, Int, Int])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleFlying")((() => history.flyer.running): js.Function0[Boolean])
             // Smoke test hook: the tooltip card of every box, wire and pin of the view ({n, bad}).
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleTooltipCheck")((() => {
@@ -949,13 +995,18 @@ object Schematic {
       child.maybe <-- Signal.combine(moduleSig, fsmOpenVar.signal).map {
         case (Some(mod), Some(id)) => mod.logic.find(_.id == id).flatMap(n => n.fsm.map(id -> _))
         case _                     => None
-      }.distinct.map(_.map { case (id, fsm) => FsmDiagramView.render(id, fsm, openSource) }),
+      }.distinct.map(_.map { case (id, fsm) =>
+        FsmDiagramView.render(id, fsm, openSource, Some(SchematicChrome.navButtons(navSig, () => moduleBack(), () => moduleForward())))
+      }),
+      // Another diagram opened, or another module shown: nothing to reopen.
+      fsmOpenVar.signal.changes --> { (o: Option[String]) => if (o.isDefined && reopenVar.now().isDefined) reopenVar.set(None) },
+      pathSig.changes --> { _ => if (reopenVar.now().isDefined) reopenVar.set(None) },
       // Drop the memoized engine layouts when the design itself changes (live
       // reload / picker switch): a reused module name can describe new internals.
       // The history and the followed net stay across a live reload (Back skips
       // entries that no longer resolve, a vanished net lights nothing); a fresh
       // load clears them (`history.reset`, from App).
-      designSig.changes --> { _ => engineCache.clear() },
+      designSig.changes --> { _ => engineCache.clear(); history.refreshCan() },
       // The clock domains' legend, bottom-right above the zoom controls.
       child.maybe <-- geomSig.map(_.map(_.mod)).distinct.map(_.flatMap(SchematicChrome.clockLegend(_, hl.domainVar.signal, hl.toggleDomain))),
       // Minimap, shown only when content overflows the viewport at this zoom.

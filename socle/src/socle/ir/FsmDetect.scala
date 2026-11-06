@@ -8,58 +8,36 @@ import socle.parse.ChirrtlParser.{Mod, NodeDecl}
   *
   * A `switch(state)` lowers to an outermost `when`/`else` chain whose case
   * conditions are all `eq(R, lit)` comparisons on the SAME register `R`. The
-  * outermost case condition node is declared at module scope; each inner case
-  * condition is declared inside the preceding `else` branch (so its outermost
-  * guard is the outermost case condition).
+  * first case condition node is declared where the `switch` is (module scope,
+  * or inside an enclosing `when`); each inner case condition is declared
+  * inside the preceding `else` branch (so the first case condition is among
+  * its guards, after the enclosing `when`s' conditions).
   *
   * This pass identifies such chains and reports, per recognized FSM, the
-  * register being switched on, the chain's case literals (in source order), and
-  * the set of node names and connect sinks that are internal to the construct.
-  * It is pure and deterministic: no side effects, results sorted by `id`.
+  * register being switched on, the chain's root condition and its case
+  * literals (in source order). `CodeBlocks` makes such a `switch` an FSM box
+  * (named by its label and ordinal, `fsm$<module>$switch_state$0`). It is pure and
+  * deterministic: no side effects, results sorted by register.
   */
 object FsmDetect {
 
   /** One recognized FSM within a module.
     * @param stateReg   the register R the chain compares.
-    * @param id         parent fsm-node id, "fsm$<module>$<R>".
     * @param outerCond  the outermost case-condition node name (e.g. "_T_1").
-    * @param memberNodes node-decl NAMES that are FSM-internal: the eq/asUInt
-    *                   chain-condition nodes (incl. `outerCond` and its asUInt
-    *                   feeder, which sit at module scope) plus every node whose
-    *                   outermost guard is `outerCond`.
-    * @param memberSinks connect-lhs heads written under the construct
-    *                   (guard.head.cond == outerCond), e.g. {"state","timer"}.
-    * @param memberSinkPaths connect-lhs FULL paths written under the construct
-    *                   (guard.head.cond == outerCond), with only a trailing vec
-    *                   index stripped but bundle FIELDS kept, e.g.
-    *                   {"io.state","state","timer"}. Used to match sink
-    *                   absorption at field granularity so a sibling bundle field
-    *                   driven outside the FSM is not over-grabbed.
-    *
-    * `memberNodes`, `memberSinks`, and `memberSinkPaths` are membership sets, not
-    * ordered: consumers needing a stable order must derive it from their own
-    * ordered source (e.g. iterate the module's ordered `logic`/`wires` and filter
-    * by these sets), never from Set iteration order.
-    * @param caseLits   the literals compared, in chain order. */
+    * @param caseLits   the literals compared, in chain order.
+    * @param condRefs   the `when` conditions the FSM reads besides its case
+    *                   compares, in order: the enclosing `when`s' (around the
+    *                   `switch`), then those inside it (refs or node names). */
   final case class Fsm(
     stateReg:        String,
-    id:              String,
     outerCond:       String,
-    memberNodes:     Set[String],
-    memberSinks:     Set[String],
-    memberSinkPaths: Set[String],
     caseLits:        Seq[String],
+    condRefs:        Seq[String] = Nil,
   )
 
   // Literal shape: UInt<2>(0h0), SInt<3>(...), or bare-width forms.
   private val LitRe = """^(?:UInt|SInt)(?:<\d+>)?\(.*\)$""".r
   private def isLit(s: String): Boolean = LitRe.findFirstIn(s.trim).isDefined
-
-  private def head(path: String): String = socle.layout.LayoutCore.pathHead(path)
-
-  /** Full sink path with only a TRAILING vec index stripped, fields kept:
-    * `io.state[0]` -> `io.state`, `io.state` -> `io.state`, `state` -> `state`. */
-  private def sinkPath(path: String): String = path.trim.replaceAll("""\[[^\]]*\]$""", "")
 
   def detect(m: Mod): Seq[Fsm] = {
     val regNames   = m.regs.map(_.name).toSet
@@ -91,20 +69,24 @@ object FsmDetect {
         }
       }
 
-    // Nodes/conns indexed by their outermost guard condition (if any).
-    def outerGuard(g: Seq[ChirrtlParser.Guard]): Option[String] =
-      g.headOption.map(_.cond)
+    // Whether a node or conn with guards `g` is inside the `when` on `cond`:
+    // anywhere in the chain, as enclosing `when`s come first.
+    def under(g: Seq[ChirrtlParser.Guard], cond: String): Boolean =
+      g.exists(_.cond == cond)
 
-    // For each candidate root node C (a state-compare), the chain consists of C
-    // plus every state-compare on the SAME register whose outermost guard is C.
+    // For each candidate root node C (a state-compare not itself inside a
+    // compare on the same register, which makes it an inner case), the chain
+    // consists of C plus every state-compare on the SAME register guarded by C.
     val roots = m.nodes.iterator.flatMap { c =>
-      comparedReg(c.name).map { case (reg, lit) => (c.name, reg, lit) }
+      comparedReg(c.name).collect {
+        case (reg, lit) if !c.guard.exists(g => comparedReg(g.cond).exists(_._1 == reg)) => (c.name, reg, lit)
+      }
     }.toSeq
 
     val fsms = roots.flatMap { case (rootName, reg, rootLit) =>
       // Items (nodes or conns) lexically inside the construct rooted at C.
-      val guardedNodes = m.nodes.filter(n => outerGuard(n.guard).contains(rootName))
-      val guardedConns = m.conns.filter(c => outerGuard(c.guard).contains(rootName))
+      val guardedNodes = m.nodes.filter(n => under(n.guard, rootName))
+      val guardedConns = m.conns.filter(c => under(c.guard, rootName))
       val anyGuarded   = guardedNodes.nonEmpty || guardedConns.nonEmpty
 
       // Same-R state-compares inside the else chain.
@@ -132,44 +114,24 @@ object FsmDetect {
               .map(_.name)
               .toSeq
 
-          // Their asUInt/asSInt feeder node names (the operand that is a node).
-          val feeders: Set[String] = compareNodeNames.flatMap { cn =>
-            nodeByName.get(cn).toSeq.flatMap { n =>
-              n.operands.map(_.trim).filter { op =>
-                nodeByName.get(op).exists(f =>
-                  (f.op == "asUInt" || f.op == "asSInt") && f.operands.size == 1
-                    && regNames.contains(f.operands.head.trim))
-              }
-            }
-          }.toSet
-
-          val memberNodes: Set[String] =
-            compareNodeNames.toSet ++ feeders ++ guardedNodes.map(_.name).toSet
-
-          val guardedSinkConns =
-            m.conns.iterator
-              .filter(c => c.guard.nonEmpty && c.guard.head.cond == rootName)
-              .toSeq
-
-          val memberSinks: Set[String]     = guardedSinkConns.map(c => head(c.lhs)).toSet
-          val memberSinkPaths: Set[String] = guardedSinkConns.map(c => sinkPath(c.lhs)).toSet
+          val condRefs: Seq[String] =
+            (nodeByName.get(rootName).toSeq.flatMap(_.guard) ++ guardedNodes.flatMap(_.guard) ++
+              guardedConns.flatMap(_.guard)).map(_.cond.trim).distinct
+              .filterNot(compareNodeNames.toSet)
 
           Some(Fsm(
             stateReg        = reg,
-            id              = Synthetic.fsmId(m.name, reg),
             outerCond       = rootName,
-            memberNodes     = memberNodes,
-            memberSinks     = memberSinks,
-            memberSinkPaths = memberSinkPaths,
             caseLits        = caseLits,
+            condRefs        = condRefs,
           ))
         }
       }
     }
 
-    // One Fsm per matched root; sort by id for determinism. If two roots map to
-    // the same register/id (shouldn't normally happen), dedup by id keeping the
-    // first in source order.
-    fsms.groupBy(_.id).toSeq.map(_._2.head).sortBy(_.id)
+    // One Fsm per matched root; sort by register for determinism. If two roots
+    // map to the same register (shouldn't normally happen), keep the first in
+    // source order.
+    fsms.groupBy(_.stateReg).toSeq.map(_._2.head).sortBy(_.stateReg)
   }
 }

@@ -5,7 +5,7 @@ import org.scalajs.dom
 import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
-import socle.schema.{Design, ModuleDef, ModuleKind, NodeKind, SourceRef}
+import socle.schema.{Design, ModuleDef, NodeKind, SourceRef}
 import socle.layout.{InstanceFold, LayoutCore}
 import socle.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socle.ui.theme._
@@ -523,13 +523,14 @@ object App {
   }
 
   /** Drill into a child instance: append it to the path (mirrors the JS
-    * drillInto). Leaves and blackboxes have no internals and are not drilled. */
+    * drillInto). Only a module with something inside opens
+    * ([[LayoutCore.opensAsModule]]: not a blackbox, and instances, logic or wires). */
   private def drillInto(inst: String): Unit =
     for {
       d        <- loader.currentDesign
       mod      <- currentModule(d, pathVar.now())
       if openBlock(d, mod, inst).isDefined || mod.children.find(_.name == inst).flatMap(c => d.modules.find(_.name == c.`type`))
-                                                .exists(cm => cm.kind != ModuleKind.External && cm.kind != ModuleKind.Intrinsic)
+                                                .exists(LayoutCore.opensAsModule)
     } pathVar.update(_ :+ inst) // selectedSig cleared by the path-change binder
 
   /** Show `path` when it resolves in the design (the view history's Back and
@@ -690,6 +691,69 @@ object App {
   private def toggle(id: String): Unit =
     expandedVar.update(s => if (s(id)) s - id else s + id)
 
+  /** The hierarchy row of the module open at `path`: the path rooted at the
+    * top, cut before an open block (its module holds it). A path rooted at
+    * another module (the palette jumps to one) starts at that module's first
+    * instance, breadth first. None when the module is not under the top. */
+  private def openRow(d: Design, path: List[String]): Option[List[String]] =
+    path.headOption.flatMap { head =>
+      val byName = d.modules.iterator.map(m => m.name -> m).toMap
+      val top    = topOf(d)
+      val root: Option[List[String]] =
+        if (head == top) Some(List(top))
+        else {
+          // Each module expanded once, from the first (shortest) path that
+          // reaches it: a later path to it finds nothing earlier.
+          val queue = scala.collection.mutable.Queue((top, List(top)))
+          val seen  = scala.collection.mutable.Set(top)
+          var found = Option.empty[List[String]]
+          while (found.isEmpty && queue.nonEmpty) {
+            val (m, p) = queue.dequeue()
+            byName.get(m).foreach(_.children.foreach { c =>
+              if (found.isEmpty && c.`type` == head) found = Some(p :+ c.name)
+              if (seen.add(c.`type`)) queue.enqueue((c.`type`, p :+ c.name))
+            })
+          }
+          found
+        }
+      root.map { r =>
+        var row = r
+        var mod = byName.get(head)
+        path.tail.iterator.takeWhile(seg => mod.exists(_.children.exists(_.name == seg))).foreach { seg =>
+          row = row :+ seg
+          mod = mod.flatMap(_.children.find(_.name == seg)).flatMap(c => byName.get(c.`type`))
+        }
+        row
+      }
+    }
+
+  /** The id of the open module's row ([[openRow]]). */
+  private val openRowSig: Signal[Option[String]] =
+    Signal.combine(loader.designSig, pathVar.signal).map {
+      case (Some(d), p) => openRow(d, p).map(_.mkString("/"))
+      case _            => None
+    }.distinct
+
+  /** The rows above the open module's are expanded, so its row shows; rows
+    * the user expanded stay so. */
+  private def expandToOpenRow(id: String): Unit = {
+    val segs = id.split('/').toList
+    val ups  = (1 until segs.length).map(i => segs.take(i).mkString("/"))
+    if (!ups.forall(expandedVar.now())) expandedVar.update(_ ++ ups)
+  }
+
+  /** Scrolls the hierarchy pane, without animation, so the open module's row
+    * is in view (once the rows are rebuilt). */
+  private def scrollToOpenRow(pane: dom.html.Element): Unit =
+    dom.window.requestAnimationFrame { _ =>
+      val row = pane.querySelector("[data-hier-current=\"1\"]")
+      if (row != null && pane.isConnected) {
+        val pr = pane.getBoundingClientRect(); val rr = row.getBoundingClientRect()
+        if (rr.top < pr.top) pane.scrollTop += rr.top - pr.top - 4
+        else if (rr.bottom > pr.bottom) pane.scrollTop += rr.bottom - pr.bottom + 4
+      }
+    }
+
   // ── View ───────────────────────────────────────────────────────────────────
   private def shell(): Element = {
     // Build the toggleable panes once so hiding/showing them (child.maybe below)
@@ -750,6 +814,7 @@ object App {
             keysBlocked      = () => helpOpenVar.now(),
             commands         = viewCmds,
             navigate         = showPath,
+            resolves         = p => loader.currentDesign.exists(d => currentModule(d, p).isDefined),
           ),
           // The first-time tips float above the schematic's bottom edge, over it.
           div(styleAttr := "position:relative;flex-shrink:0",
@@ -766,6 +831,8 @@ object App {
       pathVar.signal.changes --> { _ =>
         expandedBundlesVar.set(Set.empty); selectedSigVar.set(None); fsmOpenVar.set(None)
       },
+      // The hierarchy follows the open module: the rows above it expand.
+      openRowSig --> { (id: Option[String]) => id.foreach(expandToOpenRow) },
       // Open on select (plan 2): selecting an instance asks the editor to show
       // its module's source: an absolute file, or a repo-relative one embedded
       // in design.sources (the language server resolves it against the
@@ -937,7 +1004,12 @@ object App {
               onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)
           }
           path ++ fsm.toSeq.flatMap { id =>
-            val reg = id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id }
+            // The FSM box's register (`state`; it may sit in a block's body),
+            // else the one an older design's id names (`blk$<module>$fsm$<register>`).
+            val state = loader.currentDesign.toSeq
+              .flatMap(d => (d.modules.iterator.flatMap(_.logic) ++ d.regions.valuesIterator.flatMap(_.logic)).find(_.id == id))
+              .map(_.state).find(_.nonEmpty)
+            val reg = state.getOrElse(id.lastIndexOf("$fsm$") match { case i if i >= 0 => id.drop(i + 5); case _ => id })
             Seq(span(cls := "scl-crumb-sep", "›"),
               button(cls := "scl-crumb", cls.toggle("active") := true, dataAttr("crumb-fsm") := id,
                 title := "State diagram (Esc closes it)", s"FSM: $reg"))
@@ -1021,6 +1093,8 @@ object App {
     }
     div(
       cls := "scl-pane scl-pane-hierarchy", dataAttr("pane") := "hierarchy",
+      // Its row in view when the open module changes, and when the pane shows again.
+      inContext(pane => openRowSig --> { _ => scrollToOpenRow(pane.ref) }),
       div(cls := "scl-pane-title",
         span("HIERARCHY"),
         span(cls := "scl-count", child.text <-- rowsSignal.map(_.length.toString))),
@@ -1048,7 +1122,9 @@ object App {
       )
     div(
       cls := "scl-hier-row",
-      cls.toggle("active") <-- pathVar.signal.map(_.mkString("/") == r.id),
+      // The open module's row (the one holding an open block or diagram).
+      cls.toggle("active") <-- openRowSig.map(_.contains(r.id)),
+      dataAttr("hier-current") <-- openRowSig.map(o => if (o.contains(r.id)) "1" else "0"),
       dataAttr("hier-path") := r.id,
       dataAttr("hier-leaf") := (if (r.isLeaf) "1" else "0"),
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",

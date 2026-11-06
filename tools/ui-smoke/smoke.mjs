@@ -70,6 +70,16 @@ const hintDesigns = new Set();
 // Designs that walked the view history, flew to a block (in the module, from
 // another one), stopped a flight with a drag, and framed a selected wire.
 const historyDesigns = new Set();
+// Designs that walked the history with the Back / Forward buttons, and that
+// opened a leaf module by a double-click with the hierarchy following it.
+const navButtonDesigns = new Set();
+const leafDrillDesigns = new Set();
+// The designs with a drillable child of the top and a leaf with content:
+// each must run both checks (a design that skips one fails on its own).
+// The designs with a state diagram: each runs the diagram's Back / Forward check.
+const fsmNavDesigns = new Set();
+const FSM_NAV_DESIGNS = ['fsm-view'];
+const NAV_DESIGNS = ['axisystem', 'rvpipeline', 'deepsoc', 'interconnect', 'datapath', 'scatter', 'deepsoc-view'];
 const flyDesigns = new Set();
 const flyCrossDesigns = new Set();
 const flightCancelDesigns = new Set();
@@ -511,6 +521,18 @@ async function smokeDesignIn(design, ctx) {
   }
   await expectFitted('first view fit');
 
+  // The schematic's Back and Forward buttons: there, and both disabled on a
+  // fresh load (one view, nowhere to go). The history block walks them.
+  {
+    const st = await page.evaluate(() => ({
+      back: document.querySelector('[data-nav-back]')?.disabled ?? null,
+      fwd: document.querySelector('[data-nav-forward]')?.disabled ?? null,
+    }));
+    if (st.back === null || st.fwd === null) note(design, 'nav buttons', 'no [data-nav-back] / [data-nav-forward] button on the schematic');
+    else if (!st.back || !st.fwd) note(design, 'nav buttons', `Back / Forward enabled on a fresh load: ${JSON.stringify(st)}`);
+  }
+  drain('nav buttons');
+
   // SOURCE indicator (#194): a design fetched from design.json is the "live"
   // source. The top bar must expose it via data-source so the live poller and
   // LIVE badge know to engage; its absence is the migration regression.
@@ -555,13 +577,12 @@ async function smokeDesignIn(design, ctx) {
   }
   drain('editor presets');
 
-  // Fully expand the hierarchy tree (repeat until row count is stable).
-  for (let i = 0; i < 12; i++) {
-    const before = await page.locator('[data-hier-path]').count();
-    const toggles = await page.locator('[data-hier-toggle]').all();
-    for (const t of toggles) { await t.click({ timeout: 1500 }).catch(() => {}); }
-    const after = await page.locator('[data-hier-path]').count();
-    if (after === before) break;
+  // Fully expand the hierarchy tree: open every closed row (a click on an
+  // open one would close it), until none is left.
+  for (let i = 0; i < 200; i++) {
+    const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+    if (!await shut.count()) break;
+    await shut.first().click({ timeout: 1500 }).catch(() => {});
   }
 
   // Drill into every node in the hierarchy and check the app survives.
@@ -682,9 +703,19 @@ async function smokeDesignIn(design, ctx) {
         else await expectHeader(step, m);
       if (await count('[data-fold-group]')) note(design, where, `${step}: a [data-fold-group] box remains`);
     };
+    // The fold toggle takes no click in the overview (zoomed out past the label
+    // size), so zoom in until the detail shows: at fit, Cluster's code-block
+    // boxes (with their condition pins) can land just under that threshold.
+    const detail = async () => {
+      for (let i = 0; i < 4 && (await count('.ov')); i++) {
+        await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch(() => {});
+        await page.waitForTimeout(150);
+      }
+    };
     await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, e.message));
     await settle();
     await expectFolded('initial');
+    await detail();
     await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `unfold: ${e.message}`));
     await settle();
     await expectUnfolded('after +');
@@ -747,9 +778,11 @@ async function smokeDesignIn(design, ctx) {
     // Select a copy (its header, left of the toggle), then fold its group back:
     // the fold removes the selected box, so the selection (and cores_0's expanded
     // bundles) are cleared; both are checked once the copies are back.
+    await detail();
     await page.locator('[data-box-inst="cores_1"] > div').first().click({ position: { x: 20, y: 8 }, timeout: 3000 })
       .catch((e) => note(design, where, `select cores_1: ${e.message}`));
     if (!(await count('[data-inst-inspect="cores_1"]'))) note(design, where, 'cores_1 not selected (no inspector entry)');
+    await detail();
     await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `fold back: ${e.message}`));
     await settle();
     await expectFolded('after -');
@@ -768,8 +801,9 @@ async function smokeDesignIn(design, ctx) {
   // Tied ports: the captured view drops a constant tie-off from the layout and
   // records it in `tieOffs`; the tied pin shows a `|-` value stub
   // (`data-tied`), and the layout is the same with or without the tie-offs.
-  // Core ties `alu.io.op := 0.U` (0 in both `when` branches); `alu.io.b := 0.U`
-  // is only the else branch's default next to a signal, so it is no tie.
+  // Core ties `rf.io.raddr := 0.U`. `alu.io.op := 0.U` and `rf.io.waddr` are
+  // assigned inside the `when(io.in.fire)` box (code view), so they are its
+  // wires, not ties; `alu.io.b := 0.U` is a default next to a signal, no tie.
   // A derived design gives one pin two values, covered sinks and long lists.
   // It runs before the logic-block checks on purpose: their live reload after
   // this drill into a copy caught a stale hover blanking the Inspector.
@@ -800,21 +834,21 @@ async function smokeDesignIn(design, ctx) {
         .map((e) => e.getAttribute('data-box-inst') || e.getAttribute('data-boundary-stub') || e.getAttribute('data-block') || e.getAttribute('data-logic-node')),
     }));
     const r0 = await read();
-    const op = r0.tied.find((t) => t.pin === 'alu.io.op');
-    if (!op) note(design, where, `no [data-tied="alu.io.op"] stub: ${JSON.stringify(r0.tied.map((t) => t.pin))}`);
+    const op = r0.tied.find((t) => t.pin === 'rf.io.raddr');
+    if (!op) note(design, where, `no [data-tied="rf.io.raddr"] stub: ${JSON.stringify(r0.tied.map((t) => t.pin))}`);
     else {
-      if (op.label !== '0') note(design, where, `alu.io.op stub label ${JSON.stringify(op.label)}`);
-      if (op.title !== 'tied to 0') note(design, where, `alu.io.op stub title ${JSON.stringify(op.title)}`);
-      // A WEST pin: the value label sits left of the alu box.
-      const b = r0.boxes.alu;
+      if (op.label !== '0') note(design, where, `rf.io.raddr stub label ${JSON.stringify(op.label)}`);
+      if (op.title !== 'tied to 0') note(design, where, `rf.io.raddr stub title ${JSON.stringify(op.title)}`);
+      // A WEST pin: the value label sits left of the rf box.
+      const b = r0.boxes.rf;
       if (!b || !op.r || op.r.right > b.left + 1 || op.r.bottom < b.top || op.r.top > b.bottom)
-        note(design, where, `alu.io.op label ${JSON.stringify(op.r)} not beside alu ${JSON.stringify(b)}`);
+        note(design, where, `rf.io.raddr label ${JSON.stringify(op.r)} not beside rf ${JSON.stringify(b)}`);
     }
     // io.out.bits.valid lands on the closed io.out stub (#332).
-    for (const [pin, v] of [['rf.io.raddr', '0'], ['rf.io.waddr', '0'], ['io.out', '1']])
+    for (const [pin, v] of [['rf.io.raddr', '0'], ['io.out', '1']])
       if (!r0.tied.some((t) => t.pin === pin && t.label === v)) note(design, where, `no [data-tied="${pin}"] stub reading ${v}`);
-    // `when` defaults next to another driver are not ties.
-    for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen'])
+    // `when` defaults next to another driver, and assignments inside a `when` box, are not ties.
+    for (const pin of ['alu.io.b', 'rf.io.wdata', 'rf.io.wen', 'alu.io.op', 'rf.io.waddr'])
       if (r0.tied.some((t) => t.pin === pin)) note(design, where, `the default at ${pin} shows as tied`);
     if (r0.ids.some((id) => (id || '').includes('const$'))) note(design, where, `a const node is laid out: ${r0.ids}`);
     // Derived designs: the same layout without tie-offs; one pin, two values.
@@ -842,8 +876,8 @@ async function smokeDesignIn(design, ctx) {
     // Sinks below a laid pin (`rf.io.raddr[3]`) land on the pin covering it; a
     // tooltip lists at most 10 sinks or `sink = value` lines, then `… and N more`.
     const many = (pre, n, val) => Array.from({ length: n }, (_, i) => ({ sink: `${pre}${i}`, value: val(i) }));
-    await serve((m) => { m.tieOffs = [...m.tieOffs, { sink: 'alu.io.op', value: '3' }, { sink: 'rf.io.raddr[3]', value: '0' },
-      { sink: 'rf.io.waddr.x', value: '1' }, ...many('rf.io.raddr.g', 11, () => '0'), ...many('io.out.bits.valid.f', 12, (i) => String(i))]; });
+    await serve((m) => { m.tieOffs = [...m.tieOffs, { sink: 'alu.io.op', value: '0' }, { sink: 'alu.io.op', value: '3' },
+      { sink: 'rf.io.raddr[3]', value: '0' }, { sink: 'rf.io.waddr', value: '0' }, { sink: 'rf.io.waddr.x', value: '1' }, ...many('rf.io.raddr.g', 11, () => '0'), ...many('io.out.bits.valid.f', 12, (i) => String(i))]; });
     const two = await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '2 tied', null, { timeout: 10000 })
       .then(() => true).catch(() => false);
     await settle();
@@ -859,12 +893,14 @@ async function smokeDesignIn(design, ctx) {
       expect('rf.io.waddr', '2 tied', ['rf.io.waddr = 0', 'rf.io.waddr.x = 1']);
       expect('rf.io.raddr', '0', ['tied to 0', 'rf.io.raddr', 'rf.io.raddr[3]', ...Array.from({ length: 8 }, (_, i) => `rf.io.raddr.g${i}`), '… and 3 more']);
       expect('io.out', '13 tied', ['io.out.bits.valid = 1', ...Array.from({ length: 9 }, (_, i) => `io.out.bits.valid.f${i} = ${i}`), '… and 3 more']);
-      if (tied.length !== r0.tied.length) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length}`);
+      // Only the two pins given ties here (alu.io.op, rf.io.waddr) add a stub.
+      if (tied.length !== r0.tied.length + 2) note(design, where, `covered sinks made new stubs: ${tied.length} vs ${r0.tied.length} + 2`);
     }
     // Back to the served design for the checks below.
     await page.unroute('**/design.json');
-    await page.waitForFunction(() => document.querySelector('[data-tied="alu.io.op"]')?.innerText.trim() === '0', null, { timeout: 10000 })
-      .catch(() => note(design, where, 'restore: alu.io.op stub not back to 0'));
+    await page.waitForFunction(() => !document.querySelector('[data-tied="alu.io.op"]')
+      && document.querySelector('[data-tied="rf.io.raddr"]')?.innerText.trim() === '0', null, { timeout: 10000 })
+      .catch(() => note(design, where, 'restore: the alu.io.op stub is not gone or rf.io.raddr not back to 0'));
     await settle();
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__tied.png` }).catch(() => {});
     drain(where);
@@ -888,11 +924,14 @@ async function smokeDesignIn(design, ctx) {
           id: b.getAttribute('data-block'),
           label: (b.querySelector('[data-block-label]')?.textContent || '').trim(),
         })),
-        logicNodes: document.querySelectorAll('[data-logic-node]').length,
+        logicNodes: Array.from(document.querySelectorAll('[data-logic-node]')).map((e) => e.getAttribute('data-logic-node')).sort(),
       }));
       if (!r.blocks.length) note(design, where, `${m}: no [data-block] box`);
       for (const b of r.blocks) if (!b.label) note(design, where, `${m}: block ${b.id} has no header label`);
-      if (r.logicNodes) note(design, where, `${m}: ${r.logicNodes} op/reg [data-logic-node] box(es) next to the blocks`);
+      // Only the registers the `when` boxes write sit next to the blocks (code view).
+      const plain = m === 'cluster0' ? ['outSel', 'sel'] : [];
+      if (JSON.stringify(r.logicNodes) !== JSON.stringify(plain))
+        note(design, where, `${m}: [data-logic-node] boxes next to the blocks ${JSON.stringify(r.logicNodes)}, expected ${JSON.stringify(plain)}`);
       if (m === 'cluster0') {
         const id = 'blk$Cluster$logic';
         opened.length = 0;
@@ -920,6 +959,11 @@ async function smokeDesignIn(design, ctx) {
         await page.locator(`[data-wire="io.in"][data-wire-to="${id}.io_in_ready"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
         await expectLine('the wire into a block pin', 136);
         await page.keyboard.press('Escape');
+        // A register a `when` box writes, at module level, opens its declaration.
+        opened.length = 0;
+        await page.locator('[data-logic-node="sel"]').first().dispatchEvent('click').catch((e) => note(design, where, `select sel: ${e.message}`));
+        await expectLine('register sel', 128);
+        await page.keyboard.press('Escape');
         // A double-click opens the block: its contents, its label in the breadcrumb.
         await page.locator(`[data-block="${id}"] [data-block-label]`).first().dblclick({ timeout: 3000 })
           .catch((e) => note(design, where, `open ${id}: ${e.message}`));
@@ -934,10 +978,7 @@ async function smokeDesignIn(design, ctx) {
         }));
         if (inside.chip !== 'block' || !inside.meta) note(design, where, `open block: chip ${inside.chip}, Inspector block view ${inside.meta}`);
         if (inside.crumb !== 'logic') note(design, where, `open block: breadcrumb shows ${JSON.stringify(inside.crumb)}, not "logic"`);
-        if (!inside.regs || !inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
-        opened.length = 0;
-        await page.locator('[data-logic-node="sel"]').first().dispatchEvent('click').catch((e) => note(design, where, `select sel: ${e.message}`));
-        await expectLine('register sel', 128);
+        if (!inside.regs || inside.sel || inside.blocks) note(design, where, `open block: not its contents ${JSON.stringify(inside)}`);
         drain(`${where} (open block)`);
         // Back to the module.
         await page.locator('.scl-crumb').nth(-2).click({ timeout: 3000 }).catch((e) => note(design, where, `crumb back: ${e.message}`));
@@ -961,10 +1002,11 @@ async function smokeDesignIn(design, ctx) {
         }
         drain(`${where} (live reload)`);
         // An FSM block opens its source too. No captured fixture holds an FSM,
-        // so the same block is served again as an `fsm` box.
-        const fsmId = 'blk$Cluster$fsm$state';
+        // so the same block is served again as an `fsm` box, named and shaped
+        // as IrWalk names one (its label and ordinal, its register in `state`).
+        const fsmId = 'fsm$Cluster$switch_state$0';
         const asFsm = JSON.parse(fresh.split('blk$Cluster$logic2').join(fsmId));
-        for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) n.kind = 'fsm';
+        for (const mod of asFsm.modules) for (const n of mod.logic || []) if (n.id === fsmId) { n.kind = 'fsm'; n.state = 'state'; }
         await page.unroute('**/design.json');
         await page.route('**/design.json', (rt) => rt.fulfill({
           contentType: 'application/json', body: JSON.stringify(asFsm),
@@ -1006,7 +1048,7 @@ async function smokeDesignIn(design, ctx) {
   // a breadcrumb segment and a live reload that drops the block close it.
   if (design === 'fsm-view') {
     const where = 'fsm diagram';
-    const id = 'blk$TrafficFsm$fsm$state';
+    const id = 'fsm$TrafficFsm$switch_state$0';
     const file = 'example/src/fsm/TrafficFsm.scala';
     const diag = `[data-fsm-diagram="${id}"]`;
     const ready = () => page.waitForSelector(`${diag}[data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
@@ -1116,6 +1158,14 @@ async function smokeDesignIn(design, ctx) {
       }
       for (let i = 0; i < r.states.length; i++) for (let j = i + 1; j < r.states.length; j++)
         if (overlaps(r.states[i].box, r.states[j].box)) note(design, where, `${r.states[i].name} overlaps ${r.states[j].name}`);
+      // The box id (a source marker) names no register: the crumb reads the
+      // box's `state` field.
+      const stateField = await page.evaluate(async (box) => {
+        const d = await (await fetch('design.json')).json();
+        const all = [...d.modules.flatMap((m) => m.logic || []), ...Object.values(d.regions || {}).flatMap((b) => b.logic || [])];
+        return all.find((n) => n.id === box)?.state ?? null;
+      }, id).catch((e) => `error: ${e.message}`);
+      if (stateField !== 'state') note(design, where, `${id} carries state ${JSON.stringify(stateField)}, not "state"`);
       const cs = await crumbs();
       if (cs[cs.length - 1] !== 'FSM: state') note(design, where, `last breadcrumb ${JSON.stringify(cs)}`);
       // The start dot sits above the initial state (it is laid out in the first layer).
@@ -1172,6 +1222,50 @@ async function smokeDesignIn(design, ctx) {
       await page.waitForTimeout(200);
       if (!(await schematicShown())) note(design, where, 'Escape after a keyboard open did not bring the schematic back');
       drain(`${where} (close)`);
+    }
+
+    // Back and Forward over the diagram: its own nav chip (Back always
+    // enabled), Back closes it with the module's view untouched, Forward then
+    // reopens it, and Alt+Left closes it too.
+    {
+      const w2 = 'fsm diagram navigation';
+      const view = () => page.evaluate(() => document.querySelector('[data-content]')?.style.transform || '');
+      const crumbsNow = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+      const v0 = await view(), c0 = await crumbsNow();
+      if (await openDiagram('navigation')) {
+        const chip = await page.evaluate((sel) => {
+          const d = document.querySelector(sel);
+          const b = d?.querySelector('[data-nav-back]'), f = d?.querySelector('[data-nav-forward]');
+          if (!b || !f) return null;
+          const r = b.getBoundingClientRect(), dr = d.getBoundingClientRect();
+          const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          const n = d.querySelector('[data-fsm-note]')?.getBoundingClientRect();
+          const overlap = !!n && !(n.left >= r.right || n.right <= r.left || n.top >= r.bottom || n.bottom <= r.top);
+          return { back: !b.disabled, visible: !!top && b.contains(top), inset: [Math.round(r.left - dr.left), Math.round(r.top - dr.top)], overlap };
+        }, diag);
+        if (!chip) note(design, w2, 'no Back / Forward buttons on the state diagram');
+        else {
+          if (!chip.visible) note(design, w2, 'the diagram\'s Back button is covered');
+          if (!chip.back) note(design, w2, 'Back is disabled on the state diagram');
+          if (chip.overlap) note(design, w2, 'the diagram\'s note overlaps its Back / Forward buttons');
+          await page.locator(`${diag} [data-nav-back]`).first().click();
+          await page.waitForTimeout(250);
+          if (await page.locator(diag).count()) note(design, w2, 'Back did not close the diagram');
+          if (await view() !== v0 || await crumbsNow() !== c0) note(design, w2, `Back from the diagram moved the schematic: ${v0} at "${c0}" -> ${await view()} at "${await crumbsNow()}"`);
+          const fwd = page.locator('[data-nav-forward]').first();
+          if (await fwd.isDisabled()) note(design, w2, 'Forward is not enabled after Back closed the diagram');
+          await fwd.click();
+          if (!(await ready())) note(design, w2, 'Forward did not reopen the diagram');
+          else {
+            await page.keyboard.press('Alt+ArrowLeft');
+            await page.waitForTimeout(250);
+            if (await page.locator(diag).count()) note(design, w2, 'Alt+Left did not close the diagram');
+          }
+          if (await page.locator(diag).count()) { await page.keyboard.press('Escape'); await page.waitForTimeout(200); }
+          fsmNavDesigns.add(design);
+        }
+      }
+      drain(w2);
     }
 
     // Live reload with the diagram open, keeping the block: a self-loop, a
@@ -1318,7 +1412,12 @@ async function smokeDesignIn(design, ctx) {
       // The block leaves the baked layouts too, as an export would leave it: an
       // optimized bake is drawn as is, with no re-layout (#335).
       await serve((d) => {
-        for (const m of d.modules) m.logic = (m.logic || []).filter((n) => n.id !== id);
+        // ...and its wires, as a design without the block has none to it
+        const onBlock = (e) => e === id || e.startsWith(`${id}.`);
+        for (const m of d.modules) {
+          m.logic = (m.logic || []).filter((n) => n.id !== id);
+          m.wires = (m.wires || []).filter((w) => !onBlock(w.from) && !onBlock(w.to));
+        }
         for (const l of Object.values(d.layouts || {})) {
           const gone = new Set((l.nodes.find((n) => n.id === id)?.ports || []).map((p) => p.path));
           l.nodes = l.nodes.filter((n) => n.id !== id);
@@ -2323,6 +2422,25 @@ async function smokeDesignIn(design, ctx) {
         ends: f(['p', 'b', 'b', 'f', 'f', 'f']),
       };
     });
+    // The module step of the previous / next module buttons: past every view
+    // of the module shown, to the latest view of the module before or after.
+    {
+      const steps = await page.evaluate(() => {
+        const f = window.__socleModuleStep;
+        if (!f) return null;
+        const h = ['T', 'T/a', 'T/a', 'T/a/x', 'T/a/x', 'T/a/x', 'T', 'T'];
+        return [
+          ['back over three views of T/a/x to T/a', f(h, 5, 'T/a/x', -1), 2],
+          ['back from T/a to T', f(h, 2, 'T/a', -1), 0],
+          ['back from the start', f(h, 0, 'T', -1), -1],
+          ['forward from T/a to the latest view of T/a/x', f(h, 2, 'T/a', 1), 5],
+          ['forward from T/a/x to the latest view of T', f(h, 3, 'T/a/x', 1), 7],
+          ['forward from the end', f(h, 7, 'T', 1), -1],
+        ];
+      });
+      if (!steps) note(design, where, 'no window.__socleModuleStep hook');
+      else for (const [what, got, want] of steps) if (got !== want) note(design, where, `module step ${what}: landed on ${got}, expected ${want}`);
+    }
     if (!model) note(design, where, 'no window.__socleHistoryModel hook');
     else {
       if (model.cap.size !== 50 || model.cap.index !== 49)
@@ -2345,6 +2463,8 @@ async function smokeDesignIn(design, ctx) {
       await page.locator(`[data-hier-path="${top}/${child}"]`).first().dispatchEvent('click');
       const C0 = await settle();
       const cChild = await crumbs();
+      if (await page.evaluate(() => document.querySelector('[data-nav-back]')?.disabled !== false))
+        note(design, where, 'the Back button is not enabled after a drill');
       const vc = await vpBox();
       await page.mouse.move(vc.x, vc.y);
       await page.mouse.down();
@@ -2420,9 +2540,110 @@ async function smokeDesignIn(design, ctx) {
           if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the palette's Forward did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}; history ${fmt(await hist())}`);
         }
       }
+      // The Back and Forward buttons walk it like Alt+Left / Alt+Right, are
+      // disabled at an end, and a press leaves the keys to the schematic.
+      {
+        const dis = () => page.evaluate(() => ({
+          back: document.querySelector('[data-nav-back]')?.disabled ?? null,
+          fwd: document.querySelector('[data-nav-forward]')?.disabled ?? null,
+        }));
+        const d0 = await dis();
+        if (d0.back !== false || d0.fwd !== true) note(design, where, `at the end of the history the buttons read ${fmt(d0)}, expected Back enabled and Forward disabled`);
+        await focusSchematic();
+        await page.locator('[data-nav-back]').first().click();
+        const v = await settle();
+        if (!near(v, C1) || await crumbs() !== cChild) note(design, where, `the Back button did not go back: ${fmt(v)} at "${await crumbs()}", expected ${fmt(C1)}`);
+        if (await page.evaluate(() => !!document.activeElement?.closest('[data-nav-back], [data-nav-forward]'))) note(design, where, 'the Back button took the keyboard focus');
+        if ((await dis()).fwd !== false) note(design, where, 'the Forward button is not enabled after a Back');
+        await page.locator('[data-nav-forward]').first().click();
+        const w = await settle();
+        if (!near(w, vN) || await crumbs() !== cTop) note(design, where, `the Forward button did not go forward: ${fmt(w)} at "${await crumbs()}", expected ${fmt(vN)}`);
+        // The keys still act after a press, without focusing the schematic again.
+        await page.keyboard.press('Alt+ArrowLeft');
+        const k = await settle();
+        if (!near(k, C1) || await crumbs() !== cChild) note(design, where, `Alt+Left after a press on the Forward button did not go back: ${fmt(k)} at "${await crumbs()}"`);
+        await key('Alt+ArrowRight');
+        navButtonDesigns.add(design);
+      }
       if (!await page.evaluate(() => Array.isArray(window.__socleHistory && window.__socleHistory().entries))) note(design, where, 'no window.__socleHistory hook');
     }
     drain(where);
+
+    // A double-click opens a leaf module that has content (registers, logic,
+    // wires), and the hierarchy follows the open module: with the tree
+    // collapsed, the drill expands the rows above the leaf's, which shows,
+    // in view and marked current; Back marks its parent again.
+    {
+      const where2 = 'leaf drill';
+      const pane = '[data-pane="hierarchy"]';
+      const esc = (x) => x.replace(/["\\]/g, '\\$&');
+      let tried = 0;
+      // The deepest leaves first: more rows above to expand.
+      const deepest = [...paths].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+      for (const { path: lp, leaf } of deepest) {
+        const segs = lp.split('/');
+        if (!leaf || segs.length < 2 || tried >= 6) continue;
+        const pp = segs.slice(0, -1).join('/'), id = segs[segs.length - 1];
+        tried++;
+        await page.locator(`[data-hier-path="${esc(pp)}"]`).first().dispatchEvent('click').catch(() => {});
+        await settle();
+        const title = page.locator(`[data-box-inst="${esc(id)}"][data-box-drillable="1"]:not([data-fold-group]) > div:first-child`).first();
+        if (!await title.count()) continue;
+        // Collapse the tree at the top (the smoke expanded all of it).
+        const tt = page.locator(`[data-hier-toggle="${esc(top)}"]`).first();
+        if (await tt.count() && (await tt.textContent()) === '▾') await tt.click();
+        const pre = await readView(), preC = await crumbs();
+        await title.dblclick();
+        await settle();
+        const c = await crumbs();
+        if (!c.endsWith(` > ${id}`)) { note(design, where2, `a double-click on the leaf ${lp} did not open it ("${c}")`); break; }
+        await page.waitForTimeout(100); // the pane scrolls on the next frame
+        const t = await page.evaluate(([lp, pane]) => {
+          const row = document.querySelector(`[data-hier-path="${CSS.escape(lp)}"]`);
+          const cur = Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path'));
+          const ups = lp.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'));
+          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.textContent);
+          const p = document.querySelector(pane)?.getBoundingClientRect(), r = row?.getBoundingClientRect();
+          return { row: !!row, cur, open, inView: !!(p && r && r.top >= p.top - 1 && r.bottom <= p.bottom + 1),
+                   active: !!row?.classList.contains('active'), focus: document.activeElement?.closest(pane) ? 'tree' : 'other' };
+        }, [lp, pane]);
+        if (!t.row) note(design, where2, `after opening ${lp} its hierarchy row is not shown (rows above: ${fmt(t.open)})`);
+        else {
+          if (t.cur.length !== 1 || t.cur[0] !== lp || !t.active) note(design, where2, `after opening ${lp} the current rows are ${fmt(t.cur)} (active ${t.active})`);
+          if (t.open.some((g) => g !== '▾')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
+          if (!t.inView) note(design, where2, `after opening ${lp} its hierarchy row is out of view`);
+          if (t.focus === 'tree') note(design, where2, `opening ${lp} moved the focus into the hierarchy`);
+        }
+        // Views of the leaf that settle into the history (two pans and a zoom):
+        // one press on the previous module button still goes back to the parent.
+        for (const [dx, dy] of [[40, 25], [-30, 20]]) {
+          const vc = await vpBox();
+          await page.mouse.move(vc.x, vc.y); await page.mouse.down();
+          for (let i = 1; i <= 4; i++) { await page.mouse.move(vc.x + dx * i / 4, vc.y + dy * i / 4); await page.waitForTimeout(16); }
+          await page.mouse.up();
+          await page.waitForTimeout(800);
+        }
+        await key('-');
+        await page.waitForTimeout(800);
+        await page.locator('[data-nav-back]').first().click();
+        const vb = await settle();
+        if (!near(vb, pre) || await crumbs() !== preC) note(design, where2, `Back from ${lp} did not return to the view before the drill: ${fmt(vb)} at "${await crumbs()}", expected ${fmt(pre)} at "${preC}"`);
+        const back = await page.evaluate(() => Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path')));
+        if (back.length !== 1 || back[0] !== pp) note(design, where2, `after Back from ${lp} the current rows are ${fmt(back)}, expected ${pp}`);
+        leafDrillDesigns.add(design);
+        console.log(`[${design}] leaf drill: double-click opened ${lp}`);
+        break;
+      }
+      // Expand the whole tree again, as the checks below found it.
+      for (let i = 0; i < 200; i++) {
+        const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+        if (!await shut.count()) break;
+        await shut.first().click({ timeout: 1500 }).catch(() => {});
+      }
+      await toTop();
+      await settle();
+    }
+    drain('leaf drill');
 
     // Fly to a block from the palette, on the top module: the instance box
     // farthest from the centre after a zoom out.
@@ -2548,7 +2769,14 @@ async function smokeDesignIn(design, ctx) {
           const vz = await key('z');
           await framed(boxSel(far.id), 'box');
           const h1 = await hist();
-          if (!h0 || !h1 || !(h1.index > h0.index)) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
+          // A new current entry (at the cap of 50 the index stays, the oldest goes).
+          // A push: the index grew, or at the cap of 50 (the oldest goes) the
+          // old current entry is now the one below a new current one (a
+          // relayout replacing the current entry in place is not a push).
+          const made = h0 && h1 && (h1.index > h0.index ||
+            (h1.size === h0.size && h1.index === h0.index && h1.index > 0 &&
+             fmt(h1.entries[h1.index - 1]) === fmt(h0.entries[h0.index]) && fmt(h1.entries[h1.index]) !== fmt(h0.entries[h0.index])));
+          if (!made) note(design, where, `z made no entry: ${fmt(h0)} -> ${fmt(h1)}`);
           const back = await key('Alt+ArrowLeft');
           if (near(back, vz)) note(design, where, 'Back after z stayed on the framed view');
         }
@@ -3190,15 +3418,21 @@ async function smokeDesignIn(design, ctx) {
       if (a.marks) note(design, where, 'decode still shows the header clock marks');
       const t = page.locator('[data-bundle-toggle="decode.io.in"]').first();
       const guides = () => page.locator('[data-box-inst="decode"] [data-row-guide]').count();
+      // A real press, not a dispatched click: after a drag (an earlier check
+      // pans) the schematic drops a click no press started.
+      const press = async () => {
+        const r = await t.boundingBox();
+        if (r) await page.mouse.click(r.x + r.width / 2, r.y + r.height / 2); else await t.dispatchEvent('click');
+      };
       if (await t.count()) {
         if (!(await guides())) {
-          await t.dispatchEvent('click');
+          await press();
           await page.waitForTimeout(400);
           await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
           await page.waitForTimeout(300);
         }
         if (!(await guides())) note(design, where, 'an open decode.io.in draws no guide line');
-        await t.dispatchEvent('click');
+        await press();
         await page.waitForTimeout(400);
         await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
       } else note(design, where, 'no toggle on decode.io.in');
@@ -3213,6 +3447,42 @@ async function smokeDesignIn(design, ctx) {
     if (await page.locator('[data-bundle-group]').count())
       note(design, 'scattered fields (#237)', 'a [data-bundle-group] row is still drawn');
     if (toggles.length > 0) note(design, 'scattered-replica (#237)', `expected 0 bundle-toggles on a scattered design, got ${toggles.length}`);
+  }
+  // Clock domains on registers: SpiSlave's registers run on `rise` and `fall`
+  // (derived from io.sclk), reset by `ssReset` (from io.ss). Each register
+  // shows its domain's bar, the legend lists both, each derived clock or reset
+  // ends on its stub, and a legend click dims the other domain's registers.
+  if (design === 'domains') {
+    const where = 'clock domains';
+    const st = await page.evaluate(() => ({
+      legend: document.querySelectorAll('[data-clock-legend]').length,
+      domains: [...document.querySelectorAll('[data-legend-domain]')].map((e) => e.getAttribute('data-legend-domain')),
+      bars: [...document.querySelectorAll('[data-reg-domain]')].map((e) => e.getAttribute('data-reg-domain')),
+      stubs: [...document.querySelectorAll('[data-domain-stub]')].map((e) => e.getAttribute('data-domain-stub')),
+    }));
+    if (st.legend !== 1) note(design, where, `expected one clock legend, got ${st.legend}`);
+    if (JSON.stringify([...st.domains].sort()) !== JSON.stringify(['fall', 'rise']))
+      note(design, where, `expected legend domains fall, rise; got ${JSON.stringify(st.domains)}`);
+    if (!st.bars.includes('rise') || !st.bars.includes('fall'))
+      note(design, where, `expected register bars on rise and fall, got ${JSON.stringify(st.bars)}`);
+    for (const s of ['rise', 'fall', 'ssReset'])
+      if (!st.stubs.includes(s)) note(design, where, `no domain stub for ${s} (got ${JSON.stringify(st.stubs)})`);
+    const legendRise = page.locator('[data-legend-domain="rise"]').first();
+    if (await legendRise.count()) {
+      await legendRise.dispatchEvent('click');
+      await page.waitForTimeout(300);
+      const lit = await page.evaluate(() => {
+        const off = (sel) => [...document.querySelectorAll(sel)].map((e) => e.closest('[data-box-inst]'))
+          .filter(Boolean).map((b) => b.classList.contains('domoff'));
+        return { fall: off('[data-reg-domain="fall"]'), rise: off('[data-reg-domain="rise"]') };
+      });
+      if (!lit.fall.length || !lit.fall.every(Boolean)) note(design, where, `lighting rise leaves a fall register undimmed: ${JSON.stringify(lit.fall)}`);
+      if (lit.rise.some(Boolean)) note(design, where, `lighting rise dims a rise register: ${JSON.stringify(lit.rise)}`);
+      await legendRise.dispatchEvent('click');
+      await page.waitForTimeout(300);
+      if (await page.locator('.domoff').count()) note(design, where, 'a second legend click leaves boxes dimmed');
+    }
+    console.log(`[${design}] clock domains checked (${st.bars.length} register bars, stubs ${JSON.stringify(st.stubs)})`);
   }
   // A signal row shows its width once, never also its type (`UInt<8> 8b`).
   {
@@ -3533,10 +3803,16 @@ if (!ONLY && hintDesigns.size === 0) note('(all)', 'hover feedback', 'no design 
 for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesigns], ['Fly to from another module', flyCrossDesigns],
                            ['Drag during a flight', flightCancelDesigns], ['Zoom to a selected wire', zoomWireDesigns],
                            ['Show in parent', locateDesigns], ['Palette pick without an editor open', pickNoOpenDesigns],
-                           ['Drag dropping a waiting fly', stalePendingDesigns]]) {
+                           ['Drag dropping a waiting fly', stalePendingDesigns],
+                           ['Back / Forward buttons', navButtonDesigns], ['Leaf drill with the tree following', leafDrillDesigns]]) {
   console.log(`${what} checked on: ${Array.from(set).join(', ') || '(none)'}`);
   if (!ONLY && set.size === 0) note('(all)', 'history', `no design ran the check: ${what}`);
 }
+for (const d of FSM_NAV_DESIGNS.filter((x) => designs.includes(x) && !fsmNavDesigns.has(x)))
+  note(d, 'navigation', 'skipped the state diagram\'s Back / Forward check');
+for (const [what, set] of [['the Back / Forward buttons', navButtonDesigns], ['the leaf drill with the tree following', leafDrillDesigns]])
+  for (const d of NAV_DESIGNS.filter((x) => designs.includes(x) && !set.has(x)))
+    note(d, 'navigation', `skipped ${what} (expected on ${NAV_DESIGNS.join(', ')})`);
 for (const [what, set] of [['Follow a net', followDesigns], ['Follow resolution round trip', followCheckDesigns],
                            ['Reload keeps navigation, a fresh load clears it', reloadNavDesigns],
                            ['Esc closing the ? card keeps the net', escCardDesigns], ['Interface pin dot toggles', pinDotDesigns],

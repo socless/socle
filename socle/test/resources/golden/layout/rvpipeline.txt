@@ -19,30 +19,23 @@ layout Exec
   edge io.out -> _io_out_bits_wen_T
   edge io.out -> io.in
 layout Fetch
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
-  node _pc_T kind=op pins=_pc_T:EAST,_pc_T~in0:WEST,_pc_T~in1:WEST
-  node const$_pc_T~in1 kind=const pins=const$_pc_T~in1:EAST
   node const$io_imem_req_bits_wdata kind=const pins=const$io_imem_req_bits_wdata:EAST
   node const$io_imem_req_bits_wen kind=const pins=const$io_imem_req_bits_wen:EAST
   node const$io_imem_resp_ready kind=const pins=const$io_imem_resp_ready:EAST
   node io.imem kind=boundary pins=io.imem:WEST:iface
   node io.out kind=boundary pins=io.out:WEST:iface
-  node mux$pc kind=op pins=mux$pc:EAST,mux$pc~in0:WEST,mux$pc~in1:WEST,mux$pc~in2:WEST
   node pc kind=reg pins=pc:WEST,pc~q:EAST
-  edge _T~in0 -> io.out
-  edge _T~in1 -> io.out
-  edge _pc_T~in0 -> pc~q
-  edge _pc_T~in1 -> const$_pc_T~in1
+  node when$Fetch$when_io_out_fire$0 kind=block pins=when$Fetch$when_io_out_fire$0.cond:WEST,when$Fetch$when_io_out_fire$0.io_out_ready:WEST,when$Fetch$when_io_out_fire$0.io_out_valid:WEST,when$Fetch$when_io_out_fire$0.pc:EAST,when$Fetch$when_io_out_fire$0.pc_2:WEST
   edge io.imem -> const$io_imem_req_bits_wdata
   edge io.imem -> const$io_imem_req_bits_wen
   edge io.imem -> const$io_imem_resp_ready
   edge io.imem -> io.out
   edge io.imem -> pc~q
   edge io.out -> pc~q
-  edge mux$pc~in0 -> _T
-  edge mux$pc~in1 -> _pc_T
-  edge mux$pc~in2 -> pc~q
-  edge pc -> mux$pc
+  edge pc -> when$Fetch$when_io_out_fire$0.pc
+  edge when$Fetch$when_io_out_fire$0.io_out_ready -> io.out
+  edge when$Fetch$when_io_out_fire$0.io_out_valid -> io.out
+  edge when$Fetch$when_io_out_fire$0.pc_2 -> pc~q
 layout RVPipeline
   node decode kind=inst pins=decode.io.in:WEST:iface,decode.io.out:EAST:iface,decode.io.rf:EAST:iface
   node exec kind=inst pins=exec.io.in:WEST:iface,exec.io.out:EAST:iface
@@ -59,22 +52,19 @@ layout RVPipeline
   edge wb.io.dmem -> io.dmem
   edge wb.io.in -> exec.io.out
 layout RegFile
-  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
-  node _T_1 kind=op pins=_T_1~in0:WEST,_T_1~in1:WEST
-  node const$_T~in1 kind=const pins=const$_T~in1:EAST
   node io.rd kind=boundary pins=io.rd:EAST:iface
   node io.wr kind=boundary pins=io.wr:EAST:iface
   node regs kind=mem pins=regs~MPORT~a:WEST,regs~MPORT~w:WEST,regs~io_rd_rdata1_MPORT~a:WEST,regs~io_rd_rdata1_MPORT~r:EAST,regs~io_rd_rdata2_MPORT~a:WEST,regs~io_rd_rdata2_MPORT~r:EAST
-  edge _T_1~in0 -> io.wr
-  edge _T_1~in1 -> _T
-  edge _T~in0 -> io.wr
-  edge _T~in1 -> const$_T~in1
+  node when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0 kind=block pins=when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.cond:WEST,when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr:WEST,when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata:WEST,when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen:WEST,when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w:EAST
   edge io.rd -> regs~io_rd_rdata1_MPORT~r
   edge io.rd -> regs~io_rd_rdata2_MPORT~r
   edge regs~MPORT~a -> io.wr
-  edge regs~MPORT~w -> io.wr
+  edge regs~MPORT~w -> when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w
   edge regs~io_rd_rdata1_MPORT~a -> io.rd
   edge regs~io_rd_rdata2_MPORT~a -> io.rd
+  edge when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr -> io.wr
+  edge when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata -> io.wr
+  edge when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen -> io.wr
 layout WB
   node _io_rf_wen_T kind=op pins=_io_rf_wen_T:EAST,_io_rf_wen_T~in0:WEST,_io_rf_wen_T~in1:WEST
   node const$io_dmem_req_valid kind=const pins=const$io_dmem_req_valid:EAST
@@ -90,3 +80,33 @@ layout WB
   edge io.in -> const$io_in_ready
   edge io.rf -> _io_rf_wen_T
   edge io.rf -> io.in
+layout when$Fetch$when_io_out_fire$0
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _pc_T kind=op pins=_pc_T:EAST,_pc_T~in0:WEST,_pc_T~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_pc_T~in1 kind=const pins=const$_pc_T~in1:EAST
+  node io_out_ready kind=boundary pins=io_out_ready:EAST
+  node io_out_valid kind=boundary pins=io_out_valid:EAST
+  node pc kind=boundary pins=pc:WEST
+  node pc_2 kind=boundary pins=pc_2:EAST
+  edge _T~in0 -> io_out_ready
+  edge _T~in1 -> io_out_valid
+  edge _pc_T~in0 -> pc_2
+  edge _pc_T~in1 -> const$_pc_T~in1
+  edge cond -> _T
+  edge pc -> _pc_T
+layout when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _T_1 kind=op pins=_T_1:EAST,_T_1~in0:WEST,_T_1~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_T~in1 kind=const pins=const$_T~in1:EAST
+  node io_wr_waddr kind=boundary pins=io_wr_waddr:EAST
+  node io_wr_wdata kind=boundary pins=io_wr_wdata:EAST
+  node io_wr_wen kind=boundary pins=io_wr_wen:EAST
+  node regs_MPORT_w kind=boundary pins=regs_MPORT_w:WEST
+  edge _T_1~in0 -> io_wr_wen
+  edge _T_1~in1 -> _T
+  edge _T~in0 -> io_wr_waddr
+  edge _T~in1 -> const$_T~in1
+  edge cond -> _T_1
+  edge regs_MPORT_w -> io_wr_wdata

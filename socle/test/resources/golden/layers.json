@@ -120,58 +120,14 @@
           }
         },
         {
-          "from": "_count_T_2~in1",
-          "to": "const$_count_T_2~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_count_T~in1",
-          "to": "const$_count_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_count_T_2~in2",
-          "to": "_count_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$count~in1",
-          "to": "_count_T_2",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "count",
-          "to": "mux$count",
+          "to": "when$LayeredCounter$when_io_en$0.count",
           "bundle": "UInt<8>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/layers/LayeredCounter.scala",
+            "line": 30,
+            "col": 11
           }
         },
         {
@@ -187,7 +143,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_count_T~in0",
+          "from": "when$LayeredCounter$when_io_en$0.count_2",
           "to": "count~q",
           "bundle": "UInt<8>",
           "label": "",
@@ -211,18 +167,6 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$count~in2",
-          "to": "count~q",
-          "bundle": "UInt<8>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
           "from": "wrap~in0",
           "to": "count~q",
           "bundle": "UInt<8>",
@@ -235,7 +179,7 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$count~in0",
+          "from": "when$LayeredCounter$when_io_en$0.cond",
           "to": "io.en",
           "bundle": "UInt<1>",
           "label": "",
@@ -319,7 +263,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_count_T_2~in0",
+          "from": "when$LayeredCounter$when_io_en$0.wrap",
           "to": "wrap",
           "bundle": "Wire",
           "label": "",
@@ -358,7 +302,9 @@
             "file": "example/src/layers/LayeredCounter.scala",
             "line": 26,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_T_1~in1",
@@ -409,28 +355,6 @@
           "layer": true
         },
         {
-          "id": "const$_count_T_2~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$_count_T~in1",
-          "kind": "const",
-          "label": "0h1",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "id": "wrap",
           "kind": "op",
           "label": "eq",
@@ -441,30 +365,6 @@
             "col": 21
           },
           "op": "eq"
-        },
-        {
-          "id": "_count_T",
-          "kind": "op",
-          "label": "add",
-          "bundle": "",
-          "source": {
-            "file": "example/src/layers/LayeredCounter.scala",
-            "line": 30,
-            "col": 35
-          },
-          "op": "add"
-        },
-        {
-          "id": "_count_T_2",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "example/src/layers/LayeredCounter.scala",
-            "line": 30,
-            "col": 17
-          },
-          "op": "mux"
         },
         {
           "id": "_T",
@@ -532,16 +432,15 @@
           "layer": true
         },
         {
-          "id": "mux$count",
-          "kind": "op",
-          "label": "mux",
+          "id": "when$LayeredCounter$when_io_en$0",
+          "kind": "block",
+          "label": "when(io.en)",
           "bundle": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "file": "example/src/layers/LayeredCounter.scala",
+            "line": 29,
+            "col": 15
+          }
         }
       ]
     }
@@ -550,5 +449,190 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
+  },
+  "regions": {
+    "when$LayeredCounter$when_io_en$0": {
+      "name": "when$LayeredCounter$when_io_en$0",
+      "type": "when$LayeredCounter$when_io_en$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/layers/LayeredCounter.scala",
+        "line": 29,
+        "col": 15
+      },
+      "ports": [
+        {
+          "name": "count",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.en",
+          "cond": true
+        },
+        {
+          "name": "count_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "count"
+        },
+        {
+          "name": "wrap",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_count_T_2~in1",
+          "to": "const$_count_T_2~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_count_T~in1",
+          "to": "const$_count_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_count_T_2~in2",
+          "to": "_count_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$LayeredCounter$when_io_en$0.count",
+          "to": "_count_T_2",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "example/src/layers/LayeredCounter.scala",
+            "line": 30,
+            "col": 11
+          }
+        },
+        {
+          "from": "_count_T~in0",
+          "to": "when$LayeredCounter$when_io_en$0.count_2",
+          "bundle": "UInt<8>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_count_T_2~in0",
+          "to": "when$LayeredCounter$when_io_en$0.wrap",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$_count_T_2~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "const$_count_T~in1",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_count_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/layers/LayeredCounter.scala",
+            "line": 30,
+            "col": 35
+          },
+          "op": "add"
+        },
+        {
+          "id": "_count_T_2",
+          "kind": "op",
+          "label": "mux",
+          "bundle": "",
+          "source": {
+            "file": "example/src/layers/LayeredCounter.scala",
+            "line": 30,
+            "col": 17
+          },
+          "op": "mux"
+        }
+      ]
+    }
   }
 }

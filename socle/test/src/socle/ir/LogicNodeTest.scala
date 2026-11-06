@@ -214,17 +214,21 @@ object LogicNodeTest extends TestSuite {
       val d = designOf(fsmMod)
       val m = mod(d, "M")
       val fsm = m.logic.find(_.kind == "fsm").get
-      assert(fsm.id == "fsm$M$state" && fsm.label == "FSM: state")
-      // the eq chain nodes are gone from the parent (collapsed)
-      assert(!m.logic.exists(n => n.kind == "op" && n.id == "_T_1"))
-      // the body is stored in Design.regions and holds the chain nodes
-      val body = d.regions("fsm$M$state")
-      assert(body.logic.exists(_.id == "_T_1"))
+      assert(fsm.label == "switch(state)" && fsm.state == "state")
+      // the eq chain node only the FSM reads is gone from the parent (collapsed);
+      // `_T_1`, also read by `out`, stays outside and enters on a cond pin
+      assert(!m.logic.exists(n => n.kind == "op" && n.id == "_T_3"))
+      assert(m.logic.exists(n => n.kind == "op" && n.id == "_T_1"))
+      // the body is stored in Design.regions and holds the chain node
+      val body = d.regions(fsm.id)
+      assert(body.logic.exists(_.id == "_T_3"), !body.logic.exists(_.id == "_T_1"))
+      assert(body.ports.exists(p => p.name.startsWith("cond") && p.dir == "in"))
+      assert(body.ports.exists(p => p.name.startsWith("cond") && p.dir == "out" && p.label == "state === 1"))
       // the state register stays parent-level
       assert(m.logic.exists(n => n.kind == "reg" && n.id == "state"))
       // the eq operand const is absorbed into the body, not stranded in the parent
       assert(body.logic.exists(_.kind == "const"))
-      assert(!m.logic.exists(n => n.kind == "const" && n.id.contains("~in")))
+      assert(!m.logic.exists(n => n.kind == "const" && n.id.contains("_T_3~in")))
       // const->op wires live inside the body, not as parent wires/pins
       assert(body.wires.nonEmpty)
       // no parent wire references a node that only exists in the body
@@ -233,7 +237,7 @@ object LogicNodeTest extends TestSuite {
     }
     test("FSM boundary pins are distinct per signal with correct direction") {
       val d = designOf(fsmIoMod)
-      val body = d.regions("fsm$M$state")
+      val body = d.regions(mod(d, "M").logic.find(_.kind == "fsm").get.id)
       // distinct pins for distinct external signals (no collapse onto one "io"/head pin)
       val pinNames = body.ports.map(_.name)
       assert(pinNames.distinct.size == pinNames.size)
@@ -247,7 +251,7 @@ object LogicNodeTest extends TestSuite {
     test("FSM absorbs only its own bundle-field sink, not sibling fields") {
       val d = designOf(fsmBundleSink)
       val m = mod(d, "M")
-      val body = d.regions("fsm$M$state")
+      val body = d.regions(mod(d, "M").logic.find(_.kind == "fsm").get.id)
       // io.a (written inside the switch) is the FSM's output; io.b (written
       // outside) must stay in the parent and NOT appear in the body.
       val bodyPaths = (body.ports.map(_.name) ++ body.wires.flatMap(w => Seq(w.from, w.to))).mkString(" ")

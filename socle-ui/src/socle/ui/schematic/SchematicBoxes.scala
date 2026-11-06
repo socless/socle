@@ -55,7 +55,10 @@ private[schematic] object SchematicBoxes {
   // The clock notch is intrinsic to the symbol, replacing the old box + corner
   // clock triangle. Pins are still rendered via renderPortRows (Approach A) so
   // wire anchoring is unchanged.
-  def regBox(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double): ReactiveElement.Base = {
+  // With a clock-domain colour (`domain`, the module has two or more domains),
+  // a bar along the symbol's bottom edge, the register's counterpart of an
+  // instance's stripe under its clk/rst rows.
+  def regBox(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double, domain: Option[String] = None): ReactiveElement.Base = {
     val c            = g.c
     val boxInfo      = g.rows.getOrElse(n.id, RowModel.BoxRows(Nil, Nil, n.h.toDouble))
     // Draw at the actual laid pin positions (same map the wires use).
@@ -78,6 +81,12 @@ private[schematic] object SchematicBoxes {
         s"overflow:visible;cursor:pointer;transition:opacity .15s;--bf:${SchematicColors.boxFill(n.kind)}",
       onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       LogicSymbols.ff(n.w.toDouble, boxInfo.boxH, inYs, outY, stroke),
+      domain.map { col =>
+        val clock = g.logicById.get(n.id).fold("")(_.clock)
+        div(dataAttr("reg-domain") := clock, title := s"clock: $clock",
+          styleAttr := s"position:absolute;left:4px;top:${boxInfo.boxH + 2}px;width:${math.max(4.0, n.w - 8.0)}px;height:3px;" +
+            s"background:$col;border-radius:2px;pointer-events:none")
+      },
       renderPortRows(ctx, g, n, westBlank, PinSide.West, glyphs = false),
       renderPortRows(ctx, g, n, eastBlank, PinSide.East, glyphs = false),
     ))
@@ -134,6 +143,37 @@ private[schematic] object SchematicBoxes {
   }
 
   // ── boundary stub box ──
+  /** A domain sink (`NodeKind.Domain`): the short stub a derived clock or
+    * reset drives, a tag reading `→ fall` at the end of its source's wire. In
+    * its clock domain's colour (`domain`) when the module has two or more
+    * domains (a reset's: the one clock of the registers it resets), else
+    * neutral. */
+  def domainStub(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double, domain: Option[String]): ReactiveElement.Base = {
+    val ln    = g.logicById.get(n.id)
+    val label = ln.fold(n.id)(socle.layout.LayoutCore.domainLabel)
+    val ink   = domain.getOrElse(Tokens.ink2)
+    // Its pin's row in the box (the box's middle without one).
+    val py: Double = n.ports.headOption.fold(n.h / 2.0)(p => (p.y - n.y).toDouble)
+    val px: Double = n.ports.headOption.fold(0.0)(p => (p.x - n.x).toDouble)
+    reg(ctx, n.id, Highlight.BoxKind.Selectable, div(
+      cls := "scl-sym",
+      dataAttr("logic-node") := n.id,
+      dataAttr("box-inst") := n.id,
+      dataAttr("domain-stub") := ln.fold("")(l => if (l.reset.nonEmpty) l.reset else l.clock),
+      dataAttr("symbol") := "domain",
+      dataAttr("pan-block") := "1",
+      styleAttr := s"position:absolute;left:${n.x}px;top:${top}px;width:${n.w}px;height:${n.h}px;" +
+        s"overflow:visible;cursor:pointer;transition:opacity .15s;--bf:${SchematicColors.boxFill(n.kind)}",
+      onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
+      // The tag, centred on its pin's row, joined to the pin (where the wire
+      // ends, just left of the box) by a short lead.
+      div(styleAttr := s"position:absolute;left:0;top:${py - 8}px;height:16px;box-sizing:border-box;padding:0 6px;" +
+        s"display:flex;align-items:center;border:1px solid $ink;border-left-width:3px;border-radius:3px;background:${Tokens.panel};" +
+        s"font-family:${Tokens.mono};font-size:var(--sch-label);font-weight:600;color:$ink;white-space:nowrap", label),
+      div(styleAttr := s"position:absolute;left:${math.min(0.0, px)}px;top:${py - 0.75}px;width:${math.max(1.0, -px)}px;height:1.5px;background:$ink"),
+    ))
+  }
+
   def boundaryStub(ctx: Ctx, g: Geom, n: LaidNodeR, top: Double): ReactiveElement.Base = {
     val hasLabel = n.ports.exists(_.label.nonEmpty)
     val rowOf    = g.rows.get(n.id).fold(Map.empty[String, RowModel.Row])(br => (br.westRows ++ br.eastRows).map(r => r.path -> r).toMap)
@@ -403,12 +443,18 @@ private[schematic] object SchematicBoxes {
             s"background:${Tokens.border};pointer-events:none")
       }
     }
+    // A code-block box's condition pins: shown in full, wired or not (an
+    // expression condition is computed inside the box, its pin wired there).
+    // Only a code block's: an FSM box shows none (LayoutCore.prepare).
+    val condRows: Set[String] =
+      if (n.kind != socle.schema.NodeKind.Block) Set.empty[String]
+      else g.design.regions.get(n.id).fold(Set.empty[String])(_.ports.iterator.filter(_.cond).map(p => s"${n.id}.${p.name}").toSet)
     guides ++ rows.map { row =>
       val rowY     = row.pinYBaked
       val indentPx = row.depth * 8
       val toggles  = row.isExpandable
       val top      = row.isTopLevel
-      val faint    = if (g.wiredPins(row.path)) emptyMod else cls := "scl-nc"
+      val faint    = if (g.wiredPins(row.path) || condRows(row.path)) emptyMod else cls := "scl-nc"
       val pinAbsX  = if (isWest) 0.0 else n.w.toDouble
       val isVec    = PortModel.isVecOfSignals(row.bundleKey, g.design)
       val shape =

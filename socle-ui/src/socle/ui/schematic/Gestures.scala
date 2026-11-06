@@ -117,6 +117,7 @@ object Gestures {
     clearSelection: () => Unit,  // a click on the background
     clearFollow: () => Unit,     // Escape: stop following a net (NetFollow)
     keysBlocked: () => Boolean,  // e.g. a state diagram covers the schematic
+    navBlocked: () => Boolean,   // Back / Forward blocked (the keys and side buttons): not by a state diagram
     back: () => Unit,            // the view history (ViewHistory)
     forward: () => Unit,
     zoomToSelection: () => Boolean, // false: nothing selected, nothing done
@@ -269,12 +270,14 @@ object Gestures {
       if (e.button == 1 || e.button == 3 || e.button == 4) e.preventDefault()
 
     // The mouse's back (3) and forward (4) buttons walk the view history over
-    // the schematic. The browser navigates the page on their release unless
-    // it is prevented.
+    // the schematic pane (its state diagram too). The browser navigates the
+    // page on their release unless it is prevented.
+    private val onSideDown: js.Function1[dom.MouseEvent, Unit] = (e) =>
+      if (e.button == 3 || e.button == 4) e.preventDefault()
     private val onMouseUp: js.Function1[dom.MouseEvent, Unit] = (e) =>
       if (e.button == 3 || e.button == 4) {
         e.preventDefault()
-        if (!v.keysBlocked()) { if (e.button == 3) v.back() else v.forward() }
+        if (!v.navBlocked()) { if (e.button == 3) v.back() else v.forward() }
       }
     private val onAuxClick: js.Function1[dom.MouseEvent, Unit] = (e) =>
       if (e.button == 3 || e.button == 4) e.preventDefault()
@@ -316,11 +319,13 @@ object Gestures {
       dom.window.navigator.platform.matches("(?s).*(Mac|iP(hone|ad|od)).*")
 
     private val onKey: js.Function1[dom.KeyboardEvent, Unit] = (e) => {
-      val allowed = !e.ctrlKey && !e.metaKey && !e.defaultPrevented && !v.keysBlocked() &&
+      val inPane = !e.ctrlKey && !e.metaKey && !e.defaultPrevented &&
         keysAllowed(dom.document.activeElement, lastPressInSchematic)
+      val allowed = inPane && !v.keysBlocked()
       val altArrow = e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key == "ArrowLeft" || e.key == "ArrowRight")
-      // Alt+Left / Alt+Right walk the view history, like a browser's.
-      if (allowed && altArrow) {
+      // Alt+Left / Alt+Right walk the view history, like a browser's, also
+      // over a state diagram (Back closes it).
+      if (inPane && !v.navBlocked() && altArrow) {
         e.preventDefault()
         if (e.key == "ArrowLeft") v.back() else v.forward()
       }
@@ -367,8 +372,11 @@ object Gestures {
       viewport.addEventListener("pointerdown", onDown)
       viewport.addEventListener("lostpointercapture", onLostCapture)
       viewport.addEventListener("mousedown", onMouseDown)
-      viewport.addEventListener("mouseup", onMouseUp)
-      viewport.addEventListener("auxclick", onAuxClick)
+      // The side buttons over the whole pane: the schematic, its chrome and a state diagram.
+      val pane = Option(viewport.parentElement).getOrElse(viewport)
+      pane.addEventListener("mousedown", onSideDown)
+      pane.addEventListener("mouseup", onMouseUp)
+      pane.addEventListener("auxclick", onAuxClick)
       viewport.addEventListener("click", onClickCapture, true)
       viewport.addEventListener("dblclick", onDblClickCapture, true)
       // Non-passive, so preventDefault stops the page scrolling or zooming.
@@ -380,8 +388,9 @@ object Gestures {
         viewport.removeEventListener("pointerdown", onDown)
         viewport.removeEventListener("lostpointercapture", onLostCapture)
         viewport.removeEventListener("mousedown", onMouseDown)
-        viewport.removeEventListener("mouseup", onMouseUp)
-        viewport.removeEventListener("auxclick", onAuxClick)
+        pane.removeEventListener("mousedown", onSideDown)
+        pane.removeEventListener("mouseup", onMouseUp)
+        pane.removeEventListener("auxclick", onAuxClick)
         viewport.removeEventListener("click", onClickCapture, true)
         viewport.removeEventListener("dblclick", onDblClickCapture, true)
         vp.removeEventListener("wheel", onWheel, nonPassive)

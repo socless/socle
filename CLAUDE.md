@@ -35,6 +35,7 @@ mill example.socleRunRegHeavy  # Register-heavy design (Datapath)
 mill example.socleRunFsm       # TrafficFsm (switch/is FSM)
 mill example.socleRunLayers    # LayeredCounter (verification layers)
 mill example.socleRunScatter   # ScatterDemo (bundle direction split)
+mill example.socleRunDomains   # SpiSlave (two derived clock domains + async reset)
 mill example.socleRunBigArray  # BigArray (16x16 stages: the UI smoke's performance guard)
 ./mill example.socleCapturedDeepSoc  # committed DeepSoc capture -> design.json (fold groups, no source index)
 ./mill example.socleCapturedFsm      # committed TrafficFsm capture -> design.json with its state diagram (FromCapture)
@@ -70,7 +71,8 @@ socle/src/socle/
                          # BundleTree.scala (shared with the UI)
   parse/ChirrtlParser.scala  # CHIRRTL text → typed AST (GroundT, BundleT, VecT, Port, Inst, Conn)
   ir/                    # IrWalk (AST → Design; bundle dedup & wire coalescing), NetTrace, WhenMux,
-                         # FsmDetect, MemNodes, Synthetic (logic-node extraction)
+                         # FsmDetect, MemNodes, Synthetic (logic-node extraction), CodeBlocks
+                         # (the user's when/switch blocks), SourceLines (Scala lines markers point at)
   cli/                   # Launcher (reflection-based main, CLI entry invoked by the Mill plugin;
                          # from-capture, debug-layout, serve), Serve (standalone UI server)
   layout/                # LayoutCore (pure, shared with socle-js), Layout (JVM ELK bake),
@@ -113,6 +115,7 @@ example/src/
   iobundles/             # Vec-of-bundle ports and nested/mixed-direction bundles: Interconnect
   regheavy/              # Register-heavy design: Datapath
   fsm/ layers/ scatter/  # TrafficFsm, LayeredCounter (verification layers), ScatterDemo
+  domains/               # SpiSlave: registers on rise/fall clocks derived from an input
   bigarray/              # BigArray: 256 boxes in one module (performance guard)
 
 socle-js/src/socle/js/
@@ -158,6 +161,8 @@ build** - just `./mill socle-ui.dist`. It parses `design.json` into the typed
 **Bundle deduplication by structural hash** (`IrWalk.scala`) — bundles with identical field names/widths/directions collapse to one `BundleDef`. `Decoupled[T]` and AXI4 shapes are recognized by field-name sets and given friendly names.
 
 **Wire coalescing** — ground-level connects sharing a `<inst>.<port>` prefix are grouped; the count becomes the wire label in the UI.
+
+**Code blocks are boxes** (`CodeBlocks`, `IrWalk.collapseBlocks`): every user-written `when` / `switch` becomes a box labelled as written (`when(io.enable)`) and nested as written, with an id from its label and ordinal (`when$<mod>$when_io_enable$0`, `Synthetic.blockId`), not its line, so an edit above it does not rename it; its condition is a `cond` pin (`PortDef.cond`), drawn on the closed box's WEST side even when only the body wires it (`LayoutCore.prepare`; not on an FSM box, which opens its diagram), and the registers it assigns stay at module level, fed from the box. A `when` counts as the user's when its marker's Scala line has the call, so export mode needs `--source-root` (the Mill plugin passes it) and view mode reads the lines through the source index. Without source lines only the switches FsmDetect recognises are boxes.
 
 **Plugin task forks a JVM** (`SocleModule.scala`) — `socle` task runs `Launcher` in a separate JVM with the user's exact run classpath, so the plugin doesn't need to share a classloader with user code.
 

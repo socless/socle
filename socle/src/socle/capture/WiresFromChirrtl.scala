@@ -19,7 +19,8 @@ object WiresFromChirrtl {
 
   /** The full CHIRRTL-pipeline design (logic, wires, FSM regions) of an
     * already parsed circuit, so a caller parses the CHIRRTL once. */
-  def design(circ: ChirrtlParser.Circ): Design = IrWalk.design(circ)
+  def design(circ: ChirrtlParser.Circ, lines: socle.ir.SourceLines = socle.ir.SourceLines.none): Design =
+    IrWalk.design(circ, lines)
 
   /** Module name -> its wires, endpoints verbatim from `WireDef` (from = sink, to = source). */
   def wires(chirrtl: String): Map[String, Seq[CWire]] =

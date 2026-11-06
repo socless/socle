@@ -315,10 +315,11 @@ object WaveFollow {
     }
     mod.logic.find(_.id == sel) match {
       case Some(n) if n.kind == NodeKind.Fsm =>
-        d.regions.get(n.id).flatMap { r =>
+        // Its register (`state`); an older design keeps it in the box's region.
+        Some(n.state).filter(_.nonEmpty).orElse(d.regions.get(n.id).flatMap { r =>
           val regs = r.logic.filter(_.kind == NodeKind.Reg).map(l => clean(l.id))
           regs.find(id => mod.signals.exists(_.name == id)).orElse(regs.headOption)
-        }
+        })
       case Some(n) if n.kind == NodeKind.Block =>
         d.regions.get(n.id).toSeq.flatMap(_.ports).view.flatMap { p =>
           val pin = s"${n.id}.${p.name}"

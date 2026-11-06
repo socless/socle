@@ -70,17 +70,21 @@ object IrWalk {
     if (names.size > max) s"$shown (+${names.size - max} more)" else shown
   }
 
-  def design(c: Circ): Design = {
+  /** @param lines    the source lines the `when` markers point at: which `when`s
+    *                 are user-written blocks (`CodeBlocks`).
+    * @param collapse fold the code blocks into boxes; false keeps their
+    *                 terminals in the module (tests of the routing). */
+  def design(c: Circ, lines: SourceLines = SourceLines.none, collapse: Boolean = true): Design = {
     val bundles = new BundleReg
     // Cross-module name lookup. The wire bundle inference for `<inst>.<port>`
     // endpoints needs to read port types off the instance's own module,
     // which lives elsewhere in the circuit. Building it once here is cheaper
     // than searching per wire.
     val byName  = c.modules.map(m => m.name -> m).toMap
-    val built   = c.modules.map(buildModule(_, byName, bundles))
+    val built   = c.modules.map(buildModule(_, byName, bundles, lines, collapse))
     val modules = built.map(_._1)
-    // Collapsed-FSM bodies (issue #210): each module contributes zero or more
-    // (fsmId -> body) entries; merge into one regions map for the Design.
+    // Code-block bodies: each module contributes zero or more (box id -> body)
+    // entries, nested boxes included; merge into one regions map for the Design.
     val regions = built.flatMap(_._2).toMap
     // Carry parser warnings through, and add a walk-level one: wires whose
     // endpoint type could not be resolved fall back to bundle "Wire" (issue
@@ -140,6 +144,8 @@ object IrWalk {
     m:       Mod,
     byName:  Map[String, Mod],
     bundles: BundleReg,
+    lines:   SourceLines,
+    collapse: Boolean,
   ): (ModuleDef, Map[String, ModuleDef]) = {
     // A port is "connected" if its name is referenced anywhere in the module
     // body (connects, register/memory clocks+resets, node expressions, when
@@ -156,10 +162,13 @@ object IrWalk {
     // it share a domain. We find that port on the *child* module's interface
     // (clock by type or name, reset by type or name since reset is often
     // lowered to UInt<1>) and look up `<inst>.<port>` on the LHS of a connect.
+    // The driver is named like a register's domain (`domainOf`), so an instance
+    // and a register on one clock share it.
     def driverOf(instName: String, portNames: Seq[String]): String =
       portNames.iterator
-        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
+        .flatMap(pn => m.conns.collectFirst { case Conn(lhs, rhs, _, _, _) if lhs.trim == s"$instName.$pn" => rhs.trim })
         .find(_.nonEmpty)
+        .map(domainOf(m, _))
         .getOrElse("")
 
     val children = m.insts.map { i =>
@@ -181,8 +190,32 @@ object IrWalk {
     val regLogic: Seq[LogicNodeDef] = m.regs.map { r =>
       val key = registerType(r.tpe, r.name, bundles)
       LogicNodeDef(id = r.name, kind = NodeKind.Reg, label = r.name, bundle = key,
-        source = r.src.map(toRef).getOrElse(SourceRef.unknown))
+        source = r.src.map(toRef).getOrElse(SourceRef.unknown),
+        clock = if (r.clock.isEmpty) "" else domainOf(m, r.clock),
+        reset = if (r.reset.isEmpty) "" else domainOf(m, r.reset))
     }
+    // Domain sinks: each derived clock or reset the registers or instances use
+    // (a node or a port field, not the module's own clock/reset port, which has
+    // its clk/rst rows) gets a sink wired from the signal, so the logic
+    // computing it (`!io.sclk`, `io.ss`) drives something: a short stub
+    // labelled with the domain. An instance counts too: its clock connect is a
+    // Clock wire the layout hides. A reset's sink takes the one clock of what
+    // it resets (its colour), "" when that is on several.
+    val ownClockReset: Set[String] = m.ports.filter(p => isClockPort(p) || isResetPort(p)).map(_.name).toSet
+    def derived(d: String): Boolean =
+      d.nonEmpty && (d.head.isLetter || d.head == '_') && !d.contains('(') && !ownClockReset.contains(d)
+    // (clock, reset) of every register, then of every instance.
+    val clocked: Seq[(String, String)] = regLogic.map(n => (n.clock, n.reset)) ++ children.map(c => (c.clock, c.reset))
+    val domainLogic: Seq[LogicNodeDef] =
+      clocked.map(_._1).filter(derived).distinct.map { d =>
+        LogicNodeDef(id = Synthetic.clockDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
+          source = SourceRef.unknown, clock = d)
+      } ++ clocked.map(_._2).filter(derived).distinct.map { d =>
+        val clocks: Seq[String] = clocked.filter(_._2 == d).map(_._1).filter(_.nonEmpty).distinct
+        LogicNodeDef(id = Synthetic.resetDomainId(d), kind = NodeKind.Domain, label = d, bundle = "",
+          source = SourceRef.unknown, clock = if (clocks.size == 1) clocks.head else "", reset = d)
+      }
+    val domainEdges: Seq[(String, String)] = domainLogic.map(n => (n.id, n.label))
     val regType: Map[String, String] = regLogic.map(n => n.id -> n.bundle).toMap
     // Combinational logic nodes (issue #188 B2). Logic ops render as nodes whose
     // value is a net terminal (input pins `_T~in<i>`, output `_T`); plumbing ops
@@ -205,16 +238,94 @@ object IrWalk {
     // Memory nodes (issue #205): mem LogicNodeDefs + address edges, and the
     // connect stream rewritten so mport refs route through encoded mem pins.
     val mem = MemNodes.build(m)
+    // Code blocks: the user's `when` / `switch` blocks (CodeBlocks). A connect
+    // inside one leaves the stream for an assignment terminal of its innermost
+    // block (one per block and sink, an input pin per connect, its output drives
+    // the sink), and each arm condition feeds the block's condition terminal.
+    // The collapse folds the terminals into the block's box.
+    val blocks: Seq[CodeBlock] = CodeBlocks.of(m, lines)
+    // Built once: CodeBlocks.blockOf scans the blocks per call (big modules).
+    val blockOfWhen: Map[Int, String] = blocks.iterator.flatMap(b => b.whenIds.iterator.map(_ -> b.id)).toMap
+    val routed: Seq[(Conn, Option[String])] =
+      mem.conns.map(c => (c, c.whenIds.reverseIterator.flatMap(blockOfWhen.get).nextOption()))
+    val outsideConns: Seq[Conn] = routed.collect { case (c, None) => c }
     // Slice 1 of #210: fold simple depth-1 conditional connects into mux nodes.
     // The folded connects are removed from the stream; the mux nodes are
-    // terminals (like other op nodes) and their pin edges join nodeEdges.
-    val muxResult  = WhenMux.synthesize(mem.conns, name => regNames.contains(stripIdx(name)))
-    val keptConns  = mem.conns.iterator.zipWithIndex
-      .collect { case (c, i) if !muxResult.consumed(i) => c }.toSeq
+    // terminals (like other op nodes) and their pin edges join nodeEdges. It
+    // sees only the connects outside every block.
+    val muxResult  = WhenMux.synthesize(outsideConns, name => regNames.contains(stripIdx(name)))
     val muxIds     = muxResult.nodes.map(_.id).toSet
-    val (wires, constLogic) =
-      coalesceWires(m, keptConns, byName, bundles, regNames, regType,
-        logicNodeNames ++ muxIds ++ mem.ids, nodeEdges ++ muxResult.edges ++ mem.addrEdges)
+    // The stream in source order: kept outside connects, and in place of each
+    // block connect its terminal edges (as connects, so wires keep the marker).
+    val termInputs: mutable.LinkedHashMap[String, Int] = mutable.LinkedHashMap.empty
+    def nextPin(term: String): String = {
+      val k: Int = termInputs.getOrElse(term, 0)
+      termInputs(term) = k + 1
+      Synthetic.opInPin(term, k)
+    }
+    val keptConns: mutable.ArrayBuffer[Conn] = mutable.ArrayBuffer.empty
+    val termBlock: mutable.Map[String, String] = mutable.Map.empty // terminal id -> block id
+    // One terminal per (block, sink); two sinks that sanitize alike (`io.a.b`,
+    // `io.a_b`) get `_2`, `_3`... like WhenMux's ids.
+    val asgIds: mutable.Map[(String, String), String] = mutable.Map.empty
+    val usedAsg: mutable.Set[String] = mutable.Set.empty
+    var outsideAt: Int = 0
+    routed.foreach {
+      case (c, None) =>
+        if (!muxResult.consumed(outsideAt)) keptConns += c
+        outsideAt += 1
+      case (c, Some(b)) =>
+        val asg: String = asgIds.getOrElseUpdate((b, c.lhs), {
+          val base: String = Synthetic.assignId(b, c.lhs)
+          val id: String = (base #:: LazyList.from(2).map(n => s"${base}_$n")).find(!usedAsg(_)).get
+          usedAsg += id
+          keptConns += Conn(c.lhs, id, c.src)
+          id
+        })
+        termBlock(asg) = b
+        keptConns += Conn(nextPin(asg), c.rhs, c.src)
+    }
+    // A block's conditions: its arms', and those of the `when`s that are not
+    // blocks (a library `when`, or no source line to read) around it up to its
+    // parent block or inside it: the block reads them, as it owns the connects
+    // they guard. One pin per signal.
+    val whenById: Map[Int, ChirrtlParser.WhenDecl] = m.whens.map(w => w.id -> w).toMap
+    val armsOf: Map[String, Seq[ChirrtlParser.WhenDecl]] =
+      m.whens.filter(w => blockOfWhen.contains(w.id)).groupBy(w => blockOfWhen(w.id))
+    val innerConds: Map[String, Seq[ChirrtlParser.WhenDecl]] =
+      m.whens.filterNot(w => blockOfWhen.contains(w.id)).flatMap { w =>
+        w.parents.reverseIterator.flatMap(p => blockOfWhen.get(p._1)).nextOption().map(b => (b, w))
+      }.groupBy(_._1).map { case (b, cs) => b -> cs.map(_._2) }
+    def condsOf(b: CodeBlock): Seq[ChirrtlParser.WhenDecl] = {
+      val arms: Seq[ChirrtlParser.WhenDecl] = armsOf.getOrElse(b.id, Nil)
+      val outer: Seq[ChirrtlParser.WhenDecl] = arms.headOption.toSeq.flatMap { root =>
+        root.parents.reverse.takeWhile(p => !blockOfWhen.contains(p._1)).reverse.flatMap(p => whenById.get(p._1))
+      }
+      (outer ++ arms ++ innerConds.getOrElse(b.id, Nil)).distinctBy(_.cond.trim)
+    }
+    // No condition terminal for a block without conditions. Each condition pin
+    // keeps its condition's CHIRRTL text, and the arm's source text when the
+    // block's own arm wrote it (`io.in.fire` for `when _T`): its box pin's label.
+    val condShown: mutable.Map[String, String] = mutable.Map.empty
+    val condEdges: Seq[(String, String)] = blocks.flatMap { b =>
+      val conds: Seq[ChirrtlParser.WhenDecl] = condsOf(b)
+      val written: Map[String, String] = armsOf.getOrElse(b.id, Nil)
+        .flatMap(a => b.armConds.get(a.id).map(a.cond.trim -> _)).toMap
+      if (conds.nonEmpty) termBlock(Synthetic.condId(b.id)) = b.id
+      conds.map { w =>
+        val pin: String = nextPin(Synthetic.condId(b.id))
+        written.get(w.cond.trim).foreach(condShown(pin) = _)
+        (pin, w.cond.trim)
+      }
+    }
+    val condTextOf: Map[String, String] = condEdges.toMap
+    val termLogic: Seq[LogicNodeDef] = termInputs.keys.toSeq.map { id =>
+      LogicNodeDef(id = id, kind = NodeKind.Op, label = "", bundle = "", source = SourceRef.unknown, op = "terminal")
+    }
+    val (coalesced, constLogic) =
+      coalesceWires(m, keptConns.toSeq, byName, bundles, regNames, regType,
+        logicNodeNames ++ muxIds ++ mem.ids ++ termInputs.keySet ++ domainLogic.map(_.id),
+        nodeEdges ++ muxResult.edges ++ mem.addrEdges ++ condEdges ++ domainEdges)
     val metrics = Metrics(
       registers = m.regs.size,
       wires     = m.conns.size,
@@ -222,7 +333,12 @@ object IrWalk {
       gates     = None,
       memories  = m.mems.size,
     )
-    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic
+    val allLogic = regLogic ++ constLogic ++ opLogic ++ muxResult.nodes ++ mem.logic ++ termLogic ++ domainLogic
+    // A domain sink's wire is a stub, never hidden as a clock/reset wire (the
+    // layout drops those): a Clock-typed source keeps the plain `Wire` label.
+    val domainIds: Set[String] = domainLogic.map(_.id).toSet
+    val wires: Seq[WireDef] = coalesced.map(w =>
+      if (domainIds(w.from) && LayoutCore.isClockReset(w)) w.copy(bundle = "Wire") else w)
     // Verification-layer flagging (issue #212): mark logic nodes that are Chisel
     // layer content so the UI can hide them behind "show layers". Seeds: nodes
     // declared inside a `layerblock`, or a module-level condition node the layer
@@ -260,238 +376,285 @@ object IrWalk {
       }
       allLogic.map(n => if (members.contains(n.id)) n.copy(layer = true) else n)
     }
-    // Slice 2 of #210: collapse recognized FSMs. The member logic nodes and the
-    // wholly-internal wires move into a stored body keyed by the fsm node id;
-    // the parent keeps a single `fsm` box plus the boundary wires (rewired to
-    // pins on the box). No FSM detected => parent unchanged, empty regions.
-    val (finalLogic, finalWires, regions) =
-      collapseFsms(m, layerFlagged, wires)
-    val moduleDef = ModuleDef(
+    val open = ModuleDef(
       name     = m.name,
       `type`   = m.name,
       doc      = "",
       source   = m.src.map(toRef).getOrElse(SourceRef.unknown),
       ports    = ports,
       children = children,
-      wires    = finalWires,
+      wires    = wires,
       metrics  = metrics,
       kind     = moduleKind(m.kind),
-      logic    = finalLogic,
+      logic    = layerFlagged,
     )
-    (moduleDef, regions)
+    // Each code block becomes a box, innermost first; its body goes to the regions.
+    if (collapse)
+      collapseBlocks(m, open, blocks, blockOfWhen, termBlock, asgIds.iterator.map { case ((_, lhs), id) => id -> lhs }.toMap,
+        condTextOf, condShown.toMap)
+    else (open, Map.empty[String, ModuleDef])
   }
 
-  /** Collapse each recognized FSM in `m` (issue #210). Returns the parent's
-    * remaining logic nodes and wires (member nodes removed, internal wires
-    * removed, boundary wires rewired to fsm-box pins, one `fsm` node added per
-    * FSM) plus the map of fsmId -> stored body ModuleDef.
+  /** Collapse the code blocks of `m` into boxes (one per block, innermost
+    * first, with `LogicBlocks.collapse`) and splice their terminals out of the
+    * bodies. A block's members: the op nodes declared in it, its conditions'
+    * expression cones (wherever declared, see below), its terminals, the
+    * consts that feed only those, and its child blocks' boxes. Registers and
+    * memories stay where they are declared. A terminal's out pin is named
+    * after its sink (one pin per sink, shared by the block's own and its
+    * children's assignments).
     *
-    * Deterministic: iterates the ordered `logic`/`wires` lists; membership Sets
-    * are used only for lookups, never for ordering.
-    */
-  private def collapseFsms(
-    m:     Mod,
-    logic: Seq[LogicNodeDef],
-    wires: Seq[WireDef],
-  ): (Seq[LogicNodeDef], Seq[WireDef], Map[String, ModuleDef]) = {
-    val fsms = FsmDetect.detect(m)
-    if (fsms.isEmpty) return (logic, wires, Map.empty)
-
-    // Running parent state, mutated per FSM. `parentLogic`/`parentWires` keep
-    // source order; each FSM resolves its members then rewires its boundary edges.
-    var parentLogic = logic
-    var parentWires = wires
-    val regionsB    = mutable.LinkedHashMap.empty[String, ModuleDef]
-
-    fsms.foreach { f =>
-      val (memberIds, sinkPaths) = fsmMembers(f, parentLogic, parentWires)
-      val (body, nextLogic, nextWires) =
-        fsmRewire(f, memberIds, sinkPaths, parentLogic, parentWires)
-      regionsB(f.id) = body
-      parentLogic = nextLogic
-      parentWires = nextWires
+    * Conditions: each condition of a block is one pin of its box, `cond`
+    * (`cond_2`...), labelled with the condition as written (`io.in.fire`), or
+    * else as its expression (`state === 1`), never a CHIRRTL temp. The pin is
+    * the condition's marker in the body, and its direction follows the value:
+    *  - a signal from outside the box (a port, a register, a node the module
+    *    or another box also reads) enters on an in pin `cond`;
+    *  - an expression only the block reads moves into the box with its whole
+    *    cone (every operand node read only by that cone or the block), and the
+    *    cone's root drives an out pin `cond` inside the body (nothing outside
+    *    reads it: it shows what the box computes its arms from). */
+  private def collapseBlocks(
+    m:           Mod,
+    open:        ModuleDef,
+    blocks:      Seq[CodeBlock],
+    blockOfWhen: Map[Int, String],
+    termBlock:   collection.Map[String, String],
+    asgLhs:      Map[String, String],
+    condTextOf:  Map[String, String],
+    condShown:   Map[String, String],
+  ): (ModuleDef, Map[String, ModuleDef]) = {
+    if (blocks.isEmpty) return (open, Map.empty)
+    val kindOf: Map[String, String] = open.logic.iterator.map(n => n.id -> n.kind).toMap
+    def nodeOf(e: String): Option[String] =
+      if (kindOf.contains(e)) Some(e) else Some(fsmHeadBase(e)).filter(kindOf.contains)
+    val parentOf: Map[String, String] = blocks.flatMap(b => b.parent.map(p => b.id -> p)).toMap
+    // Is block `x` block `b` or nested in it?
+    @scala.annotation.tailrec
+    def within(b: String, x: String): Boolean = x == b || (parentOf.get(x) match {
+      case Some(p) => within(b, p)
+      case None    => false
+    })
+    // Node id -> its block: the innermost block it is declared in, the
+    // terminals, the condition cones; then the consts all of whose consumers
+    // belong to one block (one pass over the wires, indexed by const).
+    val owner: mutable.HashMap[String, String] = mutable.HashMap.empty
+    m.nodes.foreach { n =>
+      n.whenIds.reverseIterator.flatMap(blockOfWhen.get).nextOption().foreach(b => owner(n.name) = b)
     }
-
-    (parentLogic, parentWires, regionsB.toMap)
-  }
-
-  // ── FSM collapse: shared endpoint-path helpers ────────────────────────────
-  // Head of a wire endpoint, reduced to the underlying node base id. Mirrors
-  // coalesceWires: strip a vec index, then the `~q` (reg Q) / `~in<i>` (op input
-  // pin) IrWalk-synthetic suffix off the head segment.
-  private[socle] def fsmHeadBase(endpoint: String): String =
-    Synthetic.baseOf(stripIdx(endpoint.split('.').headOption.getOrElse("")))
-  // Sanitize the FULL external endpoint into a stable, distinct pin name. Strip
-  // only a trailing vec index `[i]`, but KEEP the `~q` reg-Q suffix and any
-  // `.field` structure so distinct external signals (and the reg Q-read `state~q`
-  // vs the D-write `state`) get distinct pins. Then map every non-`[A-Za-z0-9_]`
-  // char to `_` (so `io.go` -> `io_go`, `state~q` -> `state_q`, `state` -> `state`).
-  private[socle] def fsmPinName(endpoint: String): String =
-    endpoint.replaceAll("""\[[^\]]*\]$""", "").replaceAll("[^A-Za-z0-9_]", "_")
-  // Normalize a wire's SINK endpoint to a full path matching FsmDetect's
-  // `memberSinkPaths`: strip only a trailing vec index, keep bundle FIELDS
-  // (`io.a[0]` -> `io.a`, `io.a` -> `io.a`, `state` -> `state`). This lets sink
-  // absorption match a single bundle field (`io.a`) without over-grabbing a
-  // sibling field (`io.b`) driven outside the FSM, which a head-only match (both
-  // reduce to `io`) cannot distinguish.
-  private def fsmSinkPath(endpoint: String): String = endpoint.replaceAll("""\[[^\]]*\]$""", "")
-
-  /** Resolve `f`'s membership against the current parent state. Returns the set
-    * of member node ids (op nodes in `f.memberNodes`, plus const nodes whose
-    * every sourced wire feeds a member) and the sink PATHS the FSM drives. */
-  private def fsmMembers(
-    f:           FsmDetect.Fsm,
-    parentLogic: Seq[LogicNodeDef],
-    parentWires: Seq[WireDef],
-  ): (Set[String], Set[String]) = {
-    // Member built-node ids: op/eq nodes whose id is in f.memberNodes, plus const
-    // nodes ALL of whose consumers are members. Registers are NEVER members (they
-    // stay parent-level). Plumbing ops (asUInt, ...) were never emitted as nodes,
-    // so f.memberNodes entries like `_T`/`_T_2` simply have no matching built node
-    // and contribute nothing here.
-    val opMemberIds: Set[String] =
-      parentLogic.iterator
-        .filter(n => n.kind != NodeKind.Reg && n.kind != NodeKind.Const && f.memberNodes.contains(n.id))
-        .map(_.id).toSet
-
-    // Full sink PATHS the FSM DRIVES inside the construct (connect-lhs paths under
-    // the switch, vec-index-stripped but FIELDS kept): the state reg's D-input and
-    // any datapath output (e.g. `state`, `busy`, `io.a`). These are external
-    // endpoints fed by the FSM, NOT nodes to move into the body (the reg itself
-    // stays parent-level). Matching at field granularity prevents a sibling bundle
-    // field driven outside the FSM (`io.b`) from being absorbed.
-    val sinkPaths: Set[String] = f.memberSinkPaths
-
-    // A const node is a member iff every wire it SOURCES feeds a member: an op
-    // member, OR an FSM-driven sink (the const is the value tied to that sink
-    // inside the switch). A const node is the SOURCE of its connect, so its id is
-    // the wire's `to` side verbatim (WireDef from = sink, to = source) - the const
-    // id may itself carry an `~in<i>` suffix (it is the literal tied to an op input
-    // pin), so match it EXACTLY rather than through fsmHeadBase, which would strip
-    // that suffix and never match. The consumer is the `from` (sink) side: an op
-    // input pin (reduced via fsmHeadBase to its op base id and matched against op
-    // members) or a sink (matched by FULL PATH against the FSM's member sink paths,
-    // so a const tied to a sibling field outside the FSM is not pulled in).
-    val constIds: Set[String] = parentLogic.iterator.filter(_.kind == NodeKind.Const).map(_.id).toSet
-    val constMemberIds: Set[String] = constIds.filter { cid =>
-      val consumers = parentWires.iterator.collect {
-        case w if w.to == cid => w.from
-      }.toSeq
-      consumers.nonEmpty && consumers.forall(c =>
-        opMemberIds.contains(fsmHeadBase(c)) || sinkPaths.contains(fsmSinkPath(c)))
+    owner ++= termBlock
+    // Each node's consumers (the sinks of the wires it drives) and operand
+    // sources, by node id, for the condition cones.
+    val sinksOf: mutable.HashMap[String, mutable.ArrayBuffer[String]] = mutable.HashMap.empty
+    val sourcesOf: mutable.HashMap[String, mutable.ArrayBuffer[String]] = mutable.HashMap.empty
+    open.wires.foreach { w =>
+      nodeOf(w.to).foreach(n => sinksOf.getOrElseUpdate(n, mutable.ArrayBuffer.empty) += w.from)
+      for (snk <- nodeOf(w.from); src <- nodeOf(w.to))
+        sourcesOf.getOrElseUpdate(snk, mutable.ArrayBuffer.empty) += src
     }
-    (opMemberIds ++ constMemberIds, sinkPaths)
-  }
-
-  /** Rewire `f`'s wires given its resolved membership: partition into the body
-    * (both sides member) and the parent (boundary, the FSM side rerouted to a
-    * synthesized fsm-box pin), dedup each, and assemble the stored body. Returns
-    * `(body, nextParentLogic, nextParentWires)` - the parent with member nodes
-    * dropped, one `fsm` box added, and its wires swapped for the rewired set. */
-  private def fsmRewire(
-    f:           FsmDetect.Fsm,
-    memberIds:   Set[String],
-    sinkPaths:   Set[String],
-    parentLogic: Seq[LogicNodeDef],
-    parentWires: Seq[WireDef],
-  ): (ModuleDef, Seq[LogicNodeDef], Seq[WireDef]) = {
-    // Membership test for a wire endpoint. A const member id literally carries its
-    // `~in<i>` suffix (e.g. `const$_T~in0`), so match a WHOLE node id EXACTLY
-    // first; only then fall back to fsmHeadBase, which is meaningful for PIN-PATH
-    // endpoints (`_T~in0` -> `_T`, `state~q` -> `state`) and would wrongly strip a
-    // const id's `~in<i>` suffix and never match.
-    def inMember(endpoint: String): Boolean =
-      memberIds.contains(endpoint) || memberIds.contains(fsmHeadBase(endpoint))
-
-    val pins = mutable.LinkedHashMap.empty[String, PortDef]
-    // Register a box pin, promoting to "inout" if reused with a conflicting dir.
-    def addPin(pin: String, dir: String): Unit = pins.get(pin) match {
-      case None =>
-        pins(pin) = PortDef(name = pin, dir = dir, bundle = "", doc = "",
-          source = SourceRef.unknown)
-      case Some(existing) if existing.dir != dir =>
-        // A reused pin driven in both directions is a true bidirectional
-        // boundary: promote to "inout" rather than silently keeping the first.
-        pins(pin) = existing.copy(dir = PortDir.Inout)
-      case Some(_) => // same direction, keep
+    // A block's condition cone, children first (a node a child's condition and
+    // its parent both read joins the parent): the op nodes that feed its
+    // condition terminal and that only the block (its nested blocks included)
+    // or the cone reads, grown to a fixpoint.
+    val coneOf: mutable.HashMap[String, Set[String]] = mutable.HashMap.empty
+    blocks.reverse.foreach { b =>
+      val cone: mutable.Set[String] = mutable.Set.empty
+      def readInside(sink: String): Boolean =
+        nodeOf(sink).exists(id => cone(id) || owner.get(id).exists(within(b.id, _)))
+      def joins(y: String): Boolean =
+        !cone(y) && kindOf.get(y).contains(NodeKind.Op) && !Synthetic.isTerminal(y) &&
+          owner.get(y).forall(o => o == b.id || within(o, b.id)) &&
+          sinksOf.getOrElse(y, Nil).forall(readInside)
+      var changed: Boolean = true
+      while (changed) {
+        val next: Seq[String] = (Seq(Synthetic.condId(b.id)) ++ cone).flatMap(sourcesOf.getOrElse(_, Nil)).distinct.filter(joins)
+        changed = next.nonEmpty
+        next.foreach { y => cone += y; owner(y) = b.id }
+      }
+      coneOf(b.id) = cone.toSet
     }
-
-    // Partition this FSM's wires: internal (both sides member) -> body; boundary
-    // (exactly one side member, or a guarded datapath sink) -> parent, the FSM
-    // side rewired to a box pin.
-    val internalWires = mutable.ArrayBuffer.empty[WireDef]
-    val newParentWires = mutable.ArrayBuffer.empty[WireDef]
-
-    parentWires.foreach { w =>
-      val fromMem = inMember(w.from)
-      val toMem   = inMember(w.to)
-      // WireDef(from = sink, to = source). A guarded datapath connect drives an
-      // FSM sink from a NON-member external source (e.g. `connect state, cmd`):
-      // the value passes through the FSM, so it splits into an input pin (the
-      // source) and an output pin (the sink).
-      val passthrough = !fromMem && !toMem && sinkPaths.contains(fsmSinkPath(w.from))
-      if (fromMem && toMem) {
-        internalWires += w
-      } else if (passthrough) {
-        val inPin  = fsmPinName(w.to)   // external source feeds the FSM
-        val outPin = fsmPinName(w.from) // FSM drives the external sink
-        addPin(inPin, PortDir.In)
-        addPin(outPin, PortDir.Out)
-        internalWires += WireDef(from = outPin, to = inPin, bundle = "",
-          label = "", source = SourceRef.unknown)
-        newParentWires += WireDef(from = s"${f.id}.$inPin", to = w.to,
-          bundle = w.bundle, label = w.label, source = w.source)
-        newParentWires += WireDef(from = w.from, to = s"${f.id}.$outPin",
-          bundle = w.bundle, label = w.label, source = w.source)
-      } else if (fromMem || toMem) {
-        // The member side is rewired to a box pin; the pin name derives from the
-        // EXTERNAL endpoint. Member-as-source (the `to` side) feeds outside =>
-        // FSM drives it => body OUTPUT. Member-as-sink (the `from` side) is fed
-        // from outside => body INPUT.
-        val external = if (fromMem) w.to else w.from
-        val pin = fsmPinName(external)
-        val dir = if (toMem) PortDir.Out else PortDir.In
-        addPin(pin, dir)
-        val pinPath = s"${f.id}.$pin"
-        newParentWires += (if (fromMem) w.copy(from = pinPath) else w.copy(to = pinPath))
-      } else {
-        newParentWires += w
+    val constConsumers: mutable.LinkedHashMap[String, mutable.ArrayBuffer[String]] = mutable.LinkedHashMap.empty
+    open.wires.foreach { w =>
+      if (kindOf.get(w.to).contains(NodeKind.Const))
+        constConsumers.getOrElseUpdate(w.to, mutable.ArrayBuffer.empty) += w.from
+    }
+    def opOwner(id: String): Option[String] =
+      if (kindOf.get(id).contains(NodeKind.Op)) owner.get(id) else None
+    // A const read only as a condition stays outside: the splice drops the
+    // condition terminal's wires, so inside it would be left unwired.
+    constConsumers.foreach { case (c, sinks) =>
+      val bs: Set[Option[String]] = sinks.iterator.map(s => nodeOf(s).flatMap(opOwner)).toSet
+      val condOnly: Boolean = sinks.forall(s => fsmHeadBase(s).startsWith(Synthetic.CondPrefix))
+      if (bs.size == 1 && !condOnly) bs.head.foreach(b => owner(c) = b)
+    }
+    val membersOf: Map[String, Set[String]] =
+      open.logic
+        .filter(n => n.kind == NodeKind.Op || n.kind == NodeKind.Const)
+        .flatMap(n => owner.get(n.id).map(b => (b, n.id)))
+        .groupBy(_._1).map { case (b, ms) => b -> ms.map(_._2).toSet }
+    val childrenOf: Map[String, Seq[String]] =
+      blocks.flatMap(b => b.parent.map(p => (p, b.id))).groupBy(_._1).map { case (p, cs) => p -> cs.map(_._2) }
+    // A box is layer content (hidden with the layers) when it assigns nothing
+    // and all it holds apart from its condition's cone, its op and const nodes
+    // and its child boxes, is: a `when(c) { assert(...) }`. Its cone (the ops
+    // and the consts only they read) is then layer content too. Children
+    // first, so a parent sees its children.
+    val layerNode: Set[String] = open.logic.iterator.filter(_.layer).map(_.id).toSet
+    val layerBox: mutable.Set[String] = mutable.Set.empty
+    val layerCone: mutable.Set[String] = mutable.Set.empty
+    blocks.reverse.foreach { b =>
+      val own: Set[String] = membersOf.getOrElse(b.id, Set.empty[String])
+      val ops: Set[String] = coneOf.getOrElse(b.id, Set.empty[String])
+      val consts: Set[String] = own.filter { c =>
+        kindOf.get(c).contains(NodeKind.Const) &&
+          constConsumers.get(c).exists(_.forall(s => nodeOf(s).exists(ops)))
+      }
+      val cone: Set[String] = ops ++ consts
+      val held: Seq[String] = own.filterNot(id => Synthetic.isTerminal(id) || cone(id)).toSeq ++ childrenOf.getOrElse(b.id, Nil)
+      val assigns: Boolean = own.exists(_.startsWith(Synthetic.AssignPrefix))
+      if (!assigns && held.nonEmpty && held.forall(id => layerNode(id) || layerBox(id))) {
+        layerBox += b.id
+        layerCone ++= cone
       }
     }
-
-    // Dedup wires by their (from, to) pair, preserving first-seen order. When
-    // several member nodes read the same external signal, the rewiring above
-    // emits N identical boundary wires (and the reg self-loop emits one body wire
-    // per read); collapse each distinct pair to a single wire.
-    def dedupWires(ws: Seq[WireDef]): Seq[WireDef] = {
-      val seen = mutable.LinkedHashSet.empty[(String, String)]
-      ws.filter(w => seen.add((w.from, w.to)))
+    val flagged: ModuleDef =
+      if (layerCone.isEmpty) open
+      else open.copy(logic = open.logic.map(n => if (layerCone(n.id)) n.copy(layer = true) else n))
+    val groups: Seq[socle.capture.Group] = blocks.reverse.map { b =>
+      socle.capture.Group(
+        id      = b.id,
+        kind    = b.kind,
+        label   = b.label,
+        source  = b.src.map(toRef).getOrElse(SourceRef.unknown),
+        layer   = layerBox(b.id),
+        members = membersOf.getOrElse(b.id, Set.empty[String]) ++ childrenOf.getOrElse(b.id, Nil),
+        state   = b.state,
+      )
     }
-    val internalDeduped  = dedupWires(internalWires.toSeq)
-    val newParentDeduped = dedupWires(newParentWires.toSeq)
 
-    // Body logic nodes in parent order.
-    val bodyLogic = parentLogic.filter(n => memberIds.contains(n.id))
+    // Assignment pins, one per sink the block's connects write (not the wire's
+    // far end, which NetTrace moves past a contracted Chisel `Wire`), named
+    // after it: its own terminals' and its child boxes' assignment pins for
+    // that sink. `asgPins` records each box's final pin names (onNamed).
+    val asgPins: mutable.HashMap[(String, String), String] = mutable.HashMap.empty // (box, pin) -> sink
+    val AsgKey: String = "asg>"
+    val nodeDecls: Map[String, ChirrtlParser.NodeDecl] = m.nodes.iterator.map(n => n.name -> n).toMap
+    // A memory write pin (`mem~port~w`) is shown as `mem.port`.
+    def sinkLabel(sink: String): String =
+      Synthetic.memPinParts(sink).fold(sink) { case (mem, port, _) => s"$mem.$port" }
+    // A condition pin shows its arm's condition as written; else its `when`'s
+    // condition, where a condition that is a node (`_T`, a cast or compare)
+    // shows the user signal it traces to (no synthetic `$` id, no temp), or
+    // else its expression.
+    def condLabel(pin: String, external: String): String = condShown.getOrElse(pin, {
+      val text: String = condTextOf.getOrElse(pin, external)
+      val i: Int = external.indexOf('.')
+      val traced: String =
+        if (i < 0) Synthetic.stripQ(external) else Synthetic.stripQ(external.substring(0, i)) + external.substring(i)
+      if (!nodeDecls.contains(text)) text
+      else if (!external.contains('$') && !traced.startsWith("_")) traced
+      else CodeBlocks.exprText(nodeDecls, text)
+    })
+    // A pin from or to a CHIRRTL temp op (`_T_1`, `_x_T`) is labelled with
+    // its expression (`x =/= y`): its name alone says nothing.
+    def tempOp(e: String): Option[String] =
+      nodeOf(e).filter(id => id.startsWith("_") && kindOf.get(id).contains(NodeKind.Op) && !Synthetic.isTerminal(id) &&
+        nodeDecls.contains(id))
+    // The driver-named pin of a temp op, with its expression as the label.
+    def tempPin(driver: String): Option[(String, String, String)] = tempOp(driver).map { id =>
+      val (key, name) = socle.capture.LogicBlocks.driverPin(driver, Set.empty)
+      (key, name, CodeBlocks.exprText(nodeDecls, id))
+    }
+    def assignPin(sink: String): Option[(String, String, String)] =
+      Some((AsgKey + sink, socle.capture.LogicBlocks.driverPin(sink, Set.empty)._2, sinkLabel(sink)))
+    val pinOverride: socle.capture.LogicBlocks.PinOverride = (member, external, dir) =>
+      if (dir == PortDir.In && fsmHeadBase(member).startsWith(Synthetic.CondPrefix)) {
+        val label: String = condLabel(member, external)
+        Some((s"cnd>$label", "cond", label))
+      } else if (dir == PortDir.In && isAsgOut(external) && asgLhs.contains(external))
+        // Read from a block collapsed later (a sibling): named after what it assigns.
+        Some((external, socle.capture.LogicBlocks.driverPin(asgLhs(external), Set.empty)._2, sinkLabel(asgLhs(external))))
+      else if (dir == PortDir.Out && isAsgOut(member) && asgLhs.contains(member))
+        assignPin(asgLhs(member))
+      else if (dir == PortDir.Out) {
+        val dot: Int = member.indexOf('.')
+        val child: String = if (dot < 0) "" else member.substring(0, dot)
+        asgPins.get((child, member.substring(dot + 1))) match {
+          case Some(sink) if parentOf.contains(child) => assignPin(sink)
+          case _                                      => tempPin(member)
+        }
+      } else tempPin(external)
+    // Each box's in condition pins, by their final names (flagged `cond` below).
+    val condIn: mutable.Set[(String, String)] = mutable.Set.empty
+    val onNamed: (String, String, String) => Unit = (box, key, name) =>
+      if (key.startsWith(AsgKey)) asgPins((box, name)) = key.substring(AsgKey.length)
+      else if (key.startsWith("cnd>")) condIn += ((box, name))
 
-    val body = ModuleDef(
-      name     = f.id,
-      `type`   = f.id,
-      doc      = "",
-      source   = SourceRef.unknown,
-      ports    = pins.values.toSeq,
-      children = Nil,
-      wires    = internalDeduped,
-      metrics  = Metrics(0, 0, 0),
-      kind     = ModuleKind.Internal,
-      logic    = bodyLogic,
-    )
-
-    // Parent: drop member nodes, add the fsm box, swap in rewired wires.
-    val nextLogic =
-      parentLogic.filterNot(n => memberIds.contains(n.id)) :+
-        LogicNodeDef(f.id, NodeKind.Fsm, s"FSM: ${f.stateReg}", "", SourceRef.unknown)
-    (body, nextLogic, newParentDeduped)
+    val (collapsed, bodies) = socle.capture.LogicBlocks.collapse(flagged, groups, pinOverride = Some(pinOverride), onNamed = onNamed)
+    // An expression condition computed inside its box: the cone's root drives
+    // an out `cond` pin, labelled as the in pin of a signal would be.
+    val outCondLabel: String => String = pin =>
+      condShown.getOrElse(pin, CodeBlocks.exprText(nodeDecls, condTextOf.getOrElse(pin, pin)))
+    (collapsed, bodies.map { case (id, body) =>
+      val flaggedIn: ModuleDef = body.copy(ports = body.ports.map(p => if (condIn((id, p.name))) p.copy(cond = true) else p))
+      id -> spliceTerminals(flaggedIn, outCondLabel)
+    })
   }
+
+  // An assignment terminal's output endpoint (`asg$...`, not one of its `~in<k>` pins).
+  private def isAsgOut(e: String): Boolean = e.startsWith(Synthetic.AssignPrefix) && !e.contains('~')
+
+  /** Splice the terminals out of a block body: `X <- asg` and `asg~inK <- Y`
+    * become `X <- Y` (through chains of terminals: a wire assigned and read in
+    * one block). A condition terminal's input from the box's in pin is dropped
+    * (that pin is the condition's marker); one from a node of the body (an
+    * expression condition computed inside) becomes `<box>.cond <- Y`, on a new
+    * out pin labelled `condLabel(the terminal's pin)`. */
+  private def spliceTerminals(body: ModuleDef, condLabel: String => String): ModuleDef = {
+    def termOf(e: String): Option[String] = Some(fsmHeadBase(e)).filter(Synthetic.isTerminal)
+    // Each assignment terminal's input wires, in order.
+    val inputs: mutable.HashMap[String, mutable.ArrayBuffer[WireDef]] = mutable.HashMap.empty
+    body.wires.foreach { w =>
+      termOf(w.from).filter(t => t.startsWith(Synthetic.AssignPrefix) && w.from != t)
+        .foreach(t => inputs.getOrElseUpdate(t, mutable.ArrayBuffer.empty) += w)
+    }
+    // The input wires of terminal `t` whose source is not a terminal (cycle-safe).
+    def sources(t: String, seen: Set[String]): Seq[WireDef] =
+      inputs.get(t).toSeq.flatten.flatMap { w =>
+        if (isAsgOut(w.to)) { if (seen(w.to)) Nil else sources(w.to, seen + w.to) }
+        else Seq(w)
+      }
+    val taken: mutable.Set[String] = body.ports.iterator.map(_.name).to(mutable.Set)
+    val condPins: mutable.ArrayBuffer[PortDef] = mutable.ArrayBuffer.empty
+    val pinPrefix: String = body.name + "."
+    val wires: Seq[WireDef] = body.wires.flatMap { w =>
+      termOf(w.from) match {
+        case Some(t) if t.startsWith(Synthetic.CondPrefix) && !w.to.startsWith(pinPrefix) && termOf(w.to).isEmpty =>
+          val name: String = ("cond" #:: LazyList.from(2).map(n => s"cond_$n")).find(!taken(_)).get
+          taken += name
+          val label: String = condLabel(w.from)
+          condPins += PortDef(name = name, dir = PortDir.Out, bundle = "", doc = "", source = SourceRef.unknown,
+            label = if (label == name) "" else label, cond = true)
+          Seq(w.copy(from = pinPrefix + name))
+        case Some(_) => Nil // an assignment terminal's input (spliced below), or a condition read from its in pin
+        case None if isAsgOut(w.to) =>
+          sources(w.to, Set(w.to)).map(in => in.copy(from = w.from, bundle = if (in.bundle == "Wire") w.bundle else in.bundle))
+        case None => Seq(w)
+      }
+    }
+    val seen = mutable.LinkedHashSet.empty[(String, String)]
+    body.copy(
+      ports = body.ports ++ condPins,
+      logic = body.logic.filterNot(n => Synthetic.isTerminal(n.id)),
+      wires = wires.filter(w => seen.add((w.from, w.to))),
+    )
+  }
+
+  // Head of a wire endpoint, reduced to the underlying node base id: strip a vec
+  // index, then the `~q` (reg Q) / `~in<i>` (op input pin) IrWalk-synthetic
+  // suffix off the head segment.
+  private[socle] def fsmHeadBase(endpoint: String): String =
+    Synthetic.baseOf(stripIdx(endpoint.split('.').headOption.getOrElse("")))
 
   /** Map the raw CHIRRTL module keyword to the schema's module kind.
     * extmodule (blackbox) -> "external", intmodule -> "intrinsic", else
@@ -653,6 +816,24 @@ object IrWalk {
   // strong signal; a name fallback catches reset lowered to UInt<1> (common
   // after some passes) and clocks named clk. Mirrors the UI's clock/reset
   // de-emphasis heuristic so the two stay consistent.
+  /** A clock or reset signal as the user named it: `ref`, through the CHIRRTL
+    * temps (`_T`) that only cast or alias one signal (`_T = asAsyncReset(reset)`
+    * is `reset`). A user-named node (`fall = asClock(_fall_T)`) is its own
+    * name, as Chisel names a node after its Scala val. */
+  private[ir] def domainOf(m: Mod, ref: String): String = {
+    val castOps: Set[String] = Set("", "asClock", "asAsyncReset", "asUInt", "asSInt", "cvt")
+    @scala.annotation.tailrec
+    def go(r: String, hops: Int): String =
+      if (!r.startsWith("_") || hops > 64) r
+      else m.nodes.find(_.name == r) match {
+        case Some(n) if castOps(n.op) && n.operands.size == 1 &&
+            n.operands.head.headOption.exists(c => c.isLetter || c == '_') && !n.operands.head.contains('(') =>
+          go(n.operands.head, hops + 1)
+        case _ => r
+      }
+    go(ref.trim, 0)
+  }
+
   private def isClockPort(p: ChirrtlParser.Port): Boolean = p.tpe match {
     case GroundT("Clock", _) => true
     case _                   => { val n = p.name.toLowerCase; n == "clock" || n == "clk" }
@@ -804,11 +985,13 @@ object IrWalk {
 
     // A register only ever appears as a SOURCE for its Q-output and a SINK for
     // its D-input; CHIRRTL spells both as the plain reg path. `~q`-suffix the
-    // HEAD segment of any resolved SOURCE that is a register so the Q pin (`r~q`)
-    // is distinct from the D pin (`r`).
+    // register NAME of any resolved SOURCE that is a register so the Q pin (`r~q`)
+    // is distinct from the D pin (`r`). The `~q` goes before any index or field
+    // (`r~q.a`, `v~q[0]`, `v~q[0].a`), so a Vec element's head with its index
+    // stripped is still the Q pin `v~q`.
     private def qSuffix(path: String): String = {
-      val i = path.indexOf('.')
-      if (i < 0) path + "~q" else path.substring(0, i) + "~q" + path.substring(i)
+      val i = path.indexWhere(c => c == '.' || c == '[')
+      if (i < 0) path + Synthetic.QSuffix else path.substring(0, i) + Synthetic.QSuffix + path.substring(i)
     }
     private def isReg(path: String): Boolean = regNames.contains(stripIdx(path.split('.').head))
 

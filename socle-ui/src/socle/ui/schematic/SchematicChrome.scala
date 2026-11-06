@@ -37,12 +37,17 @@ private[schematic] object SchematicChrome {
 
   // ── chrome (top-left chips) ──
   /** `blockSig`: the module in view is an open logic block (its chip reads `block`). */
+  /** `navSig`: whether the previous / next module buttons have a module to
+    * go to; `onBack` / `onForward`: their steps. */
   def chrome(moduleSig: Signal[Option[ModuleDef]], filterVar: Var[String],
              matchSig: Signal[Option[(Int, Int)]] = Val(None),
              focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => (),
-             blockSig: Signal[Boolean] = Val(false)): Element =
+             blockSig: Signal[Boolean] = Val(false),
+             navSig: Signal[(Boolean, Boolean)] = Val((false, false)),
+             onBack: () => Unit = () => (), onForward: () => Unit = () => ()): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
+        navButtons(navSig, onBack, onForward),
         child <-- Signal.combine(moduleSig, blockSig).map {
           case (Some(mod), block) => div(dataAttr("module-chip") := (if (block) "block" else "module"),
             styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
@@ -88,6 +93,28 @@ private[schematic] object SchematicChrome {
       ),
     )
 
+  /** Previous and next module (the view history a module at a time), one chip of two buttons
+    * before the module chip. A press does not take the focus (the schematic's
+    * keys keep working); a button with nowhere to go is disabled. Their hover
+    * and disabled looks are `.scl-nav-btn` rules in the page template. */
+  def navButtons(navSig: Signal[(Boolean, Boolean)], onBack: () => Unit, onForward: () => Unit): Element = {
+    def chevron(points: String) =
+      svg.svg(svg.viewBox := "0 0 16 16", svg.width := "14", svg.height := "14",
+        svg.style := "display:block;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round",
+        svg.polyline(svg.points := points))
+    def btn(hook: String, tip: String, can: ((Boolean, Boolean)) => Boolean, go: () => Unit, points: String) =
+      button(cls := "scl-nav-btn", dataAttr(hook) := "1", title := tip, aria.label := tip,
+        disabled <-- navSig.map(n => !can(n)),
+        onMouseDown --> { (e: dom.MouseEvent) => e.preventDefault() },
+        onClick --> { _ => go() },
+        chevron(points))
+    div(dataAttr("nav-chip") := "1",
+      styleAttr := s"display:flex;align-items:center;height:26px;box-sizing:border-box;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;overflow:hidden",
+      btn("nav-back", "Previous module", _._1, onBack, "10,3.5 5.5,8 10,12.5"),
+      span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft}"),
+      btn("nav-forward", "Next module", _._2, onForward, "6,3.5 10.5,8 6,12.5"))
+  }
+
   /** The clock domains of `m` and their instances, when it has two or more
     * (bottom-right, above the zoom controls). A click on a domain lights it
     * (`toggle`), and the lit one (`active`) reads bold. */
@@ -97,8 +124,9 @@ private[schematic] object SchematicChrome {
       div(dataAttr("clock-legend") := "1",
         styleAttr := s"position:absolute;bottom:46px;right:12px;z-index:3;max-width:320px;display:flex;flex-direction:column;gap:3px;" +
           s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:6px 9px;font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2}",
-        m.children.map(_.clock).filter(_.nonEmpty).distinct.map { d =>
-          val insts = m.children.filter(_.clock == d).map(_.name)
+        socle.layout.LayoutCore.clockDomains(m).map { d =>
+          val insts = m.children.filter(_.clock == d).map(_.name) ++
+            m.logic.filter(n => n.kind == NodeKind.Reg && n.clock == d).map(_.id)
           div(dataAttr("legend-domain") := d, title := s"Light the $d domain",
             dataAttr("lit") <-- active.map(a => if (a.contains(d)) "1" else "0"),
             styleAttr <-- active.map(a => "display:flex;align-items:center;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;" +

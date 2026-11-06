@@ -226,6 +226,7 @@ object Inspector {
     val kindLabel =
       if (isReg) "register" else if (isOp) "operation" else if (isMem) "memory"
       else if (ln.kind == NodeKind.Fsm) "state machine"
+      else if (ln.kind == NodeKind.Domain) (if (ln.reset.nonEmpty) "reset domain" else "clock domain")
       else if (ln.kind != NodeKind.Block) "constant"
       else if (ln.layer) "debug block"
       else if (ln.id.contains("$gen$")) "generator block"
@@ -233,7 +234,9 @@ object Inspector {
     div(dataAttr("logic-inspect") := ln.id, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", ln.label),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px",
-        if (isOp && ln.op.nonEmpty) s"$kindLabel · ${ln.op}" else kindLabel),
+        if (isOp && ln.op.nonEmpty) s"$kindLabel · ${ln.op}"
+        else if (isReg && ln.clock.nonEmpty) s"$kindLabel · ${ln.clock}${if (ln.reset.nonEmpty) s" · ${ln.reset}" else ""}"
+        else kindLabel),
       if (isReg) {
         div(sectionTitle("Registered type"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;font-family:${Tokens.mono};font-size:11px",
@@ -278,7 +281,21 @@ object Inspector {
           )
         }.getOrElse(emptyNode)
       } else if (isBlock) emptyNode
-      else {
+      else if (ln.kind == NodeKind.Domain) {
+        // A domain stub: what the clock or reset drives, registers then instances.
+        val isReset = ln.reset.nonEmpty
+        val regs  = mod.logic.filter(n => n.kind == NodeKind.Reg && (if (isReset) n.reset == ln.reset else n.clock == ln.clock)).map(_.id)
+        val insts = mod.children.filter(c => if (isReset) c.reset == ln.reset else c.clock == ln.clock).map(_.name)
+        val all   = regs.map("register" -> _) ++ insts.map("instance" -> _)
+        div(dataAttr("domain-members") := ln.id,
+          sectionTitle(s"${if (isReset) "Reset" else "Clocked"} by ${ln.label} (${all.length})"),
+          div(styleAttr := "margin-bottom:12px;display:flex;flex-direction:column;gap:3px",
+            all.map { case (what, id) =>
+              div(styleAttr := s"display:flex;align-items:center;gap:8px;font-family:${Tokens.mono};font-size:10.5px",
+                span(styleAttr := s"color:${Tokens.ink4};flex-shrink:0", what),
+                span(title := id, styleAttr := s"color:${Tokens.ink2};overflow:hidden;text-overflow:ellipsis;white-space:nowrap", id))
+            }))
+      } else {
         div(sectionTitle("Value"),
           div(styleAttr := s"background:${Tokens.panelAlt};padding:8px 10px;border-radius:5px;margin-bottom:12px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2};word-break:break-all", ln.label))
       },

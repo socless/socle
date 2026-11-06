@@ -265,6 +265,7 @@ async function waitLoaded(frame) {
   await waitLoaded(page);
   for (const [k, sel] of Object.entries(REMOVED)) check('editor panel', (await count(page, sel)) > 0, `${k} present`);
   check('editor panel', (await count(page, '[data-bottom-panel]')) === 1, 'bottom panel open');
+  check('editor panel', (await count(page, '[data-nav-back]')) === 1 && (await count(page, '[data-nav-forward]')) === 1, 'Back / Forward buttons on the schematic');
   check('editor panel', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips on a first visit');
   check('editor panel', await page.locator('[data-hint-bar]').isVisible(), 'hint bar shown');
   await page.click('[data-hint-close]', { timeout: 3000 }).catch(() => {});
@@ -305,7 +306,7 @@ async function waitLoaded(frame) {
   await waitLoaded(page);
   check('embedded', await page.locator('[data-hint-bar]').isVisible(), 'hint bar back after a reload');
   check('embedded', (await count(page, '[data-first-tips]')) === 0, 'no first-time tips after a reload');
-  for (const sel of ['[data-search-trigger]', '[data-help-trigger]', '[data-toggle-pane="bottom"]', '[data-settings-toggle]'])
+  for (const sel of ['[data-search-trigger]', '[data-help-trigger]', '[data-toggle-pane="bottom"]', '[data-settings-toggle]', '[data-nav-back]', '[data-nav-forward]'])
     check('embedded', (await count(page, sel)) === 1, `${sel} kept`);
   await page.click('[data-toggle-pane="bottom"]');
   const tabs = await page.$$eval('[data-bottom-tab]', (els) => els.map((e) => e.getAttribute('data-bottom-tab')));
@@ -471,7 +472,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
 {
   const { ctx, page, errors } = await open('/fsm/?host=vscode&theme=dark');
   await waitLoaded(page);
-  const id = 'blk$TrafficFsm$fsm$state';
+  const id = 'fsm$TrafficFsm$switch_state$0';
   await page.locator(`[data-fsm="${id}"]`).first().dblclick({ position: { x: 30, y: 8 } }).catch(() => {});
   const shown = await page.waitForSelector(`[data-fsm-diagram="${id}"][data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
   check('fsm', shown, 'a double-click opens the state diagram');
@@ -510,8 +511,18 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   };
   const P = (leaf) => `${PREFIX}.${leaf}`;
   // GCD's edge stubs are its ports `io.in` and `io.out` (#332): a click on a
-  // field's port selects that port.
-  const stub = (id) => page.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first().click();
+  // field's port selects that port. A focus may have flown the view so that
+  // the stub lies outside the canvas (a transform, nothing to scroll): fit first.
+  const stub = async (id) => {
+    const loc = page.locator(`[data-boundary-stub="${id.split('.').slice(0, 2).join('.')}"]`).first();
+    const shown = await loc.evaluate((e) => {
+      const r = e.getBoundingClientRect();
+      const v = document.querySelector('[data-content]').parentElement.getBoundingClientRect();
+      return r.top >= v.top && r.bottom <= v.bottom && r.left >= v.left && r.right <= v.right;
+    }).catch(() => true);
+    if (!shown) { await page.locator('button[title="Fit to view"]').first().click(); await page.waitForTimeout(400); }
+    await loc.click();
+  };
 
   // No trace yet: the Waveform tab is there and explains how to get one; selecting is harmless.
   await page.click('[data-toggle-pane="bottom"]'); // embedded, the bottom panel starts closed
@@ -585,7 +596,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
   await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__socleWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
-  await focusAfter('wire from blk$GCD$logic.io_in_bits_a', () => page.locator('[data-wire="blk$GCD$logic.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
+  await focusAfter('wire from when$GCD$when_io_in_fire$0.io_in_bits_a', () => page.locator('[data-wire="when$GCD$when_io_in_fire$0.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
   await focusAfter('bundle io.out', () => page.evaluate(() => window.__socleWave.select('io.out')), P('io_out_valid'));
   // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
   // index): a short panel, then the last signal.
@@ -627,7 +638,7 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
     await page.evaluate((v) => window.__socleWave.event('goto_declaration', v), P('x'));
     await page.waitForTimeout(800);
     const v = await page.evaluate(() => window.__socleWave.view());
-    check('wave', v.path === '["GCD"]' && v.selection === 'blk$GCD$logic', `Go to declaration of x selects its block ${JSON.stringify(v)}`);
+    check('wave', v.path === '["GCD"]' && v.selection === 'x', `Go to declaration of x selects the register ${JSON.stringify(v)}`);
     const opened = wave.opens.map((o) => JSON.parse(o.body));
     check('wave', opened.length === 1 && /GCD\.scala$/.test(opened[0].file) && opened[0].line === 30, `and opens x's declaration ${JSON.stringify(opened)}`);
     const after = await snap();
@@ -1067,8 +1078,8 @@ let seq1 = -1;
   await status({ state: 'ready', loadedTrace: url, shownSeq: null, dropped: null, event: { kind: 'goto_declaration', variable: P('busy') } });
   await page.waitForTimeout(800);
   const rv = await f.evaluate(() => window.__socleWave.view());
-  check('remote', rv.selection === 'blk$GCD$logic' && (await after(n5)).length === 0,
-    `Go to declaration selects busy's block, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
+  check('remote', rv.selection === 'busy' && (await after(n5)).length === 0,
+    `Go to declaration selects the register busy, posting nothing ${JSON.stringify({ rv, posted: (await after(n5)).map(kind) })}`);
 
   // The tab closed: nothing is sent; a fresh tab's first status gets Load and Show again.
   await toUi({ type: 'socle-surfer-closed' });

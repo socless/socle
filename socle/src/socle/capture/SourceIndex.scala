@@ -1,5 +1,6 @@
 package socle.capture
 
+import socle.ir.SourceLines
 import socle.schema.{FsmDiagram, SourceRef}
 
 /** A state machine read from the Scala source: its diagram, and `switch`, the
@@ -23,4 +24,8 @@ trait SourceIndex {
     * position, finds a state machine built outside the class's own bodies (in
     * a helper method the module calls). */
   def fsm(scalaClass: String, register: String, at: Option[SourceRef] = None): Option[FsmSource] = None
+
+  /** The source lines the CHIRRTL markers point at, which tell a user-written
+    * `when` / `switch` from a library one (`socle.ir.CodeBlocks`). */
+  def lines: SourceLines = SourceLines.none
 }

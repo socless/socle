@@ -44,9 +44,10 @@ object LayoutCore {
     * 1 since pins are the declared port rows (#332); 2 since wires end on the
     * pins' centres, block pins follow their peers and layers sit in a debug band
     * (#334); 3 since instances keep rows for their clk and rst pins and logic
-    * blocks are baked as modules to open. Bump it when a bake's pins
+    * blocks are baked as modules to open; 4 since a code-block box (not an FSM)
+    * shows its condition pins on WEST, wired or not. Bump it when a bake's pins
     * change meaning, so the UI lays older bakes out again. */
-  val LayoutModel: Int = 3
+  val LayoutModel: Int = 4
   val BoundaryW: Double = 16.0
   val BoundaryH: Double = 28.0
   val LabelGap: Double  = 24.0   // horizontal gap between widest WEST and EAST label columns
@@ -179,6 +180,15 @@ object LayoutCore {
     design.regions.toSeq.filter { case (id, _) => ids(id) }.sortBy(_._1).map { case (id, b) => id -> blockAsModule(id, b) }
   }
 
+  /** Whether an instance of `m` opens as a module (a double-click drills in):
+    * not an external or intrinsic module, and something to show inside it:
+    * instances, logic (registers, operators, blocks) or wires. A leaf module
+    * with registers or a code block opens too; ports alone do not count (the
+    * instance's box already shows them). */
+  def opensAsModule(m: ModuleDef): Boolean =
+    m.kind != ModuleKind.External && m.kind != ModuleKind.Intrinsic &&
+      (m.children.nonEmpty || m.logic.nonEmpty || m.wires.nonEmpty)
+
   /** How many clock and reset pins an instance of `m` shows (0 to 2): a `Clock`
     * port, then a `Reset` or `AsyncReset` one (a ground port named `clock` or
     * `reset` counts too, as a top module's implicit reset is a Bool). */
@@ -187,6 +197,19 @@ object LayoutCore {
   def hasClockPort(m: ModuleDef): Boolean = m.ports.exists(p => p.bundle == "Clock")
   def hasResetPort(m: ModuleDef): Boolean =
     m.ports.exists(p => p.bundle == "Reset" || p.bundle == "AsyncReset" || (p.name == "reset" && bit(p)))
+  /** The clock domains of `m`, in order of first use: its instances' clocks,
+    * then its registers'. Empty when it has fewer than two, as one domain is
+    * not worth a colour. */
+  def clockDomains(m: ModuleDef): Seq[String] = {
+    val ds: Seq[String] =
+      (m.children.iterator.map(_.clock) ++ m.logic.iterator.filter(_.kind == NodeKind.Reg).map(_.clock))
+        .filter(_.nonEmpty).toSeq.distinct
+    if (ds.size < 2) Nil else ds
+  }
+
+  /** A domain sink's label: the domain it stands for, after an arrow (`→ fall`). */
+  def domainLabel(n: LogicNodeDef): String = s"→ ${n.label}"
+
   /** Whether `m`'s reset is asynchronous. */
   def asyncReset(m: ModuleDef): Boolean = m.ports.exists(_.bundle == "AsyncReset")
 
@@ -256,6 +279,7 @@ object LayoutCore {
     val constIds: Set[String] = ids(_.kind == NodeKind.Const)
     val opIds: Set[String]    = ids(_.kind == NodeKind.Op)
     val memIds: Set[String]   = ids(_.kind == NodeKind.Mem)
+    val domainIds: Set[String] = ids(_.kind == NodeKind.Domain)
     val fsmIds: Set[String]   = ids(n => NodeKind.isBox(n.kind))
   }
 
@@ -295,6 +319,9 @@ object LayoutCore {
         return Some(Endpoint(rawHead, NodeKind.Reg, path, PinSide.West, regIface(rawHead), regBundle(rawHead)))
       if (constIds.contains(rawHead))
         return Some(Endpoint(rawHead, NodeKind.Const, path, PinSide.East, false, ""))
+      // A domain sink: its one pin receives the clock or reset (WEST).
+      if (ix.domainIds.contains(rawHead))
+        return Some(Endpoint(rawHead, NodeKind.Domain, path, PinSide.West, false, ""))
       Synthetic.memPinParts(rawHead) match {
         case Some((memId, _, role)) if memIds.contains(memId) =>
           // Memory pins: read-data drives rightward (EAST); address + write-data
@@ -471,6 +498,21 @@ object LayoutCore {
     portRows.stubs.foreach { case (id, rows) => seed(id, NodeKind.Boundary, rows) }
     module.children.foreach(c => portRows.inst.get(c.name).foreach(seed(c.name, NodeKind.Inst, _)))
     portRows.regs.foreach { case (id, rows) => seed(id, NodeKind.Reg, rows) }
+    // A code-block box's condition pins come first on its WEST side, wired or
+    // not: an expression computed inside the box drives an out pin nothing
+    // outside reads, and the closed box still shows its condition. Not an FSM
+    // box: it opens its state diagram, and its arm compares (`state === 1`) are
+    // CHIRRTL encodings, not the `is(...)` as written.
+    val condPins = mutable.Set.empty[(String, String, String)]
+    module.logic.foreach { n =>
+      if (n.kind == NodeKind.Block) design.regions.get(n.id).foreach { body =>
+        body.ports.filter(_.cond).foreach { p =>
+          val path = s"${n.id}.${p.name}"
+          pinOrder.getOrElseUpdate((n.id, n.kind), mutable.LinkedHashSet.empty) += path
+          condPins += ((n.id, n.kind, path))
+        }
+      }
+    }
     // e.to is SOURCE; e.from is SINK.
     grouped.foreach { e =>
       vote(e.to,   isSource = true)
@@ -488,7 +530,8 @@ object LayoutCore {
       paths.foreach { path =>
         val k = (nodeId, kind, path)
         val side =
-          if (rowOf.contains(k)) rowOf(k).side
+          if (condPins(k)) PinSide.West
+          else if (rowOf.contains(k)) rowOf(k).side
           else if (eastVotes(k) > westVotes(k)) PinSide.East
           else if (westVotes(k) > eastVotes(k)) PinSide.West
           else if (kind == NodeKind.Boundary) declaredOf.getOrElse(k, PinSide.East)
@@ -570,7 +613,9 @@ object LayoutCore {
       // driver), but unlike boundaries they are NOT layer-pinned: a const ranks
       // naturally by dataflow next to its sink (issue #188 B1). Reg nodes fall
       // into the instance branch below (header + D/Q port rows).
-      val compact = kind == NodeKind.Boundary || kind == NodeKind.Const
+      // A domain sink is a stub too, sized to its `→ fall` label and, like a
+      // const, ranked by dataflow (next to its source), not column-pinned.
+      val compact = kind == NodeKind.Boundary || kind == NodeKind.Const || kind == NodeKind.Domain
       if (compact) {
         // Boundary/const: compact, but at least wide enough for the label (if any).
         // A const shows ONLY its literal value (the logic node's `label`, e.g.
@@ -578,6 +623,7 @@ object LayoutCore {
         // so size it to that value rather than the pin label (issue #188 follow-up).
         val constLabel =
           if (kind == NodeKind.Const) module.logic.find(_.id == id).map(_.label).filter(_.nonEmpty)
+          else if (kind == NodeKind.Domain) module.logic.find(_.id == id).map(domainLabel)
           else None
         val maxLabelPx = constLabel match {
           case Some(v) => labelPx(v)
@@ -589,7 +635,10 @@ object LayoutCore {
         val stacked = pins.size > 1
         val laidPins = pins.values.toSeq.zipWithIndex.map { case (p, i) =>
           val (x, y) =
-            if (!stacked) (0.0, 0.0)
+            // A domain sink's one pin: the middle of its left edge, fixed, as
+            // both engines keep a non-boundary node's pins where they are put.
+            if (!stacked && kind == NodeKind.Domain) (0.0, BoundaryH / 2)
+            else if (!stacked) (0.0, 0.0)
             else (if (p.side == PinSide.East) bw else 0.0, PortPad + i * PortStep + PortStep / 2)
           PreparedPin(p.path, p.side, p.interface, p.bundle, lblOf(p), x, y,
             expandableOf(id, kind, p))

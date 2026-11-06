@@ -5,7 +5,7 @@ layout Controller
   node const$_io_enable_T~in1 kind=const pins=const$_io_enable_T~in1:EAST
   node const$_io_flush_T~in1 kind=const pins=const$_io_flush_T~in1:EAST
   node const$_io_stall_T~in1 kind=const pins=const$_io_stall_T~in1:EAST
-  node fsm$Controller$state kind=fsm pins=fsm$Controller$state.io_hint:WEST,fsm$Controller$state.state:EAST,fsm$Controller$state.state_q:WEST,fsm$Controller$state.timer:EAST,fsm$Controller$state.timer_q:WEST
+  node fsm$Controller$switch_state$0 kind=fsm pins=fsm$Controller$switch_state$0.io_hint:WEST,fsm$Controller$switch_state$0.state:EAST,fsm$Controller$switch_state$0.state_2:WEST,fsm$Controller$switch_state$0.timer:EAST,fsm$Controller$switch_state$0.timer_2:WEST
   node io.enable kind=boundary pins=io.enable:WEST
   node io.flush kind=boundary pins=io.flush:WEST
   node io.hint kind=boundary pins=io.hint:EAST
@@ -18,14 +18,14 @@ layout Controller
   edge _io_flush_T~in1 -> const$_io_flush_T~in1
   edge _io_stall_T~in0 -> state~q
   edge _io_stall_T~in1 -> const$_io_stall_T~in1
-  edge fsm$Controller$state.io_hint -> io.hint
-  edge fsm$Controller$state.state_q -> state~q
-  edge fsm$Controller$state.timer_q -> timer~q
+  edge fsm$Controller$switch_state$0.io_hint -> io.hint
+  edge fsm$Controller$switch_state$0.state_2 -> state~q
+  edge fsm$Controller$switch_state$0.timer_2 -> timer~q
   edge io.enable -> _io_enable_T
   edge io.flush -> _io_flush_T
   edge io.stall -> _io_stall_T
-  edge state -> fsm$Controller$state.state
-  edge timer -> fsm$Controller$state.timer
+  edge state -> fsm$Controller$switch_state$0.state
+  edge timer -> fsm$Controller$switch_state$0.timer
 layout Datapath
   node ctrl kind=inst pins=ctrl.io.enable:EAST,ctrl.io.flush:EAST,ctrl.io.hint:WEST,ctrl.io.stall:EAST
   node io.hint kind=boundary pins=io.hint:EAST
@@ -155,22 +155,12 @@ layout Queue2_PipePayload
   edge wrap~in0 -> enq_ptr_value~q
   edge wrap~in1 -> const$wrap~in1
 layout RegStage
-  node _T kind=op pins=_T~in0:WEST,_T~in1:WEST
   node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
   node _io_in_ready_T_1 kind=op pins=_io_in_ready_T_1:EAST,_io_in_ready_T_1~in0:WEST,_io_in_ready_T_1~in1:WEST
   node _io_in_ready_T_2 kind=op pins=_io_in_ready_T_2:EAST,_io_in_ready_T_2~in0:WEST,_io_in_ready_T_2~in1:WEST
   node _io_in_ready_T_3 kind=op pins=_io_in_ready_T_3:EAST,_io_in_ready_T_3~in0:WEST,_io_in_ready_T_3~in1:WEST
-  node _rCount_T kind=op pins=_rCount_T:EAST,_rCount_T~in0:WEST,_rCount_T~in1:WEST
-  node _rCount_T_2 kind=op pins=_rCount_T_2:EAST,_rCount_T_2~in0:WEST,_rCount_T_2~in1:WEST
   node const$_io_in_ready_T_2~in1 kind=const pins=const$_io_in_ready_T_2~in1:EAST
   node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
-  node const$_rCount_T_2~in1 kind=const pins=const$_rCount_T_2~in1:EAST
-  node const$_rCount_T~in1 kind=const pins=const$_rCount_T~in1:EAST
-  node const$rCount kind=const pins=const$rCount:EAST
-  node const$rData kind=const pins=const$rData:EAST
-  node const$rFlags kind=const pins=const$rFlags:EAST
-  node const$rTag kind=const pins=const$rTag:EAST
-  node const$rValid kind=const pins=const$rValid:EAST
   node io.enable kind=boundary pins=io.enable:EAST
   node io.flush kind=boundary pins=io.flush:EAST
   node io.in kind=boundary pins=io.in:EAST:iface
@@ -181,8 +171,7 @@ layout RegStage
   node rFlags kind=reg pins=rFlags:WEST,rFlags~q:EAST
   node rTag kind=reg pins=rTag:WEST,rTag~q:EAST
   node rValid kind=reg pins=rValid:WEST,rValid~q:EAST
-  edge _T~in0 -> io.enable
-  edge _T~in1 -> io.in
+  node when$RegStage$when_io_flush$0 kind=block pins=when$RegStage$when_io_flush$0.cond:WEST,when$RegStage$when_io_flush$0.cond_2:WEST,when$RegStage$when_io_flush$0.cond_3:WEST,when$RegStage$when_io_flush$0.io_enable:WEST,when$RegStage$when_io_flush$0.io_in_bits_data:WEST,when$RegStage$when_io_flush$0.io_in_bits_flags:WEST,when$RegStage$when_io_flush$0.io_in_bits_tag:WEST,when$RegStage$when_io_flush$0.io_in_bits_valid:WEST,when$RegStage$when_io_flush$0.io_in_valid:WEST,when$RegStage$when_io_flush$0.rCount:EAST,when$RegStage$when_io_flush$0.rCount_2:WEST,when$RegStage$when_io_flush$0.rData:EAST,when$RegStage$when_io_flush$0.rFlags:EAST,when$RegStage$when_io_flush$0.rTag:EAST,when$RegStage$when_io_flush$0.rValid:EAST
   edge _io_in_ready_T_1~in0 -> io.enable
   edge _io_in_ready_T_1~in1 -> _io_in_ready_T
   edge _io_in_ready_T_2~in0 -> io.flush
@@ -191,24 +180,191 @@ layout RegStage
   edge _io_in_ready_T_3~in1 -> _io_in_ready_T_2
   edge _io_in_ready_T~in0 -> io.stall
   edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
-  edge _rCount_T_2~in0 -> rCount~q
-  edge _rCount_T_2~in1 -> const$_rCount_T_2~in1
-  edge _rCount_T~in0 -> rCount~q
-  edge _rCount_T~in1 -> const$_rCount_T~in1
   edge io.in -> _io_in_ready_T_3
   edge io.out -> rData~q
   edge io.out -> rFlags~q
   edge io.out -> rTag~q
   edge io.out -> rValid~q
+  edge rCount -> when$RegStage$when_io_flush$0.rCount
+  edge rData -> when$RegStage$when_io_flush$0.rData
+  edge rFlags -> when$RegStage$when_io_flush$0.rFlags
+  edge rTag -> when$RegStage$when_io_flush$0.rTag
+  edge rValid -> when$RegStage$when_io_flush$0.rValid
+  edge when$RegStage$when_io_flush$0.cond -> io.flush
+  edge when$RegStage$when_io_flush$0.cond_2 -> io.stall
+  edge when$RegStage$when_io_flush$0.io_enable -> io.enable
+  edge when$RegStage$when_io_flush$0.io_in_bits_data -> io.in
+  edge when$RegStage$when_io_flush$0.io_in_bits_flags -> io.in
+  edge when$RegStage$when_io_flush$0.io_in_bits_tag -> io.in
+  edge when$RegStage$when_io_flush$0.io_in_bits_valid -> io.in
+  edge when$RegStage$when_io_flush$0.io_in_valid -> io.in
+  edge when$RegStage$when_io_flush$0.rCount_2 -> rCount~q
+layout RegStage_1
+  node _io_in_ready_T kind=op pins=_io_in_ready_T:EAST,_io_in_ready_T~in0:WEST,_io_in_ready_T~in1:WEST
+  node _io_in_ready_T_1 kind=op pins=_io_in_ready_T_1:EAST,_io_in_ready_T_1~in0:WEST,_io_in_ready_T_1~in1:WEST
+  node _io_in_ready_T_2 kind=op pins=_io_in_ready_T_2:EAST,_io_in_ready_T_2~in0:WEST,_io_in_ready_T_2~in1:WEST
+  node _io_in_ready_T_3 kind=op pins=_io_in_ready_T_3:EAST,_io_in_ready_T_3~in0:WEST,_io_in_ready_T_3~in1:WEST
+  node const$_io_in_ready_T_2~in1 kind=const pins=const$_io_in_ready_T_2~in1:EAST
+  node const$_io_in_ready_T~in1 kind=const pins=const$_io_in_ready_T~in1:EAST
+  node io.enable kind=boundary pins=io.enable:EAST
+  node io.flush kind=boundary pins=io.flush:EAST
+  node io.in kind=boundary pins=io.in:EAST:iface
+  node io.out kind=boundary pins=io.out:WEST:iface
+  node io.stall kind=boundary pins=io.stall:EAST
+  node rCount kind=reg pins=rCount:WEST,rCount~q:EAST
+  node rData kind=reg pins=rData:WEST,rData~q:EAST
+  node rFlags kind=reg pins=rFlags:WEST,rFlags~q:EAST
+  node rTag kind=reg pins=rTag:WEST,rTag~q:EAST
+  node rValid kind=reg pins=rValid:WEST,rValid~q:EAST
+  node when$RegStage_1$when_io_flush$0 kind=block pins=when$RegStage_1$when_io_flush$0.cond:WEST,when$RegStage_1$when_io_flush$0.cond_2:WEST,when$RegStage_1$when_io_flush$0.cond_3:WEST,when$RegStage_1$when_io_flush$0.io_enable:WEST,when$RegStage_1$when_io_flush$0.io_in_bits_data:WEST,when$RegStage_1$when_io_flush$0.io_in_bits_flags:WEST,when$RegStage_1$when_io_flush$0.io_in_bits_tag:WEST,when$RegStage_1$when_io_flush$0.io_in_bits_valid:WEST,when$RegStage_1$when_io_flush$0.io_in_valid:WEST,when$RegStage_1$when_io_flush$0.rCount:EAST,when$RegStage_1$when_io_flush$0.rCount_2:WEST,when$RegStage_1$when_io_flush$0.rData:EAST,when$RegStage_1$when_io_flush$0.rFlags:EAST,when$RegStage_1$when_io_flush$0.rTag:EAST,when$RegStage_1$when_io_flush$0.rValid:EAST
+  edge _io_in_ready_T_1~in0 -> io.enable
+  edge _io_in_ready_T_1~in1 -> _io_in_ready_T
+  edge _io_in_ready_T_2~in0 -> io.flush
+  edge _io_in_ready_T_2~in1 -> const$_io_in_ready_T_2~in1
+  edge _io_in_ready_T_3~in0 -> _io_in_ready_T_1
+  edge _io_in_ready_T_3~in1 -> _io_in_ready_T_2
+  edge _io_in_ready_T~in0 -> io.stall
+  edge _io_in_ready_T~in1 -> const$_io_in_ready_T~in1
+  edge io.in -> _io_in_ready_T_3
+  edge io.out -> rData~q
+  edge io.out -> rFlags~q
+  edge io.out -> rTag~q
+  edge io.out -> rValid~q
+  edge rCount -> when$RegStage_1$when_io_flush$0.rCount
+  edge rData -> when$RegStage_1$when_io_flush$0.rData
+  edge rFlags -> when$RegStage_1$when_io_flush$0.rFlags
+  edge rTag -> when$RegStage_1$when_io_flush$0.rTag
+  edge rValid -> when$RegStage_1$when_io_flush$0.rValid
+  edge when$RegStage_1$when_io_flush$0.cond -> io.flush
+  edge when$RegStage_1$when_io_flush$0.cond_2 -> io.stall
+  edge when$RegStage_1$when_io_flush$0.io_enable -> io.enable
+  edge when$RegStage_1$when_io_flush$0.io_in_bits_data -> io.in
+  edge when$RegStage_1$when_io_flush$0.io_in_bits_flags -> io.in
+  edge when$RegStage_1$when_io_flush$0.io_in_bits_tag -> io.in
+  edge when$RegStage_1$when_io_flush$0.io_in_bits_valid -> io.in
+  edge when$RegStage_1$when_io_flush$0.io_in_valid -> io.in
+  edge when$RegStage_1$when_io_flush$0.rCount_2 -> rCount~q
+layout when$Controller$when_timer_15_U_io_hint$0
+  node _T_2 kind=op pins=_T_2:EAST,_T_2~in0:WEST,_T_2~in1:WEST
+  node _T_3 kind=op pins=_T_3:EAST,_T_3~in0:WEST,_T_3~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_T_2~in1 kind=const pins=const$_T_2~in1:EAST
+  node const$asg$when$Controller$when_timer_15_U_io_hint$0$state~in0 kind=const pins=const$asg$when$Controller$when_timer_15_U_io_hint$0$state~in0:EAST
+  node const$asg$when$Controller$when_timer_15_U_io_hint$0$timer~in0 kind=const pins=const$asg$when$Controller$when_timer_15_U_io_hint$0$timer~in0:EAST
+  node io_hint kind=boundary pins=io_hint:EAST
+  node state kind=boundary pins=state:WEST
+  node timer kind=boundary pins=timer:WEST
+  node timer_2 kind=boundary pins=timer_2:EAST
+  edge _T_2~in0 -> timer_2
+  edge _T_2~in1 -> const$_T_2~in1
+  edge _T_3~in0 -> _T_2
+  edge _T_3~in1 -> io_hint
+  edge cond -> _T_3
+  edge state -> const$asg$when$Controller$when_timer_15_U_io_hint$0$state~in0
+  edge timer -> const$asg$when$Controller$when_timer_15_U_io_hint$0$timer~in0
+layout when$Controller$when_timer_3_U$0
+  node _T_6 kind=op pins=_T_6:EAST,_T_6~in0:WEST,_T_6~in1:WEST
+  node cond kind=boundary pins=cond:WEST
+  node const$_T_6~in1 kind=const pins=const$_T_6~in1:EAST
+  node const$asg$when$Controller$when_timer_3_U$0$state~in0 kind=const pins=const$asg$when$Controller$when_timer_3_U$0$state~in0:EAST
+  node const$asg$when$Controller$when_timer_3_U$0$timer~in0 kind=const pins=const$asg$when$Controller$when_timer_3_U$0$timer~in0:EAST
+  node state kind=boundary pins=state:WEST
+  node timer kind=boundary pins=timer:WEST
+  node timer_2 kind=boundary pins=timer_2:EAST
+  edge _T_6~in0 -> timer_2
+  edge _T_6~in1 -> const$_T_6~in1
+  edge cond -> _T_6
+  edge state -> const$asg$when$Controller$when_timer_3_U$0$state~in0
+  edge timer -> const$asg$when$Controller$when_timer_3_U$0$timer~in0
+layout when$RegStage$when_io_flush$0
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _rCount_T kind=op pins=_rCount_T:EAST,_rCount_T~in0:WEST,_rCount_T~in1:WEST
+  node _rCount_T_2 kind=op pins=_rCount_T_2:EAST,_rCount_T_2~in0:WEST,_rCount_T_2~in1:WEST
+  node cond kind=boundary pins=cond:EAST
+  node cond_2 kind=boundary pins=cond_2:EAST
+  node cond_3 kind=boundary pins=cond_3:WEST
+  node const$_rCount_T_2~in1 kind=const pins=const$_rCount_T_2~in1:EAST
+  node const$_rCount_T~in1 kind=const pins=const$_rCount_T~in1:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rCount~in0 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rCount~in0:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rData~in0 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rData~in0:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rFlags~in0 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rFlags~in0:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rTag~in0 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rTag~in0:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rValid~in0 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rValid~in0:EAST
+  node const$asg$when$RegStage$when_io_flush$0$rValid~in2 kind=const pins=const$asg$when$RegStage$when_io_flush$0$rValid~in2:EAST
+  node io_enable kind=boundary pins=io_enable:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_bits_flags kind=boundary pins=io_in_bits_flags:EAST
+  node io_in_bits_tag kind=boundary pins=io_in_bits_tag:EAST
+  node io_in_bits_valid kind=boundary pins=io_in_bits_valid:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rCount kind=boundary pins=rCount:WEST
+  node rCount_2 kind=boundary pins=rCount_2:EAST
+  node rData kind=boundary pins=rData:WEST
+  node rFlags kind=boundary pins=rFlags:WEST
+  node rTag kind=boundary pins=rTag:WEST
+  node rValid kind=boundary pins=rValid:WEST
+  edge _T~in0 -> io_enable
+  edge _T~in1 -> io_in_valid
+  edge _rCount_T_2~in0 -> rCount_2
+  edge _rCount_T_2~in1 -> const$_rCount_T_2~in1
+  edge _rCount_T~in0 -> rCount_2
+  edge _rCount_T~in1 -> const$_rCount_T~in1
+  edge cond_3 -> _T
   edge rCount -> _rCount_T
   edge rCount -> _rCount_T_2
-  edge rCount -> const$rCount
-  edge rData -> const$rData
-  edge rData -> io.in
-  edge rFlags -> const$rFlags
-  edge rFlags -> io.in
-  edge rTag -> const$rTag
-  edge rTag -> io.in
-  edge rValid -> const$rValid
-  edge rValid -> io.in
-layoutOf RegStage_1 -> RegStage
+  edge rCount -> const$asg$when$RegStage$when_io_flush$0$rCount~in0
+  edge rData -> const$asg$when$RegStage$when_io_flush$0$rData~in0
+  edge rData -> io_in_bits_data
+  edge rFlags -> const$asg$when$RegStage$when_io_flush$0$rFlags~in0
+  edge rFlags -> io_in_bits_flags
+  edge rTag -> const$asg$when$RegStage$when_io_flush$0$rTag~in0
+  edge rTag -> io_in_bits_tag
+  edge rValid -> const$asg$when$RegStage$when_io_flush$0$rValid~in0
+  edge rValid -> const$asg$when$RegStage$when_io_flush$0$rValid~in2
+  edge rValid -> io_in_bits_valid
+layout when$RegStage_1$when_io_flush$0
+  node _T kind=op pins=_T:EAST,_T~in0:WEST,_T~in1:WEST
+  node _rCount_T kind=op pins=_rCount_T:EAST,_rCount_T~in0:WEST,_rCount_T~in1:WEST
+  node _rCount_T_2 kind=op pins=_rCount_T_2:EAST,_rCount_T_2~in0:WEST,_rCount_T_2~in1:WEST
+  node cond kind=boundary pins=cond:EAST
+  node cond_2 kind=boundary pins=cond_2:EAST
+  node cond_3 kind=boundary pins=cond_3:WEST
+  node const$_rCount_T_2~in1 kind=const pins=const$_rCount_T_2~in1:EAST
+  node const$_rCount_T~in1 kind=const pins=const$_rCount_T~in1:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rCount~in0 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rCount~in0:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rData~in0 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rData~in0:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rFlags~in0 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rFlags~in0:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rTag~in0 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rTag~in0:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rValid~in0 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rValid~in0:EAST
+  node const$asg$when$RegStage_1$when_io_flush$0$rValid~in2 kind=const pins=const$asg$when$RegStage_1$when_io_flush$0$rValid~in2:EAST
+  node io_enable kind=boundary pins=io_enable:EAST
+  node io_in_bits_data kind=boundary pins=io_in_bits_data:EAST
+  node io_in_bits_flags kind=boundary pins=io_in_bits_flags:EAST
+  node io_in_bits_tag kind=boundary pins=io_in_bits_tag:EAST
+  node io_in_bits_valid kind=boundary pins=io_in_bits_valid:EAST
+  node io_in_valid kind=boundary pins=io_in_valid:EAST
+  node rCount kind=boundary pins=rCount:WEST
+  node rCount_2 kind=boundary pins=rCount_2:EAST
+  node rData kind=boundary pins=rData:WEST
+  node rFlags kind=boundary pins=rFlags:WEST
+  node rTag kind=boundary pins=rTag:WEST
+  node rValid kind=boundary pins=rValid:WEST
+  edge _T~in0 -> io_enable
+  edge _T~in1 -> io_in_valid
+  edge _rCount_T_2~in0 -> rCount_2
+  edge _rCount_T_2~in1 -> const$_rCount_T_2~in1
+  edge _rCount_T~in0 -> rCount_2
+  edge _rCount_T~in1 -> const$_rCount_T~in1
+  edge cond_3 -> _T
+  edge rCount -> _rCount_T
+  edge rCount -> _rCount_T_2
+  edge rCount -> const$asg$when$RegStage_1$when_io_flush$0$rCount~in0
+  edge rData -> const$asg$when$RegStage_1$when_io_flush$0$rData~in0
+  edge rData -> io_in_bits_data
+  edge rFlags -> const$asg$when$RegStage_1$when_io_flush$0$rFlags~in0
+  edge rFlags -> io_in_bits_flags
+  edge rTag -> const$asg$when$RegStage_1$when_io_flush$0$rTag~in0
+  edge rTag -> io_in_bits_tag
+  edge rValid -> const$asg$when$RegStage_1$when_io_flush$0$rValid~in0
+  edge rValid -> const$asg$when$RegStage_1$when_io_flush$0$rValid~in2
+  edge rValid -> io_in_bits_valid

@@ -449,6 +449,12 @@ object example extends ChiselToolchain {
     PathRef(runFor("scatter.ScatterDemo", Task.dest, Task.log, runClasspath()))
   }
 
+  /** Registers on two clocks derived from an input, and a reset from another:
+    * clock-domain colours and domain stubs. */
+  def socleRunDomains: T[PathRef] = Task {
+    PathRef(runFor("domains.SpiSlave", Task.dest, Task.log, runClasspath()))
+  }
+
   /** A 16x16 grid of stages in one module: the UI smoke's performance guard. */
   def socleRunBigArray: T[PathRef] = Task {
     PathRef(runFor("bigarray.BigArray", Task.dest, Task.log, runClasspath()))
@@ -653,6 +659,7 @@ object example extends ChiselToolchain {
       "regheavy.Datapath"      -> "regheavy.fir",
       "fsm.TrafficFsm"         -> "fsm.fir",
       "layers.LayeredCounter"  -> "layers.fir",
+      "domains.SpiSlave"       -> "domains.fir",
     )
     val outDir = mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "chirrtl"
     os.makeDir.all(outDir)

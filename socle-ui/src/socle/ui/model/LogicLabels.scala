@@ -25,7 +25,9 @@ object LogicLabels {
     val dot  = label.indexOf('.')
     val head = if (dot < 0) label else label.substring(0, dot)
     val rest = if (dot < 0) "" else label.substring(dot)
-    if (head.endsWith("~q")) head.dropRight(2) + rest
+    // A Vec register element's Q pin `v~q[0]` reads `v[0]`: the `~q` precedes the index.
+    val name = head.takeWhile(_ != '[')
+    if (name.endsWith("~q")) name.dropRight(2) + head.substring(name.length) + rest
     else head match {
       case OpInRe(_, i) => "in" + i + rest
       case _            => label

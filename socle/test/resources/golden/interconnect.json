@@ -176,94 +176,15 @@
           }
         },
         {
-          "from": "mux$valid~in1",
-          "to": "const$mux$valid~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid$1~in1",
-          "to": "const$mux$valid$1~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "reg",
-          "to": "mux$reg",
+          "to": "when$Endpoint$when_io_req_fire$0.reg",
           "bundle": "UInt<64>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
           }
-        },
-        {
-          "from": "valid",
-          "to": "mux$valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid~in2",
-          "to": "mux$valid$1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in2",
-          "to": "reg~q",
-          "bundle": "UInt<64>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -278,19 +199,43 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$reg~in1",
-          "to": "io.req.bits.data.data",
-          "bundle": "Decoupled_req",
+          "from": "valid",
+          "to": "when$Endpoint$when_io_req_fire$0.valid",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
           },
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "valid",
+          "to": "when$Endpoint$when_valid$0.valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint$when_io_req_fire$0.io_req_bits_data_data",
+          "to": "io.req.bits.data.data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint$when_io_req_fire$0.io_req_ready",
           "to": "io.req.ready",
           "bundle": "Decoupled_req",
           "label": "",
@@ -302,7 +247,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$Endpoint$when_io_req_fire$0.io_req_valid",
           "to": "io.req.valid",
           "bundle": "Decoupled_req",
           "label": "",
@@ -315,6 +260,18 @@
         },
         {
           "from": "_io_req_ready_T~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint$when_valid$0.cond",
           "to": "valid~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -348,30 +305,6 @@
             "col": 11
           },
           "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in2",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid~in0",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -389,7 +322,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -400,34 +335,14 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
           "kind": "const",
           "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid$1~in1",
-          "kind": "const",
-          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -448,52 +363,26 @@
           "op": "eq"
         },
         {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
+          "id": "when$Endpoint$when_valid$0",
+          "kind": "block",
+          "label": "when(valid)",
           "bundle": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 15
+          }
         },
         {
-          "id": "mux$reg",
-          "kind": "op",
-          "label": "mux",
+          "id": "when$Endpoint$when_io_req_fire$0",
+          "kind": "block",
+          "label": "when(io.req.fire)",
           "bundle": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid$1",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 56,
+            "col": 21
+          }
         }
       ]
     },
@@ -555,94 +444,15 @@
           }
         },
         {
-          "from": "mux$valid~in1",
-          "to": "const$mux$valid~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid$1~in1",
-          "to": "const$mux$valid$1~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "reg",
-          "to": "mux$reg",
+          "to": "when$Endpoint_1$when_io_req_fire$0.reg",
           "bundle": "UInt<64>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
           }
-        },
-        {
-          "from": "valid",
-          "to": "mux$valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid~in2",
-          "to": "mux$valid$1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in2",
-          "to": "reg~q",
-          "bundle": "UInt<64>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -657,19 +467,43 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$reg~in1",
-          "to": "io.req.bits.data.data",
-          "bundle": "Decoupled_req",
+          "from": "valid",
+          "to": "when$Endpoint_1$when_io_req_fire$0.valid",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
           },
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "valid",
+          "to": "when$Endpoint_1$when_valid$0.valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_1$when_io_req_fire$0.io_req_bits_data_data",
+          "to": "io.req.bits.data.data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_1$when_io_req_fire$0.io_req_ready",
           "to": "io.req.ready",
           "bundle": "Decoupled_req",
           "label": "",
@@ -681,7 +515,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$Endpoint_1$when_io_req_fire$0.io_req_valid",
           "to": "io.req.valid",
           "bundle": "Decoupled_req",
           "label": "",
@@ -694,6 +528,18 @@
         },
         {
           "from": "_io_req_ready_T~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_1$when_valid$0.cond",
           "to": "valid~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -727,30 +573,6 @@
             "col": 11
           },
           "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in2",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid~in0",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -768,7 +590,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -779,34 +603,14 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
           "kind": "const",
           "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid$1~in1",
-          "kind": "const",
-          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -827,52 +631,26 @@
           "op": "eq"
         },
         {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
+          "id": "when$Endpoint_1$when_valid$0",
+          "kind": "block",
+          "label": "when(valid)",
           "bundle": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 15
+          }
         },
         {
-          "id": "mux$reg",
-          "kind": "op",
-          "label": "mux",
+          "id": "when$Endpoint_1$when_io_req_fire$0",
+          "kind": "block",
+          "label": "when(io.req.fire)",
           "bundle": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid$1",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 56,
+            "col": 21
+          }
         }
       ]
     },
@@ -934,94 +712,15 @@
           }
         },
         {
-          "from": "mux$valid~in1",
-          "to": "const$mux$valid~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid$1~in1",
-          "to": "const$mux$valid$1~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "reg",
-          "to": "mux$reg",
+          "to": "when$Endpoint_2$when_io_req_fire$0.reg",
           "bundle": "UInt<64>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
           }
-        },
-        {
-          "from": "valid",
-          "to": "mux$valid",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$valid~in2",
-          "to": "mux$valid$1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in2",
-          "to": "reg~q",
-          "bundle": "UInt<64>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$reg~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         },
         {
           "from": "io.req.ready",
@@ -1036,19 +735,43 @@
           "fieldLevel": true
         },
         {
-          "from": "mux$reg~in1",
-          "to": "io.req.bits.data.data",
-          "bundle": "Decoupled_req",
+          "from": "valid",
+          "to": "when$Endpoint_2$when_io_req_fire$0.valid",
+          "bundle": "UInt<1>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
           },
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "valid",
+          "to": "when$Endpoint_2$when_valid$0.valid",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_2$when_io_req_fire$0.io_req_bits_data_data",
+          "to": "io.req.bits.data.data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_2$when_io_req_fire$0.io_req_ready",
           "to": "io.req.ready",
           "bundle": "Decoupled_req",
           "label": "",
@@ -1060,7 +783,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$Endpoint_2$when_io_req_fire$0.io_req_valid",
           "to": "io.req.valid",
           "bundle": "Decoupled_req",
           "label": "",
@@ -1073,6 +796,18 @@
         },
         {
           "from": "_io_req_ready_T~in0",
+          "to": "valid~q",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_2$when_valid$0.cond",
           "to": "valid~q",
           "bundle": "UInt<1>",
           "label": "",
@@ -1106,30 +841,6 @@
             "col": 11
           },
           "fieldLevel": true
-        },
-        {
-          "from": "mux$valid$1~in2",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
-        },
-        {
-          "from": "mux$valid~in0",
-          "to": "valid~q",
-          "bundle": "UInt<1>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -1147,7 +858,9 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 51,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "valid",
@@ -1158,34 +871,14 @@
             "file": "example/src/iobundles/Interconnect.scala",
             "line": 52,
             "col": 22
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_io_req_ready_T~in1",
           "kind": "const",
           "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "const$mux$valid$1~in1",
-          "kind": "const",
-          "label": "0h1",
           "bundle": "",
           "source": {
             "file": "",
@@ -1206,52 +899,26 @@
           "op": "eq"
         },
         {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
+          "id": "when$Endpoint_2$when_valid$0",
+          "kind": "block",
+          "label": "when(valid)",
           "bundle": "",
           "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 15
+          }
         },
         {
-          "id": "mux$reg",
-          "kind": "op",
-          "label": "mux",
+          "id": "when$Endpoint_2$when_io_req_fire$0",
+          "kind": "block",
+          "label": "when(io.req.fire)",
           "bundle": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
-        },
-        {
-          "id": "mux$valid$1",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 56,
+            "col": 21
+          }
         }
       ]
     },
@@ -2958,7 +2625,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -2969,7 +2638,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -2980,7 +2651,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",
@@ -4251,7 +3924,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -4262,7 +3937,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -4273,7 +3950,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",
@@ -5544,7 +5223,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "deq_ptr_value",
@@ -5555,7 +5236,9 @@
             "file": "src/main/scala/chisel3/util/Counter.scala",
             "line": 61,
             "col": 40
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "maybe_full",
@@ -5566,7 +5249,9 @@
             "file": "src/main/scala/chisel3/util/Queue.scala",
             "line": 76,
             "col": 27
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$_empty_T~in1",
@@ -6626,5 +6311,733 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
+  },
+  "regions": {
+    "when$Endpoint$when_io_req_fire$0": {
+      "name": "when$Endpoint$when_io_req_fire$0",
+      "type": "when$Endpoint$when_io_req_fire$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 56,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "reg",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_req_bits_data_data",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.bits.data.data"
+        },
+        {
+          "name": "io_req_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.ready"
+        },
+        {
+          "name": "io_req_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint$when_io_req_fire$0.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Endpoint$when_io_req_fire$0.reg",
+          "to": "when$Endpoint$when_io_req_fire$0.io_req_bits_data_data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint$when_io_req_fire$0.valid",
+          "to": "const$asg$when$Endpoint$when_io_req_fire$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 58,
+            "col": 11
+          }
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$Endpoint$when_io_req_fire$0.io_req_ready",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$Endpoint$when_io_req_fire$0.io_req_valid",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint$when_io_req_fire$0$valid~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        }
+      ]
+    },
+    "when$Endpoint$when_valid$0": {
+      "name": "when$Endpoint$when_valid$0",
+      "type": "when$Endpoint$when_valid$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 60,
+        "col": 15
+      },
+      "ports": [
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "valid",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint$when_valid$0.valid",
+          "to": "const$asg$when$Endpoint$when_valid$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint$when_valid$0$valid~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    },
+    "when$Endpoint_1$when_io_req_fire$0": {
+      "name": "when$Endpoint_1$when_io_req_fire$0",
+      "type": "when$Endpoint_1$when_io_req_fire$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 56,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "reg",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_req_bits_data_data",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.bits.data.data"
+        },
+        {
+          "name": "io_req_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.ready"
+        },
+        {
+          "name": "io_req_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint_1$when_io_req_fire$0.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Endpoint_1$when_io_req_fire$0.reg",
+          "to": "when$Endpoint_1$when_io_req_fire$0.io_req_bits_data_data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_1$when_io_req_fire$0.valid",
+          "to": "const$asg$when$Endpoint_1$when_io_req_fire$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 58,
+            "col": 11
+          }
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$Endpoint_1$when_io_req_fire$0.io_req_ready",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$Endpoint_1$when_io_req_fire$0.io_req_valid",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint_1$when_io_req_fire$0$valid~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        }
+      ]
+    },
+    "when$Endpoint_2$when_io_req_fire$0": {
+      "name": "when$Endpoint_2$when_io_req_fire$0",
+      "type": "when$Endpoint_2$when_io_req_fire$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 56,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "reg",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_req_bits_data_data",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.bits.data.data"
+        },
+        {
+          "name": "io_req_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.ready"
+        },
+        {
+          "name": "io_req_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.valid"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.req.fire",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint_2$when_io_req_fire$0.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Endpoint_2$when_io_req_fire$0.reg",
+          "to": "when$Endpoint_2$when_io_req_fire$0.io_req_bits_data_data",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 57,
+            "col": 11
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "when$Endpoint_2$when_io_req_fire$0.valid",
+          "to": "const$asg$when$Endpoint_2$when_io_req_fire$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 58,
+            "col": 11
+          }
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$Endpoint_2$when_io_req_fire$0.io_req_ready",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$Endpoint_2$when_io_req_fire$0.io_req_valid",
+          "bundle": "Decoupled_req",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint_2$when_io_req_fire$0$valid~in0",
+          "kind": "const",
+          "label": "0h1",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        }
+      ]
+    },
+    "when$Endpoint_2$when_valid$0": {
+      "name": "when$Endpoint_2$when_valid$0",
+      "type": "when$Endpoint_2$when_valid$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 60,
+        "col": 15
+      },
+      "ports": [
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "valid",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint_2$when_valid$0.valid",
+          "to": "const$asg$when$Endpoint_2$when_valid$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint_2$when_valid$0$valid~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    },
+    "when$Endpoint_1$when_valid$0": {
+      "name": "when$Endpoint_1$when_valid$0",
+      "type": "when$Endpoint_1$when_valid$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/iobundles/Interconnect.scala",
+        "line": 60,
+        "col": 15
+      },
+      "ports": [
+        {
+          "name": "valid",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "cond",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "valid",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "when$Endpoint_1$when_valid$0.valid",
+          "to": "const$asg$when$Endpoint_1$when_valid$0$valid~in0",
+          "bundle": "UInt<1>",
+          "label": "",
+          "source": {
+            "file": "example/src/iobundles/Interconnect.scala",
+            "line": 60,
+            "col": 23
+          }
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$asg$when$Endpoint_1$when_valid$0$valid~in0",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        }
+      ]
+    }
   }
 }

@@ -78,7 +78,7 @@ object GoldenDesignTest extends TestSuite {
   private def generateJson(chirrtlFile: String): String = {
     val text   = readFixture(chirrtlFile)
     val circ   = ChirrtlParser.parse(text)
-    val design = IrWalk.design(circ)
+    val design = IrWalk.design(circ, Fixtures.lines)
     upickle.default.write(design, indent = 2)
   }
 

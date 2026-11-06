@@ -324,47 +324,14 @@
       "children": [],
       "wires": [
         {
-          "from": "_pc_T~in1",
-          "to": "const$_pc_T~in1",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$pc~in0",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "mux$pc~in1",
-          "to": "_pc_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
           "from": "pc",
-          "to": "mux$pc",
+          "to": "when$Fetch$when_io_out_fire$0.pc",
           "bundle": "UInt<32>",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 74,
+            "col": 26
           }
         },
         {
@@ -428,7 +395,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "when$Fetch$when_io_out_fire$0.io_out_ready",
           "to": "io.out.ready",
           "bundle": "Decoupled_out",
           "label": "",
@@ -452,7 +419,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in1",
+          "from": "when$Fetch$when_io_out_fire$0.io_out_valid",
           "to": "io.out.valid",
           "bundle": "Decoupled_out",
           "label": "",
@@ -464,7 +431,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_pc_T~in0",
+          "from": "when$Fetch$when_io_out_fire$0.pc_2",
           "to": "pc~q",
           "bundle": "UInt<32>",
           "label": "",
@@ -498,18 +465,6 @@
             "col": 25
           },
           "fieldLevel": true
-        },
-        {
-          "from": "mux$pc~in2",
-          "to": "pc~q",
-          "bundle": "UInt<32>",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "fieldLevel": true
         }
       ],
       "metrics": {
@@ -527,7 +482,9 @@
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 65,
             "col": 19
-          }
+          },
+          "clock": "clock",
+          "reset": "reset"
         },
         {
           "id": "const$io_imem_req_bits_wdata",
@@ -563,51 +520,15 @@
           }
         },
         {
-          "id": "const$_pc_T~in1",
-          "kind": "const",
-          "label": "0h4",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_T",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
-            "line": 48,
-            "col": 35
-          },
-          "op": "and"
-        },
-        {
-          "id": "_pc_T",
-          "kind": "op",
-          "label": "add",
+          "id": "when$Fetch$when_io_out_fire$0",
+          "kind": "block",
+          "label": "when(io.out.fire)",
           "bundle": "",
           "source": {
             "file": "example/src/rvpipeline/RVPipeline.scala",
             "line": 74,
-            "col": 32
-          },
-          "op": "add"
-        },
-        {
-          "id": "mux$pc",
-          "kind": "op",
-          "label": "mux",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          },
-          "op": "mux"
+            "col": 21
+          }
         }
       ]
     },
@@ -1231,25 +1152,14 @@
       "children": [],
       "wires": [
         {
-          "from": "_T~in1",
-          "to": "const$_T~in1",
+          "from": "regs~MPORT~w",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w",
           "bundle": "Wire",
           "label": "",
           "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "from": "_T_1~in1",
-          "to": "_T",
-          "bundle": "Wire",
-          "label": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 134,
+            "col": 23
           }
         },
         {
@@ -1277,7 +1187,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T~in0",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr",
           "to": "io.wr.waddr",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1301,7 +1211,7 @@
           "fieldLevel": true
         },
         {
-          "from": "regs~MPORT~w",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata",
           "to": "io.wr.wdata",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1313,7 +1223,7 @@
           "fieldLevel": true
         },
         {
-          "from": "_T_1~in0",
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen",
           "to": "io.wr.wen",
           "bundle": "Rf_d1479c",
           "label": "",
@@ -1356,41 +1266,6 @@
         "memories": 1
       },
       "logic": [
-        {
-          "id": "const$_T~in1",
-          "kind": "const",
-          "label": "0h0",
-          "bundle": "",
-          "source": {
-            "file": "",
-            "line": 0,
-            "col": 0
-          }
-        },
-        {
-          "id": "_T",
-          "kind": "op",
-          "label": "neq",
-          "bundle": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 133,
-            "col": 34
-          },
-          "op": "neq"
-        },
-        {
-          "id": "_T_1",
-          "kind": "op",
-          "label": "and",
-          "bundle": "",
-          "source": {
-            "file": "example/src/rvpipeline/RVPipeline.scala",
-            "line": 133,
-            "col": 18
-          },
-          "op": "and"
-        },
         {
           "id": "regs",
           "kind": "mem",
@@ -1437,6 +1312,17 @@
                 }
               }
             ]
+          }
+        },
+        {
+          "id": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
+          "kind": "block",
+          "label": "when(io.wr.wen && (io.wr.waddr =/= 0.U))",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 44
           }
         }
       ]
@@ -1779,5 +1665,380 @@
     "headerH": 28,
     "portStep": 24,
     "portPad": 18
+  },
+  "regions": {
+    "when$Fetch$when_io_out_fire$0": {
+      "name": "when$Fetch$when_io_out_fire$0",
+      "type": "when$Fetch$when_io_out_fire$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 74,
+        "col": 21
+      },
+      "ports": [
+        {
+          "name": "pc",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "name": "io_out_ready",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.ready"
+        },
+        {
+          "name": "io_out_valid",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.valid"
+        },
+        {
+          "name": "pc_2",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "pc"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.out.fire",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_pc_T~in1",
+          "to": "const$_pc_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Fetch$when_io_out_fire$0.cond",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$Fetch$when_io_out_fire$0.pc",
+          "to": "_pc_T",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 74,
+            "col": 26
+          }
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$Fetch$when_io_out_fire$0.io_out_ready",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in1",
+          "to": "when$Fetch$when_io_out_fire$0.io_out_valid",
+          "bundle": "Decoupled_out",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_pc_T~in0",
+          "to": "when$Fetch$when_io_out_fire$0.pc_2",
+          "bundle": "UInt<32>",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$_pc_T~in1",
+          "kind": "const",
+          "label": "0h4",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "src/main/scala/chisel3/util/ReadyValidIO.scala",
+            "line": 48,
+            "col": 35
+          },
+          "op": "and"
+        },
+        {
+          "id": "_pc_T",
+          "kind": "op",
+          "label": "add",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 74,
+            "col": 32
+          },
+          "op": "add"
+        }
+      ]
+    },
+    "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0": {
+      "name": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
+      "type": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0",
+      "doc": "",
+      "source": {
+        "file": "example/src/rvpipeline/RVPipeline.scala",
+        "line": 133,
+        "col": 44
+      },
+      "ports": [
+        {
+          "name": "regs_MPORT_w",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "regs.MPORT"
+        },
+        {
+          "name": "io_wr_waddr",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.wr.waddr"
+        },
+        {
+          "name": "io_wr_wdata",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.wr.wdata"
+        },
+        {
+          "name": "io_wr_wen",
+          "dir": "in",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.wr.wen"
+        },
+        {
+          "name": "cond",
+          "dir": "out",
+          "bundle": "",
+          "doc": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "label": "io.wr.wen && (io.wr.waddr =/= 0.U)",
+          "cond": true
+        }
+      ],
+      "children": [],
+      "wires": [
+        {
+          "from": "_T~in1",
+          "to": "const$_T~in1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "_T_1~in1",
+          "to": "_T",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.cond",
+          "to": "_T_1",
+          "bundle": "Wire",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "from": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.regs_MPORT_w",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wdata",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 134,
+            "col": 23
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T~in0",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_waddr",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        },
+        {
+          "from": "_T_1~in0",
+          "to": "when$RegFile$when_io_wr_wen_io_wr_waddr_0_U$0.io_wr_wen",
+          "bundle": "Rf_d1479c",
+          "label": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          },
+          "fieldLevel": true
+        }
+      ],
+      "metrics": {
+        "registers": 0,
+        "wires": 0,
+        "lines": 0
+      },
+      "logic": [
+        {
+          "id": "const$_T~in1",
+          "kind": "const",
+          "label": "0h0",
+          "bundle": "",
+          "source": {
+            "file": "",
+            "line": 0,
+            "col": 0
+          }
+        },
+        {
+          "id": "_T",
+          "kind": "op",
+          "label": "neq",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 34
+          },
+          "op": "neq"
+        },
+        {
+          "id": "_T_1",
+          "kind": "op",
+          "label": "and",
+          "bundle": "",
+          "source": {
+            "file": "example/src/rvpipeline/RVPipeline.scala",
+            "line": 133,
+            "col": 18
+          },
+          "op": "and"
+        }
+      ]
+    }
   }
 }

@@ -38,7 +38,12 @@ object ChirrtlParser {
   /** A condition frame on the path to a connect: the `when` condition reference
     * and whether this connect sits in that when's `else` branch. */
   case class Guard(cond: String, negated: Boolean)
-  case class Conn(lhs: String, rhs: String, src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty)
+  /** One CHIRRTL `when`: `id` is the 0-based line index of the `when` in the text,
+    * `parents` the enclosing when stack, outermost first, as (whenId, inElse). */
+  case class WhenDecl(id: Int, cond: String, src: Option[SrcInfo], parents: Seq[(Int, Boolean)])
+  // `whenIds` has the length and order of `guard`: the id of each guard's `when`.
+  case class Conn(lhs: String, rhs: String, src: Option[SrcInfo], guard: Seq[Guard] = Seq.empty,
+      whenIds: Seq[Int] = Seq.empty)
 
   /** A register declaration inside a module body.
     *
@@ -48,7 +53,11 @@ object ChirrtlParser {
     */
   case class RegDecl(name: String, tpe: Type, src: Option[SrcInfo], inLayer: Boolean = false,
       // the `regreset` init operand as written (`UInt<2>(0h0)`); None for a plain reg
-      init: Option[String] = None)
+      init: Option[String] = None,
+      // the clock operand as written (`clock`, `fall`); "" when unreadable
+      clock: String = "",
+      // the `regreset` reset operand as written (`reset`, `_T`); "" for a plain reg
+      reset: String = "")
 
   /** A wire declaration inside a module body: `wire <name> : <type>`. Kept for
     * the probe view's signal list; the classic IrWalk path does not read it. */
@@ -83,7 +92,8 @@ object ChirrtlParser {
     // layer content, issue #212), so it is verification logic, not design dataflow.
     inLayer: Boolean = false,
     // Declaration order among the module's wires and nodes (a statement counter).
-    idx: Int = 0)
+    idx: Int = 0,
+    whenIds: Seq[Int] = Seq.empty)
 
   /** CHIRRTL module-declaration keyword (`Mod.kind`). */
   object ModuleDecl {
@@ -116,6 +126,8 @@ object ChirrtlParser {
     // itself verification logic and is collapsed into the layer.
     layerConsumes: Set[String] = Set.empty,
     wires: Seq[WireDecl] = Seq.empty,
+    // Every `when` of the body, in source order.
+    whens: Seq[WhenDecl] = Seq.empty,
   )
   case class Circ(name: String, modules: Seq[Mod], warnings: Seq[Warning] = Seq.empty)
 
@@ -159,11 +171,12 @@ object ChirrtlParser {
     val curNodes                  = mutable.Buffer.empty[NodeDecl]
     val curMports                 = mutable.Buffer.empty[MPortDecl]
     val curLayerConsumes          = mutable.Set.empty[String]
+    val curWhens                  = mutable.Buffer.empty[WhenDecl]
 
-    // When-scope stack: (indent, cond, negated). A `when c :` pushes a frame at
+    // When-scope stack: (indent, cond, negated, whenId). A `when c :` pushes a frame at
     // its indent; `else :` flips the matching frame's polarity; a dedent pops it.
     // Each Conn is tagged with the active stack (outermost-first) as its guard.
-    val whenStack = mutable.ArrayBuffer.empty[(Int, String, Boolean)]
+    val whenStack = mutable.ArrayBuffer.empty[(Int, String, Boolean, Int)]
     // Layerblock-scope stack: (indent, name). Mirrors whenStack; `layerblock X :`
     // pushes, a dedent pops. Non-empty => the line is verification-layer content
     // (issue #212).
@@ -175,12 +188,12 @@ object ChirrtlParser {
         name, curKind,
         curPorts.toSeq, curInsts.toSeq, curConns.toSeq, curSrc,
         curRegs.toSeq, curMems.toSeq, curRefs.toSet, curNodes.toSeq,
-        curMports.toSeq, curLayerConsumes.toSet, curWires.toSeq,
+        curMports.toSeq, curLayerConsumes.toSet, curWires.toSeq, curWhens.toSeq,
       )
       curMod = None; curSrc = None
       curPorts.clear(); curInsts.clear(); curConns.clear()
       curRegs.clear(); curMems.clear(); curWires.clear(); curRefs.clear(); curNodes.clear()
-      curMports.clear(); curLayerConsumes.clear(); curDeclIdx = 0
+      curMports.clear(); curLayerConsumes.clear(); curWhens.clear(); curDeclIdx = 0
       whenStack.clear(); layerStack.clear()
     }
 
@@ -227,7 +240,7 @@ object ChirrtlParser {
     // `when <cond> :` and `else :` lines (optional trailing source markers).
     // Captured here (not via parseStmt) so the leading indentation - the only
     // scope signal CHIRRTL gives us - drives the when-stack.
-    val WhenLine = """^(\s*)when\s+(.+?)\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
+    val WhenLine = """^(\s*)when\s+(.+?)\s*:\s*((?:@\[[^\]]*\]\s*)*)$""".r
     val ElseLine = """^(\s*)else\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
     val LayerBlockLine = """^(\s*)layerblock\s+([\w$]+)\s*:\s*(?:@\[[^\]]*\]\s*)*$""".r
 
@@ -237,7 +250,7 @@ object ChirrtlParser {
     var skippedPartial = 0   // old-FIRRTL partial connect `lhs <- rhs`
     var skippedAttach  = 0   // Analog `attach(a, b)`
 
-    for (raw <- lines) {
+    for ((raw, lineIdx) <- lines.zipWithIndex) {
       raw match {
         case Circuit(n) =>
           circuitName = n
@@ -248,11 +261,13 @@ object ChirrtlParser {
           curSrc  = parseSrc(Option(srcOpt))
         case other if curMod.isDefined && other.trim.startsWith(";") =>
           () // comment line: never a statement, never a reference
-        case WhenLine(_, cond) if curMod.isDefined =>
+        case WhenLine(_, cond, srcOpt) if curMod.isDefined =>
           val ind = indentOf(raw)
           while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
           while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
-          whenStack += ((ind, cond.trim, false))
+          curWhens += WhenDecl(lineIdx, cond.trim, parseSrc(Option(srcOpt)),
+            whenStack.iterator.map { case (_, _, n, id) => (id, n) }.toSeq)
+          whenStack += ((ind, cond.trim, false, lineIdx))
           collectRefs(raw) // harvest the condition ref(s)
           if (layerStack.nonEmpty) collectLayerRefs(raw)
         case ElseLine(_) if curMod.isDefined =>
@@ -260,8 +275,8 @@ object ChirrtlParser {
           while (whenStack.nonEmpty && whenStack.last._1 > ind) whenStack.remove(whenStack.length - 1)
           while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
           if (whenStack.nonEmpty && whenStack.last._1 == ind) {
-            val (i, c, _) = whenStack.last
-            whenStack(whenStack.length - 1) = ((i, c, true))
+            val (i, c, _, id) = whenStack.last
+            whenStack(whenStack.length - 1) = ((i, c, true, id))
           }
         case LayerBlockLine(_, _layerName) if curMod.isDefined =>
           val ind = indentOf(raw)
@@ -273,7 +288,8 @@ object ChirrtlParser {
           while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
           while (layerStack.nonEmpty && layerStack.last._1 >= ind) layerStack.remove(layerStack.length - 1)
           val inLayer = layerStack.nonEmpty
-          val guard = whenStack.iterator.map { case (_, c, n) => Guard(c, n) }.toSeq
+          val guard = whenStack.iterator.map { case (_, c, n, _) => Guard(c, n) }.toSeq
+          val whenIds = whenStack.iterator.map(_._4).toSeq
           // Wrap per-line parsing so a malformed statement never aborts the
           // whole parse; we skip unrecognised / unparseable lines gracefully.
           try {
@@ -285,12 +301,12 @@ object ChirrtlParser {
               // collecting it would add the instance and module names to refs.
               case Some(i: Inst)    => curInsts += i
               // Connects reference exactly their two endpoint expressions.
-              case Some(c: Conn)    => curConns += c.copy(guard = guard); collectRefs(c.lhs); collectRefs(c.rhs)
+              case Some(c: Conn)    => curConns += c.copy(guard = guard, whenIds = whenIds); collectRefs(c.lhs); collectRefs(c.rhs)
               case Some(r: RegDecl)  => curRegs += r.copy(inLayer = inLayer); collectRefs(other)
               case Some(w: WireDecl)  => curWires += w.copy(inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
               case Some(m: MemDecl)   => curMems += m; collectRefs(other)
               case Some(mp: MPortDecl) => curMports += mp; collectRefs(other)
-              case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
+              case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, whenIds = whenIds, inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
               case _ =>
                 val t = other.trim
                 if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
@@ -431,8 +447,11 @@ object ChirrtlParser {
       // Parse the type prefix; of the operands after it, keep a regreset's init.
       val (tpe, rest) = parseType(typeStr.trim)
       val ops  = rest.trim.stripPrefix(",").split(",", 3).map(_.trim)
-      val init = Option.when(line.trim.startsWith("regreset") && ops.length == 3 && ops(2).nonEmpty)(ops(2))
-      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt)), init = init))
+      val isRegReset: Boolean = line.trim.startsWith("regreset")
+      val init = Option.when(isRegReset && ops.length == 3 && ops(2).nonEmpty)(ops(2))
+      val clock: String = if (ops.nonEmpty) ops(0) else ""
+      val reset: String = if (isRegReset && ops.length >= 2) ops(1) else ""
+      Some(RegDecl(name, tpe, parseSrc(Option(srcOpt)), init = init, clock = clock, reset = reset))
     case WireRe(name, typeStr, srcOpt) =>
       val (tpe, _) = parseType(typeStr.trim)
       Some(WireDecl(name, tpe, parseSrc(Option(srcOpt))))

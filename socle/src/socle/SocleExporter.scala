@@ -38,7 +38,7 @@ object SocleExporter {
   ): Design = {
     val chirrtl   = elaborate(gen)
     val parsed    = ChirrtlParser.parse(chirrtl)
-    val core      = IrWalk.design(parsed)
+    val core      = IrWalk.design(parsed, linesOf(sourceRoot))
     val sources   = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     val design    = Layout.withLayouts(core.copy(
       sources    = sources,
@@ -66,6 +66,11 @@ object SocleExporter {
       Console.err.println(s"[socle] [${w.kind}] ${w.message}${if (w.module.nonEmpty) s" (${w.module})" else ""}")
     )
 
+  /** The source lines under `sourceRoot` (none without one): they tell the
+    * user's `when` / `switch` blocks from a library's (`socle.ir.CodeBlocks`). */
+  private def linesOf(sourceRoot: Option[Path]): socle.ir.SourceLines =
+    sourceRoot.map(socle.ir.SourceLines.fromRoot).getOrElse(socle.ir.SourceLines.none)
+
   /** Convert a CHIRRTL text string to a Socle `design.json` file.
     *
     * Unlike [[export]], this path does not require Chisel or a user class on
@@ -90,7 +95,7 @@ object SocleExporter {
     * code too (issue #154). Absolute marker paths are read directly; relative
     * ones resolve under `sourceRoot`. */
   def designFromChirrtl(chirrtl: String, sourceRoot: Option[Path] = None): Design = {
-    val core    = IrWalk.design(ChirrtlParser.parse(chirrtl))
+    val core    = IrWalk.design(ChirrtlParser.parse(chirrtl), linesOf(sourceRoot))
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     Layout.withLayouts(core.copy(
       sources    = sources,
@@ -136,7 +141,9 @@ object SocleExporter {
     sourceRoot: Option[Path],
     index:      Option[socle.capture.SourceIndex] = None,
   ): Design = {
-    val core    = socle.capture.ModelToDesign.design(captured, index)
+    // Code blocks read the index's source lines, else the source root's.
+    val lines   = index.map(_.lines).getOrElse(linesOf(sourceRoot))
+    val core    = socle.capture.ModelToDesign.design(captured, index, lines)
     val sources = sourceRoot.map(root => collectSources(core, root)).getOrElse(Map.empty[String, String])
     Layout.withLayouts(core.copy(sources = sources, sourceRoot = sourceRoot.map(_.toString).getOrElse("")))
   }

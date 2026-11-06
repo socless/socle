@@ -52,6 +52,7 @@ object Tokens {
     "fsm"      -> "var(--node-fsm)",
     "mem"      -> "var(--node-mem)",
     "block"    -> "var(--node-block)",
+    "domain"   -> "var(--node-domain)",
   )
   // Clock domains (schematic stripe, clk pin, legend): mid-lightness hues that
   // read on both the light and the dark themes.

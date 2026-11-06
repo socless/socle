@@ -130,6 +130,10 @@ object ScalaSourceIndexTest extends TestSuite {
       val root = tree(ModFile -> mod)
       assert(query(root, "pkg.Mod", ModFile, "kInWhen") == query(root, "pkg.Mod", ModFile, "kFirst"))
       assert(query(root, "pkg.Mod", ModFile, "kInWhen").isDefined)
+      // The when's own marker (Chisel puts it on the `{`): its box joins the loop.
+      val (l, c) = at(mod, "when(a === 0.U) {")
+      val brace  = c + "when(a === 0.U) ".length
+      assert(new ScalaSourceIndex(root).construct("pkg.Mod", ModFile, l, brace) == query(root, "pkg.Mod", ModFile, "kFirst"))
     }
 
     test("columns are 1-based and spans are exact") {
@@ -248,6 +252,31 @@ object ScalaSourceIndexTest extends TestSuite {
       os.write.over(root / os.RelPath(ModFile), moved)
       os.mtime.set(root / os.RelPath(ModFile), os.mtime(root / os.RelPath(ModFile)) + 2000)
       assert(idx.construct("pkg.Mod", ModFile, l, c).isEmpty)
+    }
+
+    test("lines reads the files under the root, from the parse cache") {
+      val root = tree(ModFile -> "class Mod {\n  when(a) {\n}\n", "src/main/scala/pkg/Broken.scala" -> "x\nclass Broken { for (i <- ")
+      val idx  = new ScalaSourceIndex(root)
+      assert(
+        idx.lines.line(ModFile, 2) == Some("  when(a) {"),
+        idx.lines.line(ModFile, 1) == Some("class Mod {"),
+        idx.lines.line("src/main/scala/pkg/Broken.scala", 1) == Some("x"),
+        idx.lines.line(ModFile, 0).isEmpty,
+        idx.lines.line(ModFile, 99).isEmpty,
+        idx.lines.line("src/main/scala/pkg/Missing.scala", 1).isEmpty,
+        idx.lines.line("../../etc/passwd", 1).isEmpty,
+      )
+      // Read for their lines only: no file is parsed.
+      assert(idx.parseCount == 0)
+      // The construct lookup parses the file it reads, once; Broken.scala, read
+      // only for its lines, is never parsed.
+      idx.construct("pkg.Mod", ModFile, 2, 3)
+      idx.construct("pkg.Mod", ModFile, 2, 3)
+      assert(idx.parseCount == 1)
+      // An edit (a new modification time) is read again.
+      os.write.over(root / os.RelPath(ModFile), "class Mod {\n  switch(s) {\n}\n")
+      os.mtime.set(root / os.RelPath(ModFile), os.mtime(root / os.RelPath(ModFile)) + 2000)
+      assert(idx.lines.line(ModFile, 2) == Some("  switch(s) {"))
     }
   }
 }
