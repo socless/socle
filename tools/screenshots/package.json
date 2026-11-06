@@ -1,0 +1,8 @@
+{
+  "name": "socle-readme-screenshots",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Scripted README screenshots and demo GIF of the Socle UI",
+  "type": "module",
+  "dependencies": { "playwright-core": "1.60.0" }
+}
