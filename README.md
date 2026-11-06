@@ -7,6 +7,13 @@
 
 *The socle for your Chisel designs.*
 
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/socless/socle/main/docs/media/hero-dark.gif">
+  <img src="https://raw.githubusercontent.com/socless/socle/main/docs/media/hero-light.gif" alt="Socle on a RISC-V pipeline: selecting a stage lights up its code, opening it shows its logic, and a state machine opens on its diagram">
+</picture>
+</p>
+
 **An interactive UI for inspecting hardware designs.** Socle turns an
 elaborated design into a navigable schematic, hierarchy, and inspector so a
 hardware designer gets quick visual feedback on what their code actually built:
@@ -84,6 +91,22 @@ the **[Chisel IDE](docs/ide-vscode.md)**. Each release on the
 [GitHub releases page](https://github.com/socless/socle/releases) attaches the
 standalone jar, the language server jar and the single-file UI; the VS Code
 extension has its own [releases](https://github.com/socless/socle-vscode/releases).
+
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/socless/socle/main/docs/media/schematic-dark.png">
+  <img src="https://raw.githubusercontent.com/socless/socle/main/docs/media/schematic-light.png" alt="The RISC-V pipeline schematic, with the selected stage's line lit in the Source tab" width="32%">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/socless/socle/main/docs/media/fsm-dark.png">
+  <img src="https://raw.githubusercontent.com/socless/socle/main/docs/media/fsm-light.png" alt="TrafficFsm's state diagram, read from its switch on the state register" width="32%">
+</picture>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/socless/socle/main/docs/media/inspector-dark.png">
+  <img src="https://raw.githubusercontent.com/socless/socle/main/docs/media/inspector-light.png" alt="Inside the Exec stage: its logic block and the inspector on the module" width="32%">
+</picture>
+</p>
+<p align="center"><sub>A schematic with its source · a state machine's diagram · inside a module</sub></p>
 
 ## How it works
 
