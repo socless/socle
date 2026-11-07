@@ -73,6 +73,10 @@ async function glideClick(page, locator, { dbl = false, position } = {}) {
 const exec = (page) => page.locator('[data-box-inst="exec"]').first();
 const HEADER = { x: 20, y: 8 };   // a box's title strip: select
 const BODY = { x: 40, y: 40 };    // its body: double-click opens it
+// The drill-in happened: the breadcrumb's last segment is the instance (data-layout-ready
+// alone also matches the view before the drill starts).
+const drilledInto = (page, inst) =>
+  page.locator('.scl-crumb.active', { hasText: new RegExp(`^${inst}$`) }).waitFor({ timeout: 10000 });
 
 async function openFsm(page) {
   await page.locator('[data-fsm-open]').first().click();
@@ -94,7 +98,7 @@ async function openFsm(page) {
   // 2. Inside exec, nothing selected: the inspector sums up the module (type,
   // connects, registers, LOC, Scala class) and the Source tab shows its class.
   await exec(page).dblclick({ position: BODY });
-  await page.waitForTimeout(300);
+  await drilledInto(page, 'exec');
   await settled(page);
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${outDir}/inspector-${theme}.png` });
@@ -148,6 +152,7 @@ async function openFsm(page) {
   await glideClick(page, exec(page), { position: HEADER });
   await page.waitForTimeout(1600);
   await glideClick(page, exec(page), { dbl: true, position: BODY });
+  await drilledInto(page, 'exec');
   await settled(page);
   await page.waitForTimeout(1800);
   await open(page, 'fsm');
