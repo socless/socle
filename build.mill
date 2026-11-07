@@ -545,6 +545,31 @@ object example extends ChiselToolchain {
     PathRef(out)
   }
 
+  def capturedPipelineFixture = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "rvpipeline.json")
+  // The Scala source the Source tab shows (FromCapture embeds it from --source-root).
+  def capturedPipelineScala = Task.Source(
+    mill.api.BuildCtx.workspaceRoot / "example" / "src" / "rvpipeline" / "RVPipeline.scala")
+
+  /** Convert the committed RVPipeline capture to a laid-out design.json with
+    * its source, as the IDEs show it (view mode, `socle.lsp.FromCapture`): the
+    * design of the README screenshots (`tools/screenshots`). Caches on the
+    * fixture, the source and the language server classpath.
+    */
+  def socleCapturedPipeline: T[PathRef] = Task {
+    capturedPipelineScala()
+    val out = Task.dest / "design.json"
+    val cp  = build.`socle-lsp`.runClasspath().map(_.path.toString).mkString(java.io.File.pathSeparator)
+    val rc = os.proc(
+      "java", "-cp", cp,
+      "socle.lsp.FromCapture", capturedPipelineFixture().path.toString,
+      "--output", out.toString,
+      "--source-root", mill.api.BuildCtx.workspaceRoot.toString,
+    ).call(stdout = os.Inherit, stderr = os.Inherit, check = false)
+    if (rc.exitCode != 0) sys.error(s"[socle] could not adapt the RVPipeline capture (exit ${rc.exitCode})")
+    PathRef(out)
+  }
+
   def capturedGcdFixture = Task.Source(
     mill.api.BuildCtx.workspaceRoot / "socle" / "test" / "resources" / "captured" / "gcd.json")
 
