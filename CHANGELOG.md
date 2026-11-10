@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-11-10
+
 ### Fixed
 
 - Waveforms of a design whose top module has an empty `io` bundle (`IO(new Bundle {})`)
