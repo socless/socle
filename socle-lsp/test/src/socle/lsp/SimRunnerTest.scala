@@ -39,7 +39,15 @@ object SimRunnerTest extends TestSuite {
          |""".stripMargin)
     // `custom` with no command: the plain `<surferCommand> <trace>` launch (`surfer` mode is the server's, over WCP)
     def settings(flag: String = "emitVcd") = SimSettings(flag, surfer.toString, waveViewer = "custom")
-    def close(): Unit = { os.remove.all(root); os.remove.all(bin) }
+    /** Retries a little: a detached fake surfer may still be writing into `bin`. */
+    def close(): Unit = {
+      os.remove.all(root)
+      Iterator.range(0, 50).find { _ =>
+        try { os.remove.all(bin); true }
+        catch { case _: _root_.java.nio.file.DirectoryNotEmptyException => Thread.sleep(100); false }
+      }
+      ()
+    }
   }
 
   private val fork = TestFork(Seq(os.root / "a.jar", os.root / "b.jar"), Seq("-Duser.flag=1"), Map("FIXTURE_ENV" -> "from-fork"))
