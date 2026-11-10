@@ -222,6 +222,10 @@ test sees, as for `./mill <module>.test`), and the Surfer app unless
   there). The default `emitVcd` comes with ChiselSim; set `emitFst` or another
   option your project defines. A suite that does not know the option fails
   with "illegal ChiselSim ScalaTest option".
+- The design is compiled with `-DfirtoolOpts=<socle.firtoolOpts>`, by default
+  `-preserve-values=named`, so the ports and instances firtool would remove
+  are in the trace. ChiselSim adds these options to the ones the test sets.
+  Set the setting empty to compile as `./mill <module>.test` does.
 - Waves are kept in `out/socle/sim/<suite>/<test>/` under the Mill project root
   (ChiselSim's `build/chiselsim` goes there), emptied at the start of each run
   of that test, with `sim.log` (the test's output) and `surfer.log` (the Surfer
@@ -313,11 +317,12 @@ With the two Surfer viewers:
   or Verilator) are left out, and the Waveform tab says `N signals not in the
   trace`. For an FST trace the server cannot read the names, so Surfer drops
   them itself; the panel's Surfer counts those too, the app's are only logged.
-- By default firtool removes, when it compiles the design (whatever the test
-  does), the ports a parent never reads, the instances nothing reads, and
-  registers and wires it can fold away. To keep them, run the test with
-  firtool's `-preserve-values=named` option, which ChiselSim takes as
-  `firtoolOpts` (several options go in one value, separated by spaces):
+- Without options firtool removes, when it compiles the design (whatever the
+  test does), the ports a parent never reads, the instances nothing reads, and
+  registers and wires it can fold away. Simulate keeps them by default
+  (`socle.firtoolOpts`, `-preserve-values=named`); outside the IDE, run the
+  test with that option, which ChiselSim takes as `firtoolOpts` (several
+  options go in one value, separated by spaces):
 
   ```bash
   ./mill example.test.testOnly gcd.GcdSpec -- -DemitVcd=1 -DfirtoolOpts=-preserve-values=named
@@ -326,9 +331,7 @@ With the two Surfer viewers:
   Then every port of every instance is in the trace, except `clock` and `reset`
   on a module that does not use them (hidden by default anyway). The design
   simulated is less optimised and the trace larger: on the DeepSoc example the
-  trace holds 357 signals instead of 241, for the same run time. Simulate in
-  the IDE cannot pass this option yet
-  ([#17](https://github.com/socless/socle/issues/17)).
+  trace holds 357 signals instead of 241, for the same run time.
 - An aggregate register or wire lists its first 256 ground leaves; a design
   warning counts the others.
 - In the panel's Surfer, a focus scrolls the focused signal to the top of
@@ -404,6 +407,7 @@ comes from and how to rebuild it.
 | `socle.javaPath` | empty | Java 21+ executable that runs the server. Empty: `$JAVA_HOME/bin/java`, else `java` on the `PATH`. |
 | `socle.serverJar` | empty | Server jar to use instead of the bundled one. |
 | `socle.waveFlag` | `emitVcd` | ChiselSim option that turns waves on for [Simulate](#simulate), passed as `-D<flag>=1`. |
+| `socle.firtoolOpts` | `-preserve-values=named` | firtool options [Simulate](#simulate) compiles the design with, passed as `-DfirtoolOpts=<value>` (several separated by spaces). The default keeps the ports and instances firtool would remove, so they are in the trace. Empty: none. |
 | `socle.surferCommand` | `surfer` | The Surfer app (an executable): started as `<command> --wcp-initiate <port> <trace>` for `surfer`, and as `<command> <trace>` for an empty `custom` command. |
 | `socle.waveViewer` | `surfer` | `surfer` (external app), `surfer-panel` (the web Surfer, in its own VS Code tab) or `custom`. |
 | `socle.waveViewerCommand` | empty | Command for `custom`, split on whitespace (no quoting); `{file}` is the trace path, e.g. `gtkwave {file}`. |

@@ -10,13 +10,12 @@ import utest._
   * only, finds all of its signals in the trace's header. Registers and wires
   * are left out: Verilator may still rename or remove them.
   *
-  * The simulation keeps names (`-DfirtoolOpts=-preserve-values=named`): by
-  * default firtool removes the ports a parent never reads and the instances
+  * The simulation keeps names through Simulate's default `firtoolOpts`
+  * (`-preserve-values=named`, #17): without it firtool removes the ports a parent never reads and the instances
   * nothing reads, and those are absent from any trace.
   *
   * Needs Verilator; skipped when it is not on PATH (as in CI). */
 object TraceCoverageTest extends TestSuite {
-  private val PreserveNames = "-DfirtoolOpts=-preserve-values=named"
 
   private def prop(k: String) = sys.props.getOrElse(k, sys.error(s"missing -D$k (set by build.mill forkArgs)"))
   private def cp(k: String)   = prop(k).split(java.io.File.pathSeparator).toSeq.filter(_.nonEmpty).map(os.Path(_))
@@ -66,14 +65,14 @@ object TraceCoverageTest extends TestSuite {
         val viewer = new ViewRunner(ViewRunner.extractProbeJar(), os.Path(prop("socle.root")), javaBin)
         val sim    = new SimRunner(root, javaBin, log = _ => ())
         val fork   = TestFork(cp("example.cp"))
-        val waves  = SimSettings("emitVcd", "surfer", waveViewer = "surfer-panel")
+        val waves  = SimSettings("emitVcd", surferCommand = "surfer", waveViewer = "surfer-panel")
         try {
           val problems = examples.flatMap { case (suite, test) =>
             val design = viewer.run(fork, suite, test) match {
               case Viewed(d) => d
               case other     => sys.error(s"$suite $test: expected Viewed, got $other")
             }
-            val out = sim.run(SimRequest(os.root / "nowhere", suite, test), waves, Right(fork), Seq(PreserveNames))
+            val out = sim.run(SimRequest(os.root / "nowhere", suite, test), waves, Right(fork))
             assert(out.passed)
             val vcd = out.waves.getOrElse(sys.error(s"$suite $test: no waves: ${out.message}"))
             val (instances, found, missing) = coverage(design, vcd)

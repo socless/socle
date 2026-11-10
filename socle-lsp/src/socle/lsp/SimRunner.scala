@@ -10,7 +10,8 @@ import socle.wave.WaveSettings
 case class SimRequest(file: os.Path, suite: String, test: String)
 
 /** The Simulate settings: the ChiselSim ScalaTest option that turns waves on
-  * (`-D<waveFlag>=1`), the executable that opens a trace, and the wave viewer
+  * (`-D<waveFlag>=1`), the firtool options the simulation is compiled with
+  * (`-DfirtoolOpts=<opts>`; empty: none), the executable that opens a trace, and the wave viewer
   * choice (`surfer` | `surfer-panel` | `custom`, with its command) and
   * [[WaveSettings]]; with them, from the same settings object, the panel's
   * schematic defaults ([[SchematicSettings]]). */
@@ -20,11 +21,14 @@ case class SimSettings(
     waveViewer: String = SimSettings.DefaultViewer,
     waveViewerCommand: String = "",
     wave: WaveSettings = WaveSettings(),
-    schematic: SchematicSettings = SchematicSettings()
+    schematic: SchematicSettings = SchematicSettings(),
+    firtoolOpts: String = SimSettings.DefaultFirtoolOpts,
 )
 
 object SimSettings {
   val DefaultWaveFlag = "emitVcd" // ChiselSim's own; Cli.EmitVcd
+  // Keeps the ports and instances firtool would remove, so the trace has them (#7, #17).
+  val DefaultFirtoolOpts = "-preserve-values=named"
   val DefaultSurfer   = "surfer"
   val DefaultViewer   = "surfer"
   val Viewers         = Set("surfer", "surfer-panel", "custom")
@@ -44,7 +48,8 @@ object SimSettings {
 
   /** From an LSP settings object: every key defaulted when absent or invalid
     * (blank text, a `waveFlag` that is not an option name, an unknown
-    * `waveViewer`, a negative or non-integer delay, a non-boolean flag). */
+    * `waveViewer`, a negative or non-integer delay, a non-boolean flag).
+    * `firtoolOpts` is the exception: blank turns the default off. */
   private def fromObject(o: JsonObject): SimSettings = {
     val d = WaveSettings()
     SimSettings(
@@ -59,8 +64,15 @@ object SimSettings {
         bool(o, "wavesShowWires", d.showWires),
         bool(o, "wavesColorByDirection", d.colorByDirection),
         nonNegInt(o, "wavesFollowDelayMs", d.followDelayMs)),
-      schematic(o))
+      schematic(o),
+      firtoolOpts(o))
   }
+
+  /** Absent or not text: the default; otherwise the text with its whitespace
+    * collapsed to single spaces (ChiselSim splits on one space), blank meaning none. */
+  private def firtoolOpts(o: JsonObject): String =
+    Option(o.get("firtoolOpts")).filter(_.isJsonPrimitive).map(_.getAsString.trim.split("\\s+").filter(_.nonEmpty).mkString(" "))
+      .getOrElse(DefaultFirtoolOpts)
 
   /** The `schematic*` keys and `followCursor`; an unknown density, label
     * size or kind is left out (its default kept). */
@@ -118,10 +130,11 @@ final case class SimOutcome(passed: Boolean, waves: Option[os.Path], message: St
   * (docs/ide-vscode.md, "Simulate").
   *
   * The test JVM is `java <fork.jvmArgs> -Dchisel.project.root=<dir> -cp <cp>
-  * org.scalatest.tools.Runner -oW -D<waveFlag>=1 -s <suite> -t <test>`, without
-  * the probe agent. The wave flag is a ScalaTest config-map entry (a Runner
-  * argument), which is where ChiselSim reads its options; a JVM `-D` would be
-  * ignored. `chisel.project.root` comes after the user's JVM args, so it wins,
+  * org.scalatest.tools.Runner -oW -D<waveFlag>=1 [-DfirtoolOpts=<opts>] -s <suite>
+  * -t <test>`, without the probe agent. The wave flag and the firtool options
+  * (left out when empty) are ScalaTest config-map entries (Runner arguments),
+  * which is where ChiselSim reads its options; a JVM `-D` would be ignored.
+  * ChiselSim appends `firtoolOpts` to the options the test sets itself. `chisel.project.root` comes after the user's JVM args, so it wins,
   * and points svsim's `build/chiselsim` at `<dir>`: Mill's `MILL_WORKSPACE_ROOT`
   * (kept, tests read their config through it) would otherwise send the trace
   * to the workspace root. `<dir>` is [[SimRunner.dirFor]], emptied at the
@@ -194,18 +207,12 @@ final class SimRunner(
 
   /** One simulation, synchronously; drops the previous trace id first. Never
     * throws for a run that fails. */
-  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome =
-    run(req, settings, fork, Nil)
-
-  /** `runnerArgs`: more ScalaTest Runner arguments after the wave flag (tests
-    * pass `-DfirtoolOpts=...` through it; no setting gives users this yet). */
-  private[lsp] def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork], runnerArgs: Seq[String]): SimOutcome = {
+  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = {
     lock.synchronized { trace = None }
-    simulate(req, settings, fork, runnerArgs)
+    simulate(req, settings, fork)
   }
 
-  private def simulate(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork],
-      runnerArgs: Seq[String] = Nil): SimOutcome = fork match {
+  private def simulate(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = fork match {
     case Left(msg) => SimOutcome(passed = false, None, s"Simulation not run: ${req.suite} ${req.test}. $msg")
     case Right(f) =>
       val dir = dirFor(req.suite, req.test)
@@ -217,7 +224,8 @@ final class SimRunner(
       val javaExe = f.java(java)
       val cmd = Seq(javaExe) ++ f.jvmArgs ++ Seq(s"-Dchisel.project.root=$dir",
         "-cp", f.classpath.mkString(_root_.java.io.File.pathSeparator),
-        "org.scalatest.tools.Runner", "-oW", s"-D${settings.waveFlag}=1") ++ runnerArgs ++ Seq("-s", req.suite, "-t", req.test)
+        "org.scalatest.tools.Runner", "-oW", s"-D${settings.waveFlag}=1") ++
+        Some(settings.firtoolOpts).filter(_.nonEmpty).map(o => s"-DfirtoolOpts=$o") ++ Seq("-s", req.suite, "-t", req.test)
       log(s"simulate: ${cmd.mkString(" ")} (cwd $dir, log $simLog)")
       val (exit, timedOut) =
         try {

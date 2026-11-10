@@ -71,7 +71,7 @@ object SimRunnerTest extends TestSuite {
         // user jvm args first, then ours (last -D wins), then the Runner with the flag as a config-map entry
         assert(args.take(2) == Seq("-Duser.flag=1", s"-Dchisel.project.root=$dir"))
         assert(args.drop(2) == Seq("-cp", "/a.jar:/b.jar", "org.scalatest.tools.Runner", "-oW", "-DemitVcd=1",
-          "-s", suite, "-t", name))
+          "-DfirtoolOpts=-preserve-values=named", "-s", suite, "-t", name))
         assert(os.read.lines(e.pwd) == Seq(dir.toString, "from-fork")) // cwd is the kept dir, env from the fork
         assert(dir.startsWith(e.root / "out" / "socle" / "sim"))
         eventually("surfer argv")(Some(e.surferArgv).filter(os.exists).map(os.read.lines(_)).filter(_.nonEmpty)) ==>
@@ -88,6 +88,16 @@ object SimRunnerTest extends TestSuite {
         os.copy(e.java(0), e.bin / "jdk" / "bin" / "java")
         val out = runner.run(req, e.settings(), Right(fork.copy(javaHome = Some(e.bin / "jdk"))))
         assert(out.passed, os.read.lines(e.argv).contains("org.scalatest.tools.Runner"))
+      } finally e.close()
+    }
+    test("firtoolOpts: the value as one Runner argument, none when empty") {
+      val e = new Env
+      try {
+        val runner = new SimRunner(e.root, e.java(0).toString, log = _ => ())
+        runner.run(req, e.settings().copy(firtoolOpts = "-preserve-values=all -g"), Right(fork))
+        assert(os.read.lines(e.argv).contains("-DfirtoolOpts=-preserve-values=all -g"))
+        runner.run(req, e.settings().copy(firtoolOpts = ""), Right(fork))
+        assert(!os.read.lines(e.argv).exists(_.startsWith("-DfirtoolOpts")))
       } finally e.close()
     }
     test("failing run still reports and opens its waves") {
@@ -318,6 +328,16 @@ object SimRunnerTest extends TestSuite {
       assert(SimSettings.fromConfig(new JsonObject).isEmpty)
       assert(SimSettings.fromConfig(null).isEmpty)
       assert(SimSettings.section(nested).map(_.get("waveFlag").getAsString) == Some("emitFst"))
+      // firtoolOpts: default when absent, blank turns it off, whitespace collapsed
+      assert(SimSettings().firtoolOpts == "-preserve-values=named")
+      assert(SimSettings.fromInit(obj("firtoolOpts" -> "")).firtoolOpts == "")
+      assert(SimSettings.fromInit(obj("firtoolOpts" -> "  -a   -b ")).firtoolOpts == "-a -b")
+      val num = new JsonObject
+      num.addProperty("firtoolOpts", 3)
+      assert(SimSettings.fromInit(num).firtoolOpts == "3")
+      val arr = new JsonObject
+      arr.add("firtoolOpts", new com.google.gson.JsonArray)
+      assert(SimSettings.fromInit(arr).firtoolOpts == "-preserve-values=named")
     }
     test("real gcd run with Verilator writes a VCD under out/socle/sim") {
       if (!onPath("verilator")) {
