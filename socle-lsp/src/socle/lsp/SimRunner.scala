@@ -193,12 +193,18 @@ final class SimRunner(
 
   /** One simulation, synchronously; drops the previous trace id first. Never
     * throws for a run that fails. */
-  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = {
+  def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome =
+    run(req, settings, fork, Nil)
+
+  /** `runnerArgs`: more ScalaTest Runner arguments after the wave flag (tests
+    * pass `-DfirtoolOpts=...` through it; no setting gives users this yet). */
+  private[lsp] def run(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork], runnerArgs: Seq[String]): SimOutcome = {
     lock.synchronized { trace = None }
-    simulate(req, settings, fork)
+    simulate(req, settings, fork, runnerArgs)
   }
 
-  private def simulate(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork]): SimOutcome = fork match {
+  private def simulate(req: SimRequest, settings: SimSettings, fork: Either[String, TestFork],
+      runnerArgs: Seq[String] = Nil): SimOutcome = fork match {
     case Left(msg) => SimOutcome(passed = false, None, s"Simulation not run: ${req.suite} ${req.test}. $msg")
     case Right(f) =>
       val dir = dirFor(req.suite, req.test)
@@ -209,7 +215,7 @@ final class SimRunner(
       val simLog = dir / "sim.log"
       val cmd = Seq(java) ++ f.jvmArgs ++ Seq(s"-Dchisel.project.root=$dir",
         "-cp", f.classpath.mkString(_root_.java.io.File.pathSeparator),
-        "org.scalatest.tools.Runner", "-oW", s"-D${settings.waveFlag}=1", "-s", req.suite, "-t", req.test)
+        "org.scalatest.tools.Runner", "-oW", s"-D${settings.waveFlag}=1") ++ runnerArgs ++ Seq("-s", req.suite, "-t", req.test)
       log(s"simulate: ${cmd.mkString(" ")} (cwd $dir, log $simLog)")
       val (exit, timedOut) =
         try {

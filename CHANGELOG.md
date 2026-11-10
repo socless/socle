@@ -9,6 +9,18 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Fixed
+
+- Waveforms of a design whose top module has an empty `io` bundle (`IO(new Bundle {})`)
+  follow the schematic: the trace was anchored one instance too deep, so no signal
+  was found. In the IDE view such a port is now an empty bundle, as in export
+  mode (#7).
+
+### Documentation
+
+- How to keep the ports and instances firtool would remove in a simulation's trace
+  (`-DfirtoolOpts=-preserve-values=named`), with its cost (#7).
+
 ## [0.25.1] - 2026-11-10
 
 ### Fixed

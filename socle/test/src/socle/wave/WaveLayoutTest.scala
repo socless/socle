@@ -28,6 +28,18 @@ object WaveLayoutTest extends TestSuite {
       assert(WaveLayout.tracePath(Dut, List("Top"), "r") == Dut + ".r")
     }
 
+    test("an empty bundle port has no trace signal, and does not anchor the trace") {
+      // AXISystem's `IO(new Bundle {})`: Verilog has nothing for it
+      val empty = PortDef("e", PortDir.In, "Empty", "", SourceRef.unknown)
+      val d = gcd.copy(
+        bundles = gcd.bundles + ("Empty" -> BundleDef("Empty", BundleKind.Bundle)),
+        modules = gcd.modules.map(m => if (m.name == gcd.top) m.copy(ports = m.ports :+ empty) else m))
+      val p = WaveLayout.plan(d, List("GCD"), Dut, Set.empty, WaveSettings())
+      assert(!p.groups.flatMap(allTraces).exists(_.endsWith(".e")))
+      assert(WaveLayout.tracedPorts(d) == WaveLayout.tracedPorts(gcd))
+      assert(WaveLayout.tracedPorts(gcd).contains("io"))
+    }
+
     test("gcd default plan") {
       val p = plan()
       assert(p.missing == 0)
