@@ -197,6 +197,31 @@ object TestDiscoveryTest extends TestSuite {
           |}""".stripMargin
       assert(TestDiscovery.find(src).map(_.name) == Seq("A should x"))
     }
+    test("FunSuite tests inside a def get lenses: their names do not depend on the call site") {
+      val src =
+        """class S extends AnyFunSuite with ChiselSim {
+          |  def checks(): Unit = {
+          |    test("in def") { }
+          |    def nested(): Unit = test("nested") { }
+          |    for (i <- 0 until 2) test(s"loop $i") { }
+          |    test(computed) { }
+          |  }
+          |  checks()
+          |  test("x") { }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(t => (t.name, t.line)) == Seq(("in def", 2), ("nested", 3), ("x", 8)))
+    }
+    test("FunSpec tests inside a def are skipped: the caller's describe names them") {
+      val src =
+        """class S extends AnyFunSpec with ChiselSim {
+          |  def shared(): Unit = {
+          |    it("in def") { }
+          |    describe("D") { it("deep") { } }
+          |  }
+          |  describe("A") { shared(); it("x") { } }
+          |}""".stripMargin
+      assert(TestDiscovery.find(src).map(_.name) == Seq("A x"))
+    }
     test("parse failure") {
       assert(TestDiscovery.find("class {{{").isEmpty)
       assert(TestDiscovery.enclosingClass("class {{{", 0).isEmpty)

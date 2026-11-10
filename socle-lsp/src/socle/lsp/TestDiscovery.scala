@@ -146,10 +146,20 @@ object TestDiscovery {
             if (op == "in") subj.foreach(a => add(scope, (if (a.isEmpty) "" else s"$a ") + s"$verb $x", tree))
           case _ => tree.children.foreach(walk(_, scope))
         }
-      // computed names live in loops: never report them; a def's tests
-      // register at its call sites, under the subject current there
-      case _: Term.For | _: Term.ForYield | _: Term.While | _: Term.Function | _: Term.PartialFunction | _: Defn.Def => ()
+      // a def's tests register at its call sites: only FunSuite names do not
+      // depend on them (FlatSpec's subject, FunSpec's describe are the caller's)
+      case d: Defn.Def => inDef(d.body)
+      // computed names live in loops: never report them
+      case _: Term.For | _: Term.ForYield | _: Term.While | _: Term.Function | _: Term.PartialFunction => ()
       case _ => tree.children.foreach(walk(_, scope))
+    }
+
+    // inside a def: `test("x") { ... }` only (FunSuite has no scope)
+    def inDef(tree: Tree): Unit = tree match {
+      case Term.Apply.After_4_6_0(Term.Apply.After_4_6_0(Term.Name("test"), Term.ArgClause(Lit.String(s) :: _, _)), _) =>
+        add(Nil, s, tree)
+      case _: Term.For | _: Term.ForYield | _: Term.While | _: Term.Function | _: Term.PartialFunction => ()
+      case _ => tree.children.foreach(inDef)
     }
 
     templ.stats.foreach(walk(_, Nil))
