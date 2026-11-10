@@ -16,8 +16,11 @@ import scala.collection.mutable
   *
   * Anything else is split: `A0 => C => A1` (two copies on either side of
   * another instance) is neither, so neither copy folds; a 2D array of copies
-  * wired to each other (a systolic grid) is not a chain, so it does not fold.
-  * Wires to logic nodes are not compared: their ids differ per copy.
+  * wired to each other (a systolic grid) is not a chain, so it does not fold;
+  * nor do copies linked by a private logic path (`A0 -> reg -> A1`, each node
+  * with one driver and one load), which is something in between. Shared logic
+  * (an arbiter's register every copy feeds and reads) does not split copies,
+  * and wires to logic are not compared otherwise: their ids differ per copy.
   */
 object FoldGroups {
 
@@ -35,6 +38,41 @@ object FoldGroups {
 
     def head(path: String): String = stripIdx(path.takeWhile(_ != '.'))
     def tail(path: String): String = noIdx(path.dropWhile(_ != '.'))
+    // A logic node by its endpoint head: a register's read `r~q` is `r`.
+    def node(path: String): String = head(path).takeWhile(_ != '~')
+    def isLogic(n: String): Boolean = !instances(n) && !ports(n)
+
+    // Each logic node's peers that are not the module's ports (a clock, an
+    // enable from `io` do not count): what drives it, what it drives.
+    val drivers = mutable.Map.empty[String, mutable.Set[String]]
+    val loads   = mutable.Map.empty[String, mutable.Set[String]]
+    for ((snk, src) <- links) {
+      val (s, r) = (node(snk), node(src))
+      if (s != r) {
+        if (isLogic(s) && !ports(r)) drivers.getOrElseUpdate(s, mutable.Set.empty) += r
+        if (isLogic(r) && !ports(s)) loads.getOrElseUpdate(r, mutable.Set.empty) += s
+      }
+    }
+    /** The copy `m` reaches through a private logic path from one of its
+      * outputs: logic nodes with one driver and one load each (a `RegNext`, a
+      * cast), at most [[MaxPrivateHops]] of them. Shared logic (an arbiter's
+      * register read by every copy) is not private. */
+    def privateReach(m: String): Set[String] =
+      links.iterator.collect { case (snk, src) if head(src) == m && isLogic(node(snk)) => node(snk) }.toSet[String].flatMap { (first: String) =>
+        var (prev, cur, hops) = (m, first, 0)
+        var found: Option[String] = None
+        var go = true
+        while (go && hops < MaxPrivateHops) {
+          val ds = drivers.getOrElse(cur, Set.empty); val ls = loads.getOrElse(cur, Set.empty)
+          if (ds != Set(prev) || ls.size != 1) go = false
+          else {
+            val next = ls.head
+            if (instances(next)) { if (next != m) found = Some(next); go = false }
+            else { prev = cur; cur = next; hops += 1 }
+          }
+        }
+        found
+      }
 
     // Every wire end on an instance, once per instance.
     val byInst = mutable.Map.empty[String, mutable.ArrayBuffer[(String, String, String)]] // (dir, own, peer path)
@@ -49,7 +87,11 @@ object FoldGroups {
 
     val groups = mutable.ArrayBuffer.empty[(String, Seq[String])] // (candidate id, members)
     candidates.groupBy(_._2).toSeq.sortBy { case (_, ms) => ms.keys.map(order).min }.foreach { case (id, ms) =>
-      val members = ms.keys.toSeq.sortBy(order)
+      // Copies linked by a private logic path (`a_0 -> reg -> a_1`) have
+      // something in between: neither parallel nor a chain, so neither folds.
+      val all     = ms.keys.toSet
+      val linked  = all.flatMap(m => privateReach(m).filter(all).flatMap(n => Set(m, n)))
+      val members = (all -- linked).toSeq.sortBy(order)
       val inGroup = members.toSet
       // Direct wires between members, as undirected pairs.
       val adj = members.map(m => m -> mutable.Set.empty[String]).toMap
@@ -108,6 +150,10 @@ object FoldGroups {
       members.map(_ -> gid)
     }.toMap
   }
+
+  /** A bound on the walk along a private logic path (a delay line of
+    * registers is a few nodes; a longer path is not followed). */
+  private val MaxPrivateHops = 16
 
   private def stripIdx(s: String): String = s.takeWhile(_ != '[')
   private def noIdx(s: String): String = s.replaceAll("""\[[^\]]*\]""", "")
