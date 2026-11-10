@@ -11,7 +11,8 @@ import scala.util.Try
   * Parse-only, like [[TestDiscovery]]. A parent is matched by its simple
   * name: with two same-named types in different packages the lens is given
   * rather than hidden (a wrong guess is reported honestly by the view run).
-  * Skips `out`, `node_modules`, `target` and dot-directories below `root`.
+  * `root` is the Mill project root ([[MillBridge.projectRoot]]); the walk
+  * leaves out generated and dot-directories ([[SimBaseIndex.skipped]]).
   *
   * `subjectBases()` names the classes and traits whose own body, or an
   * ancestor's, sets a FlatSpec subject (`behavior of`, `"S" should ...`): a
@@ -62,20 +63,29 @@ final class SimBaseIndex(root: os.Path, onRebuild: () => Unit = () => ()) {
 }
 
 object SimBaseIndex {
-  private val SkipDirs = Set("out", "node_modules", "target")
-  private val Seeds    = Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim")
+  private val SkipDirs     = Set("out", "node_modules", "target")
+  private val SkipRootDirs = Set("build", "test_run_dir") // ChiselSim's and chiseltest's output, in the cwd
+  private val Seeds        = Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim")
+
+  /** Whether a walk from `root` leaves `dir` out: build outputs and
+    * dependencies (`out`, `node_modules`, `target`), dot-directories and,
+    * directly under `root`, test outputs (`build`, `test_run_dir`). */
+  private[lsp] def skipped(dir: os.Path, root: os.Path): Boolean =
+    SkipDirs(dir.last) || dir.last.startsWith(".") || (dir / os.up == root && SkipRootDirs(dir.last))
 
   /** A class or trait: simple name, dotted full name, parents as written,
     * whether its body sets a FlatSpec subject. */
   private final case class Def(simple: String, fq: String, parents: Seq[String], setsSubject: Boolean)
 
-  private[lsp] def scalaFiles(dir: os.Path): Seq[os.Path] =
-    Try(os.list(dir)).getOrElse(Nil).flatMap { p =>
-      if (os.isDir(p, followLinks = false)) {
-        if (SkipDirs(p.last) || p.last.startsWith(".")) Nil else scalaFiles(p)
-      } else if (p.ext == "scala" && os.isFile(p)) Seq(p)
-      else Nil
-    }
+  private[lsp] def scalaFiles(root: os.Path): Seq[os.Path] = {
+    def in(dir: os.Path): Seq[os.Path] =
+      Try(os.list(dir)).getOrElse(Nil).flatMap { p =>
+        if (os.isDir(p, followLinks = false)) { if (skipped(p, root)) Nil else in(p) }
+        else if (p.ext == "scala" && os.isFile(p)) Seq(p)
+        else Nil
+      }
+    in(root)
+  }
 
   private def defsIn(source: String): Seq[Def] =
     TestDiscovery.parse(source).toSeq.flatMap(defs(_, Nil))

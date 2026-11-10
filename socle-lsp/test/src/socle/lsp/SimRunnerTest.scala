@@ -79,6 +79,17 @@ object SimRunnerTest extends TestSuite {
         assert(os.exists(dir / "surfer.log"), os.exists(dir / "sim.log"))
       } finally e.close()
     }
+    test("a module's pinned JDK is the java that runs") {
+      val e = new Env
+      try {
+        // the runner's own java does not exist: only `<javaHome>/bin/java` can run
+        val runner = new SimRunner(e.root, (e.bin / "no-such-java").toString, log = _ => ())
+        os.makeDir.all(e.bin / "jdk" / "bin")
+        os.copy(e.java(0), e.bin / "jdk" / "bin" / "java")
+        val out = runner.run(req, e.settings(), Right(fork.copy(javaHome = Some(e.bin / "jdk"))))
+        assert(out.passed, os.read.lines(e.argv).contains("org.scalatest.tools.Runner"))
+      } finally e.close()
+    }
     test("failing run still reports and opens its waves") {
       val e = new Env
       try {

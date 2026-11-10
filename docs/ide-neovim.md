@@ -94,7 +94,9 @@ vim.api.nvim_create_autocmd('CursorHold', {
 1. Open a ChiselSim test, for example `example/test/src/gcd/GcdSpec.scala` in
    this repo. A `View design` lens appears on each test (`it("...")`,
    `test("...")`, `"X" should "y" in`, `behavior of "X"` then
-   `it should "y" in`; not on `ignore` tests) of a suite that mixes in
+   `it should "y" in`; not on `ignore` tests, tests named in a loop, or tests
+   registered inside a `def`, except FunSuite's `test("...")`, whose name
+   does not depend on where the `def` is called) of a suite that mixes in
    `ChiselSim`, directly or through a base class or trait of the workspace,
    or whose body calls `simulate(`, only in a Mill project (a `build.mill`
    above the file).
@@ -111,7 +113,7 @@ vim.api.nvim_create_autocmd('CursorHold', {
 5. Move the cursor in a Chisel source: after `updatetime` the panel focuses the
    class under it.
 6. Click a box in the panel: Neovim opens its source file at that line (only
-   files under the workspace root, or sources of the shown design).
+   files under the Mill project root, or sources of the shown design).
 
 The panel listens on `127.0.0.1` only, on a new port for each server. Quitting
 Neovim stops the server and the panel.
@@ -145,7 +147,7 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   "illegal ChiselSim ScalaTest option".
 - The run's working directory, and ChiselSim's `build/chiselsim` (through
   `-Dchisel.project.root`, which wins over the same option in `forkArgs`), is
-  `out/socle/sim/<suite>/<test>/` under the workspace root. It is emptied at
+  `out/socle/sim/<suite>/<test>/` under the Mill project root. It is emptied at
   the start of each run, so the last run of each test is kept; `sim.log` there
   holds the test's output, `surfer.log` the viewer's. `./mill clean` (which
   empties `out/`) removes the kept waves too.
@@ -213,8 +215,10 @@ Surfer's status says what each colour means
 
 The server forks the test JVM the way `./mill <module>.test` does, with the
 settings of the test module that owns the file, read in one Mill call
-(`show <m>.{runClasspath,forkArgs,allForkEnv,forkWorkingDir,testSandboxWorkingDir}`):
+(`show <m>.{runClasspath,forkArgs,allForkEnv,forkWorkingDir,testSandboxWorkingDir,javaHome}`):
 
+- the module's JDK when it pins one (`javaHome`, for example from `jvmId`),
+  else the server's own Java;
 - the module's run classpath and its `forkArgs` (so `-D` config properties
   reach your design);
 - the server's environment plus Mill's `allForkEnv` for the module: its
@@ -225,9 +229,27 @@ settings of the test module that owns the file, read in one Mill call
   `testSandboxWorkingDir = false` the module's `forkWorkingDir` instead.
 
 The probe's own options come after `forkArgs` on the command line, so they win
-over any conflicting `-D` there. A module without these tasks (a custom
-module, an older Mill) is run with its classpath and `MILL_WORKSPACE_ROOT`
-only, and the server logs it.
+over any conflicting `-D` there. A module without `testSandboxWorkingDir` (a
+`test` module that is not a `TestModule`) runs in a fresh directory, and one
+without `javaHome` on the server's Java; both keep the rest of their settings.
+A module without the other tasks (a custom module, an older Mill) is run with
+its classpath and `MILL_WORKSPACE_ROOT` only, and the server logs it.
+
+The server runs Mill in the project's root: the `build.mill` at or above the
+editor's workspace folder, else the only one at most three levels below it
+(one workspace, one Mill build). Lenses on suites that extend a project base
+trait come from an index of the project's Scala files, which leaves out `out`,
+`target`, `node_modules`, dot-directories and the test output at the root
+(`build`, `test_run_dir`). The index follows saves, and changes made outside
+the editor (switching branches) when the client can watch files for the
+server. Neovim 0.12 does not offer that by default on Linux; to turn it on,
+add to the `vim.lsp.config('socle', ...)` table:
+
+```lua
+capabilities = { workspace = { didChangeWatchedFiles = { dynamicRegistration = true } } },
+```
+
+Without it, a branch switch reaches the lenses on the next save.
 
 ## With Metals
 

@@ -36,7 +36,7 @@ The extension and the server talk through LSP and the `socle/*` methods of
    `View design` lens appears on each test (the same rules as in
    [Neovim](ide-neovim.md#use-it), including suites that inherit `ChiselSim`
    from a project base trait and `behavior of` + `it should` tests). Runs are
-   forked with the test module's `forkArgs`, `forkEnv` and
+   forked with the test module's JDK, `forkArgs`, `forkEnv` and
    `MILL_WORKSPACE_ROOT`, as `./mill <module>.test` does (see
    [How a view run is forked](ide-neovim.md#how-a-view-run-is-forked)).
 2. Click the lens. The panel opens beside the editor. The first run of a test
@@ -222,7 +222,7 @@ test sees, as for `./mill <module>.test`), and the Surfer app unless
   there). The default `emitVcd` comes with ChiselSim; set `emitFst` or another
   option your project defines. A suite that does not know the option fails
   with "illegal ChiselSim ScalaTest option".
-- Waves are kept in `out/socle/sim/<suite>/<test>/` under the workspace root
+- Waves are kept in `out/socle/sim/<suite>/<test>/` under the Mill project root
   (ChiselSim's `build/chiselsim` goes there), emptied at the start of each run
   of that test, with `sim.log` (the test's output) and `surfer.log` (the Surfer
   app's). `./mill clean` (which empties `out/`) removes them too.

@@ -139,6 +139,21 @@ object ViewRunnerTest extends TestSuite {
         }
       } finally os.remove.all(ws)
     }
+    test("fork settings: a module's pinned JDK is the java that runs") {
+      // `<javaHome>/bin/java` records its use and runs the real one; the
+      // runner's own java does not exist, so only the pinned one can work
+      val jdk = os.temp.dir(prefix = "socle-fork-jdk-")
+      try {
+        os.write(jdk / "bin" / "java", s"#!/bin/sh\ntouch $jdk/used\nexec $javaBin \"$$@\"\n",
+          perms = os.PermSet.fromString("rwx------"), createFolders = true)
+        val pinned = new ViewRunner(ViewRunner.extractProbeJar(), root, (jdk / "no-such-java").toString)
+        pinned.run(TestFork(cp("example.cp"), javaHome = Some(jdk)), "gcd.GcdSpec", "GCD computes gcd(48, 18)") match {
+          case Viewed(d) => assert(d.top == "GCD")
+          case other     => sys.error(s"expected Viewed, got $other")
+        }
+        assert(os.exists(jdk / "used"))
+      } finally os.remove.all(jdk)
+    }
     test("no design") {
       val res = runner.run(TestFork(cp("fixtures.cp")), "probefix.NoSimulateSpec", "plain arithmetic")
       assert(res.isInstanceOf[Failed])

@@ -54,21 +54,27 @@ object LanguageServerTest extends TestSuite {
       documents.add(p)
       CompletableFuture.completedFuture(new ShowDocumentResult(showDocumentOk))
     }
+    val registrations = new ConcurrentLinkedQueue[Registration]
+    override def registerCapability(p: RegistrationParams): CompletableFuture[Void] = {
+      registrations.addAll(p.getRegistrations)
+      CompletableFuture.completedFuture(null)
+    }
   }
 
   /** A server wired to a recording client; `cp` is what the stub classpath returns. */
   final class Fixture(showDocumentOk: Boolean = true, panel: Option[String] = None, ws: os.Path = root,
-      simJava: String = javaBin, initOpts: Seq[(String, String)] = Nil) {
+      simJava: String = javaBin, initOpts: Seq[(String, String)] = Nil, watch: Boolean = false) {
     @volatile var cp: Either[String, Seq[os.Path]] = Right(exampleCp)
     @volatile var cpFn: () => Either[String, Seq[os.Path]] = () => cp
     val browser = new ConcurrentLinkedQueue[String]
     val log     = new ConcurrentLinkedQueue[String]
+    val cpRoots = new ConcurrentLinkedQueue[os.Path] // the project roots the server asked a classpath provider for
     private val stub = new ClasspathProvider {
       def testClasspath(file: os.Path) = cpFn()
     }
     lazy val http: LiveHttp = new LiveHttp((f, l) => server.openInEditor(f, l), onSelect = r => server.waveSelect(r))
     lazy val server: SocleLanguageServer = new SocleLanguageServer(
-      _ => stub,
+      r => { cpRoots.add(r); stub },
       r => Right(new ViewRunner(ViewRunner.extractProbeJar(), r, javaBin)),
       http,
       u => { browser.add(u); () },
@@ -98,6 +104,13 @@ object LanguageServerTest extends TestSuite {
       opts.foreach { case (k, v) => o.addProperty(k, v) }
       init.setInitializationOptions(o)
     }
+    if (watch) {
+      val w = new WorkspaceClientCapabilities
+      w.setDidChangeWatchedFiles(new DidChangeWatchedFilesCapabilities(true))
+      val c = new ClientCapabilities
+      c.setWorkspace(w)
+      init.setCapabilities(c)
+    }
     val capabilities = remote.initialize(init).get()
     remote.initialized(new InitializedParams)
 
@@ -114,6 +127,11 @@ object LanguageServerTest extends TestSuite {
 
     def save(p: os.Path): Unit =
       remote.getTextDocumentService.didSave(new DidSaveTextDocumentParams(new TextDocumentIdentifier(uri(p))))
+
+    /** A change the client's file watcher saw (not a save in the editor). */
+    def watched(p: os.Path): Unit =
+      remote.getWorkspaceService.didChangeWatchedFiles(new DidChangeWatchedFilesParams(
+        java.util.List.of(new FileEvent(uri(p), FileChangeType.Changed))))
 
     def cursor(p: os.Path, line: Int): Unit = {
       val o = new JsonObject
@@ -213,6 +231,33 @@ object LanguageServerTest extends TestSuite {
         f.save(base)
         assert(f.lenses(spec).isEmpty)
       } finally { f.close(); os.remove.all(dir) }
+    }
+    test("a workspace above the Mill project: Mill runs in the project, outside changes reach the lenses") {
+      val dir  = os.temp.dir(prefix = "socle-above-ws-")
+      val proj = dir / "hw"
+      val base = proj / "src" / "SimBase.scala"
+      val spec = proj / "test" / "S.scala"
+      os.write(proj / "build.mill", "", createFolders = true)
+      os.write(base, "package p\ntrait SimBase extends AnyFlatSpec with ChiselSim", createFolders = true)
+      os.write(spec, "package q\nclass S extends p.SimBase {\n  behavior of \"A\"\n  it should \"x\" in { }\n}",
+        createFolders = true)
+      val f = new Fixture(ws = dir, panel = Some("client"), watch = true)
+      try {
+        assert(f.cpRoots.asScala.toSeq == Seq(proj))
+        eventually("watcher registration")(f.client.registrations.asScala.find(_.getMethod == "workspace/didChangeWatchedFiles"))
+        f.open(spec)
+        assert(f.lenses(spec).size == 2)
+        assert(f.tests()("suites").arr.map(_("suite").str).toSeq == Seq("q.S"))
+        // a git checkout: the file changes on disk, the editor never saves it
+        os.write.over(base, "package p\ntrait SimBase extends AnyFlatSpec")
+        os.mtime.set(base, os.mtime(base) + 5000)
+        f.watched(base)
+        eventually("lenses gone")(Some(f.lenses(spec)).filter(_.isEmpty))
+        eventually("socle/testsChanged")(Some(f.client.testsChangedCount.get).filter(_ > 0))
+      } finally { f.close(); os.remove.all(dir) }
+    }
+    test("no watcher without dynamic registration") {
+      assert(fx.client.registrations.isEmpty)
     }
     test("lenses follow unsaved edits") {
       val f = gcdSpec / os.up / "Unsaved.scala"
