@@ -14,12 +14,14 @@ Your tests and build are never modified, and nothing leaves your machine.
 
 ## Install
 
-The plugin is not on the JetBrains Marketplace. Download `socle-intellij-<version>.zip` from the
-[plugin's releases](https://github.com/socless/socle-intellij/releases), then Settings | Plugins |
-the gear icon | Install Plugin from Disk, and restart. To build it yourself, see the plugin
-repository's `DEVELOPING.md`.
+Install **Socle (Chisel)** from the
+[JetBrains Marketplace](https://plugins.jetbrains.com/plugin/35867-socle-chisel-): Settings |
+Plugins | Marketplace, search for Socle. Each version is also attached to the
+[plugin's releases](https://github.com/socless/socle-intellij/releases) as
+`socle-intellij-<version>.zip` (Settings | Plugins | the gear icon | Install Plugin from Disk). To
+build it yourself, see the plugin repository's `DEVELOPING.md`.
 
-The zip bundles the language server jar (`socle-lsp`, with the probe agent and the embedded Surfer
+The plugin bundles the language server jar (`socle-lsp`, with the probe agent and the embedded Surfer
 inside), so it is about 70 MB. Each plugin release bundles the server of one Socle release, named
 in its release notes; the Server jar setting runs another jar instead. The plugin and the server
 talk through LSP (by LSP4IJ) and the `socle/*` methods of [lsp-protocol.md](lsp-protocol.md).
@@ -72,7 +74,6 @@ its own server, and nothing starts in an untrusted project.
 
 - A margin icon on each test instead of code lenses.
 - A tool window instead of the activity bar views.
-- Installed from the release zip, not from a marketplace.
 - The Surfer tab opens in a split to the right of the active editor.
 - Without JCEF the design opens in your browser, and Hierarchy and Details stay empty.
 
