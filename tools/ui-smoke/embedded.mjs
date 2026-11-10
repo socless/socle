@@ -337,6 +337,27 @@ for (const [kind, want] of [['hc', 'contrast'], ['light', null]]) {
   await ctx.close();
 }
 
+// 3b. A narrow editor panel (#12): the top bar and the schematic's toolbar fit its width
+// (their labels shrink, the toolbar wraps), so the page shows no scrollbar.
+for (const width of [620, 360]) {
+  const { ctx, page } = await open('/?host=vscode&theme=dark');
+  await page.setViewportSize({ width, height: 700 });
+  await waitLoaded(page);
+  const over = await page.evaluate(() => {
+    const out = [];
+    const bar = document.querySelector('.scl-topbar');
+    const chips = document.querySelector('[data-module-chip]')?.parentElement;
+    for (const e of [...(bar?.children ?? []), ...(chips?.children ?? [])]) {
+      const r = e.getBoundingClientRect();
+      if (r.width > 0 && r.right > innerWidth + 0.5) out.push(`${e.className || e.tagName} ends at ${Math.round(r.right)}`);
+    }
+    return { bar: !!bar, chips: !!chips, out };
+  });
+  check(`narrow ${width}`, over.bar && over.chips && over.out.length === 0,
+    `top bar and toolbar within ${width} px ${JSON.stringify(over)}`);
+  await ctx.close();
+}
+
 // 4. Live switch: the parent page posts socle-theme to the iframe.
 {
   const { ctx, page, errors } = await open(PARENT);
