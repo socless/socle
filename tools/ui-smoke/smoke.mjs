@@ -1988,6 +1988,30 @@ async function smokeDesignIn(design, ctx) {
         else console.log(`[${design}] gestures: the wire hover is back after a drag from it`);
       }
     }
+    // A click with no press before it (a keyboard click) right after a drag
+    // is a click: it selects (#14).
+    {
+      await clearSel();
+      // the drag last: a press after it (as clearSel's) would hide the bug
+      const b = await bgPoint();
+      if (b) {
+        await page.mouse.move(b.x, b.y);
+        await page.mouse.down();
+        await page.mouse.move(b.x + 30, b.y + 20, { steps: 4 });
+        await page.mouse.up();
+        await page.waitForTimeout(100);
+      } else note(design, where, 'no background point to drag from before the keyboard click');
+      const clicked = await page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        el.click();
+        return true;
+      }, titleSel);
+      await page.waitForTimeout(120);
+      if (!clicked) note(design, where, `no title to click after the drags (${titleSel})`);
+      else if (!await isSelected()) note(design, where, 'a click with no press after a drag selected nothing (the drag swallowed it)');
+      await clearSel();
+    }
 
     // A press that moves less than 4 px is a click: it selects, a second one
     // deselects, and one on the background clears the selection.

@@ -240,6 +240,10 @@ object Gestures {
       if (panning) {
         panning = false
         panEndAt = now()
+        // The click the release makes comes in this task: swallowed, and then
+        // clicks are clicks again (a keyboard click has no press to reset it;
+        // a middle-button pan makes no click at all) (#14).
+        dom.window.setTimeout(() => dragged = false, 0)
         // Before the release, so the boundary events after it set the hover.
         hl.resumeHover()
         if (captor != null) {
