@@ -16,6 +16,9 @@ and [tags](https://github.com/socless/socle/tags) pages.
   Copies on either side of another instance (`A0 => C => A1`, e.g. layers a `match` makes on
   one line) no longer fold into one box, nor do copies with different ports or a 2D array of
   copies wired to each other (#15).
+- View design no longer folds copies linked by a private logic path, such as pipeline stages
+  with a `RegNext` between each (`A0 -> reg -> A1`): the register is something in between.
+  Copies that share logic (an arbiter every copy feeds and reads) still fold (#15).
 - The browser tab shows the Socle icon: the page's icon link was cut short by its own quotes.
 
 ## [0.26.0] - 2026-11-10

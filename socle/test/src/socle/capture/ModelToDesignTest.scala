@@ -445,6 +445,14 @@ object ModelToDesignTest extends TestSuite {
       check(!g.values.exists(ms => ms.contains("a_1") && ms.contains("a_2")), s"groups $g")
     }
 
+    test("copies with a register between each do not fold") {
+      // a_0 -> r1 -> a_1 -> r2 -> a_2 (RegNext between pipeline stages)
+      val x = wired(3, Seq("reg r1 : UInt<8>, clock", "reg r2 : UInt<8>, clock",
+        "connect a_0.in, in", "connect r1, a_0.out", "connect a_1.in, r1",
+        "connect r2, a_1.out", "connect a_2.in, r2", "connect out, a_2.out"))
+      check(groupsOf(x).isEmpty, s"groups ${groupsOf(x)}")
+    }
+
     test("a chain broken by another instance folds each direct run") {
       // a_0 => a_1 => c => a_2 => a_3
       val x = wired(4, Seq("connect a_0.in, in", "connect a_1.in, a_0.out", "connect c.in, a_1.out",
