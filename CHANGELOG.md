@@ -9,6 +9,13 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Added
+
+- IDE: Simulate compiles the design with the `firtoolOpts` setting (`socle.firtoolOpts` in
+  VS Code), by default `-preserve-values=named`: the ports and instances firtool would remove
+  are now in the trace, so the Waveform tab finds them. ChiselSim adds these options to the
+  test's own; an empty value compiles as `./mill <module>.test` does (#17).
+
 ## [0.25.2] - 2026-11-10
 
 ### Fixed

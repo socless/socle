@@ -56,7 +56,7 @@ The server reads its settings from `initializationOptions` (flat) and from the `
 `workspace/didChangeConfiguration`.
 
 - **Simulation and waveforms:**
-  - `waveFlag`, `waveViewer`, `waveViewerCommand`, `surferCommand`;
+  - `waveFlag`, `firtoolOpts`, `waveViewer`, `waveViewerCommand`, `surferCommand`;
   - `wavesFollowSelection`, `wavesShowClockReset`, `wavesFoldBundles`, `wavesShowWires`,
     `wavesColorByDirection`, `wavesFollowDelayMs`.
 - **Schematic defaults:**
@@ -66,7 +66,8 @@ The server reads its settings from `initializationOptions` (flat) and from the `
   - `followCursor`.
 
 Values and defaults are those of the VS Code settings of the same names (`socle.<key>`), listed in
-[ide-vscode.md](ide-vscode.md). An invalid value keeps the default.
+[ide-vscode.md](ide-vscode.md). An invalid value keeps the default; an empty `firtoolOpts`
+turns its default off.
 
 ## The panel's HTTP endpoint
 

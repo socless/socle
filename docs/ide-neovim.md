@@ -145,6 +145,10 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   `emitVcd` (the default) comes with ChiselSim; a project can define its own,
   such as `emitFst`. A suite that does not know the option fails with
   "illegal ChiselSim ScalaTest option".
+- The design is compiled with `-DfirtoolOpts=<firtoolOpts>`, by default
+  `-preserve-values=named`, so the ports and instances firtool would remove
+  are in the trace (ChiselSim adds them to the test's own options). An empty
+  `firtoolOpts` compiles as `./mill <module>.test` does.
 - The run's working directory, and ChiselSim's `build/chiselsim` (through
   `-Dchisel.project.root`, which wins over the same option in `forkArgs`), is
   `out/socle/sim/<suite>/<test>/` under the Mill project root. It is emptied at
@@ -167,7 +171,8 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   as a warning, and `emitVcd` is used.
 
 The settings go in `init_options` (defaults: `waveFlag = "emitVcd"`,
-`surferCommand = "surfer"`, the Surfer app's executable). The wave viewer keys
+`firtoolOpts = "-preserve-values=named"`, `surferCommand = "surfer"`, the
+Surfer app's executable). The wave viewer keys
 use the same names as VS Code without the `socle.` prefix: `waveViewer`
 (`surfer`, `surfer-panel`, `custom`), `waveViewerCommand`,
 `wavesFollowSelection`, `wavesShowClockReset`, `wavesFoldBundles`,
