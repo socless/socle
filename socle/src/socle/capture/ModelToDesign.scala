@@ -79,9 +79,18 @@ object ModelToDesign {
           Some(descend(own(stripIdx(h)), h :: rest).key)
         case _ => None
       }
+      // Logic and wires from IrWalk when the capture has no probe-supplied wires.
+      val irModule = if (c.wires.isEmpty && m.chirrtl.nonEmpty) irModules.get(c.name) else None
+      // Generator copies by source line, then split by how they are wired.
       val foldGroups =
-        if (m.chirrtl.nonEmpty) foldGroupsOf(c, chirrtlInsts.getOrElse(c.name, Map.empty), byName)
-        else Map.empty[String, String]
+        if (m.chirrtl.nonEmpty) {
+          val candidates = foldGroupsOf(c, chirrtlInsts.getOrElse(c.name, Map.empty), byName)
+          val links = irModule match {
+            case Some(im) => im.wires.map(w => w.from -> w.to)
+            case None     => c.wires.map(w => w.from -> w.to)
+          }
+          FoldGroups.refine(candidates, c.instances.map(_.name), links, own.keySet)
+        } else Map.empty[String, String]
       // A block pin whose external end is a port or an instance pin is named
       // after that endpoint with every Vec index removed, so the lanes of
       // `io.out.data.bits[0][i]` share `io_out_data_bits`; a generator copy
@@ -95,7 +104,6 @@ object ModelToDesign {
         else LogicBlocks.driverPin(driver, boxes, foldHead)
       // Logic and wires from IrWalk, collapsed into blocks; probe-supplied
       // wires (no logic) when the capture carries them.
-      val irModule = if (c.wires.isEmpty && m.chirrtl.nonEmpty) irModules.get(c.name) else None
       val (collapsed, collapsedWires) = irModule match {
         case Some(im) =>
           val named            = im.copy(scalaClass = c.scalaClass)
@@ -375,13 +383,16 @@ object ModelToDesign {
     * class and a name without trailing indices, at least two of them. Copies
     * do not share a module name, so the marker plus the class is the key; the
     * base name keeps apart distinct instances a helper makes on one line
-    * (`inQ`, `outQ`). The id is that base name, made unique against the
-    * module's other children (the group's own members aside) and the earlier
-    * ids with `_g2`... */
+    * (`inQ`, `outQ`), and copies must have the same ports (names, directions,
+    * types): one folded box stands for all of them. The id is that base name,
+    * made unique against the module's other children (the group's own members
+    * aside) and the earlier ids with `_g2`... [[FoldGroups.refine]] then splits
+    * these candidates by their wiring. */
   private def foldGroupsOf(c: CModule, markers: Map[String, ChirrtlParser.SrcInfo],
                            byName: Map[String, CModule]): Map[String, String] = {
+    def shape(module: String) = byName.get(module).map(_.ports)
     val keyed = c.instances.flatMap(i => markers.get(i.name).map(src =>
-      (src, byName.get(i.module).map(_.scalaClass), CopySuffix.replaceFirstIn(i.name, "")) -> i.name))
+      (src, byName.get(i.module).map(_.scalaClass), CopySuffix.replaceFirstIn(i.name, ""), shape(i.module)) -> i.name))
     val groups = keyed.map(_._1).distinct.map(k => k._3 -> keyed.filter(_._1 == k).map(_._2)).filter(_._2.size >= 2)
     val taken  = mutable.Set.empty[String] ++ c.instances.map(_.name)
     groups.flatMap { case (base, members) =>
