@@ -9,6 +9,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-11-10
+
+### Fixed
+
+- The UI fits a narrow editor panel (an IntelliJ or VS Code panel about 600 px wide):
+  the top bar's design label and search button shrink and the schematic toolbar wraps,
+  so the page no longer shows scrollbars (#12).
+
 ## [0.25.0] - 2026-11-06
 
 ### Added
