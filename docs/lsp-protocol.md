@@ -1,7 +1,8 @@
 # The language server's protocol
 
-This page is for client authors. Two clients live in their own repositories:
-[socless/socle-vscode](https://github.com/socless/socle-vscode) and
+This page is for client authors. Three clients live in their own repositories:
+[socless/socle-vscode](https://github.com/socless/socle-vscode),
+[socless/socle-intellij](https://github.com/socless/socle-intellij) and
 [socless/socle.nvim](https://github.com/socless/socle.nvim). Each pins a server release, so the
 surface below is an interface between repositories. A change to it is called out in the
 CHANGELOG.
@@ -22,7 +23,7 @@ Each ChiselSim test gets two lenses, **View design** and **Simulate**. Their com
 ## Initialization options
 
 `initializationOptions` is a flat object:
-- **`panel: "client"`:** the client hosts the panel (VS Code's webview). The server then sends
+- **`panel: "client"`:** the client hosts the panel (VS Code's webview, IntelliJ's JCEF tab). The server then sends
   `socle/openPanel` and the other notifications below instead of opening a browser.
 - **Settings:** any of the keys listed under "Settings".
 

@@ -10,7 +10,7 @@ panel follows your cursor, and clicking a box in the panel jumps to its source.
 It does not replace Metals: it offers no diagnostics, completion, hover or
 go-to-definition, so run both side by side (see [With Metals](#with-metals)).
 
-Using VS Code? See [Socle in VS Code](ide-vscode.md).
+Using VS Code? See [Socle in VS Code](ide-vscode.md). IntelliJ IDEA? See [Socle in IntelliJ IDEA](ide-intellij.md).
 
 Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath and fork
