@@ -126,6 +126,7 @@ final case class SimOutcome(passed: Boolean, waves: Option[os.Path], message: St
   * (kept, tests read their config through it) would otherwise send the trace
   * to the workspace root. `<dir>` is [[SimRunner.dirFor]], emptied at the
   * start of each run so the last run of each test is kept; it is the cwd too.
+  * `java` is the module's JDK (`fork.javaHome`) when it pins one, else `java`.
   * env is this process's plus `fork.env`; output goes to `<dir>/sim.log`.
   *
   * After the JVM exits (pass or fail) the newest `*.vcd` / `*.fst` under
@@ -213,7 +214,8 @@ final class SimRunner(
       os.remove.all(dir)
       os.makeDir.all(dir)
       val simLog = dir / "sim.log"
-      val cmd = Seq(java) ++ f.jvmArgs ++ Seq(s"-Dchisel.project.root=$dir",
+      val javaExe = f.java(java)
+      val cmd = Seq(javaExe) ++ f.jvmArgs ++ Seq(s"-Dchisel.project.root=$dir",
         "-cp", f.classpath.mkString(_root_.java.io.File.pathSeparator),
         "org.scalatest.tools.Runner", "-oW", s"-D${settings.waveFlag}=1") ++ runnerArgs ++ Seq("-s", req.suite, "-t", req.test)
       log(s"simulate: ${cmd.mkString(" ")} (cwd $dir, log $simLog)")
@@ -226,7 +228,7 @@ final class SimRunner(
           } finally lock.synchronized { current = None }
         } catch {
           case NonFatal(e) =>
-            return SimOutcome(passed = false, None, s"${SimRunner.head(req, passed = false)} cannot start $java: ${e.getMessage}")
+            return SimOutcome(passed = false, None, s"${SimRunner.head(req, passed = false)} cannot start $javaExe: ${e.getMessage}")
         }
       val waves = SimRunner.newestTrace(dir)
       // ScalaTest exits 0 when `-t` matches no test: that is not a pass

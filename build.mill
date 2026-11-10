@@ -727,6 +727,9 @@ object `socle-probe` extends ChiselToolchain {
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "capture" / "CapturedModel.scala",
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
+  // The agent runs on the test module's JDK (its `javaHome`), not ours: its
+  // Java sources target Java 8 like Chisel and the Scala classes (scalac's default).
+  def javacOptions = super.javacOptions() ++ Seq("--release", "8", "-Xlint:-options")
 
   // `assembly` is the agent jar (`java -javaagent:<jar>`). It runs inside the
   // user's test JVM, which provides Scala and Chisel: those are left out, and

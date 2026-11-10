@@ -4,15 +4,20 @@ import scala.util.Try
 
 /** How to fork the test JVM of a source file's test module, as `./mill <m>.test`
   * does: its run classpath, its `forkArgs`, its environment (Mill's
-  * `allForkEnv`, or just `MILL_WORKSPACE_ROOT` when that is unavailable) and,
+  * `allForkEnv`, or just `MILL_WORKSPACE_ROOT` when that is unavailable),
   * when the module turns Mill's test sandbox off, its `forkWorkingDir` (None:
-  * a fresh directory, standing in for the sandbox). */
+  * a fresh directory, standing in for the sandbox) and, when it pins a JDK,
+  * that JDK's home (None: the server's own JVM). */
 case class TestFork(
     classpath: Seq[os.Path],
     jvmArgs: Seq[String] = Nil,
     env: Map[String, String] = Map.empty,
     workingDir: Option[os.Path] = None,
-)
+    javaHome: Option[os.Path] = None,
+) {
+  /** The `java` to fork: the module's JDK, else `default`. */
+  def java(default: String): String = javaHome.fold(default)(h => (h / "bin" / "java").toString)
+}
 
 /** Where the forked ChiselSim test JVM gets its classpath and fork settings for a source file. */
 trait ClasspathProvider {
@@ -151,32 +156,47 @@ final class MillBridge(
 
   /** One `show` of the run classpath and the fork settings Mill's test runner
     * uses (Mill 1.1: `forkArgs` array, `allForkEnv` object, `forkWorkingDir`
-    * path, `testSandboxWorkingDir` boolean; several tasks print an object keyed
-    * by task). `allForkEnv` is the env Mill gives the test JVM, as is: `forkEnv`
-    * plus `MILL_WORKSPACE_ROOT` (Mill's value wins), `MILL_TEST_RESOURCE_DIR`
-    * and `PATH` with the module's JDK first. Only Mill's "Cannot resolve <m>."
-    * (a module lacking one of these tasks) falls back to the classpath alone;
-    * any other failure (a compile error, a timeout) is reported, never retried. */
+    * path, `testSandboxWorkingDir` boolean, `javaHome` path or null; several
+    * tasks print an object keyed by task). `allForkEnv` is the env Mill gives
+    * the test JVM, as is: `forkEnv` plus `MILL_WORKSPACE_ROOT` (Mill's value
+    * wins), `MILL_TEST_RESOURCE_DIR` and `PATH` with the module's JDK first.
+    *
+    * A module lacking an optional task (Mill's "Cannot resolve <m>.<task>.")
+    * is asked again without it: no `testSandboxWorkingDir` (a `test` module
+    * that is no TestModule) counts as true, no `javaHome` as the server's JVM.
+    * Lacking another of these tasks falls back to the classpath alone, with a
+    * `log` line. Any other failure (a compile error, a timeout, another
+    * module's "Cannot resolve") is reported, never retried. */
   override def testFork(file: os.Path): Either[String, TestFork] = testModule(file).flatMap { m =>
-    val tasks = Seq("runClasspath", "forkArgs", "allForkEnv", "forkWorkingDir", "testSandboxWorkingDir")
-    mill("show", tasks.mkString(s"$m.{", ",", "}")).flatMap { r =>
-      if (r.exit == 0)
-        Try {
-          val shown = ujson.read(r.out).obj
-          def task(name: String) = shown(s"$m.$name")
-          TestFork(
-            parseClasspath(task("runClasspath")),
-            task("forkArgs").arr.toSeq.map(_.str),
-            task("allForkEnv").obj.map { case (k, v) => k -> v.str }.toMap,
-            if (task("testSandboxWorkingDir").bool) None else Some(refPath(task("forkWorkingDir").str)),
-          )
-        }.toEither.left.map(e => s"cannot parse Mill fork settings output: ${e.getMessage}")
-      else if (r.errorText.linesIterator.exists(_.contains(s"Cannot resolve $m."))) {
-        val workspace = Map("MILL_WORKSPACE_ROOT" -> root.toString)
-        log(s"$m: fork settings unavailable, using the classpath only (${r.errorText.linesIterator.mkString(" ").trim})")
-        runClasspath(m).map(TestFork(_, env = workspace))
-      } else Left(r.errorText)
-    }
+    def query(tasks: Seq[String]): Either[String, TestFork] =
+      mill("show", tasks.mkString(s"$m.{", ",", "}")).flatMap { r =>
+        val missing = tasks.find(t => r.errorText.linesIterator.exists(_.contains(s"Cannot resolve $m.$t.")))
+        if (r.exit == 0) Try(forkOf(m, ujson.read(r.out).obj)).toEither
+          .left.map(e => s"cannot parse Mill fork settings output: ${e.getMessage}")
+        else missing match {
+          case Some(t) if OptionalForkTasks(t) => query(tasks.filterNot(_ == t))
+          case Some(_) =>
+            log(s"$m: fork settings unavailable, using the classpath only (${r.errorText.linesIterator.mkString(" ").trim})")
+            runClasspath(m).map(TestFork(_, env = Map("MILL_WORKSPACE_ROOT" -> root.toString)))
+          case None => Left(r.errorText)
+        }
+      }
+    query(ForkTasks)
+  }
+
+  private val ForkTasks         = Seq("runClasspath", "forkArgs", "allForkEnv", "forkWorkingDir", "testSandboxWorkingDir", "javaHome")
+  private val OptionalForkTasks = Set("testSandboxWorkingDir", "javaHome")
+
+  private def forkOf(m: String, shown: collection.Map[String, ujson.Value]): TestFork = {
+    def task(name: String) = shown(s"$m.$name")
+    val sandbox = shown.get(s"$m.testSandboxWorkingDir").forall(_.bool)
+    TestFork(
+      parseClasspath(task("runClasspath")),
+      task("forkArgs").arr.toSeq.map(_.str),
+      task("allForkEnv").obj.map { case (k, v) => k -> v.str }.toMap,
+      if (sandbox) None else Some(refPath(task("forkWorkingDir").str)),
+      shown.get(s"$m.javaHome").flatMap(_.strOpt).map(refPath),
+    )
   }
 }
 

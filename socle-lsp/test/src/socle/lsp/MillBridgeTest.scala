@@ -54,24 +54,27 @@ object MillBridgeTest extends TestSuite {
 
   /** A fake `mill` for a project whose only test module is `t` with sources
     * in `src`: `resolve`, `show t.sources` and `show t.runClasspath` answer as
-    * Mill 1.1.6 does; the combined fork query prints `fork.json` (exit 0) or,
-    * when it is empty, fails with Mill's "Cannot resolve" line. */
-  private def fakeTestMill(dir: os.Path, forkQuery: Option[String]): Seq[String] = {
+    * Mill 1.1.6 does (the latter also touches `cp-asked`); the combined fork
+    * query (`show t.{...}`, its argument in `$q`) runs `forkQuery`. */
+  private def fakeTestMill(dir: os.Path, forkQuery: String): Seq[String] = {
     os.write.over(dir / "build.mill", "// fake\n")
-    os.write.over(dir / "fork.json", forkQuery.getOrElse[String](""))
     fakeMill(dir,
-      s"""case "$$*" in
+      s"""q="$$*"
+         |case "$$q" in
          |  *"resolve __.test.sources") echo t.sources ;;
          |  *"show t.sources") echo '["ref:v0:00000000:$dir/src"]' ;;
-         |  *"show t.runClasspath") echo '["qref:v1:0000abcd:$dir/a.jar"]' ;;
+         |  *"show t.runClasspath") touch $dir/cp-asked; echo '["qref:v1:0000abcd:$dir/a.jar"]' ;;
          |  *"show t.{"*)
-         |    if [ -s $dir/fork.json ]; then cat $dir/fork.json
-         |    else echo "[error] show Cannot resolve t.testSandboxWorkingDir. Try mill resolve t._ to see what is available." >&2; exit 1
-         |    fi ;;
-         |  *) echo "unexpected: $$*" >&2; exit 2 ;;
+         |$forkQuery
+         |    ;;
+         |  *) echo "unexpected: $$q" >&2; exit 2 ;;
          |esac
          |""".stripMargin)
   }
+
+  /** Mill 1.1.6's line for a task the module lacks. */
+  private def cannotResolve(task: String) =
+    s"""echo "[error] show Cannot resolve $task. Try mill resolve t._ to see what is available." >&2; exit 1"""
 
   val tests = Tests {
     test("no build.mill: no Mill is spawned") {
@@ -139,29 +142,61 @@ object MillBridgeTest extends TestSuite {
       assert(fork.env.get("MILL_WORKSPACE_ROOT") == Some(proj.toString))
       assert(fork.env.get("MILL_TEST_RESOURCE_DIR") == Some((proj / "lib" / "test" / "resources").toString))
       assert(fork.workingDir.isEmpty) // testSandboxWorkingDir (default true): a fresh dir, like Mill's sandbox
+      assert(fork.javaHome.isEmpty)   // no jvmId: the server's JVM
     }
-    test("fork settings: no sandbox runs in forkWorkingDir, allForkEnv as is") {
+    test("fork settings: no sandbox runs in forkWorkingDir, allForkEnv as is, pinned JDK") {
       val dir = os.temp.dir(prefix = "socle-fakefork-")
       try {
-        val json =
+        os.write(dir / "fork.json",
           s"""{"t.runClasspath": ["qref:v1:0000abcd:$dir/a.jar"], "t.forkArgs": ["-Xss8m"],
              | "t.allForkEnv": {"MILL_WORKSPACE_ROOT": "/ws", "X": "1"}, "t.forkWorkingDir": "$dir/wd",
-             | "t.testSandboxWorkingDir": false}""".stripMargin
-        val b = new MillBridge(dir, fakeTestMill(dir, Some(json)))
+             | "t.testSandboxWorkingDir": false, "t.javaHome": "qref:v1:e3410671:$dir/jdk"}""".stripMargin)
+        val b = new MillBridge(dir, fakeTestMill(dir, s"cat $dir/fork.json"))
+        val fork = b.testFork(dir / "src" / "ASpec.scala")
+        assert(fork == Right(TestFork(Seq(dir / "a.jar"), Seq("-Xss8m"), Map("MILL_WORKSPACE_ROOT" -> "/ws", "X" -> "1"),
+          Some(dir / "wd"), Some(dir / "jdk"))))
+        assert(fork.map(_.java("server-java")) == Right((dir / "jdk" / "bin" / "java").toString))
+        assert(TestFork(Nil).java("server-java") == "server-java")
+      } finally os.remove.all(dir)
+    }
+    test("no testSandboxWorkingDir (a test module that is no TestModule): asked again without it, sandboxed") {
+      val dir = os.temp.dir(prefix = "socle-fakefork-")
+      try {
+        os.write(dir / "fork.json",
+          s"""{"t.runClasspath": ["qref:v1:0000abcd:$dir/a.jar"], "t.forkArgs": ["-Xss8m"],
+             | "t.allForkEnv": {"X": "1"}, "t.forkWorkingDir": "$dir", "t.javaHome": null}""".stripMargin)
+        val b = new MillBridge(dir, fakeTestMill(dir,
+          s"""case "$$q" in *testSandboxWorkingDir*) ${cannotResolve("t.testSandboxWorkingDir")} ;; esac
+             |case "$$q" in *javaHome*) ;; *) exit 3 ;; esac
+             |cat $dir/fork.json""".stripMargin))
         assert(b.testFork(dir / "src" / "ASpec.scala") ==
-          Right(TestFork(Seq(dir / "a.jar"), Seq("-Xss8m"), Map("MILL_WORKSPACE_ROOT" -> "/ws", "X" -> "1"), Some(dir / "wd"))))
+          Right(TestFork(Seq(dir / "a.jar"), Seq("-Xss8m"), Map("X" -> "1"))))
+        assert(!os.exists(dir / "cp-asked"))
       } finally os.remove.all(dir)
     }
     test("fork settings unavailable: classpath only, logged") {
       val dir = os.temp.dir(prefix = "socle-fakefork-")
       try {
         val logs = new java.util.concurrent.ConcurrentLinkedQueue[String]
-        val b = new MillBridge(dir, fakeTestMill(dir, None), log = m => { logs.add(m); () })
+        val b = new MillBridge(dir, fakeTestMill(dir, cannotResolve("t.allForkEnv")), log = m => { logs.add(m); () })
         assert(b.testFork(dir / "src" / "ASpec.scala") ==
           Right(TestFork(Seq(dir / "a.jar"), env = Map("MILL_WORKSPACE_ROOT" -> dir.toString))))
         import scala.jdk.CollectionConverters._
-        assert(logs.asScala.exists(l => l.contains("classpath only") && l.contains("Cannot resolve")))
+        assert(logs.asScala.exists(l => l.contains("classpath only") && l.contains("Cannot resolve t.allForkEnv")))
       } finally os.remove.all(dir)
+    }
+    test("another module's Cannot resolve is reported: no classpath-only fallback") {
+      for (other <- Seq("other.test.forkArgs", "t.sub.forkArgs")) {
+        val dir = os.temp.dir(prefix = "socle-fakefork-")
+        try {
+          val b = new MillBridge(dir, fakeTestMill(dir, cannotResolve(other)))
+          b.testFork(dir / "src" / "ASpec.scala") match {
+            case Left(msg)   => assert(msg.contains(s"Cannot resolve $other."))
+            case Right(fork) => throw new java.lang.AssertionError(s"expected Left for $other, got $fork")
+          }
+          assert(!os.exists(dir / "cp-asked"))
+        } finally os.remove.all(dir)
+      }
     }
     test("not a test module") {
       val r = bridge.testClasspath(proj / "lib" / "src" / "Lib.scala")

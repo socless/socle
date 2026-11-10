@@ -18,7 +18,8 @@ final case class Failed(status: String, message: String) extends RunResult
   * [[socle.schema.Design]].
   *
   * Each run forks `java -javaagent:<probe>` with the test module's fork
-  * settings ([[TestFork]]): its classpath, its `forkArgs` as JVM options, this
+  * settings ([[TestFork]]): its JDK when it pins one (else `java`), its
+  * classpath, its `forkArgs` as JVM options, this
   * process's environment plus its `env`, and its working directory when it has
   * one; otherwise (Mill's default test sandbox) a fresh temp directory, so
   * `build/chiselsim` never lands in the user's workspace. The probe's own
@@ -40,7 +41,7 @@ final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = Vi
       val out = tmp / "captured.json"
       val log = tmp / "run.log"
       val sub = os.proc(
-        java, fork.jvmArgs, s"-javaagent:$probeJar",
+        fork.java(java), fork.jvmArgs, s"-javaagent:$probeJar",
         "-Dsocle.probe.mode=view", s"-Dsocle.probe.out=$out",
         "-cp", fork.classpath.mkString(_root_.java.io.File.pathSeparator),
         "org.scalatest.tools.Runner", "-oW", "-s", suite, "-t", test,
@@ -79,7 +80,8 @@ final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = Vi
 }
 
 object ViewRunner {
-  /** The server's own JVM (21+), so forked test JVMs never depend on PATH. */
+  /** The server's own JVM (21+): forked test JVMs never depend on PATH. A
+    * module that pins a JDK (`javaHome`) runs on that one instead. */
   val defaultJava: String = (os.Path(sys.props("java.home")) / "bin" / "java").toString
 
   private lazy val extracted: os.Path =

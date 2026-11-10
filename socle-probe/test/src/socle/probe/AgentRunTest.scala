@@ -65,6 +65,20 @@ object AgentRunTest extends TestSuite {
   }
 
   val tests = Tests {
+    test("the agent loads on Java 8+: no class file newer than 52, outside multi-release dirs") {
+      // A test module may pin an older JDK (its `javaHome`), which the view run forks.
+      val jar = new java.util.zip.ZipFile(prop("probe.jar"))
+      try {
+        import scala.jdk.CollectionConverters._
+        val newer = jar.entries().asScala.filter { e =>
+          e.getName.endsWith(".class") && !e.getName.startsWith("META-INF/versions/") && {
+            val in = new java.io.DataInputStream(jar.getInputStream(e))
+            try { in.readInt(); in.readUnsignedShort(); in.readUnsignedShort() > 52 } finally in.close()
+          }
+        }.map(_.getName).toList
+        assert(newer.isEmpty)
+      } finally jar.close()
+    }
     test("gcd view") {
       val r = viewRun("example.cp", "gcd.GcdSpec", Some("GCD computes gcd(48, 18)"))
       assert(r.model.status == "ok")
