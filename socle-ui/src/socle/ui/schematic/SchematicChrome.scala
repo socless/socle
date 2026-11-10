@@ -46,7 +46,8 @@ private[schematic] object SchematicChrome {
              navSig: Signal[(Boolean, Boolean)] = Val((false, false)),
              onBack: () => Unit = () => (), onForward: () => Unit = () => ()): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
-      div(styleAttr := "display:flex;gap:6px;pointer-events:auto",
+      // Wraps in a narrow panel (#12) rather than running past its edge.
+      div(styleAttr := "display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto",
         navButtons(navSig, onBack, onForward),
         child <-- Signal.combine(moduleSig, blockSig).map {
           case (Some(mod), block) => div(dataAttr("module-chip") := (if (block) "block" else "module"),
@@ -56,7 +57,7 @@ private[schematic] object SchematicChrome {
         },
         // A block holds logic, not instances: its registers and operators.
         child <-- Signal.combine(moduleSig, blockSig).map {
-          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono}",
+          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono};white-space:nowrap",
             if (block) s"${mod.logic.count(_.kind == NodeKind.Reg)} reg · ${mod.logic.count(_.kind == NodeKind.Op)} op · ${mod.wires.length} connects"
             else s"${mod.children.length} inst · ${mod.wires.length} connects")
           case (None, _) => emptyNode
