@@ -39,7 +39,7 @@ object V {
   val byteBuddy   = "1.18.15"         // socle-probe agent; 1.15 fails on Java 25
   val lsp4j       = "1.0.0"           // socle-lsp language server
   val scalameta   = "4.17.4"          // socle-lsp syntactic test discovery
-  val publishVer  = "0.26.0"
+  val publishVer  = "0.26.1-SNAPSHOT"
 }
 
 // ─── Common publish boilerplate ─────────────────────────────────────────────
