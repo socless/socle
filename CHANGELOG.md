@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-11-10
+
 ### Added
 
 - IDE: Simulate compiles the design with the `firtoolOpts` setting (`socle.firtoolOpts` in
