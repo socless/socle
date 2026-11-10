@@ -327,7 +327,8 @@ With the two Surfer viewers:
   on a module that does not use them (hidden by default anyway). The design
   simulated is less optimised and the trace larger: on the DeepSoc example the
   trace holds 357 signals instead of 241, for the same run time. Simulate in
-  the IDE cannot pass this option yet.
+  the IDE cannot pass this option yet
+  ([#17](https://github.com/socless/socle/issues/17)).
 - An aggregate register or wire lists its first 256 ground leaves; a design
   warning counts the others.
 - In the panel's Surfer, a focus scrolls the focused signal to the top of
