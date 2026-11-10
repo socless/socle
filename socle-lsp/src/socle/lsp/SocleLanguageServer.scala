@@ -600,7 +600,7 @@ final class SocleLanguageServer(
         case Viewed(d) =>
           http.publishJson(json)
           publishedSources = d.sources.keySet
-          publishedPorts = d.modules.find(_.name == d.top).fold(Set.empty[String])(_.ports.map(_.name).toSet)
+          publishedPorts = socle.wave.WaveLayout.tracedPorts(d)
           publishedDesign = Some((d, s"${req.suite}#${req.test}"))
           ideUpdate(_.copy(status = "ok", message = ""))
           None

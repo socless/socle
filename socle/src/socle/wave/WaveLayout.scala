@@ -71,13 +71,15 @@ object WaveLayout {
 
   /** The ground leaves of a port in bundle order, with directions seen from the
     * module. A Decoupled's valid/ready follow the channel's own direction (the
-    * producer drives valid, the consumer ready), whatever side the port is on. */
+    * producer drives valid, the consumer ready), whatever side the port is on.
+    * An empty bundle (`IO(new Bundle {})`) has none: Verilog has no signal for it. */
   private[wave] def leaves(design: Design, p: PortDef): Seq[Leaf] = {
     val base = if (p.dir == PortDir.Out || p.dir == PortDir.Master) PortDir.Out else PortDir.In
     def flip(d: Option[String]) = d.map(x => if (x == PortDir.Out) PortDir.In else PortDir.Out)
     def walk(n: BundleTree.PortNode): Seq[Leaf] = {
       val decoupled = design.bundles.get(n.bundleKey).exists(_.kind == BundleKind.Decoupled)
-      if (n.children.isEmpty) Seq(Leaf(n.path, n.dir, n.width))
+      if (n.children.isEmpty && design.bundles.contains(n.bundleKey)) Nil // an empty aggregate
+      else if (n.children.isEmpty) Seq(Leaf(n.path, n.dir, n.width))
       else n.children.flatMap { c =>
         if (decoupled && c.name == "valid") Seq(Leaf(c.path, n.dir, c.width))
         else if (decoupled && c.name == "ready") Seq(Leaf(c.path, flip(n.dir), c.width))
@@ -86,6 +88,11 @@ object WaveLayout {
     }
     walk(BundleTree.portTree(p.bundle, Some(base), p.name, design))
   }
+
+  /** The top module's ports that have a signal in a trace (an empty bundle has
+    * none): the names the language server's trace reader anchors the design scope by. */
+  def tracedPorts(design: Design): Set[String] =
+    design.modules.find(_.name == design.top).fold(Set.empty[String])(_.ports.filter(leaves(design, _).nonEmpty).map(_.name).toSet)
 
   private def isClockReset(p: PortDef) = p.name == "clock" || p.name == "reset"
 

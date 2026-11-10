@@ -313,6 +313,21 @@ With the two Surfer viewers:
   or Verilator) are left out, and the Waveform tab says `N signals not in the
   trace`. For an FST trace the server cannot read the names, so Surfer drops
   them itself; the panel's Surfer counts those too, the app's are only logged.
+- By default firtool removes, when it compiles the design (whatever the test
+  does), the ports a parent never reads, the instances nothing reads, and
+  registers and wires it can fold away. To keep them, run the test with
+  firtool's `-preserve-values=named` option, which ChiselSim takes as
+  `firtoolOpts` (several options go in one value, separated by spaces):
+
+  ```bash
+  ./mill example.test.testOnly gcd.GcdSpec -- -DemitVcd=1 -DfirtoolOpts=-preserve-values=named
+  ```
+
+  Then every port of every instance is in the trace, except `clock` and `reset`
+  on a module that does not use them (hidden by default anyway). The design
+  simulated is less optimised and the trace larger: on the DeepSoc example the
+  trace holds 357 signals instead of 241, for the same run time. Simulate in
+  the IDE cannot pass this option yet.
 - An aggregate register or wire lists its first 256 ground leaves; a design
   warning counts the others.
 - In the panel's Surfer, a focus scrolls the focused signal to the top of

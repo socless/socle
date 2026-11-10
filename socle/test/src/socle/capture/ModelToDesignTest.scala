@@ -490,6 +490,16 @@ object ModelToDesignTest extends TestSuite {
       assert(unknown.head.count == 2)
     }
 
+    test("an empty bundle port is an empty Bundle, as on the CHIRRTL path") {
+      // AXISystem's `val io = IO(new Bundle {})`: width 0, no fields
+      val m = CapturedModel("ok", "Top", Seq(CModule("Top", "mypkg.Top", Nil, None,
+        Seq(CPort("io", CType("mypkg.Top$$anon$2", "io", "unspecified", 0))), Nil)))
+      val d = ModelToDesign.design(m)
+      val key = d.modules.head.ports.head.bundle
+      assert(d.bundles.get(key).exists(b => b.kind == BundleKind.Bundle && b.channels.isEmpty && b.fields.isEmpty))
+      assert(!d.warnings.exists(_.message.contains("anon")))
+    }
+
     test("old json still parses") {
       val d = upickle.default.read[Design](resource("/golden/gcd.json"))
       assert(d.top == "GCD")

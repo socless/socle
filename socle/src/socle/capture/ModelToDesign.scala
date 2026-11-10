@@ -477,6 +477,10 @@ object ModelToDesign {
       if (t.vecLen >= 0) {
         val elem = t.fields.headOption.map { case (_, e) => keyed(e, childClear, s"$path[]") }
         Keyed(s"Vec[${elem.map(_.key).getOrElse("UInt")}, ${t.vecLen}]", elem = elem)
+      } else if (t.fields.isEmpty && ground(t).isEmpty && t.width == 0) {
+        // an empty bundle (`IO(new Bundle {})`): an empty Bundle, as IrWalk gives it
+        val base = if (t.scalaClass.isEmpty || t.scalaClass.contains("$anon")) path else t.scalaClass
+        Keyed(intern(base, BundleDef("", BundleKind.Bundle, scalaClass = t.scalaClass)))
       } else if (t.fields.isEmpty) Keyed(ground(t).getOrElse {
         // Never invent a type: show the class's simple name and say so.
         unknown(t.scalaClass) = unknown.getOrElse(t.scalaClass, 0) + 1
