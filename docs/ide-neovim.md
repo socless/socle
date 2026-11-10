@@ -113,7 +113,7 @@ vim.api.nvim_create_autocmd('CursorHold', {
 5. Move the cursor in a Chisel source: after `updatetime` the panel focuses the
    class under it.
 6. Click a box in the panel: Neovim opens its source file at that line (only
-   files under the workspace root, or sources of the shown design).
+   files under the Mill project root, or sources of the shown design).
 
 The panel listens on `127.0.0.1` only, on a new port for each server. Quitting
 Neovim stops the server and the panel.
@@ -147,7 +147,7 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   "illegal ChiselSim ScalaTest option".
 - The run's working directory, and ChiselSim's `build/chiselsim` (through
   `-Dchisel.project.root`, which wins over the same option in `forkArgs`), is
-  `out/socle/sim/<suite>/<test>/` under the workspace root. It is emptied at
+  `out/socle/sim/<suite>/<test>/` under the Mill project root. It is emptied at
   the start of each run, so the last run of each test is kept; `sim.log` there
   holds the test's output, `surfer.log` the viewer's. `./mill clean` (which
   empties `out/`) removes the kept waves too.
@@ -242,7 +242,14 @@ trait come from an index of the project's Scala files, which leaves out `out`,
 `target`, `node_modules`, dot-directories and the test output at the root
 (`build`, `test_run_dir`). The index follows saves, and changes made outside
 the editor (switching branches) when the client can watch files for the
-server.
+server. Neovim 0.12 does not offer that by default on Linux; to turn it on,
+add to the `vim.lsp.config('socle', ...)` table:
+
+```lua
+capabilities = { workspace = { didChangeWatchedFiles = { dynamicRegistration = true } } },
+```
+
+Without it, a branch switch reaches the lenses on the next save.
 
 ## With Metals
 

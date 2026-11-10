@@ -42,7 +42,13 @@ These are sent only to a client that set `panel: "client"`.
 |---|---|---|
 | `socle/openPanel` | `{url, test}` | Show the live UI served at `url` (loopback); `test` titles the panel |
 | `socle/status` | `{status, suite, test, message}` | The run state changed (`status`: as in `/ide.json`); `suite` is the suite's FQCN, or empty |
-| `socle/testsChanged` | none | The workspace's tests changed after a save: ask `socle/tests` again |
+| `socle/testsChanged` | none | The workspace's tests changed after a save or a watched change: ask `socle/tests` again |
+
+Standard LSP: when the client advertises `workspace.didChangeWatchedFiles.dynamicRegistration`,
+the server registers a watcher for `**/*.scala` (`client/registerCapability`, after `initialized`)
+and expects `workspace/didChangeWatchedFiles` for changes made outside the editor. The server runs
+Mill in the project's root: the `build.mill` at or above the workspace folder, else the only one
+at most three levels below it.
 
 ## Settings
 

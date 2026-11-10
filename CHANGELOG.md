@@ -18,8 +18,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - After a pan, the first click made with the keyboard (Enter on a focused control in
   the schematic) is no longer swallowed (#14).
 - IDE: View design and Simulate run on the test module's JDK when it pins one
-  (`javaHome`), not the server's. The probe agent now loads on Java 8 and newer:
-  part of it was Java 21 bytecode (#2).
+  (`javaHome`), not the server's. The probe agent now loads on Java 8 and newer
+  (run on 8, 11, 17 and 21): part of it was Java 21 bytecode (#2).
 - IDE: a `test` module that is not a `TestModule` (no `testSandboxWorkingDir`) keeps
   its `forkArgs` and environment instead of falling back to its classpath alone; only
   a missing task of the test's own module triggers that fallback (#2).

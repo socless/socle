@@ -222,7 +222,7 @@ test sees, as for `./mill <module>.test`), and the Surfer app unless
   there). The default `emitVcd` comes with ChiselSim; set `emitFst` or another
   option your project defines. A suite that does not know the option fails
   with "illegal ChiselSim ScalaTest option".
-- Waves are kept in `out/socle/sim/<suite>/<test>/` under the workspace root
+- Waves are kept in `out/socle/sim/<suite>/<test>/` under the Mill project root
   (ChiselSim's `build/chiselsim` goes there), emptied at the start of each run
   of that test, with `sim.log` (the test's output) and `surfer.log` (the Surfer
   app's). `./mill clean` (which empties `out/`) removes them too.

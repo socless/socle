@@ -728,8 +728,9 @@ object `socle-probe` extends ChiselToolchain {
   )
   def allSourceFiles = Task { super.allSourceFiles() ++ sharedSources() }
   // The agent runs on the test module's JDK (its `javaHome`), not ours: its
-  // Java sources target Java 8 like Chisel and the Scala classes (scalac's default).
-  def javacOptions = super.javacOptions() ++ Seq("--release", "8", "-Xlint:-options")
+  // sources compile against the Java 8 API, so a newer call fails the build, not the run.
+  def javacOptions  = super.javacOptions() ++ Seq("--release", "8", "-Xlint:-options")
+  def scalacOptions = super.scalacOptions() ++ Seq("-release", "8")
 
   // `assembly` is the agent jar (`java -javaagent:<jar>`). It runs inside the
   // user's test JVM, which provides Scala and Chisel: those are left out, and
