@@ -119,6 +119,21 @@ object MillBridgeTest extends TestSuite {
       assert(MillBridge.findRoot(testFile) == Some(proj))
       assert(MillBridge.findRoot(os.root / "nonexistent-dir" / "x.scala") == None)
     }
+    test("projectRoot: at or above the workspace, else the only build below") {
+      val dir = os.temp.dir(prefix = "socle-projroot-")
+      try {
+        assert(MillBridge.findRoot(dir).isEmpty) // precondition: nothing above the temp dir
+        assert(MillBridge.projectRoot(dir) == dir) // no build anywhere: the workspace itself
+        os.write(dir / "a" / "hw" / "build.mill", "", createFolders = true)
+        os.write(dir / "out" / "x" / "build.mill", "", createFolders = true)  // generated: left out
+        os.write(dir / ".git" / "y" / "build.mill", "", createFolders = true) // dot-dir: left out
+        assert(MillBridge.projectRoot(dir) == dir / "a" / "hw")               // the only one below
+        assert(MillBridge.projectRoot(dir / "a" / "hw" / "src") == dir / "a" / "hw") // a subfolder: the one above
+        assert(MillBridge.projectRoot(dir, depth = 1) == dir)                 // too deep
+        os.write(dir / "b" / "build.mill", "", createFolders = true)
+        assert(MillBridge.projectRoot(dir) == dir)                            // several: none picked
+      } finally os.remove.all(dir)
+    }
     test("module for a test file") {
       timed("module discovery") {
         assert(bridge.testModuleFor(testFile) == Some("lib.test"))

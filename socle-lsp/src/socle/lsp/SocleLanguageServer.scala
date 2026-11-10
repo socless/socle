@@ -59,6 +59,7 @@ final class SocleLanguageServer(
 
   @volatile private var client: LanguageClient = null
   @volatile private var clientPanel                = false // client sent initializationOptions.panel == "client"
+  @volatile private var watchFiles                 = false // client can register didChangeWatchedFiles
   @volatile private var ws: Option[Workspace]  = None
   @volatile private var stopped                = false // after shutdown/exit every request is a no-op
   @volatile private var shutdownRequested      = false
@@ -102,8 +103,17 @@ final class SocleLanguageServer(
 
   def initialize(p: InitializeParams): CompletableFuture[InitializeResult] = {
     val folder = Option(p.getWorkspaceFolders).flatMap(_.asScala.headOption).map(_.getUri)
-    val root   = folder.orElse(Option(p.getRootUri)).flatMap(uriToPath)
-    if (root.isEmpty) log("no workspace root in initialize: views are disabled")
+    val editorRoot = folder.orElse(Option(p.getRootUri)).flatMap(uriToPath)
+    if (editorRoot.isEmpty) log("no workspace root in initialize: views are disabled")
+    val root = editorRoot.map(MillBridge.projectRoot(_))
+    for (e <- editorRoot; r <- root) {
+      if (r != e) log(s"Mill project root: $r (editor workspace $e)")
+      else if (!os.isFile(r / "build.mill")) log(s"no single build.mill at, above or below $e")
+    }
+    watchFiles = (for {
+      c <- Option(p.getCapabilities); w <- Option(c.getWorkspace); d <- Option(w.getDidChangeWatchedFiles)
+      dyn <- Option(d.getDynamicRegistration)
+    } yield dyn.booleanValue).getOrElse(false)
     clientPanel = panelIsClient(p.getInitializationOptions)
     configureSim(p.getInitializationOptions)
     ws = root.map(r => new Workspace(r, cpFor(r)))
@@ -119,6 +129,19 @@ final class SocleLanguageServer(
     caps.setTextDocumentSync(LspEither.forRight[TextDocumentSyncKind, TextDocumentSyncOptions](sync))
     CompletableFuture.completedFuture(new InitializeResult(caps, new ServerInfo("socle-lsp")))
   }
+
+  /** Asks the client to watch the project's Scala files (when it can register
+    * the watcher dynamically): changes made outside the editor (a git
+    * checkout) then reach the index. Never waits on the client. */
+  override def initialized(p: InitializedParams): Unit =
+    if (watchFiles && ws.isDefined && client != null) {
+      val glob = LspEither.forLeft[String, RelativePattern]("**/*.scala")
+      val opts = new DidChangeWatchedFilesRegistrationOptions(java.util.List.of(new FileSystemWatcher(glob)))
+      client.registerCapability(new RegistrationParams(java.util.List.of(
+        new Registration("socle-watch-scala", "workspace/didChangeWatchedFiles", opts))))
+        .exceptionally { e => log(s"cannot watch Scala files: $e"); null }
+      ()
+    }
 
   def shutdown(): CompletableFuture[Object] = {
     shutdownRequested = true
@@ -160,11 +183,9 @@ final class SocleLanguageServer(
         w.index.invalidate() // a base trait may have changed: the next lens re-stats
         warmIndex()
         pendingSave.foreach(_.cancel(false))
-        pendingTests.foreach(_.cancel(false))
-        try {
-          pendingSave = Some(timer.schedule((() => rerun()): Runnable, debounceMs, TimeUnit.MILLISECONDS))
-          if (clientPanel) pendingTests = Some(timer.schedule((() => checkTests(w)): Runnable, debounceMs, TimeUnit.MILLISECONDS))
-        } catch { case _: RejectedExecutionException => () } // shut down meanwhile
+        try pendingSave = Some(timer.schedule((() => rerun()): Runnable, debounceMs, TimeUnit.MILLISECONDS))
+        catch { case _: RejectedExecutionException => () } // shut down meanwhile
+        if (clientPanel) scheduleTests(w)
       }
 
     override def codeLens(p: CodeLensParams): CompletableFuture[java.util.List[_ <: CodeLens]] = {
@@ -178,6 +199,13 @@ final class SocleLanguageServer(
   }
 
   def getTextDocumentService: TextDocumentService = textDocuments
+
+  /** A debounced `socle/tests` recheck (call under `lock`). */
+  private def scheduleTests(w: Workspace): Unit = {
+    pendingTests.foreach(_.cancel(false))
+    try pendingTests = Some(timer.schedule((() => checkTests(w)): Runnable, debounceMs, TimeUnit.MILLISECONDS))
+    catch { case _: RejectedExecutionException => () } // shut down meanwhile
+  }
 
   /** Builds the base index on the parser thread, off the reader thread. */
   private def warmIndex(): Unit =
@@ -282,7 +310,19 @@ final class SocleLanguageServer(
   object workspaceService extends WorkspaceService {
     def didChangeConfiguration(p: DidChangeConfigurationParams): Unit =
       SimSettings.section(p.getSettings).foreach(configureSim)
-    def didChangeWatchedFiles(p: DidChangeWatchedFilesParams): Unit = ()
+    /** A Scala file of the project changed outside the editor (or a save the
+      * watcher saw too): the index is rebuilt and `socle/tests` rechecked,
+      * once per batch; the view is not rerun (only a save does that). */
+    def didChangeWatchedFiles(p: DidChangeWatchedFilesParams): Unit =
+      if (!stopped) for (w <- ws) {
+        val changed = Option(p.getChanges).map(_.asScala).getOrElse(Nil)
+          .flatMap(c => uriToPath(c.getUri)).exists(f => f.ext == "scala" && f.startsWith(w.root))
+        if (changed) lock.synchronized {
+          w.index.invalidate()
+          warmIndex()
+          if (clientPanel) scheduleTests(w)
+        }
+      }
 
     override def executeCommand(p: ExecuteCommandParams): CompletableFuture[Object] = {
       lazy val args = Option(p.getArguments).map(_.asScala.toSeq).getOrElse(Nil).map {

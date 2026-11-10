@@ -73,9 +73,8 @@ final class MillBridge(
     } finally os.remove.all(dir)
   }
 
-  private val skipDirs = Set("out", "node_modules", "target")
   private def buildStamp(): Seq[(os.Path, Long)] =
-    os.walk(root, skip = p => skipDirs(p.last) || p.last.startsWith("."))
+    os.walk(root, skip = p => os.isDir(p, followLinks = false) && SimBaseIndex.skipped(p, root))
       .filter(p => p.ext == "mill" && os.isFile(p))
       .map(p => p -> os.mtime(p))
       .sorted
@@ -205,6 +204,25 @@ object MillBridge {
   def findRoot(from: os.Path): Option[os.Path] =
     Iterator.iterate(from)(_ / os.up).takeWhile(_ != os.root)
       .find(d => os.isFile(d / "build.mill"))
+
+  /** The Mill project of an editor workspace, which the server runs Mill in
+    * and indexes: the nearest `build.mill` at or above `workspace` (a
+    * subfolder was opened), else the only one at most `depth` levels below it
+    * (generated and dot-directories left out), else `workspace` itself. One
+    * workspace is one Mill build: with several below, none is picked. */
+  def projectRoot(workspace: os.Path, depth: Int = 3): os.Path =
+    findRoot(workspace).getOrElse {
+      def below(dir: os.Path, left: Int): Seq[os.Path] =
+        if (os.isFile(dir / "build.mill")) Seq(dir)
+        else if (left == 0) Nil
+        else Try(os.list(dir)).getOrElse(Nil)
+          .filter(p => os.isDir(p, followLinks = false) && !SimBaseIndex.skipped(p, workspace))
+          .flatMap(below(_, left - 1))
+      below(workspace, depth) match {
+        case Seq(one) => one
+        case _        => workspace
+      }
+    }
 
   /** Uses the project's `./mill` launcher when present, else `mill` on PATH. */
   def default(root: os.Path, log: String => Unit = m => Console.err.println(s"[socle-lsp] $m")): MillBridge = {

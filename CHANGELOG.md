@@ -17,6 +17,17 @@ and [tags](https://github.com/socless/socle/tags) pages.
   mode (#7).
 - After a pan, the first click made with the keyboard (Enter on a focused control in
   the schematic) is no longer swallowed (#14).
+- IDE: View design and Simulate run on the test module's JDK when it pins one
+  (`javaHome`), not the server's. The probe agent now loads on Java 8 and newer:
+  part of it was Java 21 bytecode (#2).
+- IDE: a `test` module that is not a `TestModule` (no `testSandboxWorkingDir`) keeps
+  its `forkArgs` and environment instead of falling back to its classpath alone; only
+  a missing task of the test's own module triggers that fallback (#2).
+- IDE: FunSuite `test("...")` calls inside a `def` get their lens (#2).
+- IDE: with an editor workspace above or below the Mill project, the server runs Mill
+  in the project's root and indexes only its Scala files, leaving out ChiselSim's
+  `build` and chiseltest's `test_run_dir`. Files changed outside the editor (switching
+  branches) update the lenses when the client can watch files (#2).
 
 ### Documentation
 

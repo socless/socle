@@ -205,7 +205,7 @@ object SimBaseIndexTest extends TestSuite {
           got.filterNot(t => Set("cli.ComputeTests", "vta.shell.VMESpec")(t._1)))
       } finally os.remove.all(root)
     }
-    test("skips out, node_modules, target and dot-dirs; rescans changes") {
+    test("skips out, node_modules, target, dot-dirs and the root's test output; rescans changes") {
       // the root itself may sit under a dot-dir (as git worktrees under .claude/ do)
       val outer = os.temp.dir(prefix = "socle-simbase-")
       val root  = outer / ".hidden" / "ws"
@@ -217,13 +217,17 @@ object SimBaseIndexTest extends TestSuite {
         put(".metals/C.scala", "trait C extends ChiselSim")
         put("node_modules/x/D.scala", "trait D extends ChiselSim")
         put("mod/target/E.scala", "trait E extends ChiselSim")
+        // test output in the root (ChiselSim's build/, chiseltest's test_run_dir/); a deeper build/ is source
+        put("build/chiselsim/G.scala", "trait G extends ChiselSim")
+        put("test_run_dir/H.scala", "trait H extends ChiselSim")
+        put("src/build/Deep.scala", "trait Deep extends ChiselSim")
         val idx = new SimBaseIndex(root)
-        assert(idx.bases() == Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim", "A", "Keep"))
-        assert(idx.parseCount == 2)
+        assert(idx.bases() == Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim", "A", "Keep", "Deep"))
+        assert(idx.parseCount == 3)
 
         // cached: nothing changed, nothing reparsed
         idx.invalidate()
-        assert(idx.bases().contains("Keep"), idx.parseCount == 2)
+        assert(idx.bases().contains("Keep"), idx.parseCount == 3)
 
         // a changed file is reparsed (mtime moved), a new one parsed, a deleted one dropped
         val a = root / "src" / "A.scala"
@@ -233,8 +237,8 @@ object SimBaseIndexTest extends TestSuite {
         os.remove(root / "src" / "Keep.scala")
         assert(idx.bases().contains("A")) // not invalidated yet: the cached set
         idx.invalidate()
-        assert(idx.bases() == Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim", "F"))
-        assert(idx.parseCount == 4)
+        assert(idx.bases() == Set("ChiselSim", "chisel3.simulator.scalatest.ChiselSim", "F", "Deep"))
+        assert(idx.parseCount == 5)
       } finally os.remove.all(outer)
     }
     test("safe from several threads") {
