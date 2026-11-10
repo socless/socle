@@ -391,6 +391,87 @@ object ModelToDesignTest extends TestSuite {
       check(x.children.forall(_.foldGroup.isEmpty), s"folded: ${x.children.map(c => c.name -> c.foldGroup)}")
     }
 
+    // Copies `a_<i>` of P made on one line, another instance `c` of C on its own
+    // line, and the module's connects (CHIRRTL `connect` lines).
+    def wired(copies: Int, connects: Seq[String], withC: Boolean = false,
+              portsOf: Int => Seq[CPort] = _ => Nil): ModuleDef = {
+      val mods  = (0 until copies).map(i => if (i == 0) "P" else s"P_$i")
+      val chirrtl = (Seq("FIRRTL version 3.3.0", "circuit X :") ++
+        (mods ++ Option.when(withC)("C")).flatMap(n => Seq(s"  module $n :", "    input clock : Clock",
+          "    input in : UInt<8>", "    output out : UInt<8>", "    connect out, in")) ++
+        Seq("  module X :", "    input clock : Clock", "    input in : UInt<8>", "    output out : UInt<8>") ++
+        mods.zipWithIndex.map { case (n, i) => s"    inst a_$i of $n @[X.scala 3:10]" } ++
+        Option.when(withC)("    inst c of C @[X.scala 4:10]") ++
+        connects.map("    " + _)).mkString("\n") + "\n"
+      def cm(n: String, ps: Seq[CPort] = Nil) = CModule(n, "x.P", Nil, None, ps, Nil)
+      val insts = mods.zipWithIndex.map { case (n, i) => CInstance(s"a_$i", n) } ++ Option.when(withC)(CInstance("c", "C"))
+      val model = CapturedModel("ok", "X",
+        Seq(cm("X").copy(scalaClass = "x.X", instances = insts)) ++
+          mods.zipWithIndex.map { case (n, i) => cm(n, portsOf(i)) } ++ Option.when(withC)(cm("C").copy(scalaClass = "x.C")),
+        chirrtl = chirrtl)
+      ModelToDesign.design(model).modules.find(_.name == "X").get
+    }
+    def groupsOf(x: ModuleDef): Map[String, Seq[String]] =
+      x.children.groupBy(_.foldGroup).filter(_._1.nonEmpty).map { case (g, cs) => g -> cs.map(_.name) }
+
+    test("parallel copies fold") {
+      val x = wired(3, (0 until 3).map(i => s"connect a_$i.in, in"))
+      check(groupsOf(x) == Map("a" -> Seq("a_0", "a_1", "a_2")), s"groups ${groupsOf(x)}")
+    }
+
+    test("a copy with one connection more still folds with the others") {
+      // only a_0 drives the module's output (`io.out := copies.head.io.out`)
+      val x = wired(3, (0 until 3).map(i => s"connect a_$i.in, in") :+ "connect out, a_0.out")
+      check(groupsOf(x) == Map("a" -> Seq("a_0", "a_1", "a_2")), s"groups ${groupsOf(x)}")
+    }
+
+    test("a chain with nothing in between folds") {
+      val x = wired(3, Seq("connect a_0.in, in", "connect a_1.in, a_0.out", "connect a_2.in, a_1.out", "connect out, a_2.out"))
+      check(groupsOf(x) == Map("a" -> Seq("a_0", "a_1", "a_2")), s"groups ${groupsOf(x)}")
+    }
+
+    test("copies on either side of another instance do not fold") {
+      val x = wired(2, Seq("connect a_0.in, in", "connect c.in, a_0.out", "connect a_1.in, c.out", "connect out, a_1.out"),
+        withC = true)
+      check(groupsOf(x).isEmpty, s"groups ${groupsOf(x)}")
+    }
+
+    test("a copy wired only through logic does not join copies on either side of another instance") {
+      // a_0 sits between two registers; a_1 => c => a_2
+      val x = wired(3, Seq("reg r0 : UInt<8>, clock", "reg r1 : UInt<8>, clock",
+        "connect r0, in", "connect a_0.in, r0", "connect r1, a_0.out",
+        "connect a_1.in, in", "connect c.in, a_1.out", "connect a_2.in, c.out", "connect out, a_2.out"), withC = true)
+      val g = groupsOf(x)
+      check(!g.values.exists(ms => ms.contains("a_1") && ms.contains("a_2")), s"groups $g")
+    }
+
+    test("a chain broken by another instance folds each direct run") {
+      // a_0 => a_1 => c => a_2 => a_3
+      val x = wired(4, Seq("connect a_0.in, in", "connect a_1.in, a_0.out", "connect c.in, a_1.out",
+        "connect a_2.in, c.out", "connect a_3.in, a_2.out", "connect out, a_3.out"), withC = true)
+      check(groupsOf(x) == Map("a" -> Seq("a_0", "a_1"), "a_g2" -> Seq("a_2", "a_3")), s"groups ${groupsOf(x)}")
+    }
+
+    test("copies wired to each other other than as a chain do not fold") {
+      // a_0 feeds a_1, a_2 and a_3: a star, not a path
+      val x = wired(4, Seq("connect a_0.in, in", "connect a_1.in, a_0.out", "connect a_2.in, a_0.out",
+        "connect a_3.in, a_0.out", "connect out, a_1.out"))
+      check(groupsOf(x).isEmpty, s"groups ${groupsOf(x)}")
+    }
+
+    test("a grid of copies (systolic array) does not fold") {
+      // 2x2: a_0 feeds a_1 (east) and a_2 (south); both feed a_3
+      val x = wired(4, Seq("connect a_0.in, in", "connect a_1.in, a_0.out", "connect a_2.in, a_0.out",
+        "connect a_3.in, a_1.out", "connect a_3.in, a_2.out", "connect out, a_3.out"))
+      check(groupsOf(x).isEmpty, s"groups ${groupsOf(x)}")
+    }
+
+    test("copies with different ports do not fold") {
+      def port(w: Int) = Seq(CPort("in", CType("chisel3.UInt", s"UInt<$w>", "in", w, Nil)))
+      val x = wired(2, Seq("connect a_0.in, in", "connect a_1.in, in"), portsOf = i => port(8 + i))
+      check(groupsOf(x).isEmpty, s"groups ${groupsOf(x)}")
+    }
+
     test("the CHIRRTL view has no fold groups") {
       val d = SocleExporter.designFromChirrtl(deepsoc.chirrtl)
       check(d.modules.flatMap(_.children).forall(_.foldGroup.isEmpty), "CHIRRTL view has a fold group")

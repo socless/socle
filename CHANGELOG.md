@@ -9,6 +9,15 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Fixed
+
+- View design folds generator copies only when they play one role: copies in parallel (no wire
+  between them, the same connections) or a chain with nothing in between (`A0 => A1 => A2`).
+  Copies on either side of another instance (`A0 => C => A1`, e.g. layers a `match` makes on
+  one line) no longer fold into one box, nor do copies with different ports or a 2D array of
+  copies wired to each other (#15).
+- The browser tab shows the Socle icon: the page's icon link was cut short by its own quotes.
+
 ## [0.26.0] - 2026-11-10
 
 ### Added
