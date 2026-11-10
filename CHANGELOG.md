@@ -15,6 +15,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
   follow the schematic: the trace was anchored one instance too deep, so no signal
   was found. In the IDE view such a port is now an empty bundle, as in export
   mode (#7).
+- After a pan, the first click made with the keyboard (Enter on a focused control in
+  the schematic) is no longer swallowed (#14).
 
 ### Documentation
 
