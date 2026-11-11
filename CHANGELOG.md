@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-11-11
+
 ### Added
 
 - The Hierarchy pane shows generator copies as the schematic folds them: one `<name> × <n>`
