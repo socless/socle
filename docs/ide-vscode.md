@@ -129,7 +129,8 @@ and the drill path (while it exists in the new design) are kept.
 
 The UI and the side panel talk through the webview page: the UI posts its drill
 path, selection and details (`socle-state`, once per change), with the design
-hierarchy only when the design changed, to the page that frames it, only when
+hierarchy only when the design changed (a generator copy's child entry names
+its `foldGroup`), to the page that frames it, only when
 that page is a VS Code webview or a loopback page and only to its exact origin.
 The page forwards it (from the UI's window and origin only) to the extension,
 and forwards the extension's `socle-navigate` (from a window of the webview's
@@ -151,7 +152,10 @@ panel's own command palette (its search box) has **Back** and **Forward** too.
 
 **Folded copies.** Generator copies (`Seq.fill(n)(Module(...))`) show folded:
 one box titled `<name> × <n>` stands for the n copies, and the wires into and
-out of them merge with their counts. The `+` on the box, or a double-click on
+out of them merge with their counts. Only copies that play one role fold:
+copies in parallel (wired the same way, not to one another) or a chain wired
+directly from one copy to the next. Copies with another instance or a register
+between them, or a grid of copies wired to each other, stay apart. The `+` on the box, or a double-click on
 it, unfolds the copies; the `−` on any copy folds them back. The choice is kept
 while you navigate. The side panel's Hierarchy tree still lists every copy;
 selecting a copy there unfolds its group.

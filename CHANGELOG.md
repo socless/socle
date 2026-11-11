@@ -9,6 +9,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Added
+
+- The Hierarchy pane shows generator copies as the schematic folds them: one `<name> × <n>`
+  row, which opens their module with the folded box selected and lists the copies under it.
+  The Inspector of a folded box gives its copy count. For the editors' side panels, the
+  hierarchy names each copy's `foldGroup`, a folded box's details give its `copies`, and
+  `socle-navigate` selects a fold group by its id (#15).
+
 ### Fixed
 
 - View design folds generator copies only when they play one role: copies in parallel (no wire

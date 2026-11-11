@@ -151,6 +151,12 @@ object Inspector {
     div(dataAttr("inst-inspect") := inst.name, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", inst.name),
       div(styleAttr := s"font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink3};margin-bottom:12px", inst.`type`),
+      // A folded group stands for its generator copies (the first one's module above).
+      if (inst.foldCount > 0)
+        div(dataAttr("inst-fold-count") := inst.foldCount.toString,
+          styleAttr := s"font-size:11px;color:${Tokens.ink2};margin:-6px 0 12px",
+          s"${inst.foldCount} generator copies, folded")
+      else emptyNode,
       instMod.fold[Modifier[HtmlElement]](emptyMod)(docBlock(_, d)),
       sectionTitle("Domains"),
       div(styleAttr := s"display:grid;grid-template-columns:64px 1fr;row-gap:5px;column-gap:8px;font-size:11px;margin-bottom:12px;font-family:${Tokens.mono}",

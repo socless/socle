@@ -798,6 +798,50 @@ async function smokeDesignIn(design, ctx) {
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__fold.png` }).catch(() => {});
   }
 
+  // Hierarchy: the group `cores` is one row (`cores × 2`) under cluster0, with
+  // its copies listed under it (the tree was fully expanded above). A click on
+  // the group row opens Cluster with the folded box selected, or its first copy
+  // when the group is unfolded there (the fold checks above leave it unfolded).
+  if (design === 'deepsoc-view') {
+    const where = 'hierarchy fold group';
+    const row = page.locator('[data-hier-group$="/cluster0/#cores"]');
+    if ((await row.count()) !== 1) note(design, where, `expected one cores group row, got ${await row.count()}`);
+    else {
+      const text = await row.first().innerText();
+      if (!text.includes('cores × 2')) note(design, where, `group row lacks "cores × 2": ${JSON.stringify(text)}`);
+      for (const m of ['cores_0', 'cores_1'])
+        if (!(await page.locator(`[data-hier-path$="/cluster0/${m}"]`).count())) note(design, where, `no ${m} row under the group`);
+      if (await page.locator('[data-hier-path$="/cluster0/#cores"]').count()) note(design, where, 'the group row is a drillable module row');
+      const settle = async () => {
+        await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+        await page.waitForTimeout(200);
+      };
+      const clickRow = async (step) => {
+        await row.first().click({ timeout: 3000 }).catch((e) => note(design, where, `${step}: ${e.message}`));
+        await settle();
+        const folded = await page.locator('[data-fold-group="cores"]').count();
+        const want = folded ? 'cores' : 'cores_0';
+        if (!(await page.locator(`[data-inst-inspect="${want}"]`).count()))
+          note(design, where, `${step}: ${want} not selected (${folded ? 'folded' : 'unfolded'})`);
+        return folded;
+      };
+      if (!(await clickRow('first click'))) {
+        // Fold the copies back (a copy's - takes no click in the overview: zoom in first).
+        for (let i = 0; i < 4 && (await page.locator('.ov').count()); i++) {
+          await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch(() => {});
+          await page.waitForTimeout(150);
+        }
+        await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `fold back: ${e.message}`));
+        await settle();
+        if (!(await clickRow('click on the folded group'))) note(design, where, 'cores did not fold back');
+      }
+      // The Inspector of the folded box gives its copy count.
+      if (!(await page.locator('[data-inst-inspect="cores"] [data-inst-fold-count="2"]').count()))
+        note(design, where, 'the folded box\'s Inspector lacks "2 generator copies"');
+    }
+    drain(where);
+  }
+
   // Tied ports: the captured view drops a constant tie-off from the layout and
   // records it in `tieOffs`; the tied pin shows a `|-` value stub
   // (`data-tied`), and the layout is the same with or without the tie-offs.
