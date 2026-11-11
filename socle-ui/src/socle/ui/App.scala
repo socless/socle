@@ -557,12 +557,27 @@ object App {
       }
     }
 
+  /** A hierarchy group row: show `module` at `at` and select the folded box
+    * of `group` and fly to it; when the group is unfolded there, its first copy. */
+  private def showGroup(module: String, group: String, at: List[String]): Unit =
+    for (d <- loader.currentDesign; mod <- currentModule(d, at) if mod.name == module) {
+      if (pathVar.now() != at) pathVar.set(at) // its binder clears the selection first
+      val unfolded = unfoldedVar.now().getOrElse(mod.name, Set.empty).contains(group)
+      val target   = if (unfolded) InstanceFold.groups(mod).toMap.get(group).flatMap(_.headOption) else Some(group)
+      target.foreach { t =>
+        navSelect = Some(t)
+        selectedSigVar.set(Some(t))
+        viewCmds.flyTo(at, t)
+      }
+    }
+
   /** The selection a `socle-navigate` made: the editor already opens its
     * source, so the open-on-select binder skips it once. */
   private var navSelect = Option.empty[String]
 
   /** `socle-navigate` from the editor's side panel: show `path` (when it
-    * resolves) and select `select` when it is an instance there (else clear). */
+    * resolves) and select `select` when it is an instance or a fold group
+    * there (else clear). */
   private def navigate(path: List[String], select: Option[String]): Unit =
     for {
       d   <- loader.currentDesign
@@ -575,7 +590,14 @@ object App {
           .filterNot(g => unfoldedVar.now().getOrElse(mod.name, Set.empty).contains(g))
           .foreach(g => toggleFold(mod.name, g))
       }
-      val sel = select.filter(n => mod.children.exists(_.name == n))
+      // A fold group's id selects its folded box, or its first copy when the
+      // group is unfolded (the editor's Hierarchy shows the group as one row).
+      val sel = select.flatMap { n =>
+        if (mod.children.exists(_.name == n)) Some(n)
+        else InstanceFold.groups(mod).collectFirst { case (`n`, ms) =>
+          if (unfoldedVar.now().getOrElse(mod.name, Set.empty).contains(n)) ms.head else n
+        }
+      }
       navSelect = sel
       selectedSigVar.set(sel)
     }
@@ -625,7 +647,13 @@ object App {
         ujson.Obj(
           "name" -> m.name, "scalaClass" -> m.scalaClass, "kind" -> m.kind,
           "source" -> (if (openableSource(d, m.source.file)) ujson.Obj("file" -> m.source.file, "line" -> m.source.line) else ujson.Null),
-          "children" -> m.children.map(c => ujson.Obj("name" -> c.name, "type" -> c.`type`)))
+          // A generator copy names its fold group (as the schematic folds it), so the
+          // editor's Hierarchy can show the group as one row.
+          "children" -> m.children.map { c =>
+            val o = ujson.Obj("name" -> c.name, "type" -> c.`type`)
+            if (c.foldGroup.nonEmpty) o("foldGroup") = c.foldGroup
+            o
+          })
       })
     def details(d: Design): ujson.Value = shownModule(d, path).fold[ujson.Value](ujson.Null) { mod =>
       val inst = sel.flatMap(s => mod.children.find(_.name == s))
@@ -637,10 +665,13 @@ object App {
         val params =
           if (m.parameterDecls.nonEmpty) m.parameterDecls.map(p => (p.name, p.tpe, p.value))
           else inst.map(_.params).filter(_.nonEmpty).getOrElse(m.parameters).toSeq.sortBy(_._1).map { case (k, v) => (k, "", v) }
-        ujson.Obj(
+        val o = ujson.Obj(
           "name" -> name, "module" -> m.name, "scalaClass" -> m.scalaClass, "kind" -> m.kind,
           "params" -> params.map { case (n, t, v) => ujson.Obj("name" -> n, "type" -> t, "value" -> v) },
           "ports"  -> m.ports.map(p => ujson.Obj("name" -> p.name, "dir" -> p.dir, "type" -> p.bundle)))
+        // A folded group: how many generator copies it stands for.
+        inst.map(_.foldCount).filter(_ > 0).foreach(n => o("copies") = n)
+        o
       }
     }
     val msg = ujson.Obj(
@@ -668,9 +699,13 @@ object App {
   private def navTo(idx: Int): Unit = { fsmOpenVar.set(None); pathVar.update(_.take(idx + 1)) }
 
   // ── Hierarchy model ────────────────────────────────────────────────────────
-  // `parentMod`: the module the instance is in (None for the top).
+  // `parentMod`: the module the instance is in (None for the top). `group`: the
+  // fold group a group row stands for (its copies are the rows under it).
   private case class Row(id: String, label: String, tpe: String, depth: Int, isLeaf: Boolean, path: List[String],
-                         parentMod: Option[String])
+                         parentMod: Option[String], group: Option[String] = None)
+
+  /** A group row's id: under its module's row, marked so it never names an instance. */
+  private def groupRowId(moduleRow: String, group: String): String = s"$moduleRow/#$group"
 
   private def hierarchyRows(d: Design, expanded: Set[String]): List[Row] = {
     val byName = d.modules.iterator.map(m => m.name -> m).toMap
@@ -680,8 +715,23 @@ object App {
       val isLeaf = mod.forall(_.children.isEmpty)
       val id     = p.mkString("/")
       out += Row(id, instName, modName, depth, isLeaf, p, parent)
-      if (mod.isDefined && expanded.contains(id))
-        mod.get.children.foreach(c => walk(c.name, c.`type`, p :+ c.name, depth + 1, Some(modName)))
+      if (mod.isDefined && expanded.contains(id)) {
+        // Generator copies fold as in the schematic: one row for the group,
+        // where its first copy is, and the copies under it.
+        val groups = InstanceFold.groups(mod.get).toMap
+        mod.get.children.foreach { c =>
+          if (c.foldGroup.isEmpty) walk(c.name, c.`type`, p :+ c.name, depth + 1, Some(modName))
+          else if (groups.get(c.foldGroup).exists(_.headOption.contains(c.name))) {
+            val members = groups(c.foldGroup)
+            val gid     = groupRowId(id, c.foldGroup)
+            out += Row(gid, s"${c.foldGroup} × ${members.size}", c.`type`, depth + 1, isLeaf = false, p, Some(modName),
+              group = Some(c.foldGroup))
+            if (expanded.contains(gid))
+              mod.get.children.filter(_.foldGroup == c.foldGroup)
+                .foreach(m => walk(m.name, m.`type`, p :+ m.name, depth + 2, Some(modName)))
+          }
+        }
+      }
     }
     val top = topOf(d)
     if (top.nonEmpty) walk(top, top, List(top), 0, None)
@@ -739,7 +789,18 @@ object App {
   private def expandToOpenRow(id: String): Unit = {
     val segs = id.split('/').toList
     val ups  = (1 until segs.length).map(i => segs.take(i).mkString("/"))
-    if (!ups.forall(expandedVar.now())) expandedVar.update(_ ++ ups)
+    // A generator copy's row is under its group's row: that one opens too.
+    val groupRows = loader.currentDesign.toSeq.flatMap { d =>
+      val byName = d.modules.iterator.map(m => m.name -> m).toMap
+      var mod    = byName.get(segs.head)
+      (1 until segs.length).flatMap { i =>
+        val child = mod.flatMap(_.children.find(_.name == segs(i)))
+        mod = child.flatMap(c => byName.get(c.`type`))
+        child.map(_.foldGroup).filter(_.nonEmpty).map(g => groupRowId(segs.take(i).mkString("/"), g))
+      }
+    }
+    val all = ups ++ groupRows
+    if (!all.forall(expandedVar.now())) expandedVar.update(_ ++ all)
   }
 
   /** Scrolls the hierarchy pane, without animation, so the open module's row
@@ -1120,6 +1181,25 @@ object App {
         onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); toggle(r.id) },
         child.text <-- expandedVar.signal.map(s => if (s(r.id)) "▾" else "▸"),
       )
+    r.group match {
+      case Some(g) =>
+        // A fold group: opens its module with the folded box selected; its copies are the rows under it.
+        div(
+          cls := "scl-hier-row scl-hier-group",
+          dataAttr("hier-group") := r.id,
+          styleAttr := s"padding-left: ${4 + r.depth * 14}px",
+          title := s"${(r.path :+ g).mkString(" > ")}: generator copies, folded in the schematic",
+          onClick --> { _ => r.parentMod.foreach(pm => showGroup(pm, g, r.path)) },
+          span(cls := "scl-hier-toggle", toggleMods),
+          span(cls := "scl-hier-glyph", Glyphs.of(d, r.tpe)),
+          span(cls := "scl-hier-label", r.label),
+          span(cls := "scl-hier-type", r.tpe),
+        )
+      case None => instanceRow(d, r, toggleMods)
+    }
+  }
+
+  private def instanceRow(d: Design, r: Row, toggleMods: Seq[Modifier[HtmlElement]]): Element =
     div(
       cls := "scl-hier-row",
       // The open module's row (the one holding an open block or diagram).
@@ -1142,6 +1222,5 @@ object App {
           "◎")
       },
     )
-  }
 
 }

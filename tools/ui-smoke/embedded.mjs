@@ -9,12 +9,13 @@
 //
 // Usage (from the repo root, after `./mill socle-ui.dist`, the elaborated designs
 // `./mill example.socleRunGcd` and `./mill example.socleRunDeepSoc`, and the
-// captured FSM and GCD designs `./mill example.socleCapturedFsm` and
-// `./mill example.socleCapturedGcd`):
+// captured FSM, GCD and DeepSoc designs `./mill example.socleCapturedFsm`,
+// `./mill example.socleCapturedGcd` and `./mill example.socleCapturedDeepSoc`):
 //   node tools/ui-smoke/embedded.mjs --design out/example/socleRunGcd.dest/design.json \
 //     --deep out/example/socleRunDeepSoc.dest/design.json \
 //     --fsm out/example/socleCapturedFsm.dest/design.json \
-//     --gcd out/example/socleCapturedGcd.dest/design.json
+//     --gcd out/example/socleCapturedGcd.dest/design.json \
+//     --deepv out/example/socleCapturedDeepSoc.dest/design.json
 //
 // The Waveform check (8) stands in for the language server: it serves /ide.json
 // (mutable), a ChiselSim GCD trace (tools/ui-smoke/fixtures/gcd-trace.vcd) and its
@@ -45,10 +46,11 @@ const DESIGN = args.design || 'out/example/socleRunGcd.dest/design.json';
 const DEEP = args.deep || 'out/example/socleRunDeepSoc.dest/design.json'; // a design with instances
 const FSM = args.fsm || 'out/example/socleCapturedFsm.dest/design.json'; // an FSM block with a state diagram
 const GCD = args.gcd || 'out/example/socleCapturedGcd.dest/design.json'; // a captured design with its signals
+const DEEPV = args.deepv || 'out/example/socleCapturedDeepSoc.dest/design.json'; // a captured design with fold groups
 const VCD = args.vcd || 'tools/ui-smoke/fixtures/gcd-trace.vcd'; // a ChiselSim (Verilator) trace of that design
 const SURFER = args.surfer || 'socle-lsp/vendor/surfer'; // the vendored Surfer WASM build
 const SHOTS = args.shots || null; // where to save the Waveform screenshot
-for (const f of [UI, DESIGN, DEEP, FSM, GCD, VCD, `${SURFER}/surfer.js`, `${SURFER}/surfer_bg.wasm`])
+for (const f of [UI, DESIGN, DEEP, FSM, GCD, DEEPV, VCD, `${SURFER}/surfer.js`, `${SURFER}/surfer_bg.wasm`])
   if (!existsSync(f)) { console.error(`missing ${f}`); process.exit(2); }
 
 // The stand-in language server state for check 8: /ide.json (404 while null), the
@@ -87,6 +89,8 @@ const files = {
   '/fsm/design.json': ['application/json', readFileSync(FSM)],
   '/gcd/': ['text/html', readFileSync(UI)],
   '/gcd/design.json': ['application/json', readFileSync(GCD)],
+  '/deepv/': ['text/html', readFileSync(UI)],
+  '/deepv/design.json': ['application/json', readFileSync(DEEPV)],
   '/tab/': ['text/html', readFileSync(UI)], // the Surfer tab page (check 10): no design.json beside it
   '/wave/t1/trace': ['application/octet-stream', readFileSync(VCD)],
   '/wave/t1/names': ['application/json', names([])],
@@ -146,6 +150,9 @@ const f = document.getElementById('f');
 addEventListener('message', (e) => { if (e.source === f.contentWindow) window.__msgs.push({ origin: e.origin, data: e.data }); });
 </script></body>`];
 const PARENT_DEEP = `http://localhost:${server.address().port}/parent-deep.html`;
+// The same for the captured DeepSoc, whose Cluster folds its cores.
+files['/parent-deepv.html'] = ['text/html', files['/parent-deep.html'][1].replace('/deep/?', '/deepv/?')];
+const PARENT_DEEPV = `http://localhost:${server.address().port}/parent-deepv.html`;
 // The VS Code Surfer tab stand-in: frames the Surfer-only page and records what it posts.
 files['/parent-tab.html'] = ['text/html', `<!DOCTYPE html><body style="margin:0"><iframe id="f" src="${BASE}/tab/?host=vscode&view=surfer&theme=dark" style="width:1200px;height:700px;border:0"></iframe>
 <script>
@@ -1247,6 +1254,38 @@ let seq1 = -1;
   v = await view();
   check('settings', !v.chip && v.off === 0 && !v.cb && v.cw, `a changed setting applies at once (followCursor off, components not coloured) ${JSON.stringify(v)}`);
   check('settings', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 14. A folded design in the side panel channel (the captured DeepSoc, whose
+// clusters fold their cores): the hierarchy names each copy's fold group, and a
+// socle-navigate selecting the group id selects the folded box, whose details
+// give its copy count.
+{
+  const { ctx, page, errors } = await open(PARENT_DEEPV);
+  await page.frameLocator('#f').locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
+  const states = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socle-state'));
+  const last = async () => (await states()).at(-1);
+  const navigate = (msg) => page.evaluate((m) => document.getElementById('f').contentWindow.postMessage(m, '*'), msg);
+  const waitFor = async (what, pred) => {
+    for (let i = 0; i < 50; i++) { const s = await last(); if (s && pred(s.data)) return s; await page.waitForTimeout(100); }
+    check('fold', false, `timed out waiting for ${what}: last ${JSON.stringify((await last())?.data)?.slice(0, 300)}`);
+    return null;
+  };
+  const s0 = await waitFor('the loaded state', (d) => d.design && d.design.top);
+  if (s0) {
+    const top = s0.data.design.top;
+    const cl = s0.data.design.modules.find((m) => m.children.some((c) => c.name === 'cores_0'));
+    const tagged = cl ? cl.children.filter((c) => c.foldGroup).map((c) => `${c.name}:${c.foldGroup}`) : [];
+    check('fold', JSON.stringify(tagged) === '["cores_0:cores","cores_1:cores"]', `each copy names its fold group ${JSON.stringify(tagged)}`);
+    const parent = s0.data.design.modules.find((m) => cl && m.children.some((c) => c.type === cl.name));
+    const inst = parent && parent.children.find((c) => c.type === cl.name).name;
+    await navigate({ type: 'socle-navigate', path: [top, inst], select: 'cores' });
+    const sel = await waitFor('the folded group selected', (d) => d.selection === 'cores');
+    check('fold', !!sel && sel.data.details.copies === 2 && sel.data.details.name === 'cores',
+      `the folded group's details give its copies ${JSON.stringify(sel && sel.data.details)?.slice(0, 200)}`);
+  }
+  check('fold', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
 }
 

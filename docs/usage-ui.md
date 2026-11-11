@@ -21,6 +21,7 @@ the same everywhere: moving around the schematic and learning it from the UI.
 | Anywhere | Click the background | Clear the selection, stop following a net |
 | Anywhere | Back, Forward (mouse side buttons) | Over the schematic: back, forward |
 | Hierarchy | ◎ on a row | Show it in its parent: open the parent module and fly to the instance (not in VS Code, whose side panel shows the hierarchy) |
+| Hierarchy | Click a `<name> × <n>` row | Generator copies, one row as in the schematic: open their module with the folded box selected; ▸ lists the copies |
 | Blocks | Double-click | Open the module, or unfold a group |
 | Blocks | Click the title | Inspect |
 | Blocks | Breadcrumb | Go back up |
