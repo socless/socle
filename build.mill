@@ -321,6 +321,25 @@ object `socle-ui` extends ScalaJSModule {
     os.write(Task.dest / "socle.html", html)
     PathRef(Task.dest / "socle.html")
   }
+
+  /** Unit tests of the UI's pure logic (row model, labels, schematic geometry),
+    * run under plain Node: no browser, no elkjs, and nothing `dist` reads. */
+  object test extends ScalaJSTests with TestModule.Utest {
+    // Not the whole UI: `App` is a top-level export, so loading it runs its
+    // initializer, which reads `window`. The tests compile the pure files they
+    // cover instead, against socle-js (the schema, layout core, LaidOut).
+    def moduleDeps = Seq(`socle-js`)
+    def mvnDeps = Seq(
+      mvn"com.lihaoyi::utest::${V.utest}",
+      mvn"com.raquo::laminar::${V.laminar}", // scala-js-dom, for SchematicGeom's console warning
+    )
+    def uiPureSources = Task.Sources(
+      Seq("model/RowModel.scala", "model/Glyphs.scala", "model/LogicLabels.scala", "model/ScalaClassLabel.scala",
+        "schematic/SchematicGeom.scala", "theme/Tokens.scala")
+        .map(f => mill.api.BuildCtx.workspaceRoot / "socle-ui" / "src" / "socle" / "ui" / os.RelPath(f))*
+    )
+    def allSourceFiles = Task { super.allSourceFiles() ++ uiPureSources() }
+  }
 }
 
 // ─── Mill plugin (Scala 3, depends on Mill API) ─────────────────────────────

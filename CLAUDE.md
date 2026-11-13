@@ -21,6 +21,7 @@ mill mill-socle.publishLocal   # Scala 3 Mill plugin
 # (alternative) SOCLE_REGENERATE=1 ./mill socle.test socle.GoldenDesignTest
 ./mill socle-probe.test         # view-mode probe agent (forks ChiselSim tests with the agent; no Verilator)
 ./mill socle-lsp.test           # language server (in-process LSP, live panel HTTP, stdio smoke test of the assembly)
+./mill socle-ui.test            # UI pure logic under Node (RowModel, labels, SchematicGeom; no browser)
 ./mill example.test               # the example ChiselSim tests (needs Verilator on PATH)
 tools/ci/selective.sh prepare <base-sha>   # PR CI: snapshot the base (checks it out and back: commit first), then
 tools/ci/selective.sh run socle.test     # run only if its inputs changed (`selected <sel>` lists what would run)

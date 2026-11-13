@@ -74,6 +74,12 @@ jobs:
           distribution: temurin
           java-version: "21"
 
+      # The UI unit tests run on Node.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "20"
+
       - name: Cache Mill / Coursier / Ivy caches
         uses: actions/cache@v6
         with:
@@ -99,6 +105,9 @@ jobs:
 
       - name: Run language server tests
         run: ./mill socle-lsp.test
+
+      - name: Run UI unit tests
+        run: ./mill socle-ui.test
 
       - name: Stop the Mill daemon
         if: always()
