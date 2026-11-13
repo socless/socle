@@ -919,6 +919,15 @@ object Schematic {
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleModuleStep")(
               ((ps: js.Array[String], i: Int, cur: String, dir: Int) => ViewHistory.moduleStepDebug(ps, i, cur, dir)): js.Function4[js.Array[String], Int, String, Int, Int])
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleFlying")((() => history.flyer.running): js.Function0[Boolean])
+            // Smoke test hooks: what the view still waits for (an engine layout,
+            // the armed fit or a refit, a flight or a fly waiting, a pan or zoom
+            // settling into the history); settled when nothing.
+            def pending(): js.Array[String] = js.Array(Seq(
+              "layout" -> (awaiting.isDefined || pendingVar.now()), "fit" -> (pendingFit || fitFrame != 0),
+              "flight" -> history.flyer.running, "fly" -> history.flyWaiting, "history" -> history.settling
+            ).collect { case (k, true) => k }: _*)
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__soclePending")((() => pending()): js.Function0[js.Array[String]])
+            dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleSettled")((() => pending().length == 0): js.Function0[Boolean])
             // Smoke test hook: the tooltip card of every box, wire and pin of the view ({n, bad}).
             dom.window.asInstanceOf[js.Dynamic].updateDynamic("__socleTooltipCheck")((() => {
               val (n, bad) = Tooltip.selfCheck(hl.geom)
