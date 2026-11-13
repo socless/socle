@@ -102,6 +102,47 @@ const escCardDesigns = new Set();
 const pinDotDesigns = new Set();
 const fieldDotDesigns = new Set();
 
+// Waits until the view has settled: no layout run, armed fit or refit,
+// flight, waiting fly, nor pan or zoom still to settle into the history (the
+// UI's `__socleSettled`), on 3 animation frames in a row (a ResizeObserver
+// report can arm a refit a frame later). A missing hook is not settled. Throws
+// on timeout, naming what still waits: never a fixed sleep for this.
+async function settled(page, timeout = 15000) {
+  const ok = await page.evaluate((ms) => new Promise((res) => {
+    const t0 = performance.now();
+    let calm = 0;
+    const tick = () => {
+      calm = window.__socleSettled && window.__socleSettled() ? calm + 1 : 0;
+      if (calm >= 3) res(true);
+      else if (performance.now() - t0 > ms) res(false);
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }), timeout);
+  if (!ok) {
+    const why = await page.evaluate(() => (window.__soclePending ? window.__soclePending().join(', ') : 'no __socleSettled hook'));
+    throw new Error(`the view did not settle within ${timeout} ms (pending: ${why})`);
+  }
+}
+
+// Waits `n` animation frames: the UI has handled an input and painted. For
+// the moments the view cannot settle (a press held down re-arms the history
+// settle), never as a stand-in for `settled`.
+const frames = (page, n = 2) => page.evaluate((k) => new Promise((res) => {
+  const tick = () => (--k <= 0 ? res() : requestAnimationFrame(tick));
+  requestAnimationFrame(tick);
+}), n);
+
+// Polls `cond` (an async predicate on the test's side, e.g. a recorded
+// request) until it holds or `timeout` ms pass; true when it held.
+async function until(cond, timeout = 5000) {
+  for (const t0 = Date.now(); Date.now() - t0 < timeout;) {
+    if (await cond()) return true;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  return !!(await cond());
+}
+
 const launchOpts = { args: ['--no-sandbox'] };
 if (EXEC) launchOpts.executablePath = EXEC;
 const browser = await chromium.launch(launchOpts);
@@ -159,11 +200,7 @@ async function smokeToggles(design, ctx) {
   try {
     await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
     await page.waitForSelector('[data-layout-ready="1"]', { timeout: 30000 });
-    const ready = async () => {
-      await page.waitForTimeout(150);
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 30000 }).catch(() => {});
-      await page.waitForTimeout(100);
-    };
+    const ready = () => settled(page, 30000);
     // A box's (or an edge stub's) rows, in order: `side:path`.
     const rows = (box) => page.evaluate((id) => {
       const b = document.querySelector(`[data-box-inst="${CSS.escape(id)}"],[data-boundary-stub="${CSS.escape(id)}"]`);
@@ -253,7 +290,7 @@ async function smokeHelpFirstRun(design) {
     const load = async () => {
       await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
       await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
-      await page.waitForTimeout(300);
+      await settled(page);
     };
     const dashes = /[\u2013\u2014]/;
     const tips = page.locator('[data-first-tips]');
@@ -313,17 +350,8 @@ async function smokeReloadNav(design, ctx, top, W) {
       const m = t.match(/translate\(([-\d.e]+)px, ([-\d.e]+)px\) scale\(([-\d.e]+)\)/);
       return m ? { x: +m[1], y: +m[2], z: +m[3] } : null;
     });
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
-      let v = await readView();
-      for (let i = 0; i < 25; i++) {
-        await page.waitForTimeout(150);
-        const n = await readView();
-        if (fmt(n) === fmt(v)) break;
-        v = n;
-      }
-    };
+    const settle = () => settled(page);
+    const loads = () => page.evaluate(() => (window.__socleLoads || []).length);
     const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
     const go = async (p) => { await page.locator(`[data-hier-path="${p}"]`).first().dispatchEvent('click'); await settle(); };
     const hist = () => page.evaluate(() => window.__socleHistory());
@@ -345,9 +373,8 @@ async function smokeReloadNav(design, ctx, top, W) {
     }, W);
     if (!pt) { note(design, where, `no visible wire ${W.join(' <= ')} to follow`); return; }
     await page.mouse.click(pt.x, pt.y);
-    await page.waitForTimeout(150);
+    await settle();
     await go(`${top}/cluster0`);
-    await page.waitForTimeout(800); // past the settle delay: nothing pending
     const h0 = await hist(); const f0 = await follow(); const c0 = await crumbs();
     if (!f0 || !f0.net) { note(design, where, `no followed net before the reload: ${fmt(f0)}`); return; }
     if (!h0 || h0.size < 2 || h0.index < 1) { note(design, where, `no Back entry before the reload: ${fmt(h0)}`); return; }
@@ -357,13 +384,14 @@ async function smokeReloadNav(design, ctx, top, W) {
     served.sources = { ...(served.sources || {}), 'smoke/Reload.scala': '// a live reload\n' };
     const body = JSON.stringify(served);
     let gets = 0;
+    const n0 = await loads();
     await page.route('**/design.json', (rt) => {
       if (rt.request().method() === 'GET') gets++;
       return rt.fulfill({ contentType: 'application/json', body, headers: { 'Last-Modified': 'Wed, 01 Jan 2031 00:00:00 GMT' } });
     });
-    for (let t = 0; t < 10000 && gets === 0; t += 100) await page.waitForTimeout(100);
-    if (!gets) { note(design, where, 'the live poller never fetched the changed design'); return; }
-    await page.waitForTimeout(400);
+    // The poller fetches the changed design and applies it (a new load).
+    const reloaded = await page.waitForFunction((n) => (window.__socleLoads || []).length > n, n0, { timeout: 10000 }).then(() => true, () => false);
+    if (!reloaded) { note(design, where, `the live poller never ${gets ? 'applied' : 'fetched'} the changed design`); return; }
     await settle();
     const h1 = await hist(); const f1 = await follow(); const c1 = await crumbs();
     if (c1 !== c0) note(design, where, `the live reload moved the drill path: "${c0}" -> "${c1}"`);
@@ -379,16 +407,20 @@ async function smokeReloadNav(design, ctx, top, W) {
     // download is slow. The dropped file wins: the late live design is not
     // applied over it.
     await page.unroute('**/design.json');
-    let slowGets = 0;
+    let slowGot, slowLanded;
+    const slowStarted = new Promise((r) => { slowGot = r; });
+    const slowDone = new Promise((r) => { slowLanded = r; });
     await page.route('**/design.json', async (rt) => {
       const headers = { 'Last-Modified': 'Thu, 01 Jan 2032 00:00:00 GMT' };
       if (rt.request().method() !== 'GET') return rt.fulfill({ contentType: 'application/json', body: '', headers });
-      slowGets++;
+      slowGot();
       await new Promise((r) => setTimeout(r, 2500));
-      return rt.fulfill({ contentType: 'application/json', body, headers }).catch(() => {});
+      // The page may be gone by then (a failed check returned early).
+      await rt.fulfill({ contentType: 'application/json', body, headers }).catch(() => {});
+      slowLanded();
     });
-    for (let t = 0; t < 10000 && slowGets === 0; t += 100) await page.waitForTimeout(100);
-    if (!slowGets) note(design, where, 'the live poller never started the slow reload');
+    const timeout = (ms) => new Promise((r) => setTimeout(() => r(false), ms));
+    if (!await Promise.race([slowStarted.then(() => true), timeout(10000)])) note(design, where, 'the live poller never started the slow reload');
     await page.evaluate((txt) => {
       const dt = new DataTransfer();
       dt.items.add(new File([txt], 'fresh.json', { type: 'application/json' }));
@@ -396,12 +428,13 @@ async function smokeReloadNav(design, ctx, top, W) {
     }, body);
     const dropped = await page.waitForSelector('[data-source="file"]', { timeout: 10000 }).then(() => true).catch(() => false);
     if (!dropped) { note(design, where, 'the dropped design file never loaded'); return; }
-    await page.waitForTimeout(3000); // the slow live reload lands
+    await Promise.race([slowDone, timeout(10000)]); // the slow live reload lands
+    // Reason: a discarded late response leaves no state to wait on; let the page read it.
+    await page.waitForTimeout(300);
     const src = await page.evaluate(() => document.querySelector('[data-source]')?.getAttribute('data-source'));
     if (src !== 'file') note(design, where, `a live reload in flight replaced the dropped file (source ${src})`);
     await page.unroute('**/design.json');
     await settle();
-    await page.waitForTimeout(300);
     const h2 = await hist(); const f2 = await follow(); const c2 = await crumbs();
     if (c2 !== top) note(design, where, `a fresh load did not reset to the top: "${c2}"`);
     if (!h2 || h2.size > 1 || h2.entries.some((e) => e.path !== top))
@@ -409,14 +442,14 @@ async function smokeReloadNav(design, ctx, top, W) {
     if (f2 && f2.net) note(design, where, `a fresh load kept the followed net: ${fmt(f2.net)}`);
     // Another fresh load with the top already shown (the same path): its fit
     // is still the history's first entry, so the next move has a Back.
+    const n2 = await loads();
     await page.evaluate((txt) => {
       const dt = new DataTransfer();
       dt.items.add(new File([txt], 'again.json', { type: 'application/json' }));
       window.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }));
     }, body);
-    await page.waitForTimeout(300);
+    await page.waitForFunction((n) => (window.__socleLoads || []).length > n, n2, { timeout: 10000 });
     await settle();
-    await page.waitForTimeout(300);
     const h3 = await hist();
     if (!h3 || h3.size !== 1 || h3.entries[0].path !== top)
       note(design, where, `a fresh load onto the path shown left the history ${fmt(h3 && h3.entries.map((e) => e.path))}, not the top's fit`);
@@ -480,18 +513,12 @@ async function smokeDesignIn(design, ctx) {
     return m ? { x: +m[1], y: +m[2], z: +m[3] } : null;
   });
   const expectFitted = async (where) => {
-    await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-    let v = await readView();
-    for (let i = 0; i < 20; i++) {           // wait for the view to stop moving
-      await page.waitForTimeout(100);
-      const n = await readView();
-      if (JSON.stringify(n) === JSON.stringify(v)) break;
-      v = n;
-    }
+    try { await settled(page); } catch (e) { note(design, where, e.message); return; }
+    const v = await readView();
     const fit = page.locator('button[title="Fit to view"]');
     if (!v || await fit.count() === 0) { note(design, where, 'first view: no content transform or Fit button'); return; }
     await fit.first().click().catch((e) => note(design, where, e.message));
-    await page.waitForTimeout(60);
+    try { await settled(page); } catch (e) { note(design, where, e.message); return; }
     const f = await readView();
     if (!f || Math.abs(f.x - v.x) > 2 || Math.abs(f.y - v.y) > 2 || Math.abs(f.z - v.z) > 0.005)
       note(design, where, `first view is not the fitted view: ${JSON.stringify(v)} vs fit ${JSON.stringify(f)}`);
@@ -592,7 +619,6 @@ async function smokeDesignIn(design, ctx) {
   console.log(`[${design}] ${paths.length} hierarchy nodes`);
   for (const { path, leaf } of paths) {
     await page.locator(`[data-hier-path="${path}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, `click ${path}`, e.message));
-    await page.waitForTimeout(120);
     await expectFitted(`drill ${path} view fit`);
     // App must still be mounted: the hierarchy panel and a schematic host stay present.
     const alive = await page.locator('[data-hier-path]').count();
@@ -633,7 +659,7 @@ async function smokeDesignIn(design, ctx) {
     const top = paths[0].path;
     const mem = `${top}/mem`;
     const pin = 'respQ.io.deq';
-    const ready = () => page.waitForSelector('[data-layout-ready="1"]', { timeout: 5000 }).then(() => true).catch(() => false);
+    const ready = () => settled(page, 5000).then(() => true, () => false);
     const mark = () => page.evaluate((p) => {
       const e = document.querySelector(`[data-bundle-toggle="${p}"]`);
       return e ? (e.getAttribute('data-open') === '1' ? '\u2212' : '+') : null;
@@ -651,8 +677,8 @@ async function smokeDesignIn(design, ctx) {
     if (!await ready()) note(design, where, `return to ${mem}: layout not ready within 5 s`);
     if (await mark() !== '−') note(design, where, `${pin} not kept expanded on return to ${mem} (mark ${await mark()})`);
     // Collapse it again, so the later checks start from the default view.
-    await page.locator(`[data-bundle-toggle="${pin}"]`).first().click({ timeout: 3000 }).catch(() => {});
-    await ready();
+    await page.locator(`[data-bundle-toggle="${pin}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `collapse ${pin}: ${e.message}`));
+    if (!await ready()) note(design, where, `collapse ${pin}: layout not ready within 5 s`);
     drain(where);
   }
 
@@ -661,10 +687,7 @@ async function smokeDesignIn(design, ctx) {
   // copy's `-`, unfold again with a double-click on the folded box.
   if (design === 'deepsoc-view') {
     const where = 'fold cores';
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(150);
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const count = (sel) => page.locator(sel).count();
     // The header's name (and count) is never clipped and its fold toggle sits
     // fully inside the box. innerText cannot see a CSS ellipsis, and
@@ -708,8 +731,8 @@ async function smokeDesignIn(design, ctx) {
     // boxes (with their condition pins) can land just under that threshold.
     const detail = async () => {
       for (let i = 0; i < 4 && (await count('.ov')); i++) {
-        await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch(() => {});
-        await page.waitForTimeout(150);
+        await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `zoom in: ${e.message}`));
+        await settle();
       }
     };
     await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, e.message));
@@ -812,10 +835,7 @@ async function smokeDesignIn(design, ctx) {
       for (const m of ['cores_0', 'cores_1'])
         if (!(await page.locator(`[data-hier-path$="/cluster0/${m}"]`).count())) note(design, where, `no ${m} row under the group`);
       if (await page.locator('[data-hier-path$="/cluster0/#cores"]').count()) note(design, where, 'the group row is a drillable module row');
-      const settle = async () => {
-        await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-        await page.waitForTimeout(200);
-      };
+      const settle = () => settled(page).catch((e) => note(design, where, e.message));
       const clickRow = async (step) => {
         await row.first().click({ timeout: 3000 }).catch((e) => note(design, where, `${step}: ${e.message}`));
         await settle();
@@ -828,8 +848,8 @@ async function smokeDesignIn(design, ctx) {
       if (!(await clickRow('first click'))) {
         // Fold the copies back (a copy's - takes no click in the overview: zoom in first).
         for (let i = 0; i < 4 && (await page.locator('.ov').count()); i++) {
-          await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch(() => {});
-          await page.waitForTimeout(150);
+          await page.locator('button[title="Zoom in"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `zoom in: ${e.message}`));
+          await settle();
         }
         await page.locator('[data-fold-toggle="cores"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `fold back: ${e.message}`));
         await settle();
@@ -853,10 +873,7 @@ async function smokeDesignIn(design, ctx) {
   // this drill into a copy caught a stale hover blanking the Inspector.
   if (design === 'deepsoc-view') {
     const where = 'tied ports';
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(150);
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     // Core is reached through cluster0's unfolded cores_0 (copies are not in the tree).
     await page.locator('[data-hier-path$="/cluster0"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `cluster0: ${e.message}`));
     await settle();
@@ -956,10 +973,7 @@ async function smokeDesignIn(design, ctx) {
   // Selecting a block opens its source in the editor (`POST /open`, routed above).
   if (design === 'deepsoc-view') {
     const where = 'logic blocks';
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(150);
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     for (const m of ['cluster0', 'pipe']) {
       await page.locator(`[data-hier-path$="/${m}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `drill ${m}: ${e.message}`));
       await settle();
@@ -981,7 +995,8 @@ async function smokeDesignIn(design, ctx) {
         opened.length = 0;
         await page.locator(`[data-block="${id}"] [data-block-label]`).first().click({ timeout: 3000 })
           .catch((e) => note(design, where, `select ${id}: ${e.message}`));
-        await page.waitForTimeout(250);
+        await settle();
+        await until(() => opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119));
         const insp = page.locator(`[data-logic-inspect="${id}"]`);
         if (!(await insp.count())) note(design, where, `${id} not selected (no inspector entry)`);
         else {
@@ -995,7 +1010,7 @@ async function smokeDesignIn(design, ctx) {
         // that connection, a register inside the open block its declaration.
         const src = 'example/src/deephier/DeepSoc.scala';
         const expectLine = async (step, line) => {
-          await page.waitForTimeout(250);
+          await until(() => opened.some((o) => o.file === src && o.line === line));
           if (!opened.some((o) => o.file === src && o.line === line))
             note(design, where, `${step}: expected POST /open ${src}:${line}, got ${JSON.stringify(opened)}`);
         };
@@ -1040,7 +1055,7 @@ async function smokeDesignIn(design, ctx) {
           .then(() => true).catch(() => false);
         if (!reloaded) note(design, where, 'live reload: the renamed block never showed');
         else {
-          await page.waitForTimeout(150);
+          await settle();
           if (await page.locator('[data-logic-inspect]').count()) note(design, where, 'live reload: a stale [data-logic-inspect] remains');
           if (await page.locator('.scl-insp-clear').count()) note(design, where, `live reload: the selection or hover of the dropped ${id} survived (blank Inspector)`);
         }
@@ -1060,11 +1075,11 @@ async function smokeDesignIn(design, ctx) {
           .then(() => true).catch(() => false);
         if (!fsmShown) note(design, where, 'live reload: the fsm block never showed');
         else {
-          await page.waitForTimeout(150);
+          await settle();
           opened.length = 0;
           await page.locator(`[data-fsm="${fsmId}"]`).first().click({ timeout: 3000, position: { x: 8, y: 8 } })
             .catch((e) => note(design, where, `select ${fsmId}: ${e.message}`));
-          await page.waitForTimeout(250);
+          await until(() => opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119));
           if (!opened.some((o) => o.file === 'example/src/deephier/DeepSoc.scala' && o.line === 119))
             note(design, where, `selecting ${fsmId} did not open its source: ${JSON.stringify(opened)}`);
         }
@@ -1077,7 +1092,7 @@ async function smokeDesignIn(design, ctx) {
         await toggle.click().catch((e) => note(design, where, `layers toggle: ${e.message}`));
         await settle();
         const shown = await page.locator('[data-block]').count();
-        await toggle.click().catch(() => {});
+        await toggle.click().catch((e) => note(design, where, `layers toggle back: ${e.message}`));
         await settle();
         const hidden = await page.locator('[data-block]').count();
         if (shown <= before || hidden !== before) note(design, where, `${m}: layer blocks ${before} -> ${shown} -> ${hidden}`);
@@ -1096,10 +1111,7 @@ async function smokeDesignIn(design, ctx) {
     const file = 'example/src/fsm/TrafficFsm.scala';
     const diag = `[data-fsm-diagram="${id}"]`;
     const ready = () => page.waitForSelector(`${diag}[data-fsm-ready="1"]`, { timeout: 10000 }).then(() => true).catch(() => false);
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(150);
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     // Everything the diagram shows, in one read: states, transitions (with the
     // distance from each label's center to its path's midpoint), markers, note.
     const readDiagram = () => page.evaluate((sel) => {
@@ -1159,7 +1171,7 @@ async function smokeDesignIn(design, ctx) {
       return true;
     };
     const expectOpened = async (step, line) => {
-      await page.waitForTimeout(250);
+      await until(() => opened.some((o) => o.file === file && o.line === line));
       if (!opened.some((o) => o.file === file && o.line === line))
         note(design, where, `${step}: expected POST /open ${file}:${line}, got ${JSON.stringify(opened)}`);
     };
@@ -1186,7 +1198,7 @@ async function smokeDesignIn(design, ctx) {
       await expectOpened(step, line);
     };
 
-    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});
+    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch((e) => note(design, where, e.message));
     await settle();
     if (await openDiagram('open')) {
       const r = await readDiagram();
@@ -1223,7 +1235,7 @@ async function smokeDesignIn(design, ctx) {
       // `/` does not focus the schematic filter hidden under the diagram.
       await page.evaluate(() => document.activeElement?.blur?.());
       await page.keyboard.press('/');
-      await page.waitForTimeout(100);
+      await settle();
       if (await page.evaluate(() => !!document.activeElement?.closest?.('[data-filter-input]') || document.activeElement?.hasAttribute?.('data-filter-input')))
         note(design, where, '`/` focused the hidden schematic filter while the diagram is open');
       await page.evaluate(() => document.activeElement?.blur?.());
@@ -1236,17 +1248,17 @@ async function smokeDesignIn(design, ctx) {
       await page.keyboard.press('Control+k');
       await page.waitForSelector('[data-command-palette]', { timeout: 3000 }).catch(() => note(design, where, 'Ctrl-K did not open the palette over the diagram'));
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      await settle();
       if (await page.locator('[data-command-palette]').count()) note(design, where, 'Escape did not close the palette');
       if (!(await page.locator(diag).count())) note(design, where, 'Escape in the palette also closed the diagram');
       await page.locator('[data-filter-input]').first().focus().catch((e) => note(design, where, `filter focus: ${e.message}`));
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      await settle();
       if (!(await page.locator(diag).count())) note(design, where, 'Escape in the filter input also closed the diagram');
       drain(`${where} (escape in an overlay)`);
       // Escape closes it and the schematic is back.
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      await settle();
       if (!(await schematicShown())) note(design, where, 'Escape did not bring the schematic back');
       // The header's open control opens it too; the current module's
       // breadcrumb segment closes it.
@@ -1255,7 +1267,7 @@ async function smokeDesignIn(design, ctx) {
       if (!(await ready())) note(design, where, `no ready ${diag} after clicking [data-fsm-open]`);
       else {
         await page.locator('.scl-crumb').first().click().catch((e) => note(design, where, `crumb: ${e.message}`));
-        await page.waitForTimeout(200);
+        await settle();
         if (!(await schematicShown())) note(design, where, 'the breadcrumb did not bring the schematic back');
       }
       // The open control is keyboard-reachable: focus + Enter opens.
@@ -1263,7 +1275,7 @@ async function smokeDesignIn(design, ctx) {
       await page.keyboard.press('Enter');
       if (!(await ready())) note(design, where, `no ready ${diag} after Enter on [data-fsm-open]`);
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(200);
+      await settle();
       if (!(await schematicShown())) note(design, where, 'Escape after a keyboard open did not bring the schematic back');
       drain(`${where} (close)`);
     }
@@ -1293,7 +1305,7 @@ async function smokeDesignIn(design, ctx) {
           if (!chip.back) note(design, w2, 'Back is disabled on the state diagram');
           if (chip.overlap) note(design, w2, 'the diagram\'s note overlaps its Back / Forward buttons');
           await page.locator(`${diag} [data-nav-back]`).first().click();
-          await page.waitForTimeout(250);
+          await settle();
           if (await page.locator(diag).count()) note(design, w2, 'Back did not close the diagram');
           if (await view() !== v0 || await crumbsNow() !== c0) note(design, w2, `Back from the diagram moved the schematic: ${v0} at "${c0}" -> ${await view()} at "${await crumbsNow()}"`);
           const fwd = page.locator('[data-nav-forward]').first();
@@ -1302,10 +1314,10 @@ async function smokeDesignIn(design, ctx) {
           if (!(await ready())) note(design, w2, 'Forward did not reopen the diagram');
           else {
             await page.keyboard.press('Alt+ArrowLeft');
-            await page.waitForTimeout(250);
+            await settle();
             if (await page.locator(diag).count()) note(design, w2, 'Alt+Left did not close the diagram');
           }
-          if (await page.locator(diag).count()) { await page.keyboard.press('Escape'); await page.waitForTimeout(200); }
+          if (await page.locator(diag).count()) { await page.keyboard.press('Escape'); await settle(); }
           fsmNavDesigns.add(design);
         }
       }
@@ -1409,7 +1421,8 @@ async function smokeDesignIn(design, ctx) {
         const before = await fitError();
         for (const step of ['toggled', 'toggled back']) {
           await togglePanel();
-          await page.waitForTimeout(300);
+          // The pane resizes and the SVG refits (a ResizeObserver report): wait for that fit.
+          await until(async () => { const a = await fitError(); return !!a && a.err <= 1.5 && (step !== 'toggled' || !before || a.paneW !== before.paneW); });
           const after = await fitError();
           if (!after || after.err > 1.5)
             note(design, where, `wide diagram (fit), inspector ${step}: the SVG does not fit the resized pane ${JSON.stringify({ before, after })}`);
@@ -1417,7 +1430,7 @@ async function smokeDesignIn(design, ctx) {
             note(design, where, `wide diagram (fit): toggling the inspector did not resize the pane (${after.paneW})`);
         }
         await page.locator(`${diag} [data-fsm-zoom="1:1"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `1:1 toggle: ${e.message}`));
-        await page.waitForTimeout(200);
+        await settle();
         const one = await geo();
         if (one && !(one.scrollW > one.clientW)) note(design, where, `wide diagram (1:1): does not scroll (${one.scrollW} <= ${one.clientW})`);
         await page.evaluate((sel) => { document.querySelector(`${sel} [data-fsm-scroll]`).scrollLeft = 0; }, diag);
@@ -1434,19 +1447,19 @@ async function smokeDesignIn(design, ctx) {
         const s0 = await scale();
         await page.mouse.move(pane.x, pane.y);
         await page.mouse.wheel(0, -200);
-        await page.waitForTimeout(150);
+        await settle();
         const s1 = await scale();
         if (!(s1 > s0)) note(design, where, `wheel up did not zoom the diagram in (${s0} -> ${s1})`);
         const sc0 = await page.evaluate((sel) => { const e = document.querySelector(`${sel} [data-fsm-scroll]`); return [e.scrollLeft, e.scrollTop]; }, diag);
         await page.mouse.down();
         for (let i = 1; i <= 6; i++) await page.mouse.move(pane.x - 15 * i, pane.y - 8 * i);
         await page.mouse.up();
-        await page.waitForTimeout(100);
+        await settle();
         const sc1 = await page.evaluate((sel) => { const e = document.querySelector(`${sel} [data-fsm-scroll]`); return [e.scrollLeft, e.scrollTop]; }, diag);
         if (sc1[0] <= sc0[0]) note(design, where, `a drag did not pan the diagram (${sc0} -> ${sc1})`);
         if (!(await page.locator(diag).count())) note(design, where, 'a drag on the diagram closed it');
         await page.keyboard.press('f');
-        await page.waitForTimeout(150);
+        await settle();
         const s2 = await scale();
         if (!(s2 < s1)) note(design, where, `f did not fit the diagram again (${s1} -> ${s2})`);
       }
@@ -1487,20 +1500,20 @@ async function smokeDesignIn(design, ctx) {
 
   // Back to the top module (richest view: instances, wires, interface pins).
   if (paths.length) {
-    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch(() => {});
-    await page.waitForTimeout(150);
+    await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch((e) => note(design, 'back to the top', e.message));
   }
 
   // Minimap (perf): zoomed in, it shows; panning moves only its viewport rect
   // (its node rects are built once per geometry, never per pan), and a click or
   // a drag in it moves the main view there.
-  await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+  await settled(page).catch((e) => note(design, 'back to the top', e.message));
   {
     const where = 'minimap';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const zoomIn = page.locator('button[title="Zoom in"]');
     for (let i = 0; i < 5 && await page.locator('[data-minimap]').count() === 0; i++) {
       await zoomIn.click().catch((e) => note(design, where, e.message));
-      await page.waitForTimeout(60);
+      await settle();
     }
     if (await page.locator('[data-minimap]').count()) {
       minimapDesigns.add(design);
@@ -1538,9 +1551,10 @@ async function smokeDesignIn(design, ctx) {
       });
       await page.mouse.move(vp.x, vp.y);
       await page.mouse.down({ button: 'middle' });
+      // (Reason for the 16 ms: pointer pacing, one move per frame, as a hand drags.)
       for (let i = 1; i <= 10; i++) { await page.mouse.move(vp.x - 6 * i, vp.y - 4 * i); await page.waitForTimeout(16); }
       await page.mouse.up({ button: 'middle' });
-      await page.waitForTimeout(80);
+      await settle();
       const r = await page.evaluate(() => {
         const S = window.__mmSmoke; S.obs.disconnect(); S.pobs.disconnect(); S.robs.disconnect(); S.cobs.disconnect();
         return {
@@ -1558,15 +1572,16 @@ async function smokeDesignIn(design, ctx) {
       if (mmBox) {
         const v0 = await readView();
         await page.mouse.click(mmBox.x + mmBox.width * 0.85, mmBox.y + mmBox.height * 0.85);
-        await page.waitForTimeout(60);
+        await settle();
         const v1 = await readView();
         if (!v0 || !v1 || (Math.abs(v1.x - v0.x) < 1 && Math.abs(v1.y - v0.y) < 1))
           note(design, where, `a click in the minimap did not move the view (${JSON.stringify(v0)} -> ${JSON.stringify(v1)})`);
         await page.mouse.move(mmBox.x + mmBox.width * 0.8, mmBox.y + mmBox.height * 0.8);
         await page.mouse.down();
+        // (Reason for the 16 ms: pointer pacing.)
         for (let i = 1; i <= 6; i++) { await page.mouse.move(mmBox.x + mmBox.width * (0.8 - 0.1 * i), mmBox.y + mmBox.height * (0.8 - 0.1 * i)); await page.waitForTimeout(16); }
         await page.mouse.up();
-        await page.waitForTimeout(60);
+        await settle();
         const v2 = await readView();
         if (!v1 || !v2 || (Math.abs(v2.x - v1.x) < 1 && Math.abs(v2.y - v1.y) < 1))
           note(design, where, `a drag in the minimap did not move the view (${JSON.stringify(v1)} -> ${JSON.stringify(v2)})`);
@@ -1574,8 +1589,8 @@ async function smokeDesignIn(design, ctx) {
     }
     // Leave a user-set view (1:1), as the drill back left it: an automatic fit
     // here would refit on the bundle expansions below and trip the #207 check.
-    await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
-    await page.waitForTimeout(60);
+    await page.locator('button[title="Reset to 100%"]').first().click().catch((e) => note(design, where, `reset: ${e.message}`));
+    await settle();
     drain(where);
   }
 
@@ -1616,6 +1631,11 @@ async function smokeDesignIn(design, ctx) {
              actions: f('actions'), text: t.textContent, inContent: !!t.closest('[data-content]') };
   });
   const tipShown = async () => !!(await tipRead());
+  // The card shows after its rest delay (600 ms): wait for it, false if it never does.
+  const tipAppears = () => page.waitForFunction(() => {
+    const t = document.querySelector('[data-tooltip]');
+    return !!t && getComputedStyle(t).display !== 'none';
+  }, null, { timeout: 5000 }).then(() => true, () => false);
 
   // Highlights are styling, never a rebuild (perf): resting the pointer on a
   // wire, a box or a pin changes nothing in the schematic after it entered (a
@@ -1630,7 +1650,8 @@ async function smokeDesignIn(design, ctx) {
       S.obs.observe(document.querySelector('[data-content]'), { childList: true, subtree: true, attributes: true });
     });
     const unwatch = () => page.evaluate(() => { const S = window.__hlSmoke; S.obs.disconnect(); return { child: S.child, attrs: S.attrs }; });
-    const away = async () => { const vp = await page.locator('[data-content]').first().evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.right - 8, y: r.bottom - 8 }; }); await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80); };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
+    const away = async () => { const vp = await page.locator('[data-content]').first().evaluate((el) => { const r = el.parentElement.getBoundingClientRect(); return { x: r.right - 8, y: r.bottom - 8 }; }); await page.mouse.move(vp.x, vp.y); await settle(); };
     // A wire and a box light on hover (`.hov`, the box's `.ohov` outline). The
     // tooltip card appears inside the watched second (600 ms after the pointer
     // stopped) and must change nothing in the content: it is checked shown at
@@ -1652,7 +1673,7 @@ async function smokeDesignIn(design, ctx) {
       if (kind === 'pin') pinRestDesigns.add(design);
       if (kind === 'block') console.log(`[${design}] rest on a logic block`);
       await page.mouse.move(pt.x, pt.y);
-      await page.waitForTimeout(200);
+      await settle();
       // The pointer really is on the wire: its hover lit (else the rest below
       // would pass on a wire that never entered).
       if (kind === 'wire' && !(await page.evaluate(() => document.querySelectorAll('[data-content] .scl-w.hov').length)))
@@ -1660,6 +1681,7 @@ async function smokeDesignIn(design, ctx) {
       if (kind === 'box' && !(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-box-inst]')?.classList.contains('ohov'), [pt.x, pt.y])))
         note(design, where, 'resting on a box did not outline it (no .ohov)');
       await watch();
+      // Reason: an observation window spanning the card's 600 ms rest delay, not a settle.
       await page.waitForTimeout(1000);
       const m = await unwatch();
       if (m.child || m.attrs) note(design, where, `resting on a ${kind} for 1 s mutated the schematic (${m.child} childList, ${m.attrs} attribute records)`);
@@ -1672,10 +1694,10 @@ async function smokeDesignIn(design, ctx) {
       if (!pt) { note(design, where, `no visible ${kind} to select (${sel})`); continue; }
       await watch();
       await page.mouse.click(pt.x, pt.y);
-      await page.waitForTimeout(150);
+      await settle();
       const lit = await page.evaluate(() => document.querySelectorAll('[data-content] .hl, [data-content] .sel').length);
       await page.mouse.click(pt.x, pt.y);
-      await page.waitForTimeout(150);
+      await settle();
       const m = await unwatch();
       if (m.child) note(design, where, `selecting a ${kind} rebuilt the schematic (${m.child} childList records)`);
       else if (!lit) note(design, where, `selecting a ${kind} lit nothing`);
@@ -1699,6 +1721,7 @@ async function smokeDesignIn(design, ctx) {
   // `zoom-in` over a block a double-click opens.
   {
     const where = 'hover feedback';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     // Off every target: the bottom-right corner, or the nearest empty spot to it
     // (a wire may run through the corner).
     const away = async () => {
@@ -1711,7 +1734,7 @@ async function smokeDesignIn(design, ctx) {
           }
         return { x: r.right - 8, y: r.bottom - 8 };
       });
-      await page.mouse.move(vp.x, vp.y); await page.waitForTimeout(80);
+      await page.mouse.move(vp.x, vp.y); await settle();
     };
     const dashes = /[\u2013\u2014]/;
     const checkTip = (t, what) => {
@@ -1779,7 +1802,7 @@ async function smokeDesignIn(design, ctx) {
       }
       await watchChild();
       await page.mouse.move(pt.x, pt.y);
-      await page.waitForTimeout(200);
+      await settle();
       const h = await lit(pt);
       const hb1 = await hintRead();
       if (hb0 && hb1) {
@@ -1798,7 +1821,7 @@ async function smokeDesignIn(design, ctx) {
       }
       const child = await unwatchChild();
       if (child) note(design, where, `hovering a box changed the content's children (${child} childList records)`);
-      await page.waitForTimeout(800);
+      await tipAppears();
       const t = await tipRead();
       if (h && checkTip(t, `box ${h.id}`)) {
         if (t.kind !== 'box') note(design, where, `the card on box ${h.id} is a ${t.kind} card`);
@@ -1819,32 +1842,32 @@ async function smokeDesignIn(design, ctx) {
       if (await page.evaluate(() => document.querySelectorAll('[data-content] .ohov').length)) note(design, where, 'the outline stayed after the pointer left the box');
       // A press that drags hides the card at once, and nothing shows or lights during the drag.
       await page.mouse.move(pt.x, pt.y);
-      await page.waitForTimeout(900);
-      if (!await tipShown()) note(design, where, 'no card before the drag check');
+      if (!await tipAppears()) note(design, where, 'no card before the drag check');
       await page.mouse.down();
       await page.mouse.move(pt.x + 10, pt.y + 8);
-      await page.waitForTimeout(30);
+      await frames(page); // a held press cannot settle
       if (await tipShown()) note(design, where, 'a drag did not hide the card');
+      // (Reason for the 40 ms: pointer pacing.)
       for (let i = 1; i <= 4; i++) { await page.mouse.move(pt.x + 10 + 3 * i, pt.y + 8 + 2 * i); await page.waitForTimeout(40); }
+      // Reason: a negative check, the card must not show within its 600 ms rest delay.
       await page.waitForTimeout(800);
       if (await tipShown()) note(design, where, 'a card showed during a drag');
       if (await page.evaluate(() => document.querySelectorAll('[data-content] .ohov').length)) note(design, where, 'something is outlined during a drag');
       await page.mouse.up();
-      await page.waitForTimeout(60);
+      await settle();
       // The wheel hides it too.
       const pt2 = await pointOn(boxSel);
       if (pt2) {
         await page.mouse.move(pt2.x, pt2.y);
-        await page.waitForTimeout(900);
-        if (await tipShown()) {
+        if (await tipAppears()) {
           await page.mouse.wheel(0, 40);
-          await page.waitForTimeout(60);
+          await settle();
           if (await tipShown()) note(design, where, 'the wheel did not hide the card');
         } else note(design, where, 'no card before the wheel check');
       }
       await away();
-      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
-      await page.waitForTimeout(60);
+      await page.locator('button[title="Reset to 100%"]').first().click().catch((e) => note(design, where, `reset: ${e.message}`));
+      await settle();
     }
 
     // A wire: the card names both ends.
@@ -1853,7 +1876,7 @@ async function smokeDesignIn(design, ctx) {
       if (pw) {
         const ends = await page.evaluate(([x, y]) => { const p = document.elementFromPoint(x, y).closest('path[data-wire]'); return [p.getAttribute('data-wire'), p.getAttribute('data-wire-to')]; }, [pw.x, pw.y]);
         await page.mouse.move(pw.x, pw.y);
-        await page.waitForTimeout(900);
+        await tipAppears();
         const t = await tipRead();
         if (checkTip(t, `wire ${ends[0]}`)) {
           if (t.kind !== 'wire') note(design, where, `the card on wire ${ends[0]} is a ${t.kind} card`);
@@ -1871,7 +1894,7 @@ async function smokeDesignIn(design, ctx) {
       const pp = await pointOn('[data-pin]');
       if (pp) {
         await page.mouse.move(pp.x, pp.y);
-        await page.waitForTimeout(900);
+        await tipAppears();
         const t = await tipRead();
         if (checkTip(t, 'a pin')) {
           if (t.kind !== 'pin') note(design, where, `the card on a pin is a ${t.kind} card`);
@@ -1885,7 +1908,7 @@ async function smokeDesignIn(design, ctx) {
       const pb = await pointOn(sel);
       if (!pb) continue;
       await page.mouse.move(pb.x, pb.y);
-      await page.waitForTimeout(900);
+      await tipAppears();
       const t = await tipRead();
       if (checkTip(t, sel)) {
         if (!t.type) note(design, where, `the card on ${sel} does not say what it is: ${t.text}`);
@@ -1936,16 +1959,13 @@ async function smokeDesignIn(design, ctx) {
   // horizontally and Ctrl + wheel vertically (trackpads through the classify
   // hook); the arrow, +, -, f and 0 keys act only with the focus on the body
   // or the schematic.
-  await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+  await settled(page).catch((e) => note(design, 'gestures', e.message));
   {
     const where = 'gestures';
     // What a click selects: an instance's title, or a logic symbol (a view
     // with no instances, like GCD's).
     const titleSel = '[data-box-inst] > div:first-child, [data-logic-node]';
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForTimeout(150);
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
     const isSelected = () => page.evaluate(() => document.querySelector('[data-content]').classList.contains('hl-sel'));
     const vpRect = () => page.locator('[data-content]').first().evaluate((el) => {
@@ -1966,7 +1986,7 @@ async function smokeDesignIn(design, ctx) {
       await page.mouse.down();
       await page.mouse.move(pt.x + jx, pt.y + jy);
       await page.mouse.up();
-      await page.waitForTimeout(120);
+      await settle();
     };
     const clearSel = async () => {
       if (!await isSelected()) return;
@@ -1990,13 +2010,13 @@ async function smokeDesignIn(design, ctx) {
       if (!pt) { note(design, where, `no visible ${kind} to drag from (${sel})`); continue; }
       const v0 = await readView(); const c0 = await crumbs();
       await page.mouse.move(pt.x, pt.y);
-      await page.waitForTimeout(60);
+      await frames(page);
       await page.mouse.down();
       let cursor = null;
       for (let i = 1; i <= 5; i++) {
         const x = pt.x + 8 * i, y = pt.y + 6 * i;
         await page.mouse.move(x, y);
-        await page.waitForTimeout(20);
+        await page.waitForTimeout(20); // reason: pointer pacing
         if (i === 2) await watchDrag(); // the pan has started: nothing toggles from here on
         // The cursor over the schematic: a drag that leaves it (onto the hint
         // bar below a small design) is not covered by the pan overlay.
@@ -2008,7 +2028,7 @@ async function smokeDesignIn(design, ctx) {
       }
       const m = await unwatchDrag();
       await page.mouse.up();
-      await page.waitForTimeout(100);
+      await settle();
       const v1 = await readView();
       if (!v0 || !v1 || Math.abs(v1.x - v0.x - 40) > 1.5 || Math.abs(v1.y - v0.y - 30) > 1.5 || v1.z !== v0.z)
         note(design, where, `a drag of (40, 30) from a ${kind} did not pan the view by it: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
@@ -2023,7 +2043,7 @@ async function smokeDesignIn(design, ctx) {
       // The hover follows the pointer again after the drag: ending off a wire leaves none lit.
       const end = { x: pt.x + 41, y: pt.y + 31 };
       await page.mouse.move(end.x, end.y);
-      await page.waitForTimeout(80);
+      await frames(page);
       const onWire = await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('path[data-wire]'), [end.x, end.y]);
       if (!onWire && await hovCount()) note(design, where, `a drag from a ${kind} ending off a wire left a wire hovered`);
       // A drag from a wire ends on it (the content follows the pointer): its hover comes back.
@@ -2043,7 +2063,7 @@ async function smokeDesignIn(design, ctx) {
         await page.mouse.down();
         await page.mouse.move(b.x + 30, b.y + 20, { steps: 4 });
         await page.mouse.up();
-        await page.waitForTimeout(100);
+        await settle();
       } else note(design, where, 'no background point to drag from before the keyboard click');
       const clicked = await page.evaluate((sel) => {
         const el = document.querySelector(sel);
@@ -2051,7 +2071,7 @@ async function smokeDesignIn(design, ctx) {
         el.click();
         return true;
       }, titleSel);
-      await page.waitForTimeout(120);
+      await settle();
       if (!clicked) note(design, where, `no title to click after the drags (${titleSel})`);
       else if (!await isSelected()) note(design, where, 'a click with no press after a drag selected nothing (the drag swallowed it)');
       await clearSel();
@@ -2135,7 +2155,7 @@ async function smokeDesignIn(design, ctx) {
       const cur = await page.evaluate((s) => getComputedStyle(document.querySelector(s)).cursor, dotSel);
       if (cur !== 'pointer') note(design, where, `the expandable pin dot ${key} has cursor ${cur}, expected pointer`);
       await page.mouse.move(pt.x, pt.y);
-      await page.waitForTimeout(150);
+      await frames(page);
       const hint = await page.locator('[data-hint-text]').first().textContent().catch(() => '');
       if (!/expand/.test(hint || '')) note(design, where, `resting on the pin dot of ${key}, the hint bar says ${JSON.stringify(hint)}, not expand`);
       const m0 = await mark();
@@ -2202,14 +2222,14 @@ async function smokeDesignIn(design, ctx) {
         const c0 = await crumbs();
         await page.mouse.move(b.x, b.y);
         await page.mouse.down();
+        // (Reason for the 20 ms: pointer pacing.)
         for (let i = 1; i <= 4; i++) { await page.mouse.move(b.x + 5 * i, b.y + 3 * i); await page.waitForTimeout(20); }
         await page.evaluate((p) => document.querySelector(`[data-hier-path="${p}"]`).click(), child.path);
         await settle();
-        await page.waitForTimeout(300);
         const vNav = await readView(); const c1 = await crumbs();
         for (let i = 1; i <= 5; i++) { await page.mouse.move(b.x + 20 + 6 * i, b.y + 12 + 4 * i); await page.waitForTimeout(20); }
         await page.mouse.up();
-        await page.waitForTimeout(100);
+        await settle();
         const vEnd = await readView();
         if (c1 === c0) note(design, where, `the mid-drag navigation to ${child.path} did not navigate`);
         if (JSON.stringify(vNav) !== JSON.stringify(vEnd)) note(design, where, `a drag kept panning after navigating to ${child.path}: ${JSON.stringify(vNav)} -> ${JSON.stringify(vEnd)}`);
@@ -2229,9 +2249,9 @@ async function smokeDesignIn(design, ctx) {
         await page.mouse.move(pt.x, pt.y);
         await page.mouse.down({ button: 'middle' });
         await page.mouse.move(pt.x + 3, pt.y + 2);
-        await page.waitForTimeout(60);
+        await frames(page); // a held press cannot settle
         await page.mouse.up({ button: 'middle' });
-        await page.waitForTimeout(80);
+        await settle();
         const v1 = await readView();
         if (!v0 || !v1 || Math.abs(v1.x - v0.x - 3) > 0.5 || Math.abs(v1.y - v0.y - 2) > 0.5)
           note(design, where, `a 3 px middle-button drag did not pan at once: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
@@ -2246,20 +2266,20 @@ async function smokeDesignIn(design, ctx) {
       await page.mouse.move(b.x, b.y);
       const v0 = await readView();
       await page.mouse.wheel(0, 100);
-      await page.waitForTimeout(100);
+      await frames(page);
       const v1 = await readView();
       if (!v0 || !v1 || !(v1.z < v0.z)) note(design, where, `a plain wheel down did not zoom out: ${JSON.stringify(v0)} -> ${JSON.stringify(v1)}`);
       await page.keyboard.down('Shift');
       await page.mouse.wheel(0, 100);
       await page.keyboard.up('Shift');
-      await page.waitForTimeout(100);
+      await frames(page);
       const v2 = await readView();
       if (!v1 || !v2 || v2.z !== v1.z || Math.abs(v2.y - v1.y) > 0.5 || !(v2.x < v1.x - 50))
         note(design, where, `Shift + wheel did not scroll horizontally: ${JSON.stringify(v1)} -> ${JSON.stringify(v2)}`);
       await page.keyboard.down('Control');
       await page.mouse.wheel(0, 100);
       await page.keyboard.up('Control');
-      await page.waitForTimeout(100);
+      await frames(page);
       const v3 = await readView();
       if (!v2 || !v3 || v3.z !== v2.z || Math.abs(v3.x - v2.x) > 0.5 || !(v3.y < v2.y - 50))
         note(design, where, `Ctrl + wheel did not scroll vertically: ${JSON.stringify(v2)} -> ${JSON.stringify(v3)}`);
@@ -2299,7 +2319,8 @@ async function smokeDesignIn(design, ctx) {
     {
       await page.evaluate(() => document.activeElement && document.activeElement.blur && document.activeElement.blur());
       const { w, h } = await vpRect();
-      const press = async (k) => { await page.keyboard.press(k); await page.waitForTimeout(60); return readView(); };
+      // A key moves the view at once: read it once that frame painted.
+      const press = async (k) => { await page.keyboard.press(k); await frames(page); return readView(); };
       const v0 = await readView();
       const v1 = await press('ArrowRight');
       if (!v0 || !v1 || Math.abs((v0.x - v1.x) - 0.1 * w) > 1.5 || Math.abs(v1.y - v0.y) > 0.5)
@@ -2317,7 +2338,7 @@ async function smokeDesignIn(design, ctx) {
       if (!v4 || !v5 || !(v5.z < v4.z)) note(design, where, `- did not zoom out: ${JSON.stringify(v4)} -> ${JSON.stringify(v5)}`);
       const vf = await press('f');
       await page.locator('button[title="Fit to view"]').first().click().catch((e) => note(design, where, e.message));
-      await page.waitForTimeout(60);
+      await settle();
       const vfit = await readView();
       if (JSON.stringify(vf) !== JSON.stringify(vfit)) note(design, where, `f did not fit: ${JSON.stringify(vf)}, Fit gives ${JSON.stringify(vfit)}`);
       await press('ArrowRight');
@@ -2332,15 +2353,15 @@ async function smokeDesignIn(design, ctx) {
         await page.keyboard.press('ArrowRight');
         await page.keyboard.press('ArrowDown');
         await page.keyboard.press('-');
-        await page.waitForTimeout(60);
+        await frames(page);
         const b = await readView();
         if (JSON.stringify(a) !== JSON.stringify(b)) note(design, where, `keys moved the view with the focus on ${sel}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
         if (sel === '[data-filter-input]') await page.keyboard.press('Escape'); // clears and blurs the filter
       }
       // Nor after a click outside the schematic that leaves the focus on the
       // body: a hierarchy row (the current module's), the inspector, the
-      // bottom panel.
-      for (const sel of [`[data-hier-path="${paths.length ? paths[0].path : ''}"]`, '[data-pane="inspector"]', '.scl-bottom-body']) {
+      // bottom panel. (The row on its label: x = 4 is its expand toggle.)
+      for (const sel of [`[data-hier-path="${paths.length ? paths[0].path : ''}"] .scl-hier-label`, '[data-pane="inspector"]', '.scl-bottom-body']) {
         const el = page.locator(sel).first();
         if (!await el.count() || !await el.isVisible()) continue;
         await el.click({ position: { x: 4, y: 4 } }).catch((e) => note(design, where, `click ${sel}: ${e.message}`));
@@ -2348,7 +2369,7 @@ async function smokeDesignIn(design, ctx) {
         const a = await readView();
         await page.keyboard.press('ArrowRight');
         await page.keyboard.press('-');
-        await page.waitForTimeout(60);
+        await frames(page);
         const b = await readView();
         if (JSON.stringify(a) !== JSON.stringify(b)) note(design, where, `keys moved the view after a click on ${sel}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
       }
@@ -2361,23 +2382,23 @@ async function smokeDesignIn(design, ctx) {
         if (!a || !b || !(a.x - b.x > 1)) note(design, where, `after a click in the schematic, ArrowRight did not pan (focus on ${await page.evaluate(() => document.activeElement && document.activeElement.tagName)})`);
         // Not behind the "?" card.
         await page.keyboard.press('Shift+Slash');
-        await page.waitForTimeout(60);
+        await frames(page);
         if (!await page.locator('[data-help-overlay]').count()) note(design, where, '? did not open the help card');
         else {
           const c = await readView();
           await page.keyboard.press('ArrowRight');
           await page.keyboard.press('ArrowDown');
           await page.keyboard.press('-');
-          await page.waitForTimeout(60);
+          await frames(page);
           const d = await readView();
           if (JSON.stringify(c) !== JSON.stringify(d)) note(design, where, `keys moved the view behind the ? card: ${JSON.stringify(c)} -> ${JSON.stringify(d)}`);
           await page.keyboard.press('/');
-          await page.waitForTimeout(60);
+          await frames(page);
           if (await page.evaluate(() => !!(document.activeElement && document.activeElement.matches('[data-filter-input]'))))
             note(design, where, '/ focused the filter behind the ? card');
           if (!await page.locator('[data-help-overlay]').count()) note(design, where, '/ closed the ? card');
           await page.keyboard.press('Escape');
-          await page.waitForTimeout(60);
+          await frames(page);
           const e = await press('ArrowRight');
           if (!d || !e || !(d.x - e.x > 1)) note(design, where, `ArrowRight did not pan once the ? card closed: ${JSON.stringify(d)} -> ${JSON.stringify(e)}`);
         }
@@ -2386,8 +2407,8 @@ async function smokeDesignIn(design, ctx) {
 
     // Leave a user-set view (1:1) and no selection for the checks below.
     await clearSel();
-    await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
-    await page.waitForTimeout(60);
+    await page.locator('button[title="Reset to 100%"]').first().click().catch((e) => note(design, where, `reset: ${e.message}`));
+    await settle();
     drain(where);
   }
 
@@ -2404,31 +2425,8 @@ async function smokeDesignIn(design, ctx) {
   {
     const where = 'history';
     const fmt = JSON.stringify;
-    // (No flight running and the view still for 150 ms: on a loaded runner one
-    // frame can outlast a shorter poll, which then read a flight as settled.
-    // Then the view the history holds as its current entry: on a slow runner
-    // the module's own view (its fit or restored view) can land after a quiet
-    // spell, and the entry is that view, not the one shown before it.)
-    const near0 = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
-      let v = await readView();
-      for (let i = 0; i < 25; i++) {
-        await page.waitForTimeout(150);
-        const n = await readView();
-        if (fmt(n) === fmt(v)) break;
-        v = n;
-      }
-      for (let i = 0; i < 20; i++) {
-        const h = await page.evaluate(() => (window.__socleHistory ? window.__socleHistory() : null));
-        const cur = h && h.entries[h.index];
-        if (!cur || near0(v, cur)) break;
-        await page.waitForTimeout(150);
-        v = await readView();
-      }
-      return v;
-    };
+    // (The view settled: its layout, fit, flight and history entry are in place.)
+    const settle = async () => { await settled(page).catch((e) => note(design, where, e.message)); return readView(); };
     const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
     const near = (a, b) => !!a && !!b && Math.abs(a.x - b.x) < 1.5 && Math.abs(a.y - b.y) < 1.5 && Math.abs(a.z - b.z) < 0.002;
     const focusSchematic = () => page.evaluate(() => document.querySelector('[data-content]').parentElement.focus({ preventScroll: true }));
@@ -2462,20 +2460,20 @@ async function smokeDesignIn(design, ctx) {
       const inp = page.locator('[data-cmd-input]');
       if (!await inp.count()) return false;
       await inp.fill(label);
-      await page.waitForTimeout(100);
+      await frames(page);
       const r = page.locator(`[data-cmd-result="${label.replace(/["\\]/g, '\\$&')}"]`).first();
       if (!await r.count()) { await page.keyboard.press('Escape'); return false; }
       await r.click();
       return true;
     };
     const resetView = async () => {
-      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
-      await page.waitForTimeout(60);
+      await page.locator('button[title="Reset to 100%"]').first().click().catch((e) => note(design, where, `reset: ${e.message}`));
+      await settle();
     };
     const top = paths.length ? paths[0].path : null;
     const toTop = async () => {
       if (top && await crumbs() !== top) {
-        await page.locator(`[data-hier-path="${top}"]`).first().dispatchEvent('click').catch(() => {});
+        await page.locator(`[data-hier-path="${top}"]`).first().dispatchEvent('click').catch((e) => note(design, where, `to the top: ${e.message}`));
         await settle();
       }
     };
@@ -2536,10 +2534,10 @@ async function smokeDesignIn(design, ctx) {
       const vc = await vpBox();
       await page.mouse.move(vc.x, vc.y);
       await page.mouse.down();
+      // (Reason for the 16 ms: pointer pacing.)
       for (let i = 1; i <= 4; i++) { await page.mouse.move(vc.x + 15 * i, vc.y + 10 * i); await page.waitForTimeout(16); }
       await page.mouse.up();
-      await page.waitForTimeout(800); // the pan settles into an entry
-      const C1 = await readView();
+      const C1 = await settle(); // the pan settles into an entry
       await page.locator('.scl-crumbs .scl-crumb').first().click();
       const T1 = await settle();
       const cTop = await crumbs();
@@ -2560,7 +2558,7 @@ async function smokeDesignIn(design, ctx) {
       // a click on the top crumb before that is a no-op, and Back then lands.
       await key('Alt+ArrowLeft');
       await page.waitForFunction((c) => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > ') === c,
-        cChild, { timeout: 15000 }).catch(() => {});
+        cChild, { timeout: 15000 }).catch(() => note(design, where, `Back did not land on "${cChild}" within 15 s`));
       await settle();
       await page.locator('.scl-crumbs .scl-crumb').first().click();
       await settle();
@@ -2577,7 +2575,6 @@ async function smokeDesignIn(design, ctx) {
         await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: p.x, y: p.y });
         await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: p.x, y: p.y, button, buttons: button === 'back' ? 8 : 16, clickCount: 1 });
         await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: p.x, y: p.y, button, buttons: 0, clickCount: 1 });
-        await page.waitForTimeout(100);
         return settle();
       };
       const mb = await side('back');
@@ -2591,7 +2588,7 @@ async function smokeDesignIn(design, ctx) {
         const h0 = await hist(); const v0 = await readView();
         await page.locator('[data-filter-input]').first().focus();
         await page.keyboard.press('Alt+ArrowLeft');
-        await page.waitForTimeout(200);
+        await settle();
         const h1 = await hist(); const v1 = await readView();
         if (!near(v0, v1) || await crumbs() !== cTop || fmt(h0) !== fmt(h1)) note(design, where, `Alt+Left in the filter input moved: ${fmt(v0)} -> ${fmt(v1)}`);
         await page.keyboard.press('Escape');
@@ -2653,7 +2650,7 @@ async function smokeDesignIn(design, ctx) {
         if (!leaf || segs.length < 2 || tried >= 6) continue;
         const pp = segs.slice(0, -1).join('/'), id = segs[segs.length - 1];
         tried++;
-        await page.locator(`[data-hier-path="${esc(pp)}"]`).first().dispatchEvent('click').catch(() => {});
+        await page.locator(`[data-hier-path="${esc(pp)}"]`).first().dispatchEvent('click').catch((e) => note(design, where2, `open ${pp}: ${e.message}`));
         await settle();
         const title = page.locator(`[data-box-inst="${esc(id)}"][data-box-drillable="1"]:not([data-fold-group]) > div:first-child`).first();
         if (!await title.count()) continue;
@@ -2665,7 +2662,7 @@ async function smokeDesignIn(design, ctx) {
         await settle();
         const c = await crumbs();
         if (!c.endsWith(` > ${id}`)) { note(design, where2, `a double-click on the leaf ${lp} did not open it ("${c}")`); break; }
-        await page.waitForTimeout(100); // the pane scrolls on the next frame
+        await frames(page); // the pane scrolls on the next frame
         const t = await page.evaluate(([lp, pane]) => {
           const row = document.querySelector(`[data-hier-path="${CSS.escape(lp)}"]`);
           const cur = Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path'));
@@ -2687,12 +2684,12 @@ async function smokeDesignIn(design, ctx) {
         for (const [dx, dy] of [[40, 25], [-30, 20]]) {
           const vc = await vpBox();
           await page.mouse.move(vc.x, vc.y); await page.mouse.down();
+          // (Reason for the 16 ms: pointer pacing.)
           for (let i = 1; i <= 4; i++) { await page.mouse.move(vc.x + dx * i / 4, vc.y + dy * i / 4); await page.waitForTimeout(16); }
           await page.mouse.up();
-          await page.waitForTimeout(800);
+          await settle();
         }
         await key('-');
-        await page.waitForTimeout(800);
         await page.locator('[data-nav-back]').first().click();
         const vb = await settle();
         if (!near(vb, pre) || await crumbs() !== preC) note(design, where2, `Back from ${lp} did not return to the view before the drill: ${fmt(vb)} at "${await crumbs()}", expected ${fmt(pre)} at "${preC}"`);
@@ -2737,12 +2734,8 @@ async function smokeDesignIn(design, ctx) {
       if (!ok) { await unwatchXform(); note(design, where, `${what}: no "${label}" in the palette`); return; }
       // A flight seen running counts as animated: a starved runner can paint
       // all of its 250 ms in one or two frames.
-      let flew = false;
-      for (let i = 0; i < 50 && !flew; i++) {
-        flew = await page.evaluate(() => !!(window.__socleFlying && window.__socleFlying()));
-        if (!flew) await page.waitForTimeout(20);
-      }
-      await page.waitForTimeout(400);
+      const flew = await page.waitForFunction(() => !!(window.__socleFlying && window.__socleFlying()), null, { polling: 'raf', timeout: 1000 })
+        .then(() => true, () => false);
       await settle();
       const n = await unwatchXform();
       const d = await offCentre(boxSel(id));
@@ -2784,9 +2777,9 @@ async function smokeDesignIn(design, ctx) {
             await page.mouse.down();
             for (let i = 1; i <= 3; i++) await page.mouse.move(vc.x + 10 * i, vc.y);
             await page.mouse.up();
-            await page.waitForTimeout(400);
+            await settle();
             const a = await readView();
-            await page.waitForTimeout(150);
+            await frames(page, 6);
             const b = await readView();
             if (!flying) console.log(`[${design}] history: the flight was over before the drag (no cancel check)`);
             else {
@@ -2830,7 +2823,7 @@ async function smokeDesignIn(design, ctx) {
         // drag is swallowed as the drag's own.
         const pt = await pointOn(`${boxSel(far.id)} > div:first-child`);
         if (pt) await page.mouse.click(pt.x, pt.y);
-        await page.waitForTimeout(80);
+        await settle();
         if (!pt || !await isSel()) note(design, where, `a click on ${far.id}'s title did not select it`);
         else {
           const h0 = await hist();
@@ -2854,7 +2847,7 @@ async function smokeDesignIn(design, ctx) {
       const from = wpt && await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.getAttribute('data-wire'), [wpt.x, wpt.y]);
       if (from) {
         await page.mouse.click(wpt.x, wpt.y);
-        await page.waitForTimeout(80);
+        await settle();
         if (await isSel()) {
           zoomWireDesigns.add(design);
           await key('z');
@@ -2878,7 +2871,7 @@ async function smokeDesignIn(design, ctx) {
       });
       await page.locator('[data-filter-input]').first().focus();
       await page.keyboard.press('Alt+ArrowLeft');
-      await page.waitForTimeout(200);
+      await settle();
       const seen = await page.evaluate(() => window.__altSeen);
       const v1 = await readView(); const h1 = await hist();
       await page.keyboard.press('Escape');
@@ -2906,7 +2899,6 @@ async function smokeDesignIn(design, ctx) {
           if (await btn.getAttribute('title') !== 'Show in parent') note(design, where, 'the locate button is not titled "Show in parent"');
           opened.length = 0;
           await btn.click();
-          await page.waitForTimeout(400);
           await settle();
           const c = await crumbs();
           if (c !== parentPath.split('/').join(' > ')) note(design, where, `Show in parent on ${deep} showed "${c}", expected the parent ${parentPath}`);
@@ -2930,7 +2922,6 @@ async function smokeDesignIn(design, ctx) {
       if (inst) {
         opened.length = 0;
         if (await pick(`${topMod}.${inst.id}`)) {
-          await page.waitForTimeout(400);
           await settle();
           if (opened.length) note(design, where, `a palette pick asked the editor to open a source: ${fmt(opened)}`);
           else pickNoOpenDesigns.add(design);
@@ -2952,7 +2943,7 @@ async function smokeDesignIn(design, ctx) {
       const inp = page.locator('[data-cmd-input]');
       if (await inp.count()) {
         await inp.fill(label);
-        await page.waitForTimeout(100);
+        await frames(page);
         const r = await page.evaluate((label) => {
           const res = Array.from(document.querySelectorAll('[data-cmd-result]')).find((e) => e.getAttribute('data-cmd-result') === label);
           if (!res) return null;
@@ -2968,8 +2959,7 @@ async function smokeDesignIn(design, ctx) {
         if (!r) { note(design, where, `no "${label}" in the palette`); await page.keyboard.press('Escape'); }
         else {
           const a = await readView();
-          await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-          await page.waitForTimeout(800);
+          await settle(); // a fly still waiting would fly before this settles
           const b = await readView();
           stalePendingDesigns.add(design);
           if (!near(a, b)) note(design, where, `a fly waiting for its module's view still flew after a drag: ${fmt(a)} -> ${fmt(b)}`);
@@ -2994,17 +2984,7 @@ async function smokeDesignIn(design, ctx) {
   {
     const where = 'follow net';
     const fmt = JSON.stringify;
-    const settle = async () => {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-      await page.waitForFunction(() => !(window.__socleFlying && window.__socleFlying()), null, { timeout: 10000 }).catch(() => {});
-      let v = await readView();
-      for (let i = 0; i < 25; i++) {
-        await page.waitForTimeout(150);
-        const n = await readView();
-        if (fmt(n) === fmt(v)) break;
-        v = n;
-      }
-    };
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
     const top = paths.length ? paths[0].path : null;
     const go = async (p) => { await page.locator(`[data-hier-path="${p}"]`).first().dispatchEvent('click'); await settle(); };
@@ -3033,7 +3013,7 @@ async function smokeDesignIn(design, ctx) {
       const pt = await pointOn(`path[data-wire="${f}"][data-wire-to="${t}"]`);
       if (!pt) return false;
       await page.mouse.click(pt.x, pt.y);
-      await page.waitForTimeout(120);
+      await settle();
       return true;
     };
     // A point on the viewport's background (no element of the content under it).
@@ -3062,8 +3042,8 @@ async function smokeDesignIn(design, ctx) {
     const other = ['pipe.io.enq', 'cluster0.io.out'];
     if (top && await pointOn(`path[data-wire="${W[0]}"][data-wire-to="${W[1]}"]`)) {
       followDesigns.add(design);
-      await page.locator('button[title="Reset to 100%"]').first().click().catch(() => {});
-      await page.locator('button[title="Fit to view"]').first().click().catch(() => {});
+      await page.locator('button[title="Reset to 100%"]').first().click().catch((e) => note(design, where, `reset: ${e.message}`));
+      await page.locator('button[title="Fit to view"]').first().click().catch((e) => note(design, where, `fit: ${e.message}`));
       await settle();
       await watchChild();
       await clickWire(...W);
@@ -3085,8 +3065,9 @@ async function smokeDesignIn(design, ctx) {
       const bpt = await pointOn('[data-box-inst]');
       if (bpt) {
         await page.mouse.move(bpt.x, bpt.y);
-        await page.waitForTimeout(200);
+        await settle();
         await watchChild();
+        // Reason: an observation window spanning the card's 600 ms rest delay, not a settle.
         await page.waitForTimeout(1000);
         const m = await unwatchChild();
         if (m.child || m.attrs) note(design, where, `resting on a box with a followed net mutated the schematic (${m.child} childList, ${m.attrs} attribute records)`);
@@ -3097,9 +3078,10 @@ async function smokeDesignIn(design, ctx) {
       else {
         await page.mouse.move(bg.x, bg.y);
         await page.mouse.down();
+        // (Reason for the 16 ms: pointer pacing.)
         for (let i = 1; i <= 6; i++) { await page.mouse.move(bg.x + 6 * i, bg.y + 4 * i); await page.waitForTimeout(16); }
         await page.mouse.up();
-        await page.waitForTimeout(120);
+        await settle();
         if (!await wireLit(...W)) note(design, where, 'a drag from the background cleared the followed net');
       }
 
@@ -3159,7 +3141,7 @@ async function smokeDesignIn(design, ctx) {
       await focusSchematic();
       await watchChild();
       await page.keyboard.press('Escape');
-      await page.waitForTimeout(80);
+      await settle();
       const mE = await unwatchChild();
       L = await lit();
       if (L.any) note(design, where, `Escape did not clear the followed net (${L.any} lit)`);
@@ -3170,17 +3152,17 @@ async function smokeDesignIn(design, ctx) {
       if (await clickWire(...W)) {
         await focusSchematic();
         await page.keyboard.press('Shift+Slash');
-        await page.waitForTimeout(60);
+        await frames(page);
         if (!await page.locator('[data-help-overlay]').count()) note(design, where, '? did not open the card over a followed net');
         else {
           await page.keyboard.press('Escape');
-          await page.waitForTimeout(80);
+          await settle();
           if (await page.locator('[data-help-overlay]').count()) note(design, where, 'Esc did not close the ? card');
           if (!await wireLit(...W)) note(design, where, 'the Esc that closed the ? card also stopped following the net');
           else escCardDesigns.add(design);
           await focusSchematic();
           await page.keyboard.press('Escape');
-          await page.waitForTimeout(80);
+          await settle();
           if ((await lit()).any) note(design, where, 'a second Esc did not stop following the net');
         }
       } else note(design, where, `no visible wire ${W.join(' <= ')} for the Esc-over-the-card check`);
@@ -3211,7 +3193,7 @@ async function smokeDesignIn(design, ctx) {
       if (bg2) {
         if (!(await lit()).any) await clickWire(...W);
         await page.mouse.click(bg2.x, bg2.y);
-        await page.waitForTimeout(120);
+        await settle();
         L = await lit();
         if (L.any) note(design, where, `a click on the background did not clear the net (${L.any} lit)`);
       }
@@ -3229,6 +3211,7 @@ async function smokeDesignIn(design, ctx) {
   // changed attribute); a rebuild of the file is thousands.
   {
     const where = 'source render-once';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const lines = await page.locator('.scl-bottom-body [data-line]').count();
     if (lines) {
       const watch = () => page.evaluate(() => {
@@ -3265,7 +3248,7 @@ async function smokeDesignIn(design, ctx) {
         if (/box/.test(what) && !(await page.locator('[data-box-inst] > div:first-child').count())) continue;
         await watch();
         await act();
-        await page.waitForTimeout(250);
+        await settle();
         const m = await unwatch();
         most = Math.max(most, m.touched);
         if (m.touched > 50) note(design, where, `${what} touched ${m.touched} nodes of the Source tab (${m.added} added, ${m.removed} removed, ${m.attrs} attributes); expected at most 50`);
@@ -3277,7 +3260,7 @@ async function smokeDesignIn(design, ctx) {
         for (const p of [hier[1], hier[0]]) {
           await watch();
           await page.locator(`[data-hier-path="${p}"]`).first().click();
-          await page.waitForTimeout(400);
+          await settle();
           const m = await unwatch();
           const n = await page.locator('.scl-bottom-body [data-line]').count();
           if (n === lines) most = Math.max(most, m.touched);
@@ -3295,6 +3278,7 @@ async function smokeDesignIn(design, ctx) {
   // styles live in a stylesheet now, which the export must carry.
   {
     const where = 'export';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const grab = async (btn) => {
       const [dl] = await Promise.all([
         page.waitForEvent('download', { timeout: 10000 }),
@@ -3309,11 +3293,11 @@ async function smokeDesignIn(design, ctx) {
         const svgPlain = (await grab('[data-export-svg]')).toString();
         const pngPlain = await grab('[data-export-png]');
         await page.locator('path[data-wire]').first().dispatchEvent('click');
-        await page.waitForTimeout(100);
+        await settle();
         const svgSel = (await grab('[data-export-svg]')).toString();
         const pngSel = await grab('[data-export-png]');
         await page.locator('path[data-wire]').first().dispatchEvent('click');
-        await page.waitForTimeout(100);
+        await settle();
         if (svgSel !== svgPlain) note(design, where, 'the SVG export with a selection differs from the one without');
         if (!pngSel.equals(pngPlain)) note(design, where, 'the PNG export with a selection differs from the one without');
         // Render the SVG on its own: a wire is drawn in ink2 at rest, its halo
@@ -3343,18 +3327,18 @@ async function smokeDesignIn(design, ctx) {
         if (!L.boxIsSymbol && L.boxBorder !== L.border) note(design, where, `exported box border ${L.boxBorder}, expected ${L.border}`);
         // Colorized wires export in their colors.
         await page.locator('[data-settings-toggle]').first().click();
-        await page.waitForTimeout(80);
+        await settle();
         const cw = page.locator('[data-toggle-colorize-wires]').first();
         if (await cw.count()) {
           await cw.click();
-          await page.waitForTimeout(80);
+          await settle();
           const C = await look((await grab('[data-export-svg]')).toString());
           if (C.stroke === C.ink2) note(design, where, 'with colorize wires on, the exported wire is still ink2');
           await cw.click();
-          await page.waitForTimeout(80);
+          await settle();
         } else note(design, where, 'no [data-toggle-colorize-wires] in the settings panel');
-        await page.locator('[data-settings-toggle]').first().click().catch(() => {});
-        await page.waitForTimeout(80);
+        await page.locator('[data-settings-toggle]').first().click();
+        await settle();
       } catch (e) { note(design, where, e.message); }
     }
     drain(where);
@@ -3371,7 +3355,10 @@ async function smokeDesignIn(design, ctx) {
   // pin labels hidden; at 1:1 the detail is back; fit again, the overview.
   if (design === 'rvpipeline' || design === 'bigarray') {
     const where = 'overview at fit (#334)';
-    const click = (t) => page.locator(`button[title="${t}"]`).first().click().catch(() => {});
+    const click = async (t) => {
+      await page.locator(`button[title="${t}"]`).first().click().catch((e) => note(design, where, `${t}: ${e.message}`));
+      await settled(page).catch((e) => note(design, where, e.message));
+    };
     const state = () => page.evaluate(() => {
       const c = document.querySelector('[data-content]');
       const z = parseFloat((c.style.transform.match(/scale\(([-\d.e]+)\)/) || [])[1] || '1');
@@ -3381,7 +3368,7 @@ async function smokeDesignIn(design, ctx) {
       const label = document.querySelector('.scl-rlab');
       return { ov: c.classList.contains('ov'), names: names.length, px, overflow, labelShown: !!label && getComputedStyle(label).opacity !== '0' };
     });
-    await click('Fit to view'); await page.waitForTimeout(400);
+    await click('Fit to view');
     const a = await state();
     if (!a.ov) note(design, where, `at fit, no overview: ${JSON.stringify(a)}`);
     else {
@@ -3415,25 +3402,26 @@ async function smokeDesignIn(design, ctx) {
       if (ov.wirePx != null && ov.wirePx < 9) note(design, where, `a bundle wire label is ${ov.wirePx.toFixed(1)}px at fit`);
       if (ov.stubOpacity != null && ov.stubOpacity !== '0') note(design, where, `an edge stub label is not faded in the overview (opacity ${ov.stubOpacity})`);
     }
-    await click('Reset to 100%'); await page.waitForTimeout(400);
+    await click('Reset to 100%');
     const b = await state();
     if (b.ov || !b.labelShown) note(design, where, `at 1:1, the detail is not back: ${JSON.stringify(b)}`);
-    await click('Fit to view'); await page.waitForTimeout(400);
+    await click('Fit to view');
     if (!(await state()).ov) note(design, where, 'lod toggles back: fit again shows no overview');
     // Leave a view the user set, as the checks below expect (an automatic fit
     // refits when a bundle grows the canvas, #207).
-    await click('Reset to 100%'); await page.waitForTimeout(300);
+    await click('Reset to 100%');
   }
   // Clock domains: AXISystem served again with `periph` on its own clock. A
   // click on a legend row (or a coloured clk pin) fades the other domain's
   // instances; a second click, or a click on the background, lights none.
   if (design === 'axisystem') {
     const where = 'clock domains';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const orig = await (await page.request.get(`${BASE}/${design}/design.json`)).text();
     const d = JSON.parse(orig);
     for (const c of d.modules.find((m) => m.name === d.top).children) if (c.name === 'periph') c.clock = 'periphClk';
     const serve = async (body, stamp) => {
-      await page.unroute('**/design.json').catch(() => {});
+      await page.unroute('**/design.json');
       await page.route('**/design.json', (rt) => rt.fulfill({ contentType: 'application/json', body,
         headers: { 'Last-Modified': `Wed, 01 Jan ${stamp} 00:00:00 GMT` } }));
     };
@@ -3441,19 +3429,19 @@ async function smokeDesignIn(design, ctx) {
     const shown = await page.waitForSelector('[data-clock-legend] [data-legend-domain="periphClk"]', { timeout: 10000 }).then(() => true).catch(() => false);
     if (!shown) note(design, where, 'no legend for two domains');
     else {
-      await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+      await settle();
       const faded = () => page.evaluate(() => Array.from(document.querySelectorAll('[data-box-inst].domoff')).map((b) => b.getAttribute('data-box-inst')).sort().join(','));
       if (!(await page.locator('[data-box-domain="periphClk"]').count())) note(design, where, 'periph has no domain stripe');
       await page.locator('[data-legend-domain="periphClk"]').click();
-      await page.waitForTimeout(150);
+      await settle();
       const lit = await faded();
       if (lit !== 'cpu,dma,mem,xbar') note(design, where, `legend click fades ${JSON.stringify(lit)}, not the clock domain`);
       await page.locator('[data-legend-domain="periphClk"]').click();
-      await page.waitForTimeout(150);
+      await settle();
       if (await faded()) note(design, where, 'a second click leaves boxes faded');
       // A real click: a synthetic one after an earlier drag is swallowed (no pointerdown).
       await page.locator('[data-clk-domain="clock"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `clk pin click: ${e.message}`));
-      await page.waitForTimeout(150);
+      await settle();
       if ((await faded()) !== 'periph') note(design, where, `clk pin click fades ${JSON.stringify(await faded())}, not periph`);
       await page.keyboard.press('Escape');
     }
@@ -3461,13 +3449,14 @@ async function smokeDesignIn(design, ctx) {
     await page.waitForFunction(() => !document.querySelector('[data-clock-legend]'), null, { timeout: 10000 })
       .catch(() => note(design, where, 'restore: the legend stays with one domain'));
     await page.unroute('**/design.json');
-    await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+    await settle();
     drain(where);
   }
   // #334: a box's anatomy. No + or − text, clk and rst pins at the bottom of
   // the West side (no header marks), and an open bundle's fields hang from a guide line.
   if (design === 'rvpipeline') {
     const where = 'box anatomy (#334)';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const a = await page.evaluate(() => {
       const b = document.querySelector('[data-box-inst="decode"]');
       if (!b) return null;
@@ -3495,14 +3484,11 @@ async function smokeDesignIn(design, ctx) {
       if (await t.count()) {
         if (!(await guides())) {
           await press();
-          await page.waitForTimeout(400);
-          await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
-          await page.waitForTimeout(300);
+          await settle();
         }
         if (!(await guides())) note(design, where, 'an open decode.io.in draws no guide line');
         await press();
-        await page.waitForTimeout(400);
-        await page.waitForSelector('[data-layout-ready="1"]', { timeout: 15000 }).catch(() => {});
+        await settle();
       } else note(design, where, 'no toggle on decode.io.in');
     }
   }
@@ -3522,6 +3508,7 @@ async function smokeDesignIn(design, ctx) {
   // ends on its stub, and a legend click dims the other domain's registers.
   if (design === 'domains') {
     const where = 'clock domains';
+    const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const st = await page.evaluate(() => ({
       legend: document.querySelectorAll('[data-clock-legend]').length,
       domains: [...document.querySelectorAll('[data-legend-domain]')].map((e) => e.getAttribute('data-legend-domain')),
@@ -3538,7 +3525,7 @@ async function smokeDesignIn(design, ctx) {
     const legendRise = page.locator('[data-legend-domain="rise"]').first();
     if (await legendRise.count()) {
       await legendRise.dispatchEvent('click');
-      await page.waitForTimeout(300);
+      await settle();
       const lit = await page.evaluate(() => {
         const off = (sel) => [...document.querySelectorAll(sel)].map((e) => e.closest('[data-box-inst]'))
           .filter(Boolean).map((b) => b.classList.contains('domoff'));
@@ -3547,7 +3534,7 @@ async function smokeDesignIn(design, ctx) {
       if (!lit.fall.length || !lit.fall.every(Boolean)) note(design, where, `lighting rise leaves a fall register undimmed: ${JSON.stringify(lit.fall)}`);
       if (lit.rise.some(Boolean)) note(design, where, `lighting rise dims a rise register: ${JSON.stringify(lit.rise)}`);
       await legendRise.dispatchEvent('click');
-      await page.waitForTimeout(300);
+      await settle();
       if (await page.locator('.domoff').count()) note(design, where, 'a second legend click leaves boxes dimmed');
     }
     console.log(`[${design}] clock domains checked (${st.bars.length} register bars, stubs ${JSON.stringify(st.stubs)})`);
@@ -3577,11 +3564,10 @@ async function smokeDesignIn(design, ctx) {
     // dispatchEvent fires the exact toggle's handler regardless of overlapping
     // full-width label divs (which intercept a normal click).
     await t.dispatchEvent('click').catch((e) => note(design, 'bundle expand', e.message));
-    await page.waitForTimeout(80);
+    await settled(page).catch((e) => note(design, 'bundle expand', e.message));
     drain('bundle expand');
   }
   if (xformBefore) {
-    await page.waitForTimeout(400); // let the re-layout settle
     const xformAfter = await contentXform();
     if (xformAfter && xformAfter !== xformBefore)
       note(design, 'bundle expand reset view (#207)', `content transform changed ${xformBefore} -> ${xformAfter}`);
@@ -3595,11 +3581,11 @@ async function smokeDesignIn(design, ctx) {
   const palette = page.locator('[data-command-palette]');
   if (await palette.count()) {
     await page.locator('[data-cmd-input]').fill('io').catch((e) => note(design, 'palette type', e.message));
-    await page.waitForTimeout(120);
+    await frames(page);
     const nResults = await page.locator('[data-cmd-result]').count();
     if (nResults === 0) note(design, 'command palette', 'no results for a generic query');
     await page.locator('[data-cmd-result]').first().click().catch((e) => note(design, 'palette select', e.message));
-    await page.waitForTimeout(150);
+    await settled(page).catch((e) => note(design, 'command palette', e.message));
     drain('command palette navigate');
     if (await page.locator('[data-command-palette]').count()) note(design, 'command palette', 'did not close after selecting');
   } else {
@@ -3609,7 +3595,7 @@ async function smokeDesignIn(design, ctx) {
   // Keyboard help overlay: `?` opens, Escape closes.
   await page.locator('body').click({ position: { x: 5, y: 5 } }).catch(() => {});
   await page.keyboard.press('Shift+Slash');
-  await page.waitForTimeout(100);
+  await frames(page);
   if (await page.locator('[data-help-overlay]').count() === 0) {
     note(design, 'keyboard help', '? did not open the help overlay');
   } else {
@@ -3627,7 +3613,7 @@ async function smokeDesignIn(design, ctx) {
     const helpTitle = await page.locator('[data-help-trigger]').first().getAttribute('title').catch(() => null);
     if (helpTitle && !/^Mouse and keyboard/.test(helpTitle)) note(design, 'keyboard help', `the ? button is titled ${JSON.stringify(helpTitle)}`);
     await page.keyboard.press('Escape');
-    await page.waitForTimeout(100);
+    await frames(page);
     if (await page.locator('[data-help-overlay]').count()) note(design, 'keyboard help', 'Escape did not close the overlay');
   }
   drain('keyboard help');
@@ -3640,16 +3626,16 @@ async function smokeDesignIn(design, ctx) {
   const wire = page.locator('[data-wire]').first();
   if (await page.locator('[data-wire]').count()) {
     await wire.dispatchEvent('mouseover').catch((e) => note(design, 'wire hover', e.message));
-    await page.waitForTimeout(80);
+    await frames(page);
     drain('wire hover');
     await wire.dispatchEvent('click').catch((e) => note(design, 'wire select', e.message));
-    await page.waitForTimeout(150);
+    await settled(page).catch((e) => note(design, 'wire select', e.message));
     drain('wire select');
     // Inspector tree: expand every aggregate node the selection populated.
     const inspToggles = await page.locator('[data-inspector-toggle]').all();
     for (const t of inspToggles) {
-      await t.click({ timeout: 1500 }).catch(() => {});
-      await page.waitForTimeout(60);
+      await t.click({ timeout: 1500 }).catch((e) => note(design, 'inspector expand', e.message));
+      await frames(page);
       drain('inspector expand');
     }
   }
@@ -3661,10 +3647,10 @@ async function smokeDesignIn(design, ctx) {
     const hierPane = () => page.locator('[data-pane="hierarchy"]').count();
     if (await hierToggle.count() && await hierPane()) {
       await hierToggle.click().catch((e) => note(design, 'panel toggle', e.message));
-      await page.waitForTimeout(120);
+      await settled(page).catch((e) => note(design, 'panel toggle', e.message));
       if (await hierPane() !== 0) note(design, 'panel toggle (#206)', 'hierarchy pane still present after hiding');
-      await hierToggle.click().catch(() => {}); // restore for later steps
-      await page.waitForTimeout(120);
+      await hierToggle.click().catch((e) => note(design, 'panel toggle', e.message)); // restore for later steps
+      await settled(page).catch((e) => note(design, 'panel toggle', e.message));
       if (await hierPane() === 0) note(design, 'panel toggle (#206)', 'hierarchy pane did not return after toggling back');
     } else {
       note(design, 'panel toggle (#206)', 'missing [data-toggle-pane=hierarchy] or [data-pane=hierarchy]');
@@ -3687,7 +3673,7 @@ async function smokeDesignIn(design, ctx) {
       const c0 = await canvas();
       if (await page.locator('[data-debug-band]').count()) note(design, 'debug band', 'the debug band is drawn with layers hidden');
       await toggle.click().catch((e) => note(design, 'layers toggle', e.message));
-      await page.waitForTimeout(250);
+      await settled(page).catch((e) => note(design, 'layers toggle', e.message));
       const after = await page.locator('[data-box-inst]').count();
       if (after <= before) note(design, 'layers toggle (#212)', `showing layers did not add boxes (${before} -> ${after})`);
       // Shown, layer content sits in a band below the design.
@@ -3714,7 +3700,9 @@ async function smokeDesignIn(design, ctx) {
       const topBefore = await page.getAttribute('[data-top]', 'data-top').catch(() => null);
       const other = opts.find((v) => v !== 'design.json') || opts[opts.length - 1];
       await picker.selectOption(other).catch((e) => note(design, 'design picker', e.message));
-      await page.waitForTimeout(500);
+      // The other top loads (its fetch), then lays out and fits.
+      await page.waitForFunction((t) => document.querySelector('[data-top]')?.getAttribute('data-top') !== t, topBefore, { timeout: 10000 })
+        .then(() => settled(page)).catch((e) => note(design, 'design picker', e.message));
       drain('design switch');
       const topAfter = await page.getAttribute('[data-top]', 'data-top').catch(() => null);
       if (topBefore && topAfter && topBefore === topAfter)
@@ -3751,7 +3739,7 @@ async function smokePerf(design) {
     const shown = await page.waitForSelector('[data-box-inst]', { timeout: 60000 }).then(() => true).catch(() => false)
       && await page.waitForSelector('[data-layout-ready="1"]', { timeout: 60000 }).then(() => true).catch(() => false);
     if (!shown) { note(design, where, 'the schematic never showed laid out'); return; }
-    await page.waitForTimeout(1000);
+    await settled(page, 60000);
     const boxes = await page.locator('[data-box-inst]').count();
     console.log(`[${design}] perf: ${boxes} boxes shown in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     if (boxes < PERF_MIN_BOXES) note(design, where, `only ${boxes} boxes shown, fewer than ${PERF_MIN_BOXES}: not a large design`);
@@ -3789,14 +3777,15 @@ async function smokePerf(design) {
       if (long.length) note(design, where, `${what} ran long tasks of ${long.join(', ')} ms (over ${PERF_LONG_MS})`);
     };
     await page.mouse.move(vp.x, vp.y);
-    await page.waitForTimeout(300);
+    await settled(page);
+    // Reason (each wait between watch and unwatch below): an observation window, what the action costs in it.
     await watch(); await page.mouse.move(box.x, box.y); await page.waitForTimeout(300);
     report('a hover', await unwatch(), PERF_HOVER_MAX);
     await watch(); await page.waitForTimeout(1000);
     report('a rest on a box', await unwatch(), 0);
     await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200); await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
     report('a selection and its clearing', await unwatch(), PERF_SELECT_MAX);
-    await page.mouse.move(vp.cx, vp.cy); await page.waitForTimeout(300);
+    await page.mouse.move(vp.cx, vp.cy); await settled(page);
     await watch(); for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(30); } await page.waitForTimeout(300);
     const wheel = await unwatch();
     report('a wheel zoom', wheel, PERF_HOVER_MAX);

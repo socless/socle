@@ -105,7 +105,7 @@ const tmp = await mkdtemp(join(tmpdir(), 'socle-serve-smoke-'));
     page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
     page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
     await page.goto(`${srv.base}/socle.html`, { waitUntil: 'networkidle' });
-    await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).catch(() => {});
+    await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).catch(() => note('watch', 'no hierarchy within 15 s'));
 
     const src = await page.getAttribute('[data-source]', 'data-source').catch(() => null);
     if (src !== 'live') note('watch/source', `expected data-source="live", got ${src === null ? 'no element' : `"${src}"`}`);
@@ -144,7 +144,7 @@ const tmp = await mkdtemp(join(tmpdir(), 'socle-serve-smoke-'));
       page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
       page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
       await page.goto(`${srv.base}/socle.html`, { waitUntil: 'networkidle' });
-      await page.waitForTimeout(300); // initial design.json 404s on a plain serve; that is expected
+      await page.waitForTimeout(300); // reason: the initial design.json 404s on a plain serve (expected), handled in a later task with no state to wait on
       await dropFile(page, firText, 'gcd.fir', 'application/octet-stream');
       const ok = await page.waitForSelector('[data-hier-path]', { timeout: 15000 }).then(() => true).catch(() => false);
       if (!ok) note('drop-fir', 'dropping a .fir did not render a hierarchy (POST /convert not wired?)');
