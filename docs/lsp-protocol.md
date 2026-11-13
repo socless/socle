@@ -54,7 +54,7 @@ These are sent only to a client that set `panel: "client"`.
 
 | Method | Params | Meaning |
 |---|---|---|
-| `socle/openPanel` | `{url, test}` | Show the live UI served at `url` (`http://127.0.0.1:<port>/`); `test` titles the panel. Sent on every view and Simulate |
+| `socle/openPanel` | `{url, test}` | Show the live UI served at `url` (`http://127.0.0.1:<port>/`, no query: the client adds the [URL parameters](#url-parameters) it needs); `test` titles the panel. Sent on every view and Simulate |
 | `socle/status` | `{status, suite, test, message}` | The run state changed (`status`: `idle`, `running`, `simulating`, `ok` or `error`, as in `/ide.json`); `suite` is the suite's FQCN, or empty. Not sent for a change of the cursor's focus |
 | `socle/testsChanged` | none | The workspace's tests changed after a save or a watched change: ask `socle/tests` again |
 
@@ -119,7 +119,7 @@ page's own origin (else 403); their body is at most 64 KiB.
 | `host=vscode` | Embedded mode: the UI drops its logo, Source tab, design picker, theme controls, drop zone, share button, hierarchy and inspector panes, and opens the message channel below. The VS Code extension and the IntelliJ plugin load the panel this way |
 | `theme=<kind>` | With `host=vscode`: the starting theme, `light`, `dark` or `hc` (high contrast) |
 | `view=surfer` | With `host=vscode`: the page is only Surfer (the Surfer tab), driven by `socle-surfer-cmd` |
-| `panel=1` | An editor's browser panel (the server adds it when it opens the browser itself): no first-time tips, and closing the hint bar is not remembered. `host=vscode` implies it |
+| `panel=1` | An editor's browser panel (the server adds it when it opens the browser itself, and a client that opens `socle/openPanel`'s URL in a browser should add it): no first-time tips, and closing the hint bar is not remembered. `host=vscode` implies it |
 
 ### Messages
 
