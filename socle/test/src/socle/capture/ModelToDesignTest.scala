@@ -1214,5 +1214,26 @@ object ModelToDesignTest extends TestSuite {
       check(!d.modules.flatMap(_.logic).exists(_.fsm.isDefined), "a CHIRRTL logic node carries an fsm diagram")
       check(!d.regions.values.flatMap(_.logic).exists(_.fsm.isDefined), "a CHIRRTL region node carries an fsm diagram")
     }
+
+    test("the view carries the parser's warnings") {
+      val odd = gcd.copy(chirrtl = gcd.chirrtl.replaceFirst("(?m)^([ ]+)connect ", "$1frobnicate x\n$1connect "))
+      val w   = ModelToDesign.design(odd).warnings.filter(_.kind == "unrecognised-statement")
+      assert(w.map(_.count) == Seq(1), w.head.message.contains("frobnicate"))
+    }
+
+    test("a capture from an untested Chisel line says so") {
+      def untested(v: String) = ModelToDesign.design(gcd.copy(chiselVersion = v)).warnings.filter(_.kind == "untested-chisel")
+      val w = untested("8.1.0")
+      assert(w.size == 1, w.head.message.contains("8.1.0"), w.head.message.contains(CapturedModel.TestedChisel))
+      assert(untested("7.3.0").size == 1)
+      // the tested line, a snapshot or release candidate of it, or no version at all: nothing to say
+      assert(untested(CapturedModel.TestedChisel).isEmpty)
+      assert(untested(CapturedModel.TestedChisel.split('.').take(2).mkString(".") + ".9+3-abc-SNAPSHOT").isEmpty)
+      assert(untested("").isEmpty)
+    }
+
+    test("the tested Chisel version is the build's") {
+      assert(CapturedModel.TestedChisel == chisel3.BuildInfo.version)
+    }
   }
 }

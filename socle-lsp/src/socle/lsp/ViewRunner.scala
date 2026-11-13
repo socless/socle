@@ -65,10 +65,14 @@ final class ViewRunner(probeJar: os.Path, sourceRoot: os.Path, java: String = Vi
           sourceIndex.refresh() // pick up files added or removed since the last view
           val d = SocleExporter.designFromCaptured(m, Some(sourceRoot), Some(sourceIndex))
           if (d.modules.isEmpty)
-            Failed("probe-failure", ("the probe captured no modules" +: m.problems).mkString("\n"))
+            Failed("probe-failure", (("the probe captured no modules" +
+              CapturedModel.untestedNote(m.chiselVersion).fold("")(n => s" ($n)")) +: m.problems).mkString("\n"))
           else Viewed(d) // m.problems are already in d.warnings (kind "probe-problem")
         case "no-design" =>
-          Failed("no-design", if (m.error.nonEmpty) m.error else "the test never elaborated a design")
+          val found = if (m.chiselVersion.isEmpty) ""
+            else s" (Chisel ${m.chiselVersion} on the test classpath" +
+              (if (CapturedModel.onTestedLine(m.chiselVersion)) ")" else s"; Socle is tested with Chisel ${CapturedModel.TestedChisel})")
+          Failed("no-design", (if (m.error.nonEmpty) m.error else "the test never elaborated a design") + found)
         case "elaboration-error" => Failed("elaboration-error", m.error)
         case other               => Failed("probe-failure", s"unknown probe status '$other'")
       }

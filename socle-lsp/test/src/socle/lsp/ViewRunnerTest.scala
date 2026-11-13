@@ -158,6 +158,7 @@ object ViewRunnerTest extends TestSuite {
       val res = runner.run(TestFork(cp("fixtures.cp")), "probefix.NoSimulateSpec", "plain arithmetic")
       assert(res.isInstanceOf[Failed])
       assert(res.asInstanceOf[Failed].status == "no-design")
+      assert(res.asInstanceOf[Failed].message.contains(s"Chisel ${chisel3.BuildInfo.version}"))
     }
     test("missing output") {
       val dir = os.temp.dir()

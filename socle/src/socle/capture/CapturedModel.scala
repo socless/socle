@@ -71,4 +71,20 @@ object CapturedModel {
 
   def toJson(m: CapturedModel): String = write(m)
   def fromJson(s: String): CapturedModel = read[CapturedModel](s)
+
+  /** The Chisel version Socle is built and tested with: build.mill's
+    * `V.chisel` (a socle test pins the two together). The probe hooks Chisel
+    * internals by name, so another major.minor line may capture oddly or not at all. */
+  val TestedChisel = "7.16.0"
+
+  /** Whether `version` is on the tested major.minor line (a snapshot or release
+    * candidate of it is); an unknown ("") version is not flagged. */
+  def onTestedLine(version: String): Boolean = {
+    def line(v: String) = v.split("[.+-]").take(2).toSeq
+    version.isEmpty || line(version) == line(TestedChisel)
+  }
+
+  /** "Chisel 8.1.0; Socle is tested with Chisel 7.16.0" when `version` is off the line. */
+  def untestedNote(version: String): Option[String] =
+    Option.when(!onTestedLine(version))(s"Chisel $version; Socle is tested with Chisel $TestedChisel")
 }

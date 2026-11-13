@@ -106,6 +106,8 @@ object AgentRunTest extends TestSuite {
       val r = viewRun("fixtures.cp", "probefix.NoSimulateSpec", None)
       assert(r.model.status == "no-design")
       assert(r.model.modules.isEmpty)
+      // the Chisel on the test classpath, so a no-design can say which one it found
+      assert(r.model.chiselVersion == chisel3.BuildInfo.version)
       assert(r.output.contains("Tests: succeeded 1, failed 0"))
     }
     test("elaboration error") {

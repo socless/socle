@@ -77,7 +77,8 @@ object Capture {
     * was written, the probe failed: the file stays missing rather than claim
     * "no-design". */
   def onShutdown(): Unit =
-    if (!designReached) writeOrLog(CapturedModel(status = "no-design", top = "", modules = Nil))
+    if (!designReached) writeOrLog(CapturedModel(status = "no-design", top = "", modules = Nil,
+      chiselVersion = try chiselVersion() catch { case _: Throwable => "" }))
 
   private def onDesign(dut: RawModule): Unit = {
     designReached = true
