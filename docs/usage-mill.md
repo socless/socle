@@ -5,24 +5,33 @@ design and serves the UI. It is one integration over the same viewer the
 [standalone app](usage-standalone.md) drives; [Using the UI](usage-ui.md) shows
 how to move around its schematic.
 
-Needs Chisel 7.16 or newer. Tested against Chisel 7.16.0 and Mill 1.1.6 (the
-latest in the 1.1.x line; anything `>= 1.1, <= 1.1.6` should work).
+Needs Chisel 7.16 or newer. Tested against Chisel 7.16.0 and Mill 1.1.6, the
+Mill the plugin is built against.
 
 ## One-time: publish to your local Maven cache
 
+The plugin and its runtime library are not on Maven Central or any other
+repository: the release page attaches only the standalone jar, the language
+server jar and the single-file UI. Publish both artifacts from a checkout of
+this repository, at a release tag (on `main` the version ends in `-SNAPSHOT`):
+
 ```bash
-mill socle.publishLocal
-mill mill-socle.publishLocal
+git clone https://github.com/socless/socle.git
+cd socle
+git checkout v<version>          # a tag from the releases page
+./mill socle.publishLocal
+./mill mill-socle.publishLocal
+./mill show mill-socle.publishVersion   # prints the version to use below
 ```
 
 ## In your project's `build.mill`
 
-Use the version you published (`mill show mill-socle.publishVersion` prints it):
+Use the version you published (`<version>` below):
 
 ```scala
 //| mill-version: 1.1.6
 //| mvnDeps:
-//|   - io.socle::mill-socle::0.12.0
+//|   - io.socle::mill-socle::<version>
 
 import mill._, scalalib._
 import socle.mill.SocleModule
@@ -90,9 +99,11 @@ myDesign.socle` prints the exact path):
 
 ```bash
 mill -w myDesign.socle                                  # terminal 1: re-emits design.json on every edit
-cs launch io.socle::socle:0.12.0 -M socle.cli.Launcher -- \
-  serve --dir out/myDesign/socle.dest                   # terminal 2: serves it, UI hot-reloads
+java -jar socle-<version>.jar serve --dir out/myDesign/socle.dest   # terminal 2: serves it, UI hot-reloads
 ```
+
+`socle-<version>.jar` is the standalone jar of a release (see
+[usage-standalone.md](usage-standalone.md#2-convert--serve-with-the-cli)).
 
 The plugin writes `design.json` atomically, so the UI's poller never reads a
 half-written file. (See [usage-standalone.md](usage-standalone.md) for the

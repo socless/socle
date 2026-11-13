@@ -18,12 +18,15 @@ ChiselStage.emitCHIRRTLFile(new mypkg.MyTop, Array("--target-dir", "."))
 
 ## 2. Convert + serve with the CLI
 
-Build a single self-contained jar once (`socle.cli.Launcher` is its main
-class), then run it anywhere - no Mill, no Python, no design checkout:
+Download the self-contained jar, `socle-<version>.jar`, from the
+[releases page](https://github.com/socless/socle/releases) (check it against
+the release's `SHA256SUMS`), then run it anywhere with Java - no Mill, no
+Python, no design checkout:
 
 ```bash
-mill socle.assembly                       # one fat jar at out/socle/assembly.dest/out.jar
-jar=out/socle/assembly.dest/out.jar
+v=<version>                               # a release, for example the latest
+curl -fLO https://github.com/socless/socle/releases/download/v$v/socle-$v.jar
+jar=socle-$v.jar
 
 # one-off convert:
 java -jar "$jar" --fir-input MyTop.fir --output design.json
@@ -37,12 +40,20 @@ only), and converts dropped `.fir` files in-process. Add `--dir <dir>` to also
 serve a `design.json` / `designs.json` from that directory so the UI auto-loads
 it. [Using the UI](usage-ui.md) shows how to move around the schematic.
 
-Once the artifact is published to a repository you can resolve, coursier runs the
-same main without building the jar (publish first with `mill socle.publishLocal`,
-or use a published release; substitute the version you published):
+To build the same jar from source instead (`socle.cli.Launcher` is its main
+class), in a checkout of this repository:
 
 ```bash
-cs launch io.socle::socle:0.12.0 -M socle.cli.Launcher -- serve --dir .
+./mill socle.assembly                     # one fat jar at out/socle/assembly.dest/out.jar
+jar=out/socle/assembly.dest/out.jar
+```
+
+The runtime library is not published to Maven Central, so coursier can run the
+same main only after `./mill socle.publishLocal` in that checkout (use the
+version it published):
+
+```bash
+cs launch io.socle::socle:<version> -M socle.cli.Launcher -- serve --dir .
 ```
 
 ## Live dev loop (save and see)
@@ -57,7 +68,7 @@ loop is live). Pair it with a build that re-dumps the `.fir` on every edit:
 sbt "~runMain mypkg.DumpMain"          # DumpMain calls emitCHIRRTLFile (step 1 above)
 
 # terminal 2 - serve + watch that file:
-cs launch io.socle::socle:0.12.0 -M socle.cli.Launcher -- serve --watch MyTop.fir
+java -jar socle-<version>.jar serve --watch MyTop.fir
 ```
 
 Edit your Chisel, sbt re-dumps `MyTop.fir`, and the open UI reloads within ~1s. A

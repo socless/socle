@@ -9,6 +9,17 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Documentation
+
+- Install steps that match the releases: the standalone guide and the Neovim guide download
+  `socle-<version>.jar` and `socle-lsp-<version>.jar` from the releases page, and the Mill guide
+  says the plugin is published nowhere, so it is published locally from a release tag. The
+  `io.socle::...:0.12.0` coordinates, which never existed, are gone.
+- `docs/lsp-protocol.md` lists the whole client contract: the standard LSP messages the server
+  sends (`window/showDocument`, `window/showMessage`), the panel's HTTP routes, the UI's URL
+  parameters and its webview messages (`socle-state`, `socle-navigate`, `socle-theme`, the
+  Surfer tab's), and which items are optional for a client.
+
 ## [0.27.0] - 2026-11-11
 
 ### Added

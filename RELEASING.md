@@ -1,18 +1,24 @@
 # Releasing Socle
 
-This document describes how to cut a release. A release publishes:
+This document describes how to cut a release. Its version is that of two Maven artifacts:
 
 - `io.socle::socle:<version>` - runtime library (Scala 2.13 / Chisel)
 - `io.socle::mill-socle:<version>` - Mill plugin trait (Scala 3 / Mill APIs)
+
+These two are not uploaded to any repository: users publish them locally from
+a checkout of the tag (see [docs/usage-mill.md](docs/usage-mill.md) and step 6
+below). A release publishes:
+
 - a GitHub release `v<version>` with the distributable files:
   - `socle-<version>.jar` - standalone UI server + CLI (`java -jar socle-<version>.jar serve`, see [docs/usage-standalone.md](docs/usage-standalone.md))
   - `socle-lsp-<version>.jar` - the language server
   - `socle-<version>.html` - the single-file UI
   - `SHA256SUMS` - checksums of the above
 
-The VS Code extension ([socless/socle-vscode](https://github.com/socless/socle-vscode)) and the
-Neovim plugin ([socless/socle.nvim](https://github.com/socless/socle.nvim)) release on their own:
-each pins the language server of one Socle release (version and sha256 of `socle-lsp-<version>.jar`),
+The VS Code extension ([socless/socle-vscode](https://github.com/socless/socle-vscode)), the
+IntelliJ plugin ([socless/socle-intellij](https://github.com/socless/socle-intellij), in its
+`gradle.properties`) and the Neovim plugin ([socless/socle.nvim](https://github.com/socless/socle.nvim))
+release on their own: each pins the language server of one Socle release (version and sha256 of `socle-lsp-<version>.jar`),
 so after a release, bump their pins when they should ship it.
 
 ## Versioning
