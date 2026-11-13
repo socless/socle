@@ -19,6 +19,13 @@ and [tags](https://github.com/socless/socle/tags) pages.
   than the tested one (7.16), and a "no design" result names the Chisel found on the test
   classpath.
 
+### Fixed
+
+- A wire the layout could not route (drawn as a straight segment) to a field of a collapsed
+  bundle or Vec pin starts from that pin again, not from a sibling pin whose name is a prefix
+  of it (`io.a` for `io.ab.bits`, `in[1]` for `in[10].x`), which could sit on the other side
+  of the box.
+
 ### Documentation
 
 - Install steps that match the releases: the standalone guide and the Neovim guide download

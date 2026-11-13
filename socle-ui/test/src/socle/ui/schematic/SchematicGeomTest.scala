@@ -70,6 +70,17 @@ object SchematicGeomTest extends TestSuite {
       test("the pin's own x") { assert(anchorX(a, "a.o") == 40.0) }
       test("a field under a laid pin takes the pin's x") { assert(anchorX(b, "b.i.bits") == 100.0) }
       test("no pin: the box's horizontal center") { assert(anchorX(a, "a.zz") == 20.0) }
+      test("a sibling sharing a text prefix is not an owner") {
+        // `io.a` (WEST) is laid before `io.ab` (EAST); `in[1]` (WEST) before `in[10]` (EAST).
+        val c = box("c", 200, 0, 40, 40,
+          port("c.io.a", 200, 10, PinSide.West), port("c.io.ab", 240, 20, PinSide.East),
+          port("c.in[1]", 200, 30, PinSide.West), port("c.in[10]", 240, 30, PinSide.East))
+        assert(anchorX(c, "c.io.ab.bits") == 240.0)
+        assert(anchorX(c, "c.in[10].x") == 240.0)
+        assert(anchorX(c, "c.io.abc") == 220.0)
+        // A Vec element under a laid Vec pin still takes the pin's x.
+        assert(anchorX(c, "c.io.a[3]") == 200.0)
+      }
     }
 
     test("computeBoxShift") {

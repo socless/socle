@@ -153,7 +153,9 @@ private[schematic] object SchematicGeom {
     * missing (issue #188 follow-up). */
   def anchorX(box: LaidNodeR, path: String): Double =
     box.ports.find(_.path == path).map(_.x.toDouble).getOrElse {
-      box.ports.find(p => path.startsWith(p.path)).map(_.x.toDouble).getOrElse(box.x + box.w / 2.0)
+      box.ports.find(p => path.startsWith(p.path) && path.length > p.path.length &&
+        (path.charAt(p.path.length) == '.' || path.charAt(p.path.length) == '['))
+        .map(_.x.toDouble).getOrElse(box.x + box.w / 2.0)
     }
 
   def buildWires(dwires: Seq[LayoutCore.DisplayWire], layout: LaidOut, boxById: Map[String, LaidNodeR],
