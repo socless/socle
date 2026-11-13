@@ -122,6 +122,36 @@ object WarningsTest extends TestSuite {
       assert(ws.isEmpty)
     }
 
+    test("block bodies are skipped with their header: formal, simulation, class, instchoice") {
+      val c = ChirrtlParser.parse(
+        """|circuit T :
+           |  module T :
+           |    input a : UInt<8>
+           |    output b : UInt<8>
+           |    domain d of ClockDomain(a)
+           |    domain_define b = d
+           |    instchoice u of Dflt, Platform : @[T.scala 5:5]
+           |      FPGA => FpgaImpl
+           |      ASIC => AsicImpl
+           |    connect b, a
+           |  class Props :
+           |    output n : Integer
+           |
+           |    object o of Other
+           |    propassign n, Integer(1)
+           |    propassert n, "n"
+           |  formal check of T :
+           |    bound = 20
+           |  simulation sim of T :
+           |    seed = 1
+           |""".stripMargin)
+      assert(c.warnings.map(w => (w.kind, w.count)) == Seq(("unrecognised-statement", 1)))
+      assert(c.warnings.head.message.contains("'instchoice'"))
+      // the class's port is not T's, and T's connect after the instchoice body is read
+      assert(c.modules.head.ports.map(_.name) == Seq("a", "b"))
+      assert(c.modules.head.conns.map(_.lhs) == Seq("b"))
+    }
+
     test("no committed CHIRRTL fixture or capture raises a parser warning") {
       val root = socle.Fixtures.repoRoot / "socle" / "test" / "resources"
       val firs = os.walk(root / "chirrtl").filter(_.ext == "fir").map(f => f.last -> os.read(f))

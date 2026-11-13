@@ -253,8 +253,11 @@ object ChirrtlParser {
     // parser knows), or a known one in a shape no form matches or that threw.
     val unrecognised   = mutable.Buffer.empty[String] // their keywords
     val unparsed       = mutable.Buffer.empty[String] // their lines
+    // Indent of the open BlockKeywords header; -1 outside one.
+    var skipUnder      = -1
 
     for ((raw, lineIdx) <- lines.zipWithIndex) {
+      if (skipUnder >= 0 && raw.trim.nonEmpty && indentOf(raw) <= skipUnder) skipUnder = -1
       raw match {
         case Circuit(n) =>
           circuitName = n
@@ -265,6 +268,8 @@ object ChirrtlParser {
           curSrc  = parseSrc(Option(srcOpt))
         case other if curMod.isDefined && other.trim.startsWith(";") =>
           () // comment line: never a statement, never a reference
+        case _ if skipUnder >= 0 =>
+          () // the body of a skipped block (BlockKeywords)
         case WhenLine(_, cond, srcOpt) if curMod.isDefined =>
           val ind = indentOf(raw)
           while (whenStack.nonEmpty && whenStack.last._1 >= ind) whenStack.remove(whenStack.length - 1)
@@ -320,6 +325,7 @@ object ChirrtlParser {
                 else if (SkippedKeywords.contains(kw) || LegacyInvalidRe.matches(t)) ()
                 else if (ParsedKeywords.contains(kw) || t.contains("<=")) unparsed += t
                 else unrecognised += kw
+                if (BlockKeywords.contains(kw)) skipUnder = ind
                 collectRefs(other) // whens, ops, etc.
             }
             // Inside a layerblock, record the signals this line reads so IrWalk
@@ -385,11 +391,16 @@ object ChirrtlParser {
     "when", "else", "skip", "invalidate", "layerblock",
     "printf", "fprintf", "fflush", "stop", "assert", "assume", "cover", "intrinsic",
     "define", "force", "force_initial", "release", "release_initial", "propassign",
-    "layer", "option", "type", "formal", "simulation",
+    "layer", "option", "type", "formal", "simulation", "domain", "domain_define",
+    "class", "object", "propassert",
     "defname", "parameter",
     "data-type", "depth", "read-latency", "write-latency", "read-under-write",
     "reader", "writer", "readwriter",
   )
+  /** Headers whose indented body is skipped with them: its lines start with
+    * names (`bound = 20`, `choice => Mod`), never a keyword, and a property
+    * `class` declares ports that are not the enclosing module's. */
+  private val BlockKeywords: Set[String] = Set("formal", "simulation", "class", "instchoice")
   /** Keywords parseStmt has a form for: one reaching the fallback was malformed. */
   private val ParsedKeywords: Set[String] = Set(
     "input", "output", "inst", "connect", "reg", "regreset", "wire", "node",
