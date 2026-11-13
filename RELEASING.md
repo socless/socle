@@ -36,22 +36,28 @@ object V {
 
 Between releases the value carries a `-SNAPSHOT` suffix. There is no
 automated Maven snapshot publishing today: CI runs `publishLocal` for both
-artifacts on every push (so publish metadata cannot rot).
+artifacts on every pull request that touches them or the build, and on every
+manual CI run (so publish metadata cannot rot).
 
 ## Automation
 
 - CI (pull requests and pushes to `main`) does not build the distributable
   files. To try a change's jars, run the Release workflow by hand on
   its branch (Actions, Release, Run workflow, or
-  `gh workflow run release.yml --ref <branch>`): it builds them with
-  `.github/workflows/build-artifacts.yml` and uploads them as the
-  `socle-dist` workflow artifact, kept for a few days. Doing this before
-  tagging also catches a packaging break before the release run.
+  `gh workflow run release.yml --ref <branch>`): it runs the test suites
+  and builds them with `.github/workflows/build-artifacts.yml`, uploading
+  them as the `socle-dist` workflow artifact, kept for a few days (the files
+  are built even when a test fails). Doing this before tagging also catches
+  a test or packaging break before the release run.
 - Pushing a `v<version>` tag runs `.github/workflows/release.yml`: it checks
   that the tag equals `V.publishVer` and that `CHANGELOG.md` has a section for
-  the version, builds the files with the same reusable workflow, and publishes
-  the GitHub release with that section as its notes. It never overwrites an
-  existing release. A manual run (`workflow_dispatch`) only checks and builds.
+  the version, runs the `socle`, `socle-probe` and `socle-lsp` test suites
+  (in full, not selectively), builds the files with the same reusable
+  workflow, and publishes the GitHub release with that section as its notes
+  only when the tests and the build passed. It never overwrites an existing
+  release. A manual run (`workflow_dispatch`) checks, tests and builds, but
+  does not publish. The browser UI smokes are not part of the release run:
+  they run in CI on pull requests.
 
 Preview a version's release notes locally with:
 
@@ -123,8 +129,9 @@ git push origin v0.2.0
 
 The tag starts the release workflow, which builds the files and publishes the
 GitHub release `v0.2.0` ("Socle 0.2.0") with them. Follow it in the Actions
-tab; if it fails (for example a tag that does not match `V.publishVer`, or a
-missing CHANGELOG section), fix the cause, then delete and re-push the tag.
+tab; if it fails (for example a tag that does not match `V.publishVer`, a
+missing CHANGELOG section, or a failing test suite), nothing is published: fix
+the cause, then delete and re-push the tag.
 
 ### 6. Publish the Maven artifacts (if needed)
 
