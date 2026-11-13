@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.simulator.scalatest.ChiselSim
 import org.scalatest.funsuite.AnyFunSuite
 
-/** A module that reads its config the way std-vta-dev does: a system property
+/** A module that reads its config the way some real projects do: a system property
   * from the test module's `forkArgs` and a file under `$MILL_WORKSPACE_ROOT/config`
   * (relative to the working directory when that variable is unset or empty).
   * Elaboration fails, naming what is missing, without either. */

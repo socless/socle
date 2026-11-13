@@ -93,7 +93,7 @@ object TestDiscoveryTest extends TestSuite {
         ("unittest.TensorGemmTestSuite", "Dotted must work", 12)))
     }
     test("it before any subject") {
-      // scalatest names it "should x" (std-vta-dev ComputeTestLeNet5)
+      // scalatest names it "should x" (as a real project's suite does)
       val src =
         """class S extends AnyFlatSpec with ChiselSim {
           |  it should "x" in { }

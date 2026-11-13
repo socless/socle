@@ -250,8 +250,8 @@ The first release named Socle.
   opened. Bundle wires are thick and carry their type once; signal wires are
   thin. Zoomed out past readable pin text, the schematic shows an overview with
   box names at a readable size. A logic block's pins follow the boxes they
-  connect to (routes up to 9% shorter on the VTA captures). The fan-out and
-  fan-in dots are gone: they sat on the pins and read as port marks.
+  connect to (routes up to 9% shorter on large accelerator captures). The
+  fan-out and fan-in dots are gone: they sat on the pins and read as port marks.
 - Faster schematic (#335). The export bakes its layouts with the optimize
   pass the UI applies by default, so a first view is final at once instead of
   being laid out again in the browser (TensorGemm's top: about 560 to 290 ms;
@@ -374,7 +374,7 @@ The first release named Socle.
 ### Fixed
 
 - An FSM built in a helper the module calls (for example an implicit class's
-  method, as in std-vta-dev's `AxiLike` handlers) now gets its state diagram,
+  method, as in AXI-style read and write handlers) now gets its state diagram,
   found from its register's source position, instead of "could not be read".
 - Simulate warns when the waveform viewer cannot start (for example `surfer`
   not on the editor's `PATH`): the outcome is a Warning even when the test

@@ -126,7 +126,7 @@ object FsmSourceTest extends TestSuite {
 
   val tests = Tests {
     test("a state machine built in a helper (an implicit class's method) is found by its register's position") {
-      // AxiLike in std-vta-dev: the module calls io.writeHandler / io.readHandler, whose bodies
+      // AXI-style handlers in a real design: the module calls io.writeHandler / io.readHandler, whose bodies
       // (outside the module's class) declare and switch their own state registers. Chisel names
       // each register after the val holding the call: `w_state`, `r_state`.
       val helper =

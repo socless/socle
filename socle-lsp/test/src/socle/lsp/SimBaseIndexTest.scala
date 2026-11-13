@@ -15,12 +15,12 @@ object SimBaseIndexTest extends TestSuite {
     os.walk(root).filter(_.ext == "scala").sortBy(_.toString)
       .flatMap(f => TestDiscovery.find(os.read(f), bases)).map(t => (t.suite, t.name))
 
-  // Shapes of std-vta-dev modules/hardware (GenericSim.scala's AnyFlatSpecSim
-  // in src/main, suites in src/test), written from scratch.
-  private val vtaLike = Seq(
+  // Shapes of a real accelerator project's hardware module (an AnyFlatSpecSim
+  // base in src/main, suites in src/test), written from scratch.
+  private val accelLike = Seq(
     "build.mill" -> "",
-    "modules/hardware/src/main/scala/util/GenericSim.scala" ->
-      """package vta.util
+    "modules/hardware/src/main/scala/util/SimBase.scala" ->
+      """package acme.util
         |
         |import chisel3._
         |import chisel3.simulator.scalatest.HasCliOptions.CliOption
@@ -49,9 +49,9 @@ object SimBaseIndexTest extends TestSuite {
     "modules/hardware/src/test/scala/unittest/TensorGemmTest.scala" ->
       """package unittest
         |
-        |import vta.core._
-        |import vta.tags
-        |import vta.util.AnyFlatSpecSim
+        |import acme.core._
+        |import acme.tags
+        |import acme.util.AnyFlatSpecSim
         |
         |@tags.UnitTests
         |class TensorGemmTestSuite extends AnyFlatSpecSim {
@@ -73,7 +73,7 @@ object SimBaseIndexTest extends TestSuite {
     "modules/hardware/src/test/scala/simulatorTest/gemm/TensorGemmTest.scala" ->
       """package simulatorTest.gemm
         |
-        |import vta.util.AnyFlatSpecSim
+        |import acme.util.AnyFlatSpecSim
         |
         |class TensorGemmTest(c: TensorGemmPipelinedSplit, fn: String, debug: Boolean) {
         |  val x = 1
@@ -104,7 +104,7 @@ object SimBaseIndexTest extends TestSuite {
     "modules/hardware/src/test/scala/cli/ComputeTest.scala" ->
       """package cli
         |
-        |import vta.util.AnyFlatSpecSim
+        |import acme.util.AnyFlatSpecSim
         |
         |trait ComputeTest extends AnyFlatSpecSim {
         |  def computeSimulation(file: String): Unit = simulate(new Compute)(_ => ())
@@ -121,12 +121,12 @@ object SimBaseIndexTest extends TestSuite {
     "modules/hardware/src/test/scala/unittest/Generic.scala" ->
       """package unittest
         |
-        |import vta.tags.tagObjects.{LongTests, UnitTests}
+        |import acme.tags.tagObjects.{LongTests, UnitTests}
         |
         |class GenericTest[T <: Module, C <: Parameters](
         |  tag: String,
         |  isLongTest: Boolean = false
-        |) extends vta.util.AnyFlatSpecSim {
+        |) extends acme.util.AnyFlatSpecSim {
         |
         |  behavior of tag
         |  if (isLongTest) {
@@ -137,20 +137,20 @@ object SimBaseIndexTest extends TestSuite {
         |}
         |class ComputeApp extends GenericTest("ComputeApp")
         |""".stripMargin,
-    "modules/hardware/src/test/scala/shell/VMESpec.scala" ->
-      """package vta.shell
+    "modules/hardware/src/test/scala/shell/MemSpec.scala" ->
+      """package acme.shell
         |
         |import org.scalatest.matchers.should.Matchers
-        |import vta.util.AnyFlatSpecSim
+        |import acme.util.AnyFlatSpecSim
         |
-        |class VMESpec extends AnyFlatSpecSim with Matchers {
-        |  behavior of "VME"
+        |class MemSpec extends AnyFlatSpecSim with Matchers {
+        |  behavior of "Mem"
         |  it should "read one beat" taggedAs (UnitTests) in { }
         |  ignore should "not issue AR bursts that cross a 4 KB boundary (#4)" in { }
         |}
         |""".stripMargin,
     "modules/hardware/src/test/scala/util/FileManagerTest.scala" ->
-      """package vta.util
+      """package acme.util
         |class FileManagerTest extends AnyFlatSpec with Matchers {
         |  "FileManager" should "find the config" in { }
         |}
@@ -183,15 +183,15 @@ object SimBaseIndexTest extends TestSuite {
         assert(TestDiscovery.find(os.read(root / "d" / "S.scala"), bases).map(_.name) == Seq("A should x"))
       } finally os.remove.all(root)
     }
-    test("std-vta-like tree") {
-      val root = tree(vtaLike: _*)
+    test("accelerator-like tree") {
+      val root = tree(accelLike: _*)
       try {
         val bases = new SimBaseIndex(root).bases()
-        assert(Set("AnyFlatSpecSim", "vta.util.AnyFlatSpecSim", "ComputeTest").subsetOf(bases))
+        assert(Set("AnyFlatSpecSim", "acme.util.AnyFlatSpecSim", "ComputeTest").subsetOf(bases))
         val got = lenses(root, bases)
         assert(got == Seq(
           ("cli.ComputeTests", "Compute should execute a ReLU"),
-          ("vta.shell.VMESpec", "VME should read one beat"),
+          ("acme.shell.MemSpec", "Mem should read one beat"),
           ("simulatorTest.gemm.TensorGemmJsonTestSuite", "TensorGemmPipelinedSplit should compute a simple matrix multiplication"),
           ("simulatorTest.gemm.TensorGemmJsonTestSuite", "TensorGemmPipelinedSplit should compute a full operation"),
           ("simulatorTest.gemm.TensorGemmTester_test", "Test instructions should run without assertions"),
@@ -202,7 +202,7 @@ object SimBaseIndexTest extends TestSuite {
         // without the index only the simulate( fallback finds suites: not
         // those that call it through an inherited helper or not at all
         assert(lenses(root, Set.empty) ==
-          got.filterNot(t => Set("cli.ComputeTests", "vta.shell.VMESpec")(t._1)))
+          got.filterNot(t => Set("cli.ComputeTests", "acme.shell.MemSpec")(t._1)))
       } finally os.remove.all(root)
     }
     test("skips out, node_modules, target, dot-dirs and the root's test output; rescans changes") {
@@ -242,7 +242,7 @@ object SimBaseIndexTest extends TestSuite {
       } finally os.remove.all(outer)
     }
     test("safe from several threads") {
-      val root = tree(vtaLike: _*)
+      val root = tree(accelLike: _*)
       val pool = Executors.newFixedThreadPool(4)
       try {
         val idx = new SimBaseIndex(root)
