@@ -1,10 +1,11 @@
 name: Release
 
-# A pushed `v*` tag checks the version and the release notes, builds the
-# files (build-artifacts.yml) and publishes them as a GitHub release (see
-# RELEASING.md). A manual dispatch only checks and builds: run it on a branch
-# to get a change's jars, or before tagging. Pull requests and pushes
-# to main do not build the files.
+# A pushed `v*` tag checks the version and the release notes, runs the test
+# suites, builds the files (build-artifacts.yml) and publishes them as a GitHub
+# release (see RELEASING.md); a failing suite publishes nothing. A manual
+# dispatch checks, tests and builds, but does not publish: run it on a branch
+# to get a change's jars, or before tagging. Pull requests and pushes to main
+# do not build the files.
 on:
   push:
     tags: ["v*"]
@@ -55,6 +56,54 @@ jobs:
             echo "::warning::no release notes for $VER in CHANGELOG.md (a tag run would fail)"
           fi
 
+  # The full suites, not selective: a release is never tested against a base.
+  # In parallel with `build`, so a dispatch still gets its jars when a test
+  # fails. The browser smokes stay in ci.yml.
+  test:
+    name: Test
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # 21: the socle-probe Java agent targets Java 21 and 25.
+      - name: Set up JDK 21 (Temurin)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Cache Mill / Coursier / Ivy caches
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/coursier
+            ~/.mill
+            ~/.ivy2
+          key: mill-${{ runner.os }}-release-test-${{ hashFiles('build.mill') }}
+          restore-keys: |
+            mill-${{ runner.os }}-release-test-
+            mill-${{ runner.os }}-
+
+      - name: Make mill wrapper executable
+        run: chmod +x ./mill
+
+      # One suite per Mill call: `./mill a.test b.test` passes b.test as a
+      # selector to a.test.
+      - name: Run test suite
+        run: ./mill socle.test
+
+      - name: Run probe test suite
+        run: ./mill socle-probe.test
+
+      - name: Run language server tests
+        run: ./mill socle-lsp.test
+
+      - name: Stop the Mill daemon
+        if: always()
+        run: ./mill shutdown || true
+
   build:
     name: Build
     needs: check
@@ -64,7 +113,7 @@ jobs:
 
   publish:
     name: Publish the GitHub release
-    needs: [check, build]
+    needs: [check, build, test]
     if: github.event_name == 'push' && github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:

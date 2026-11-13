@@ -20,7 +20,8 @@ concurrency:
 #
 # Pull requests run selectively (tools/ci/selective.sh), except when they
 # change .github/workflows or tools/ci: then `prepare` takes no snapshot and
-# every job runs everything, as on a manual run.
+# every job runs everything, as on a manual run. `packaging` takes no snapshot:
+# on a pull request it runs only when one of its input paths changed.
 #
 # Each Mill job caches its out/ directory, keyed on the job and on the hash of
 # build.mill and of the sources it builds, so a module whose inputs did not
@@ -387,15 +388,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Full history: the gate below compares with the base commit.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # On a pull request, publish and the consumption smoke run only when one
+      # of their inputs changed: the published modules and what the socle jar
+      # embeds (the UI dist, the legal files), the build and its wrapper, the
+      # consume-test project and the fixture it uploads, CI itself. A path
+      # check, not a Mill snapshot, so a skipped run boots no Mill. A manual
+      # run always runs.
+      - name: Decide whether packaging runs
+        id: packaging
+        run: |
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          changed=$(git diff --name-only ${{ github.event.pull_request.base.sha }} HEAD -- \
+            mill-socle socle/src socle-js socle-ui build.mill mill tools/consume-test \
+            socle/test/resources/chirrtl/gcd.fir LICENSE LICENSING.md THIRD_PARTY_NOTICES.md legal \
+            .github/workflows tools/ci)
+          printf 'changed inputs:\n%s\n' "$changed"
+          if [ -n "$changed" ]; then echo "run=true" >> "$GITHUB_OUTPUT"
+          else echo "run=false" >> "$GITHUB_OUTPUT"; echo "packaging skipped: none of its inputs changed"; fi
 
       - name: Set up JDK 21 (Temurin)
+        if: steps.packaging.outputs.run == 'true'
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "21"
 
       - name: Cache Mill / Coursier / Ivy caches
+        if: steps.packaging.outputs.run == 'true'
         uses: actions/cache@v6
         with:
           path: |
@@ -408,6 +434,7 @@ jobs:
             mill-${{ runner.os }}-
 
       - name: Cache Mill out/
+        if: steps.packaging.outputs.run == 'true'
         uses: actions/cache@v6
         with:
           path: |
@@ -422,11 +449,13 @@ jobs:
             out-packaging-${{ runner.os }}-
 
       - name: Make mill wrapper executable
+        if: steps.packaging.outputs.run == 'true'
         run: chmod +x ./mill
 
       # Publishing must not rot until release day: exercise the local publish
       # path for both artifacts (catches POM/metadata breakage early).
       - name: Publish artifacts locally
+        if: steps.packaging.outputs.run == 'true'
         run: |
           ./mill socle.publishLocal
           ./mill mill-socle.publishLocal
@@ -436,6 +465,7 @@ jobs:
       # broken artifact coordinates, task wiring, and the UI server flags.
       # This is the path none of the unit tests can see (issue #103).
       - name: Plugin consumption smoke
+        if: steps.packaging.outputs.run == 'true'
         run: |
           ver=$(grep -oP 'publishVer\s*=\s*"\K[^"]+' build.mill)
           work=$(mktemp -d)
@@ -479,5 +509,5 @@ jobs:
 
       # No daemon writing into out/ while the cache step saves it.
       - name: Stop the Mill daemon
-        if: always()
+        if: always() && steps.packaging.outputs.run == 'true'
         run: ./mill shutdown || true
