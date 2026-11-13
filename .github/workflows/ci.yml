@@ -14,8 +14,8 @@ concurrency:
 
 # Four jobs run in parallel, each compiling only what its own tasks need:
 # `unit` (the socle and probe suites and the fixture checks), `lsp`
-# (the language server suite), `ui` (example elaboration and the browser
-# smokes) and `packaging` (publishLocal and the plugin consumption smoke). The
+# (the language server suite), `ui` (the UI unit tests, example elaboration
+# and the browser smokes) and `packaging` (publishLocal and the plugin consumption smoke). The
 # distributable files are built by release.yml only (a tag, or a manual run).
 #
 # Pull requests run selectively (tools/ci/selective.sh), except when they
@@ -255,6 +255,10 @@ jobs:
       # and the UI smoke test below.
       - name: Build the UI dist
         run: ./mill socle-ui.dist
+
+      # The UI's pure logic (row model, labels, schematic geometry) under Node.
+      - name: Run UI unit tests
+        run: tools/ci/selective.sh run socle-ui.test
 
       # One Mill call, so the examples elaborate in parallel; a failure names
       # its task. AXISystem, GCD, RVPipeline, DeepSoc, IoBundles, RegHeavy,

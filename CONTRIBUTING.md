@@ -47,6 +47,9 @@ The suite (utest) covers `LayoutTest`, `ElkSmokeTest`, `EndpointTest`,
 `HarnessTest`, `LayoutPolishTest`, `PipelineRobustnessTest`, `SchemaLayoutTest`,
 and `WithLayoutsTest`. All tests must pass before a PR is merged.
 
+The UI's pure logic (port rows, labels, schematic geometry) has its own utest
+suite, run under Node (no browser): `./mill socle-ui.test`.
+
 ## Running the bundled examples
 
 The `example/` module uses `moduleDeps` (not the published plugin), so no
