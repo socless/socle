@@ -64,69 +64,64 @@ object FsmSourceTest extends TestSuite {
     new ScalaSourceIndex(tree("src/main/scala/pkg/N.scala" -> text)).fsm("pkg.N", "state")
   }
 
-  private val GemmFile = "src/main/scala/core/Gemm.scala"
-  /** TensorGemmSimple's `switch(state)`, copied verbatim, with the later
-    * `state === sIdle` chains and `io.state := state` that must not count. */
-  private val gemm =
-    """package core
+  private val FramerFile = "src/main/scala/net/Framer.scala"
+  /** A packet framer whose `switch(state)` has plain, guarded and nested
+    * transitions, with the later `state === sIdle` chain and `io.state := state`
+    * that must not count. */
+  private val framer =
+    """package net
       |
       |import chisel3._
       |import chisel3.util._
       |
-      |class TensorGemmSimple(debug: Boolean = false) extends Module {
-      |  val sIdle :: sReadUop :: sComputeIdx :: sReadTensor :: sExe :: sWait :: Nil =
+      |class PacketFramer(width: Int = 8) extends Module {
+      |  val sIdle :: sHeader :: sLength :: sPayload :: sTrailer :: sFlush :: Nil =
       |    Enum(6)
       |  val state = RegInit(sIdle)
       |  io.state := state
-      |  val inflight = Reg(UInt(inflightBits.W))
-      |  val cond = cnt_o === dec.lp0 - 1.U &
-      |    cnt_i === dec.lp1 - 1.U &
-      |    uop_idx === uopEnd - 1.U
+      |  val pending = Reg(UInt(4.W))
+      |  val last = beats === io.len - 1.U &
+      |    words === io.words - 1.U &
+      |    io.in.bits.eop
       |
       |  switch(state) {
       |    is(sIdle) {
-      |      when(io.start) {
-      |        state := sReadUop
+      |      when(io.in.valid) {
+      |        state := sHeader
       |      }
       |    }
-      |    is(sReadUop) {
-      |      state := sComputeIdx
+      |    is(sHeader) { state := sLength }
+      |    is(sLength) { state := sPayload }
+      |    is(sPayload) {
+      |      state := sTrailer
       |    }
-      |    is(sComputeIdx) {
-      |      state := sReadTensor
-      |    }
-      |    is(sReadTensor) {
-      |      state := sExe
-      |    }
-      |    is(sExe) {
-      |      when(cond) {
-      |        when(inflight =/= 0.U) {
-      |          state := sWait
+      |    is(sTrailer) {
+      |      when(last) {
+      |        when(pending =/= 0.U) {
+      |          state := sFlush
       |        }.otherwise {
       |          state := sIdle
       |        }
       |      }.otherwise {
-      |        state := sReadUop
+      |        state := sHeader
       |      }
       |    }
-      |    is(sWait) {
-      |      when(inflight === 0.U) {
-      |        state := sIdle
-      |      }
+      |    is(sFlush) {
+      |      when(pending === 0.U) { state := sIdle }
       |    }
       |  }
       |
       |  when(state === sIdle) {
-      |    inflight := 0.U
-      |  }.elsewhen(!dec.reset) {
-      |    inflight := inflight + 1.U
+      |    pending := 0.U
+      |  }.elsewhen(io.out.fire) {
+      |    pending := pending - 1.U
       |  }
       |}
       |""".stripMargin
 
   val tests = Tests {
     test("a state machine built in a helper (an implicit class's method) is found by its register's position") {
-      // AXI-style handlers in a real design: the module calls io.writeHandler / io.readHandler, whose bodies
+      // AXI-style handlers: the module calls io.writeHandler / io.readHandler, whose bodies
       // (outside the module's class) declare and switch their own state registers. Chisel names
       // each register after the val holding the call: `w_state`, `r_state`.
       val helper =
@@ -203,27 +198,27 @@ object FsmSourceTest extends TestSuite {
       assert(f.diagram.states.head.source == SourceRef(file, il, ic), f.diagram.note == "")
     }
 
-    test("tensorgemm-like") {
-      val f = new ScalaSourceIndex(tree(GemmFile -> gemm)).fsm("core.TensorGemmSimple", "state").get
-      assert(states(f) == Seq("sIdle" -> true, "sReadUop" -> false, "sComputeIdx" -> false,
-        "sReadTensor" -> false, "sExe" -> false, "sWait" -> false))
+    test("packet framer") {
+      val f = new ScalaSourceIndex(tree(FramerFile -> framer)).fsm("net.PacketFramer", "state").get
+      assert(states(f) == Seq("sIdle" -> true, "sHeader" -> false, "sLength" -> false,
+        "sPayload" -> false, "sTrailer" -> false, "sFlush" -> false))
       assert(edges(f) == Seq(
-        ("sIdle", "sReadUop", "io.start"),
-        ("sReadUop", "sComputeIdx", ""),
-        ("sComputeIdx", "sReadTensor", ""),
-        ("sReadTensor", "sExe", ""),
-        ("sExe", "sWait", "cond && inflight =/= 0.U"),
-        ("sExe", "sIdle", "cond && !(inflight =/= 0.U)"),
-        ("sExe", "sReadUop", "!cond"),
-        ("sWait", "sIdle", "inflight === 0.U"),
+        ("sIdle", "sHeader", "io.in.valid"),
+        ("sHeader", "sLength", ""),
+        ("sLength", "sPayload", ""),
+        ("sPayload", "sTrailer", ""),
+        ("sTrailer", "sFlush", "last && pending =/= 0.U"),
+        ("sTrailer", "sIdle", "last && !(pending =/= 0.U)"),
+        ("sTrailer", "sHeader", "!last"),
+        ("sFlush", "sIdle", "pending === 0.U"),
       ))
-      val toReadUop = linesOf(gemm, "state := sReadUop")
-      val toIdle    = linesOf(gemm, "state := sIdle")
-      assert(edgeLines(f) == Seq(toReadUop(0), linesOf(gemm, "state := sComputeIdx").head,
-        linesOf(gemm, "state := sReadTensor").head, linesOf(gemm, "state := sExe").head,
-        linesOf(gemm, "state := sWait").head, toIdle(0), toReadUop(1), toIdle(1)))
-      assert(f.switch.line == linesOf(gemm, "switch(state)").head, f.diagram.note == "")
-      assert(f.diagram.states.forall(_.source.file == GemmFile))
+      val toHeader = linesOf(framer, "state := sHeader")
+      val toIdle   = linesOf(framer, "state := sIdle")
+      assert(edgeLines(f) == Seq(toHeader(0), linesOf(framer, "state := sLength").head,
+        linesOf(framer, "state := sPayload").head, linesOf(framer, "state := sTrailer").head,
+        linesOf(framer, "state := sFlush").head, toIdle(0), toHeader(1), toIdle(1)))
+      assert(f.switch.line == linesOf(framer, "switch(state)").head, f.diagram.note == "")
+      assert(f.diagram.states.forall(_.source.file == FramerFile))
     }
 
     test("elsewhen and otherwise chain") {
@@ -564,7 +559,7 @@ object FsmSourceTest extends TestSuite {
         "Deep.scala"   -> deep,
         "Broken.scala" -> "class Broken { switch(state) { is(a",
         "Empty.scala"  -> "class Empty\n",
-        GemmFile       -> gemm,
+        FramerFile     -> framer,
       )
       val idx = new ScalaSourceIndex(root)
       assert(
@@ -573,29 +568,29 @@ object FsmSourceTest extends TestSuite {
         idx.fsm("Empty", "state").isEmpty,
         idx.fsm("Missing", "state").isEmpty,
         idx.fsm("", "state").isEmpty,
-        idx.fsm("core.TensorGemmSimple", "").isEmpty,
+        idx.fsm("net.PacketFramer", "").isEmpty,
       )
       // The deep file does not hide the others.
-      assert(idx.fsm("core.TensorGemmSimple", "state").isDefined)
+      assert(idx.fsm("net.PacketFramer", "state").isDefined)
     }
 
     test("an unreadable file gives None, never throws") {
-      val root = tree(MFile -> module("  switch(state) { is(a) { state := b } }"), GemmFile -> gemm)
+      val root = tree(MFile -> module("  switch(state) { is(a) { state := b } }"), FramerFile -> framer)
       os.perms.set(root / os.RelPath(MFile), "-w-------")
       os.makeDir.all(root / "src/Dir.scala") // a directory where a file is expected
       val idx = new ScalaSourceIndex(root)
       assert(idx.fsm("pkg.M", "state").isEmpty, idx.fsm("Dir", "state").isEmpty)
-      assert(idx.fsm("core.TensorGemmSimple", "state").isDefined)
+      assert(idx.fsm("net.PacketFramer", "state").isDefined)
     }
 
     test("queries parse nothing new") {
-      val idx = new ScalaSourceIndex(tree(GemmFile -> gemm, MFile -> module("")))
-      val first = idx.fsm("core.TensorGemmSimple", "state")
+      val idx = new ScalaSourceIndex(tree(FramerFile -> framer, MFile -> module("")))
+      val first = idx.fsm("net.PacketFramer", "state")
       val n     = idx.parseCount
       assert(first.isDefined, n == 2)
-      assert(idx.fsm("core.TensorGemmSimple", "state") == first, idx.fsm("pkg.M", "state").isEmpty)
-      val (l, c) = at(gemm, "state := sExe")
-      idx.construct("core.TensorGemmSimple", GemmFile, l, c)
+      assert(idx.fsm("net.PacketFramer", "state") == first, idx.fsm("pkg.M", "state").isEmpty)
+      val (l, c) = at(framer, "state := sPayload")
+      idx.construct("net.PacketFramer", FramerFile, l, c)
       assert(idx.parseCount == n)
     }
   }

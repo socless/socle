@@ -250,14 +250,15 @@ The first release named Socle.
   opened. Bundle wires are thick and carry their type once; signal wires are
   thin. Zoomed out past readable pin text, the schematic shows an overview with
   box names at a readable size. A logic block's pins follow the boxes they
-  connect to (routes up to 9% shorter on large accelerator captures). The
-  fan-out and fan-in dots are gone: they sat on the pins and read as port marks.
+  connect to (routes up to 9% shorter on large captures). The fan-out and
+  fan-in dots are gone: they sat on the pins and read as port marks.
 - Faster schematic (#335). The export bakes its layouts with the optimize
   pass the UI applies by default, so a first view is final at once instead of
-  being laid out again in the browser (TensorGemm's top: about 560 to 290 ms;
-  BigArray: 650 to 300 ms). Opening or closing a bundle lays out again from the
-  layout shown, keeping its columns and order (TensorGemm's top: 290 to 160 ms),
-  and the layout engine starts while the first view is idle.
+  being laid out again in the browser (a large design's top module: about 560
+  to 290 ms; BigArray: 650 to 300 ms). Opening or closing a bundle lays out
+  again from the layout shown, keeping its columns and order (a large design's
+  top module: 290 to 160 ms), and the layout engine starts while the first
+  view is idle.
 
 ### Fixed
 
@@ -330,10 +331,10 @@ The first release named Socle.
 
 - The schematic no longer rebuilds on hover, selection, the filter or
   colourization, only on a new layout, an expansion or a fold, and the Source
-  tab renders a file once and moves its highlight. On a large design
-  (TensorGemm, 4x CPU slowdown) resting on a wire for a second went from 19
-  frames and 40 280 rebuilt nodes to 60 frames and none, and hovering wires
-  from 1 963 ms of work to 368 ms.
+  tab renders a file once and moves its highlight. On a large design (4x CPU
+  slowdown) resting on a wire for a second went from 19 frames and 40 280
+  rebuilt nodes to 60 frames and none, and hovering wires from 1 963 ms of
+  work to 368 ms.
 
 ### Fixed
 
@@ -397,7 +398,7 @@ The first release named Socle.
   usable from Neovim or any LSP editor (#294).
 - VS Code extension around the language server, with the design panel beside
   the editor (#296).
-- View design works on real projects: suites that inherit `ChiselSim` from a
+- View design handles more test setups: suites that inherit `ChiselSim` from a
   project base class or trait, `behavior of` + `it should` tests, and the test
   module's `forkArgs`, `forkEnv` and working directory (#298).
 - **Simulate** lens: runs a ChiselSim test with waveforms on and opens the
