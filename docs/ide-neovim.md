@@ -40,15 +40,28 @@ every option (the Java executable, a local `server_jar` or another `version`,
 how the panel opens, and the wave settings below in snake_case). The rest of
 this page sets the server up by hand, without the plugin.
 
-## Build the server
+## Get the server
+
+Each release on the [releases page](https://github.com/socless/socle/releases)
+attaches the server as `socle-lsp-<version>.jar`, with its checksum in
+`SHA256SUMS`:
+
+```bash
+v=<version>                               # a release, for example the latest
+mkdir -p ~/.local/share/socle
+curl -fL -o ~/.local/share/socle/socle-lsp.jar \
+  https://github.com/socless/socle/releases/download/v$v/socle-lsp-$v.jar
+```
+
+Or build it from a checkout of this repository:
 
 ```bash
 ./mill socle-lsp.assembly
 cp out/socle-lsp/assembly.dest/out.jar ~/.local/share/socle/socle-lsp.jar
 ```
 
-The jar is self-contained (`java -jar`, the probe agent inside). Copy it out of
-`out/`, which Mill rewrites on every build.
+The jar is self-contained (`java -jar`, the probe agent inside). Copy a built
+jar out of `out/`, which Mill rewrites on every build.
 
 ## Configure Neovim
 

@@ -128,9 +128,10 @@ Socle is a hardware-inspection UI first; the Chisel/CHIRRTL exporter and the
 Mill plugin are the first integrations. Planned directions:
 
 - **Simulation frontend** - the first part has shipped: the Chisel IDE's
-  Simulate lens runs a ChiselSim test and opens its waves in Surfer. Still
-  planned: ingest the waveforms and cross-probe them against the
-  schematic (epic [#127](https://github.com/socless/socle/issues/127)).
+  Simulate lens runs a ChiselSim test and opens its waves in Surfer, which
+  follows the schematic's selection. Still planned: an interactive panel to
+  poke and step the design from the schematic (epic
+  [#4](https://github.com/socless/socle/issues/4)).
 - **CIRCT multi-level IR** - inspect a design across lowering passes, not just
   at the CHIRRTL level.
 - **Exports & teamwork** - richer shareable artifacts and integrations for

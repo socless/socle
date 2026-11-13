@@ -128,18 +128,18 @@ does not reload the panel: the new design loads in place, and the open panels
 and the drill path (while it exists in the new design) are kept.
 
 The UI and the side panel talk through the webview page: the UI posts its drill
-path, selection and details (`socle-state`, once per change), with the design
-hierarchy only when the design changed (a generator copy's child entry names
-its `foldGroup`), to the page that frames it, only when
-that page is a VS Code webview or a loopback page and only to its exact origin.
-The page forwards it (from the UI's window and origin only) to the extension,
-and forwards the extension's `socle-navigate` (from a window of the webview's
-own origin only) to the UI's origin. The server sends the UI page with
+path, selection and details (`socle-state`) to the page that frames it, which
+forwards them to the extension, and the extension's `socle-navigate` comes
+back the same way. The server sends the UI page with
 `Content-Security-Policy: frame-ancestors 'self' vscode-webview: vscode-file:`,
 so no other site can frame it (`vscode-file:` is the workbench, which the
-check covers as an ancestor too). The language server adds the `socle/tests`
-request and the `socle/testsChanged` and `socle/status` notifications, sent
-only to a client that hosts the panel (VS Code), so Neovim sees no change.
+check covers as an ancestor too). The messages, their origin checks and the
+`socle/tests` request and `socle/status` and `socle/testsChanged`
+notifications the side panel uses are in [lsp-protocol.md](lsp-protocol.md).
+The server sends those notifications only to a client that hosts the panel
+(`panel: "client"`: VS Code, IntelliJ, and Neovim with the socle.nvim plugin);
+a Neovim set up by hand, without that option, gets none of them and sees its
+panel in the browser.
 
 ## The schematic in the IDE view
 

@@ -167,7 +167,7 @@ build** - just `./mill socle-ui.dist`. It parses `design.json` into the typed
 
 **Plugin task forks a JVM** (`SocleModule.scala`) — `socle` task runs `Launcher` in a separate JVM with the user's exact run classpath, so the plugin doesn't need to share a classloader with user code.
 
-**Launcher requires no-arg constructors** — parameterized Chisel modules need a thin wrapper class:
+**Launcher needs a zero-argument generator**: `--top` (`socleTop`) names a class with a no-arg constructor, a Scala object with a zero-arg `apply()` or `build()`, or a zero-arg factory method on an object (`mypkg.Gens.smallSoC`), tried in that order (`Launcher.resolveTop`). Parameterized Chisel modules need a thin wrapper class (or generator object):
 ```scala
 class MyTopForSocle extends MyTop(defaultParams)
 ```
