@@ -49,7 +49,8 @@ java -javaagent:<socle-probe agent jar> \
 - **Status.** `<captured.json>` holds a `CapturedModel` whose `status` is one of:
   - `ok`: a design was captured (`problems` lists anything the probe could not
     read; `modules` may then be empty);
-  - `no-design`: the test never elaborated a design;
+  - `no-design`: the test never elaborated a design (`chiselVersion` still
+    names the Chisel on the test classpath, and the editor's message shows it);
   - `elaboration-error`: the user's elaboration threw (`error` has the root
     cause's message).
 - **ViewOnly.** In view mode the probe throws `socle.probe.ViewOnly` right
@@ -71,7 +72,9 @@ java -javaagent:<socle-probe agent jar> \
   (what `ModelToDesign` does).
 - **Versions.** The agent is compiled against Scala 2.13 and Chisel 7.16 only;
   it uses the test JVM's own Scala and Chisel, so other versions are unsupported.
-  `chiselVersion` records the Chisel the test ran.
+  `chiselVersion` records the Chisel the test ran; when its major.minor is not
+  the tested one (`CapturedModel.TestedChisel`, build.mill's `V.chisel`), the
+  adapted design carries an `untested-chisel` warning naming both versions.
 
 `./mill example.socleView <Suite> "<test>"` runs this contract on the bundled
 examples, adapts the capture and serves it in the UI. The `socle-lsp` language
@@ -129,9 +132,12 @@ unchanged: it never sets a fold group, and its logic stays as individual nodes.
   without `public module`, and modern `public module` + `layer`) and asserts all
   three yield an identical topology. So the legacy `<=` form, the
   `reg ... with : (reset => ...)` reset, and the `public module` / layer syntax
-  are each held by CI. If you use an older Chisel and hit a parse gap, please open
-  an issue with the `.fir` (capture it with `Launcher --chirrtl-out`) - it becomes
-  a new row in the matrix.
+  are each held by CI. A statement the parser does not know (a newer FIRRTL
+  keyword) or cannot read is skipped and counted in an `unrecognised-statement`
+  or `unparsed-statement` warning that quotes it, so a gap shows in the
+  warnings banner instead of as a silently missing wire. If you hit a parse gap,
+  please open an issue with the `.fir` (capture it with `Launcher --chirrtl-out`) -
+  it becomes a new row in the matrix.
 - **Mill** - tested on 1.1.6 (use `>= 1.1, <= 1.1.6`). If
   `mvn"com.lihaoyi::mill-libs:1.1.6"` doesn't resolve in your environment, swap to
   the specific submodule (e.g. `mill-scalalib`) - the trait only uses

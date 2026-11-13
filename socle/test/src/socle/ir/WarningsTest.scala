@@ -61,7 +61,76 @@ object WarningsTest extends TestSuite {
        |    connect b, a
        |""".stripMargin
 
+  private def module(body: String): String =
+    "circuit T :\n  module T :\n    input a : UInt<8>\n    output b : UInt<8>\n    connect b, a\n" +
+      body.stripMargin + "\n"
+
+  private def parserWarnings(chirrtl: String): Map[String, Warning] =
+    ChirrtlParser.parse(chirrtl).warnings.map(w => w.kind -> w).toMap
+
   val tests = Tests {
+
+    test("a statement of an unknown kind becomes an unrecognised-statement warning") {
+      val w = parserWarnings(module(
+        """|    frobnicate a, b @[T.scala 3:5]
+           |    frobnicate b, a
+           |    tangle(a)""")).get("unrecognised-statement")
+      assert(w.isDefined)
+      assert(w.get.count == 3)
+      assert(w.get.message.contains("frobnicate"))
+      assert(w.get.message.contains("tangle"))
+    }
+
+    test("a known statement in a shape the parser does not read becomes an unparsed-statement warning") {
+      val w = parserWarnings(module(
+        """|    node = add(a, a) @[T.scala 4:5]
+           |    inst u1""")).get("unparsed-statement")
+      assert(w.isDefined)
+      assert(w.get.count == 2)
+      assert(w.get.message.contains("node = add(a, a)"))
+      assert(!w.get.message.contains("@["))
+    }
+
+    test("statements skipped on purpose raise no parser warning") {
+      val ws = parserWarnings(
+        """|circuit T :
+           |  extmodule BB :
+           |    input a : UInt<8>
+           |    defname = BlackBoxImpl
+           |    parameter W = 8
+           |  module T :
+           |    input clock : Clock
+           |    input a : UInt<8>
+           |    output b : UInt<8>
+           |
+           |    invalidate b
+           |    b is invalid
+           |    connect b, a
+           |    when a :
+           |      skip
+           |    else when a :
+           |      printf(clock, UInt<1>(1), "a <= %d\n", a) : p
+           |    stop(clock, UInt<1>(1), 1) : s
+           |    assert(clock, a, UInt<1>(1), "") : x
+           |    assume(clock, a, UInt<1>(1), "") : y
+           |    cover(clock, a, UInt<1>(1), "") : z
+           |    intrinsic(circt_chisel_ifelsefatal<format = "f">, clock, a, a)
+           |    define p = probe(a)
+           |    layerblock Verification :
+           |      skip
+           |""".stripMargin)
+      assert(ws.isEmpty)
+    }
+
+    test("no committed CHIRRTL fixture or capture raises a parser warning") {
+      val root = socle.Fixtures.repoRoot / "socle" / "test" / "resources"
+      val firs = os.walk(root / "chirrtl").filter(_.ext == "fir").map(f => f.last -> os.read(f))
+      val caps = os.list(root / "captured").map(f =>
+        f.last -> socle.capture.CapturedModel.fromJson(os.read(f)).chirrtl)
+      assert(firs.size >= 9, caps.size >= 4)
+      val noisy = (firs ++ caps).flatMap { case (n, c) => ChirrtlParser.parse(c).warnings.map(w => s"$n: ${w.message}") }
+      assert(noisy.isEmpty)
+    }
 
     test("skipped partial connects and attach become structured warnings") {
       val d = IrWalk.design(ChirrtlParser.parse(withSkips))

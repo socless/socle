@@ -249,6 +249,10 @@ object ChirrtlParser {
     // missing instead of wires silently vanishing (issues #101, #118).
     var skippedPartial = 0   // old-FIRRTL partial connect `lhs <- rhs`
     var skippedAttach  = 0   // Analog `attach(a, b)`
+    // Statements nothing reads: an unknown keyword (a newer FIRRTL than this
+    // parser knows), or a known one in a shape no form matches or that threw.
+    val unrecognised   = mutable.Buffer.empty[String] // their keywords
+    val unparsed       = mutable.Buffer.empty[String] // their lines
 
     for ((raw, lineIdx) <- lines.zipWithIndex) {
       raw match {
@@ -309,15 +313,20 @@ object ChirrtlParser {
               case Some(n: NodeDecl)  => curNodes += n.copy(guard = guard, whenIds = whenIds, inLayer = inLayer, idx = curDeclIdx); curDeclIdx += 1; collectRefs(other)
               case _ =>
                 val t = other.trim
-                if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
+                val kw = t.takeWhile(c => !c.isWhitespace && c != '(')
+                if (t.isEmpty) ()
+                else if (PartialConnRe.findFirstIn(t).isDefined) skippedPartial += 1
                 else if (t.startsWith("attach")) skippedAttach += 1
+                else if (SkippedKeywords.contains(kw) || LegacyInvalidRe.matches(t)) ()
+                else if (ParsedKeywords.contains(kw) || t.contains("<=")) unparsed += t
+                else unrecognised += kw
                 collectRefs(other) // whens, ops, etc.
             }
             // Inside a layerblock, record the signals this line reads so IrWalk
             // can fold module-level condition nodes that feed only it (#212).
             if (inLayer) collectLayerRefs(other)
           } catch {
-            case _: Exception => () // skip malformed line, keep going
+            case _: Exception => unparsed += other.trim // skip malformed line, keep going
           }
         case _ => () // pre-module fluff
       }
@@ -332,6 +341,18 @@ object ChirrtlParser {
         Some(Warning("skipped-attach", skippedAttach,
           s"$skippedAttach attach statement(s) were skipped; those Analog nets are not represented"))
       else None,
+      if (unrecognised.nonEmpty)
+        Some(Warning("unrecognised-statement", unrecognised.size,
+          s"${unrecognised.size} statement(s) of a kind Socle does not know were skipped " +
+            s"(${unrecognised.distinct.take(3).map(k => s"'$k'").mkString(", ")}); " +
+            "the picture may miss logic or wires: please report it with your Chisel version"))
+      else None,
+      if (unparsed.nonEmpty)
+        Some(Warning("unparsed-statement", unparsed.size,
+          s"${unparsed.size} statement(s) could not be parsed and were skipped, the first: " +
+            s"'${SrcMarker.replaceAllIn(unparsed.head, "").trim.take(120)}'; " +
+            "the picture may miss logic or wires: please report it with your Chisel version"))
+      else None,
     ).flatten
     // Warnings are not printed here: they ride in Circ.warnings -> Design.warnings
     // and SocleExporter.logWarnings echoes every kind to stderr once, so the
@@ -344,6 +365,7 @@ object ChirrtlParser {
   // attaches them per parent macro frame. We accept zero-or-more and parse
   // only the first (innermost). Stmt lines we don't recognize are dropped
   // without error; the exporter doesn't need raw wires, when blocks, or ops.
+  // The ones not skipped on purpose (SkippedKeywords) are counted as warnings.
   private val PortRe = """^\s+(input|output)\s+([\w$]+)\s*:\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   private val InstRe = """^\s+inst\s+([\w$]+)\s+of\s+([\w$]+)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   // Chisel 7 emits `connect lhs, rhs` (was `lhs <= rhs` in older versions).
@@ -352,6 +374,27 @@ object ChirrtlParser {
   private val ConnRe2 = """^\s+(.+?)\s*<=\s*(.+?)\s*((?:@\[[^\]]*\]\s*)*)$""".r
   // Old-FIRRTL partial connect; recognized only to COUNT it (no topology).
   private val PartialConnRe = """^[\w$][\w$.\[\]]*\s*<-\s*""".r
+  // Old-FIRRTL `x is invalid`: the legacy `invalidate x`.
+  private val LegacyInvalidRe = """^[\w$][\w$.\[\]]*\s+is\s+invalid\b.*""".r
+
+  /** Statement keywords skipped on purpose (no topology for them), so reaching
+    * the fallback is expected: when/else headers the when-stack did not read
+    * (`else when`), verification statements, probes, declarations and the
+    * bodies of extmodules, layers and old structured mems. */
+  private val SkippedKeywords: Set[String] = Set(
+    "when", "else", "skip", "invalidate", "layerblock",
+    "printf", "fprintf", "fflush", "stop", "assert", "assume", "cover", "intrinsic",
+    "define", "force", "force_initial", "release", "release_initial", "propassign",
+    "layer", "option", "type", "formal", "simulation",
+    "defname", "parameter",
+    "data-type", "depth", "read-latency", "write-latency", "read-under-write",
+    "reader", "writer", "readwriter",
+  )
+  /** Keywords parseStmt has a form for: one reaching the fallback was malformed. */
+  private val ParsedKeywords: Set[String] = Set(
+    "input", "output", "inst", "connect", "reg", "regreset", "wire", "node",
+    "cmem", "smem", "mem", "infer", "read", "write", "rdwr",
+  )
 
   /** The LHS of a legacy `<=` connect must look like a reference: bare `<=`
     * also appears inside printf format strings and expression lines, which

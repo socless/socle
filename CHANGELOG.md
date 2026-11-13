@@ -9,6 +9,16 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Added
+
+- A CHIRRTL statement the parser does not know (an `unrecognised-statement` warning naming its
+  keywords) or cannot read (an `unparsed-statement` warning quoting the first line) is counted
+  in the design's warnings instead of being dropped silently. View design carries these parser
+  warnings too.
+- View design warns (`untested-chisel`) when the capture comes from a Chisel major.minor other
+  than the tested one (7.16), and a "no design" result names the Chisel found on the test
+  classpath.
+
 ### Documentation
 
 - Install steps that match the releases: the standalone guide and the Neovim guide download

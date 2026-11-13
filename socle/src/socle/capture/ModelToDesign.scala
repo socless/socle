@@ -243,7 +243,9 @@ object ModelToDesign {
       top      = m.top,
       bundles  = reg.defs.toMap,
       modules  = modules,
-      warnings = m.problems.map(p => Warning("probe-problem", 1, p)) ++
+      warnings = CapturedModel.untestedNote(m.chiselVersion).map(note =>
+          Warning("untested-chisel", 1, s"captured with $note: the probe may miss parts of this design")).toSeq ++
+        m.problems.map(p => Warning("probe-problem", 1, p)) ++ circ.warnings ++
         reg.unknown.map { case (cls, n) =>
           Warning("probe-unknown-type", n, s"$n port leaf(s) of type $cls shown by class name: no schema type for it")
         } ++ m.modules.flatMap { c =>
