@@ -357,6 +357,10 @@ object ViewHistory {
       hist = Stack(); restoring = None; flyPending = None
     }
 
+    /** Smoke hook: a pan or zoom is still to settle into an entry, a fly waits for its layout. */
+    def settling: Boolean = settleTimer != 0
+    def flyWaiting: Boolean = flyPending.isDefined
+
     /** The smoke's view of the stack ({size, index, entries}). */
     def debug(): js.Dynamic =
       js.Dynamic.literal(size = hist.entries.size, index = hist.index,

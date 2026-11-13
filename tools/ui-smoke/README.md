@@ -24,6 +24,32 @@ indicator + LIVE badge), `data-dropzone` / `data-toast` (drag-drop chrome),
 `data-theme-toggle` (the light/dark theme button), and `data-open-editor` /
 `data-editor` (the open-in-editor preset chip).
 
+## Waiting: the settle signal, no fixed sleep
+
+The UI exposes `window.__socleSettled()`: true once the schematic view has
+settled, that is no engine layout run is awaited, no armed first-view fit or
+refit is pending, no flight runs, no fly waits for its module's view, and no
+pan or zoom is still to settle into the view history.
+`window.__soclePending()` lists what still waits (`layout`, `fit`, `flight`,
+`fly`, `history`).
+
+`smoke.mjs` and `embedded.mjs` wait on it with `settled(page)`: the signal
+must hold on 3 animation frames in a row (a ResizeObserver report can arm a
+refit a frame later), and a timeout (15 s by default) is a failure that names
+what still waits. The rule: **no fixed sleep for settle**. After an action
+that moves, drills, toggles, fits or flies, call `settled`; after an input
+whose effect is synchronous while the view cannot settle (a press still held
+down keeps re-arming the history settle), `frames(page)` waits for the next
+painted frames; for something recorded on the test's side (a POST to
+`/open`), poll it with `until`. A readiness wait never ends in
+`.catch(() => {})`: its timeout is reported.
+
+A `waitForTimeout` stays only where nothing can be observed, and carries a
+one-line reason: pointer pacing between moves of a drag, an observation window
+(a rest that must mutate nothing, a card that must not show within its delay,
+a message protocol that must post nothing more), and Surfer redrawing its
+canvas at a new size.
+
 ## Bundle toggles (#331)
 
 On every design, `smoke.mjs` also opens and closes each bundle toggle of the
