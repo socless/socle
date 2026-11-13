@@ -149,7 +149,7 @@ object ModelToDesign {
           (Nil, c.wires.map(w => WireDef(w.from, w.to, "", "", SourceRef.unknown)))
       }
       // Constant tie-offs: a const with no wire, or whose every wire ends on a
-      // port or an instance pin, is not drawn (TensorGemm ties off hundreds).
+      // port or an instance pin, is not drawn (a large design ties off hundreds).
       val tieOffs = collapsed.filter(_.kind == NodeKind.Const).map(_.id).filter { id =>
         collapsedWires.filter(w => w.to == id || w.from == id)
           .forall(w => resolve(if (w.to == id) w.from else w.to).isDefined)

@@ -72,28 +72,28 @@ object TestDiscoveryTest extends TestSuite {
     }
     test("behavior of sets the subject") {
       val src =
-        """package unittest
-          |class TensorGemmTestSuite extends AnyFlatSpecSim {
-          |  behavior of "TensorGemmSimple"
-          |  it should "compute a simple operation" in
-          |    simulate(new TensorGemmSimple)(new TensorGemmTester(_))
+        """package bench
+          |class FifoSpec extends ClockedSpec {
+          |  behavior of "SyncFifo"
+          |  it should "accept a write" in
+          |    simulate(new SyncFifo)(new WriteDriver(_))
           |
-          |  it should "correctly generate indices" in simulate(new TensorGemmSimple)(
-          |    new TensorGemmIdxTester(_)
+          |  it should "report full" in simulate(new SyncFifo)(
+          |    new FullChecker(_)
           |  )
-          |  behavior of "TensorGemmIndexGenerator"
-          |  it should "perform correctly" in simulate(new TensorGemmIndexGenerator)(x)
-          |  behavior.of("Dotted")
-          |  they must "work" in { }
+          |  behavior of "FifoCounter"
+          |  it should "wrap around" in simulate(new FifoCounter)(x)
+          |  behavior.of("Flags")
+          |  they must "toggle" in { }
           |}""".stripMargin
-      assert(TestDiscovery.find(src, Set("AnyFlatSpecSim")).map(t => (t.suite, t.name, t.line)) == Seq(
-        ("unittest.TensorGemmTestSuite", "TensorGemmSimple should compute a simple operation", 3),
-        ("unittest.TensorGemmTestSuite", "TensorGemmSimple should correctly generate indices", 6),
-        ("unittest.TensorGemmTestSuite", "TensorGemmIndexGenerator should perform correctly", 10),
-        ("unittest.TensorGemmTestSuite", "Dotted must work", 12)))
+      assert(TestDiscovery.find(src, Set("ClockedSpec")).map(t => (t.suite, t.name, t.line)) == Seq(
+        ("bench.FifoSpec", "SyncFifo should accept a write", 3),
+        ("bench.FifoSpec", "SyncFifo should report full", 6),
+        ("bench.FifoSpec", "FifoCounter should wrap around", 10),
+        ("bench.FifoSpec", "Flags must toggle", 12)))
     }
     test("it before any subject") {
-      // scalatest names it "should x" (std-vta-dev ComputeTestLeNet5)
+      // scalatest names it "should x"
       val src =
         """class S extends AnyFlatSpec with ChiselSim {
           |  it should "x" in { }

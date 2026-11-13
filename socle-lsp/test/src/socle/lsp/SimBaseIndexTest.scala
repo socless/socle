@@ -15,144 +15,146 @@ object SimBaseIndexTest extends TestSuite {
     os.walk(root).filter(_.ext == "scala").sortBy(_.toString)
       .flatMap(f => TestDiscovery.find(os.read(f), bases)).map(t => (t.suite, t.name))
 
-  // Shapes of std-vta-dev modules/hardware (GenericSim.scala's AnyFlatSpecSim
-  // in src/main, suites in src/test), written from scratch.
-  private val vtaLike = Seq(
+  // A Mill project with a ChiselSim base trait in its main sources (reached
+  // through a CLI-option trait), suites in its test sources: several suites
+  // and a same-named file per directory, a helper trait, a generic class with
+  // a non-literal subject, a fully qualified base and a plain AnyFlatSpec.
+  private val projectLike = Seq(
     "build.mill" -> "",
-    "modules/hardware/src/main/scala/util/GenericSim.scala" ->
-      """package vta.util
+    "fabric/src/fabric/testkit/SimSpec.scala" ->
+      """package fabric.testkit
         |
         |import chisel3._
         |import chisel3.simulator.scalatest.HasCliOptions.CliOption
         |import chisel3.simulator.scalatest.{ChiselSim, HasCliOptions}
         |import org.scalatest.flatspec.AnyFlatSpec
         |
-        |trait DebugLayerCliOption {
+        |trait VerboseFlag {
         |  this: HasCliOptions =>
-        |  addOption(CliOption.flag("debug", "enables debug"))
+        |  addOption(CliOption.flag("verbose", "prints every cycle"))
         |}
         |
-        |trait AnyFlatSpecSim
+        |trait ClockedSpec
         |    extends AnyFlatSpec
         |    with ChiselSim
-        |    with DebugLayerCliOption {
+        |    with VerboseFlag {
         |  override def simulate[T <: Module](module: => T)(stimulus: T => Unit): Unit =
         |    super.simulate(module)(stimulus)
         |}
-        |class GenericSim[T <: Module](tag: String, dutFactory: () => T) extends AnyFlatSpecSim {
-        |  behavior of tag
-        |  it should "not have expect violations" in {
-        |    simulate(dutFactory())(_ => ())
+        |class SmokeSim[D <: Module](label: String, build: () => D) extends ClockedSpec {
+        |  behavior of label
+        |  it should "elaborate and run" in {
+        |    simulate(build())(_ => ())
         |  }
         |}
         |""".stripMargin,
-    "modules/hardware/src/test/scala/unittest/TensorGemmTest.scala" ->
-      """package unittest
+    "fabric/test/src/router/RouterSpec.scala" ->
+      """package router
         |
-        |import vta.core._
-        |import vta.tags
-        |import vta.util.AnyFlatSpecSim
+        |import fabric.net._
+        |import fabric.tags
+        |import fabric.testkit.ClockedSpec
         |
-        |@tags.UnitTests
-        |class TensorGemmTestSuite extends AnyFlatSpecSim {
-        |  behavior of "TensorGemmSimple"
-        |  it should "compute a simple operation" in
-        |    simulate(new TensorGemmSimple)(new TensorGemmTester(_))
+        |@tags.Fast
+        |class RouterSpec extends ClockedSpec {
+        |  behavior of "Router"
+        |  it should "forward a packet" in
+        |    simulate(new Router)(new RouterDriver(_))
         |
-        |  it should "correctly generate indices" in simulate(new TensorGemmSimple)(
-        |    new TensorGemmIdxTester(_)
+        |  it should "drop a bad header" in simulate(new Router)(
+        |    new BadHeaderDriver(_)
         |  )
         |
-        |  behavior of "TensorGemmPipelinedSplit"
+        |  behavior of "RouterArbiter"
         |
-        |  it should "be reset correctly" in simulate(new TensorGemm)(
-        |    new TensorGemmResetTester(_)
+        |  it should "start idle" in simulate(new RouterArbiter)(
+        |    new IdleChecker(_)
         |  )
         |}
         |""".stripMargin,
-    "modules/hardware/src/test/scala/simulatorTest/gemm/TensorGemmTest.scala" ->
-      """package simulatorTest.gemm
+    "fabric/test/src/replay/trace/RouterSpec.scala" ->
+      """package replay.trace
         |
-        |import vta.util.AnyFlatSpecSim
+        |import fabric.testkit.ClockedSpec
         |
-        |class TensorGemmTest(c: TensorGemmPipelinedSplit, fn: String, debug: Boolean) {
+        |class Replayer(dut: Router, path: String, verbose: Boolean) {
         |  val x = 1
         |}
         |
-        |class TensorGemmJsonTestSuite extends AnyFlatSpecSim {
-        |  behavior of "TensorGemmPipelinedSplit"
+        |class TraceReplaySpec extends ClockedSpec {
+        |  behavior of "Router"
         |
-        |  val debug = false
-        |  def runSim(file: String) = {
-        |    simulate(new TensorGemmPipelinedSplit) { c =>
-        |      new TensorGemmTest(c, file, debug)
+        |  val verbose = false
+        |  def replay(path: String) = {
+        |    simulate(new Router) { d =>
+        |      new Replayer(d, path, verbose)
         |    }
         |  }
-        |  it should "compute a simple matrix multiplication" in runSim(
-        |    "/examples_gemm/simple.json"
+        |  it should "replay a short trace" in replay(
+        |    "/traces/short.txt"
         |  )
         |
-        |  it should "compute a full operation" in
-        |    runSim("/examples_gemm/full.json")
+        |  it should "replay a long trace" in
+        |    replay("/traces/long.txt")
         |}
         |
-        |class TensorGemmTester_test extends AnyFlatSpecSim {
-        |  "Test instructions" should "run without assertions" in
-        |    simulate(new TensorGemmPipelinedSplit)(_ => ())
+        |class Boot_check extends ClockedSpec {
+        |  "Boot sequence" should "finish without errors" in
+        |    simulate(new Router)(_ => ())
         |}
         |""".stripMargin,
-    "modules/hardware/src/test/scala/cli/ComputeTest.scala" ->
-      """package cli
+    "fabric/test/src/dsp/FilterSpec.scala" ->
+      """package dsp
         |
-        |import vta.util.AnyFlatSpecSim
+        |import fabric.testkit.ClockedSpec
         |
-        |trait ComputeTest extends AnyFlatSpecSim {
-        |  def computeSimulation(file: String): Unit = simulate(new Compute)(_ => ())
+        |trait FilterHarness extends ClockedSpec {
+        |  def runFilter(cfg: String): Unit = simulate(new Filter)(_ => ())
         |}
         |
-        |class ComputeTests extends ComputeTest {
-        |  behavior of "Compute"
+        |class FilterSpec extends FilterHarness {
+        |  behavior of "Filter"
         |
-        |  it should "execute a ReLU" in computeSimulation(
-        |    "relu.json"
+        |  it should "smooth a step" in runFilter(
+        |    "step.cfg"
         |  )
         |}
         |""".stripMargin,
-    "modules/hardware/src/test/scala/unittest/Generic.scala" ->
-      """package unittest
+    "fabric/test/src/router/Smoke.scala" ->
+      """package router
         |
-        |import vta.tags.tagObjects.{LongTests, UnitTests}
+        |import fabric.tags.{Fast, Slow}
         |
-        |class GenericTest[T <: Module, C <: Parameters](
-        |  tag: String,
-        |  isLongTest: Boolean = false
-        |) extends vta.util.AnyFlatSpecSim {
+        |class SmokeTest[T <: Module, P <: Config](
+        |  label: String,
+        |  slow: Boolean = false
+        |) extends fabric.testkit.ClockedSpec {
         |
-        |  behavior of tag
-        |  if (isLongTest) {
-        |    it should "not have expect violations" taggedAs (LongTests) in { }
+        |  behavior of label
+        |  if (slow) {
+        |    it should "pass" taggedAs (Slow) in { }
         |  } else {
-        |    it should "not have expect violations" taggedAs (UnitTests) in { }
+        |    it should "pass" taggedAs (Fast) in { }
         |  }
         |}
-        |class ComputeApp extends GenericTest("ComputeApp")
+        |class FilterSmoke extends SmokeTest("FilterSmoke")
         |""".stripMargin,
-    "modules/hardware/src/test/scala/shell/VMESpec.scala" ->
-      """package vta.shell
+    "fabric/test/src/bus/BusSpec.scala" ->
+      """package fabric.bus
         |
         |import org.scalatest.matchers.should.Matchers
-        |import vta.util.AnyFlatSpecSim
+        |import fabric.testkit.ClockedSpec
         |
-        |class VMESpec extends AnyFlatSpecSim with Matchers {
-        |  behavior of "VME"
-        |  it should "read one beat" taggedAs (UnitTests) in { }
-        |  ignore should "not issue AR bursts that cross a 4 KB boundary (#4)" in { }
+        |class BusSpec extends ClockedSpec with Matchers {
+        |  behavior of "Bus"
+        |  it should "complete one write" taggedAs (Fast) in { }
+        |  ignore should "split a burst at a page boundary" in { }
         |}
         |""".stripMargin,
-    "modules/hardware/src/test/scala/util/FileManagerTest.scala" ->
-      """package vta.util
-        |class FileManagerTest extends AnyFlatSpec with Matchers {
-        |  "FileManager" should "find the config" in { }
+    "fabric/test/src/testkit/ConfigLoaderTest.scala" ->
+      """package fabric.testkit
+        |class ConfigLoaderTest extends AnyFlatSpec with Matchers {
+        |  "ConfigLoader" should "parse the defaults" in { }
         |}
         |""".stripMargin,
   )
@@ -183,26 +185,26 @@ object SimBaseIndexTest extends TestSuite {
         assert(TestDiscovery.find(os.read(root / "d" / "S.scala"), bases).map(_.name) == Seq("A should x"))
       } finally os.remove.all(root)
     }
-    test("std-vta-like tree") {
-      val root = tree(vtaLike: _*)
+    test("multi-module project tree") {
+      val root = tree(projectLike: _*)
       try {
         val bases = new SimBaseIndex(root).bases()
-        assert(Set("AnyFlatSpecSim", "vta.util.AnyFlatSpecSim", "ComputeTest").subsetOf(bases))
+        assert(Set("ClockedSpec", "fabric.testkit.ClockedSpec", "FilterHarness").subsetOf(bases))
         val got = lenses(root, bases)
         assert(got == Seq(
-          ("cli.ComputeTests", "Compute should execute a ReLU"),
-          ("vta.shell.VMESpec", "VME should read one beat"),
-          ("simulatorTest.gemm.TensorGemmJsonTestSuite", "TensorGemmPipelinedSplit should compute a simple matrix multiplication"),
-          ("simulatorTest.gemm.TensorGemmJsonTestSuite", "TensorGemmPipelinedSplit should compute a full operation"),
-          ("simulatorTest.gemm.TensorGemmTester_test", "Test instructions should run without assertions"),
-          ("unittest.TensorGemmTestSuite", "TensorGemmSimple should compute a simple operation"),
-          ("unittest.TensorGemmTestSuite", "TensorGemmSimple should correctly generate indices"),
-          ("unittest.TensorGemmTestSuite", "TensorGemmPipelinedSplit should be reset correctly"),
+          ("fabric.bus.BusSpec", "Bus should complete one write"),
+          ("dsp.FilterSpec", "Filter should smooth a step"),
+          ("replay.trace.TraceReplaySpec", "Router should replay a short trace"),
+          ("replay.trace.TraceReplaySpec", "Router should replay a long trace"),
+          ("replay.trace.Boot_check", "Boot sequence should finish without errors"),
+          ("router.RouterSpec", "Router should forward a packet"),
+          ("router.RouterSpec", "Router should drop a bad header"),
+          ("router.RouterSpec", "RouterArbiter should start idle"),
         ))
         // without the index only the simulate( fallback finds suites: not
         // those that call it through an inherited helper or not at all
         assert(lenses(root, Set.empty) ==
-          got.filterNot(t => Set("cli.ComputeTests", "vta.shell.VMESpec")(t._1)))
+          got.filterNot(t => Set("dsp.FilterSpec", "fabric.bus.BusSpec")(t._1)))
       } finally os.remove.all(root)
     }
     test("skips out, node_modules, target, dot-dirs and the root's test output; rescans changes") {
@@ -242,13 +244,13 @@ object SimBaseIndexTest extends TestSuite {
       } finally os.remove.all(outer)
     }
     test("safe from several threads") {
-      val root = tree(vtaLike: _*)
+      val root = tree(projectLike: _*)
       val pool = Executors.newFixedThreadPool(4)
       try {
         val idx = new SimBaseIndex(root)
         val fs  = (1 to 8).map(_ => pool.submit(new Callable[Set[String]] { def call() = { idx.invalidate(); idx.bases() } }))
         val all = fs.map(_.get())
-        assert(all.distinct.size == 1, all.head.contains("AnyFlatSpecSim"))
+        assert(all.distinct.size == 1, all.head.contains("ClockedSpec"))
       } finally { pool.shutdown(); os.remove.all(root) }
     }
     test("bases declaring a subject") {
