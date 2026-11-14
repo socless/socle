@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-11-14
+
 ### Added
 
 - A CHIRRTL statement the parser does not know (an `unrecognised-statement` warning naming its
