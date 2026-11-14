@@ -10,7 +10,9 @@ server on `127.0.0.1`.
 
 Requirements: IntelliJ IDEA 2026.2 or newer (the open-source edition is enough) with the JetBrains
 Scala plugin and Red Hat's LSP4IJ, Java 21 or newer, and a Mill project with `./mill` at its root.
-Your tests and build are never modified, and nothing leaves your machine.
+Your tests and build are never modified, and nothing leaves your machine. To read constructor
+arguments, the probe instruments module constructors in memory, at run time, inside the forked
+view process only: sources, compiled classes on disk and builds are untouched.
 
 ## Install
 

@@ -36,7 +36,10 @@ contract), see [CLAUDE.md](../CLAUDE.md).
 ## View-mode probe: run contract
 
 `socle-probe` is a Java agent that captures the design an unmodified ChiselSim
-scalatest test elaborates, without changing the test or its build. A caller runs
+scalatest test elaborates, without changing the test or its build. To read
+constructor arguments, the probe instruments module constructors in memory, at
+run time, inside the forked view process only: sources, compiled classes on
+disk and builds are untouched. A caller runs
 one test in its own JVM:
 
 ```bash

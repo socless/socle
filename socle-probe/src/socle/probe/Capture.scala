@@ -42,8 +42,14 @@ object Capture {
   /** Test seam: forget any earlier capture and restore the real walk. */
   private[probe] def resetForTest(): Unit = synchronized {
     out = null; viewMode = false; written.set(false); designReached = false
-    walk = ModelWalk.capture; circuit.remove()
+    walk = ModelWalk.capture; circuit.remove(); CtorArgs.resetForTest()
   }
+
+  /** Exit of a module constructor (any BaseModule subclass): keep references
+    * to its arguments for the walk. Never throws into the constructor. */
+  def onModuleConstructed(module: AnyRef, args: Array[AnyRef], declaring: Class[_]): Unit =
+    try CtorArgs.record(module, declaring, args)
+    catch { case _: Throwable => () }
 
   /** Exit of the ChiselCircuitAnnotation or DesignAnnotation constructor. */
   def onAnnotation(anno: Any): Unit = anno match {
@@ -58,7 +64,9 @@ object Capture {
   def onElaborateExit(thrown: Throwable): Unit = thrown match {
     case null | _: ViewOnly => ()
     case _ if designReached => ()
-    case t => writeOrLog(CapturedModel(status = "elaboration-error", top = "", modules = Nil, error = rootMessage(t)))
+    case t =>
+      writeOrLog(CapturedModel(status = "elaboration-error", top = "", modules = Nil, error = rootMessage(t)))
+      try CtorArgs.stop() catch { case _: Throwable => () }
   }
 
   /** Exit of `svsim.verilator.Backend$.initializeFromProcessEnvironment`, in
@@ -104,6 +112,7 @@ object Capture {
         case t: Throwable => logProbeFailure(t)
       }
     }
+    try CtorArgs.stop() catch { case _: Throwable => () }
     if (viewMode) throw new ViewOnly
   }
 

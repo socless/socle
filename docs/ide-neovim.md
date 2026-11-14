@@ -16,7 +16,9 @@ Requirements: Neovim 0.12, Java 21 or newer on `PATH`, and a Mill project with
 `./mill` at its root (the server asks Mill for the test classpath and fork
 settings of the file the lens is in); [Simulate](#simulate) also needs
 Verilator, and the Surfer app unless `waveViewer` is `surfer-panel`. Your
-tests and build are never modified.
+tests and build are never modified. To read constructor arguments, the probe
+instruments module constructors in memory, at run time, inside the forked view
+process only: sources, compiled classes on disk and builds are untouched.
 
 ## Install the plugin
 

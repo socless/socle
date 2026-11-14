@@ -28,6 +28,22 @@ public final class CaptureAdvice {
     }
   }
 
+  /** On normal exit of every constructor of a chisel3.experimental.BaseModule
+    * subclass (the user's modules included): stores references to the module,
+    * its arguments and the constructor's declaring class, nothing more. A
+    * throwable from the store is suppressed, so elaboration never sees it. */
+  public static final class OnModuleConstructed {
+    private OnModuleConstructed() {}
+
+    @Advice.OnMethodExit(suppress = Throwable.class)
+    public static void exit(
+        @Advice.This Object module,
+        @Advice.AllArguments Object[] args,
+        @Advice.Origin Class<?> declaring) {
+      Capture.onModuleConstructed(module, args, declaring);
+    }
+  }
+
   /** On exit of svsim.verilator.Backend$.initializeFromProcessEnvironment,
     * installed in view mode only: a failed Verilator lookup is replaced by a
     * placeholder backend, so the run reaches elaboration without Verilator. */
