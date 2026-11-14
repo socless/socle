@@ -5,6 +5,7 @@ import com.raquo.laminar.nodes.ChildNode
 import org.scalajs.dom
 import scala.scalajs.js
 import socle.schema.{Design, ModuleDef, PortDir}
+import socle.ui.model.SourceUses
 import socle.ui.theme._
 import socle.ui.wave.{ColorLegend, RemotePane, SurferPane, WaveFollow}
 
@@ -216,7 +217,9 @@ object BottomPanel {
     designSig: Signal[Option[Design]],
     drillInto: String => Unit,
   ) {
-    private final class FileView(val file: String, val text: String, val lines: Array[String], val grid: ChildNode.Base)
+    private final class FileView(val file: String, val text: String, val lines: Array[String], val grid: ChildNode.Base) {
+      val code: IndexedSeq[String] = SourceUses.codeOnly(lines.toIndexedSeq) // the lines with comments and strings blanked
+    }
     private val CacheSize = 4
     private var cache: List[FileView] = Nil // the most recent first
     private val blank: ChildNode.Base = emptyNode
@@ -376,9 +379,8 @@ object BottomPanel {
     private def highlightCss(f: FileView, selected: Option[String], targetLine: Int): String = {
       val selInst = selected.map(_.split('.').head).filter(_.nonEmpty)
       val selPort = selected.map(_.split('.').toSeq.take(2).mkString(".")).filter(_.nonEmpty)
-      val lit = f.lines.indices.collect {
-        case i if i + 1 == targetLine || selInst.exists(f.lines(i).contains(_)) || selPort.exists(f.lines(i).contains(_)) => i + 1
-      }
+      val uses = SourceUses.lines(f.code, (selInst ++ selPort).toSeq).toSet
+      val lit = f.lines.indices.collect { case i if i + 1 == targetLine || uses(i + 1) => i + 1 }
       def esc(w: String): String = js.Dynamic.global.CSS.applyDynamic("escape")(w).asInstanceOf[String]
       def words(ws: Iterable[String]): String = ws.map(w => s""".scl-src [data-w="${esc(w)}"]""").mkString(",")
       val sb = new StringBuilder
