@@ -36,6 +36,14 @@ import java.util.concurrent.Executors
   * `--source-root <dir>` embeds source text into every converted design (both
   * drag-drop `/convert` and `--watch`), so the UI's Source tab shows code
   * instead of a bare file:line locator (issue #154).
+  *
+  * Every route answers only a `Host` naming the address served on: a
+  * DNS-rebinding guard. The loopback names (`localhost`, `127.0.0.1`, `[::1]`)
+  * pass with any port, so an `ssh -L` tunnel on another local port works; the
+  * `--host` given, or under a wildcard bind the IP the connection reached, needs
+  * the bound port. `POST /convert` also refuses an `Origin` other than
+  * `http://` plus the request's Host (a request without one, as curl sends, is
+  * served) and stops reading past the body cap.
   */
 object Serve {
 
@@ -139,16 +147,13 @@ object Serve {
 
     val bindHost = resolveBindHost(host, isWsl)
     val server =
-      try HttpServer.create(new InetSocketAddress(bindHost, port), 0)
+      try start(bindHost, port, html, dir)
       catch {
         case e: java.io.IOException =>
           Console.err.println(s"[socle] cannot listen on $bindHost:$port: ${e.getMessage}")
           Console.err.println("[socle] pick another port: serve --port <N>")
           sys.exit(1)
       }
-    server.createContext("/", (ex: HttpExchange) => handle(ex, html, dir))
-    server.setExecutor(Executors.newFixedThreadPool(4))
-    server.start()
 
     // `localhost` works for both binds: loopback on a normal machine, and via
     // the WSL2 relay when bound to 0.0.0.0 (a 127.0.0.1-only bind is invisible
@@ -163,11 +168,68 @@ object Serve {
     catch { case _: InterruptedException => server.stop(0) }
   }
 
-  private def handle(ex: HttpExchange, html: String, dir: Option[os.Path]): Unit = {
+  /** Bind `bindHost:port` (0: an ephemeral port) and serve; `maxBody` caps the bytes `POST /convert` reads. */
+  private[socle] def start(bindHost: String, port: Int, html: String, dir: Option[os.Path],
+      maxBody: Int = MaxBody): HttpServer = {
+    val server = HttpServer.create(new InetSocketAddress(bindHost, port), 0)
+    val bound  = server.getAddress
+    val hosts  = allowedHosts(bindHost, bound.getPort) ++
+      (if (bound.getAddress.isAnyLocalAddress) Set.empty[String] else Set(literal(bound.getAddress, bound.getPort)))
+    server.createContext("/", (ex: HttpExchange) => handle(ex, html, dir, maxBody, hosts, bound.getAddress.isAnyLocalAddress))
+    server.setExecutor(Executors.newFixedThreadPool(4))
+    server.start()
+    server
+  }
+
+  /** The `Host` values a request may carry (DNS-rebinding guard): the loopback
+    * names and the bound host, with the port (bare too on port 80, which
+    * browsers omit). A wildcard bind names no host of its own: [[handle]] adds
+    * the address each connection reached instead. */
+  private[socle] def allowedHosts(bindHost: String, port: Int): Set[String] = {
+    val names = Set("127.0.0.1", "localhost", "[::1]") ++
+      (if (bindHost == "0.0.0.0" || bindHost == "::") Set.empty[String]
+       else Set(if (bindHost.contains(":")) s"[${bindHost.stripPrefix("[").stripSuffix("]")}]" else bindHost.toLowerCase))
+    names.map(n => s"$n:$port") ++ (if (port == 80) names else Set.empty[String])
+  }
+
+  /** A loopback name with any port or none (`localhost:9000`): an `ssh -L` tunnel
+    * on another local port names it so, and a rebinding page carries its own name,
+    * so the port is not what guards. `host` is lowercased. */
+  private[socle] def isLoopbackName(host: String): Boolean = {
+    val (name, rest) =
+      if (host.startsWith("[")) host.splitAt(host.indexOf(']') + 1)
+      else host.indexOf(':') match { case -1 => (host, ""); case i => host.splitAt(i) }
+    Set("localhost", "127.0.0.1", "[::1]")(name) && (rest.isEmpty || rest.matches(":[0-9]{1,5}"))
+  }
+
+  /** An IP literal as a `Host` header names it. */
+  private def literal(a: java.net.InetAddress, port: Int): String = a match {
+    case v6: java.net.Inet6Address => s"[${v6.getHostAddress.takeWhile(_ != '%')}]:$port"
+    case v4                        => s"${v4.getHostAddress}:$port"
+  }
+
+  private def handle(ex: HttpExchange, html: String, dir: Option[os.Path], maxBody: Int,
+      allowed: Set[String], wildcard: Boolean): Unit = {
     try {
       val method = ex.getRequestMethod
       val path   = ex.getRequestURI.getPath
-      if (method == "POST" && path == "/convert") { convert(ex); return }
+      // A wildcard bind is reached on an interface address: that IP literal is a
+      // Host a rebinding attack (which carries its own hostname) cannot forge.
+      val hosts  =
+        if (wildcard) allowed + literal(ex.getLocalAddress.getAddress, ex.getLocalAddress.getPort) else allowed
+      val host   = Option(ex.getRequestHeaders.getFirst("Host")).map(_.toLowerCase)
+      if (!host.exists(h => hosts(h) || isLoopbackName(h))) {
+        send(ex, 403, "text/plain", "forbidden host".getBytes(UTF_8)); return
+      }
+      if (method == "POST" && path == "/convert") {
+        // CSRF guard: a browser sends Origin on a cross-origin POST; curl sends none.
+        // Same origin is the request's own (validated) Host, so a tunnel's port is followed.
+        val origin = Option(ex.getRequestHeaders.getFirst("Origin")).map(_.toLowerCase)
+        if (origin.exists(o => !host.exists(h => o == "http://" + h)))
+          send(ex, 403, "text/plain", "forbidden origin".getBytes(UTF_8))
+        else convert(ex, maxBody)
+        return
+      }
       if (method != "GET" && method != "HEAD") { send(ex, 405, "text/plain", "method not allowed".getBytes(UTF_8)); return }
       path match {
         case "/" | "/socle.html" =>
@@ -247,10 +309,12 @@ object Serve {
     java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME.format(
       java.time.ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(millis), java.time.ZoneOffset.UTC))
 
-  private def convert(ex: HttpExchange): Unit = {
-    val declared = Option(ex.getRequestHeaders.getFirst("Content-Length")).flatMap(_.toIntOption).getOrElse(-1)
-    if (declared > MaxBody) { send(ex, 413, "text/plain", "body too large".getBytes(UTF_8)); return }
-    val body = new String(ex.getRequestBody.readAllBytes(), UTF_8)
+  private def convert(ex: HttpExchange, maxBody: Int): Unit = {
+    // The cap holds on the bytes read, not only on the declared length (a chunked body declares none).
+    val declared = Option(ex.getRequestHeaders.getFirst("Content-Length")).flatMap(_.toLongOption).getOrElse(-1L)
+    val bytes = if (declared > maxBody) Array.emptyByteArray else ex.getRequestBody.readNBytes(maxBody + 1)
+    if (declared > maxBody || bytes.length > maxBody) { send(ex, 413, "text/plain", "body too large".getBytes(UTF_8)); return }
+    val body = new String(bytes, UTF_8)
     try {
       val json = SocleExporter.designJson(body, sourceRoot = sourceRoot)
       send(ex, 200, "application/json", json.getBytes(UTF_8))

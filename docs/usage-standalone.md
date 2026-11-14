@@ -40,6 +40,12 @@ only), and converts dropped `.fir` files in-process. Add `--dir <dir>` to also
 serve a `design.json` / `designs.json` from that directory so the UI auto-loads
 it. [Using the UI](usage-ui.md) shows how to move around the schematic.
 
+The server answers only requests addressed to it (a guard against DNS
+rebinding): `localhost` or `127.0.0.1` on any port, so an `ssh -L
+9000:localhost:8765` tunnel works, or the `--host` you gave (bound to
+`0.0.0.0`: the machine's IP) with the port it listens on. Reaching it under
+another host name, such as a DNS name, gets `403 forbidden host`.
+
 To build the same jar from source instead (`socle.cli.Launcher` is its main
 class), in a checkout of this repository:
 
