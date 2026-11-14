@@ -37,11 +37,13 @@ import java.util.concurrent.Executors
   * drag-drop `/convert` and `--watch`), so the UI's Source tab shows code
   * instead of a bare file:line locator (issue #154).
   *
-  * Every route answers only a `Host` naming the address served on (`localhost`,
-  * `127.0.0.1`, `[::1]`, the `--host` given, or under a wildcard bind the IP the
-  * connection reached), with the port: a DNS-rebinding guard. `POST /convert`
-  * also refuses an `Origin` that is not same-origin (a request without one, as
-  * curl sends, is served) and stops reading past the body cap.
+  * Every route answers only a `Host` naming the address served on: a
+  * DNS-rebinding guard. The loopback names (`localhost`, `127.0.0.1`, `[::1]`)
+  * pass with any port, so an `ssh -L` tunnel on another local port works; the
+  * `--host` given, or under a wildcard bind the IP the connection reached, needs
+  * the bound port. `POST /convert` also refuses an `Origin` other than
+  * `http://` plus the request's Host (a request without one, as curl sends, is
+  * served) and stops reading past the body cap.
   */
 object Serve {
 
@@ -190,6 +192,16 @@ object Serve {
     names.map(n => s"$n:$port") ++ (if (port == 80) names else Set.empty[String])
   }
 
+  /** A loopback name with any port or none (`localhost:9000`): an `ssh -L` tunnel
+    * on another local port names it so, and a rebinding page carries its own name,
+    * so the port is not what guards. `host` is lowercased. */
+  private[socle] def isLoopbackName(host: String): Boolean = {
+    val (name, rest) =
+      if (host.startsWith("[")) host.splitAt(host.indexOf(']') + 1)
+      else host.indexOf(':') match { case -1 => (host, ""); case i => host.splitAt(i) }
+    Set("localhost", "127.0.0.1", "[::1]")(name) && (rest.isEmpty || rest.matches(":[0-9]{1,5}"))
+  }
+
   /** An IP literal as a `Host` header names it. */
   private def literal(a: java.net.InetAddress, port: Int): String = a match {
     case v6: java.net.Inet6Address => s"[${v6.getHostAddress.takeWhile(_ != '%')}]:$port"
@@ -206,11 +218,14 @@ object Serve {
       val hosts  =
         if (wildcard) allowed + literal(ex.getLocalAddress.getAddress, ex.getLocalAddress.getPort) else allowed
       val host   = Option(ex.getRequestHeaders.getFirst("Host")).map(_.toLowerCase)
-      if (!host.exists(hosts)) { send(ex, 403, "text/plain", "forbidden host".getBytes(UTF_8)); return }
+      if (!host.exists(h => hosts(h) || isLoopbackName(h))) {
+        send(ex, 403, "text/plain", "forbidden host".getBytes(UTF_8)); return
+      }
       if (method == "POST" && path == "/convert") {
         // CSRF guard: a browser sends Origin on a cross-origin POST; curl sends none.
+        // Same origin is the request's own (validated) Host, so a tunnel's port is followed.
         val origin = Option(ex.getRequestHeaders.getFirst("Origin")).map(_.toLowerCase)
-        if (origin.exists(o => !hosts.map("http://" + _).contains(o)))
+        if (origin.exists(o => !host.exists(h => o == "http://" + h)))
           send(ex, 403, "text/plain", "forbidden origin".getBytes(UTF_8))
         else convert(ex, maxBody)
         return

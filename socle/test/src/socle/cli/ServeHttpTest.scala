@@ -37,7 +37,8 @@ object ServeHttpTest extends TestSuite {
   val tests = Tests {
     test("a foreign Host is refused on every route") {
       withServer() { port =>
-        for (h <- Seq(s"evil.example:$port", "evil.example", s"127.0.0.1:${port + 1}")) {
+        for (h <- Seq(s"evil.example:$port", "evil.example", s"evil.localhost:$port", s"localhost.evil.example:$port",
+            s"localhost:x$port")) {
           assert(raw(port, "GET", "/socle.html", Seq("Host" -> h)) == 403)
           assert(raw(port, "GET", "/design.json", Seq("Host" -> h)) == 403)
           assert(raw(port, "POST", "/convert", Seq("Host" -> h, text, len(fir)), fir) == 403)
@@ -52,9 +53,21 @@ object ServeHttpTest extends TestSuite {
         val host = "Host" -> s"127.0.0.1:$port"
         assert(raw(port, "POST", "/convert", Seq(host, text, len(fir)), fir) == 200)
         assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> s"http://127.0.0.1:$port"), fir) == 200)
-        assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> s"http://localhost:$port"), fir) == 200)
-        for (o <- Seq("http://evil.example", s"http://evil.example:$port", s"https://127.0.0.1:$port", "null"))
+        assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> s"HTTP://127.0.0.1:$port"), fir) == 200)
+        // same origin is the request's own Host: another name or local port is another origin
+        for (o <- Seq("http://evil.example", s"http://evil.example:$port", s"https://127.0.0.1:$port", "null",
+            s"http://localhost:$port", s"http://127.0.0.1:${port + 1}"))
           assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> o), fir) == 403)
+      }
+    }
+    test("an ssh -L tunnel on another local port is served") {
+      withServer() { port =>
+        val local = port + 1 // the tunnel's local port: the browser names it in Host and Origin
+        for (h <- Seq(s"localhost:$local", s"127.0.0.1:$local", s"[::1]:$local", "localhost"))
+          assert(raw(port, "GET", "/socle.html", Seq("Host" -> h)) == 200)
+        val host = "Host" -> s"localhost:$local"
+        assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> s"http://localhost:$local"), fir) == 200)
+        assert(raw(port, "POST", "/convert", Seq(host, text, len(fir), "Origin" -> s"http://localhost:${local + 1}"), fir) == 403)
       }
     }
     test("convert: the cap applies to the bytes read, declared or not") {

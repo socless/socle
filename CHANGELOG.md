@@ -40,8 +40,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 ### Security
 
 - The standalone server (`serve`) answers only requests whose `Host` names the address it serves
-  on (`localhost`, `127.0.0.1`, `[::1]`, the `--host` given, or under `0.0.0.0` the IP the
-  connection reached, with the port), as the language server's panel does: another site can no
+  on (`localhost`, `127.0.0.1` or `[::1]` on any port, so an `ssh -L` tunnel works; the `--host`
+  given, or under `0.0.0.0` the IP the connection reached, with the port): another site can no
   longer read a design or convert through it by DNS rebinding. `POST /convert` also refuses a
   cross-origin `Origin` (a request without one, as curl sends, still works), and its 128 MB cap
   now counts the bytes read, so a chunked body cannot pass it.

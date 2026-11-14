@@ -35,9 +35,10 @@ In scope:
   `--host`. It serves the UI, files from `--dir`, and `POST /convert`, which
   takes a CHIRRTL text body (up to 128 MB, counted on the bytes read) and
   returns the converted `design.json`. It only answers requests whose `Host`
-  is `localhost`, `127.0.0.1` or `[::1]`, the `--host` address, or under a
-  wildcard bind the IP the connection reached, each with the port;
-  `POST /convert` also needs, when an `Origin` is sent, a same-origin one.
+  is `localhost`, `127.0.0.1` or `[::1]` (any port, for an `ssh -L` tunnel),
+  or the `--host` address, or under a wildcard bind the IP the connection
+  reached, with the bound port; `POST /convert` also needs, when an `Origin`
+  is sent, one equal to `http://` plus that `Host`.
   Reading files outside `--dir`, making the conversion do more than parse and
   convert its input, or a way around these guards, is in scope. Binding a non-loopback
   address on purpose (`--host 0.0.0.0`) exposes the server to that network;
