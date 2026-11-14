@@ -33,9 +33,14 @@ In scope:
   Mill tasks `socleUI` and `socleServe`; `Serve.scala`). It binds `127.0.0.1`
   by default, `0.0.0.0` when it detects WSL, or the address given with
   `--host`. It serves the UI, files from `--dir`, and `POST /convert`, which
-  takes a CHIRRTL text body (up to 128 MB) and returns the converted
-  `design.json`. Reading files outside `--dir`, or making the conversion do
-  more than parse and convert its input, is in scope. Binding a non-loopback
+  takes a CHIRRTL text body (up to 128 MB, counted on the bytes read) and
+  returns the converted `design.json`. It only answers requests whose `Host`
+  is `localhost`, `127.0.0.1` or `[::1]` (any port, for an `ssh -L` tunnel),
+  or the `--host` address, or under a wildcard bind the IP the connection
+  reached, with the bound port; `POST /convert` also needs, when an `Origin`
+  is sent, one equal to `http://` plus that `Host`.
+  Reading files outside `--dir`, making the conversion do more than parse and
+  convert its input, or a way around these guards, is in scope. Binding a non-loopback
   address on purpose (`--host 0.0.0.0`) exposes the server to that network;
   that is the documented behaviour, not a vulnerability.
 - **The single-file UI** (`socle.html`) loading a `design.json`, whether
