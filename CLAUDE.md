@@ -152,7 +152,8 @@ socle-ui/                # Scala.js + Laminar frontend - owns all its UI assets
     panels/                # Inspector (right pane), BottomPanel (Source / Waveform / Ports), Chrome
                            # (command palette, keyboard-help overlay, warnings banner)
                            # Help (hint bar, first-time tips)
-    model/                 # RowModel (expansion rows, shared BundleTree), Glyphs, LogicLabels, ScalaClassLabel
+    model/                 # RowModel (expansion rows, shared BundleTree), Glyphs, LogicLabels, ScalaClassLabel,
+                           # ClassRows (the Hierarchy's Classes tab rows, from ClassGroups)
     data/                  # DesignLoader (load, live poll, drag-drop, picker), Embedded (?host=vscode), IdeLink
     wave/                  # SurferPane (embedded Surfer WASM over in-page WCP), WaveFollow (the
                            # waveform viewer follows the selection: panel Surfer or POST /wave/select)

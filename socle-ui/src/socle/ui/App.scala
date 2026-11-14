@@ -6,7 +6,7 @@ import scala.scalajs.js
 import scala.scalajs.js.annotation._
 import scala.scalajs.js.timers._
 import socle.schema.{Design, ModuleDef, NodeKind, SourceRef}
-import socle.layout.{InstanceFold, LayoutCore}
+import socle.layout.{ClassGroups, InstanceFold, LayoutCore}
 import socle.ui.data.{DesignLoader, Embedded, IdeLink, IdeState}
 import socle.ui.theme._
 import socle.ui.model._
@@ -25,6 +25,8 @@ object App {
   // ── Navigation / view state (design + source state lives in [[DesignLoader]]) ─
   private val pathVar     = Var[List[String]](Nil)     // drilled module path (instance names)
   private val expandedVar = Var[Set[String]](Set.empty) // expanded hierarchy row ids (path-joined)
+  private val hierTabVar      = Var("instances")       // the Hierarchy pane's tab: "instances" or "classes"
+  private val classToggledVar = Var(Set.empty[String]) // Classes tab rows flipped from their default open state
   // Schematic + inspector shared state (Phase 2 / Phase 3).
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
@@ -1152,13 +1154,27 @@ object App {
       case (Some(d), exp) => hierarchyRows(d, exp).map(r => (d, r))
       case (None, _)      => Nil
     }
+    // The Classes tab: only for a design whose modules carry their Scala class (view mode).
+    val groupsSig    = loader.designSig.map(_.fold(Seq.empty[ClassGroups.ClassGroup])(ClassGroups.of))
+    val tabSig       = Signal.combine(hierTabVar.signal, groupsSig).map { case (t, g) => if (g.isEmpty) "instances" else t }
+    val classRowsSig = Signal.combine(groupsSig, classToggledVar.signal).map { case (g, t) => ClassRows.build(g, t) }
+    val shownSig     = Signal.combine(tabSig, loader.designSig, rowsSignal, classRowsSig).map {
+      case ("classes", Some(d), _, cr) => cr.map(r => classRow(d, r))
+      case (_, _, rs, _)               => rs.map { case (d, r) => row(d, r) }
+    }
+    def tab(id: String, label: String) =
+      button(dataAttr("hier-tab") := id, styleAttr <-- tabSig.map(t => BottomPanel.tabStyle(t == id)),
+        onClick --> { _ => hierTabVar.set(id) }, label)
     div(
       cls := "scl-pane scl-pane-hierarchy", dataAttr("pane") := "hierarchy",
-      // Its row in view when the open module changes, and when the pane shows again.
+      // Its row in view when the open module changes, when the tab changes, and when the pane shows again.
       inContext(pane => openRowSig --> { _ => scrollToOpenRow(pane.ref) }),
+      inContext(pane => tabSig.changes --> { _ => scrollToOpenRow(pane.ref) }),
       div(cls := "scl-pane-title",
         span("HIERARCHY"),
-        span(cls := "scl-count", child.text <-- rowsSignal.map(_.length.toString))),
+        span(cls := "scl-count", child.text <-- shownSig.map(_.length.toString))),
+      child.maybe <-- groupsSig.map(_.nonEmpty).distinct.map(on => Option.when(on)(
+        div(cls := "scl-bottom-tabs", dataAttr("hier-tabs") := "1", tab("instances", "Instances"), tab("classes", "Classes")))),
       div(cls := "scl-hier",
         // Error / empty note when nothing loaded.
         child.maybe <-- Signal.combine(loader.designSig, loader.errorSig, loader.waitingSig).map {
@@ -1168,10 +1184,38 @@ object App {
           case (None, None, _)      => Some(div(cls := "scl-pane-body", "loading…"))
           case _                    => None
         },
-        children <-- rowsSignal.map(_.map { case (d, r) => row(d, r) }),
+        children <-- shownSig,
       ),
     )
   }
+
+  /** A Classes tab row: a class or a parameterization opens and closes; an
+    * instance opens its module as the tree's row does, and is current alike. */
+  private def classRow(d: Design, r: ClassRows.Row): Element =
+    if (r.kind == "instance") div(
+      cls := "scl-hier-row",
+      cls.toggle("active") <-- openRowSig.map(_.contains(r.id)),
+      dataAttr("hier-current") <-- openRowSig.map(o => if (o.contains(r.id)) "1" else "0"),
+      dataAttr("class-instance") := r.id,
+      styleAttr := s"padding-left: ${4 + r.depth * 14}px",
+      title := s"${r.title} (${r.module})",
+      onClick --> { _ => pathVar.set(r.path) },
+      span(cls := "scl-hier-toggle"),
+      span(cls := "scl-hier-glyph", Glyphs.of(d, r.module)),
+      span(cls := "scl-hier-label", r.label),
+    )
+    else div(
+      cls := "scl-hier-row",
+      dataAttr("class-row") := r.id, dataAttr("class-kind") := r.kind,
+      styleAttr := s"padding-left: ${4 + r.depth * 14}px",
+      title := r.title,
+      onClick --> { _ => classToggledVar.update(s => if (s(r.id)) s - r.id else s + r.id) },
+      span(cls := "scl-hier-toggle", if (r.expanded) "▾" else "▸"),
+      span(cls := "scl-hier-label", r.label),
+      Option.when(r.unknown)(span(cls := "scl-hier-glyph", dataAttr("class-unknown") := "1", title := ClassRows.Unknown, "?")),
+      span(cls := "scl-hier-type", styleAttr := "flex-shrink: 0",
+        title := (if (r.kind == "class") s"${r.count} modules" else s"${r.count} instances"), r.count.toString),
+    )
 
   private def row(d: Design, r: Row): Element = {
     val toggleMods: Seq[Modifier[HtmlElement]] =

@@ -43,6 +43,21 @@ A state diagram has the schematic's gestures: the wheel zooms at the pointer
 (Shift + wheel scrolls sideways), a drag pans, `+` / `-` zoom, `f` or `0`
 fits, and its `fit` / `100%` buttons sit bottom-right.
 
+### The Classes tab
+
+A design opened from a test (view mode) knows each module's Scala class, so
+the Hierarchy pane has two tabs: Instances (the tree) and Classes. Classes
+lists one row per class with its number of modules (the user's classes first,
+open; Chisel library classes after them, closed). Under a class, one row per
+set of constructor arguments, `(nCores = 2)` or `(no parameters)`, with its
+number of instances: the modules built with the same arguments (modules built
+from equal arguments can still differ). Under it, one row per instance,
+by its path below the top (`cluster0/cores_1`); a click opens it, as the
+tree's row does. A class built only without parameters lists its instances
+directly. A `?` marks arguments some value of which could not be read (a
+function, a module): they are not compared, so that module stands alone.
+Designs exported from CHIRRTL carry no class and show the tree alone.
+
 ### Ports and bundles
 
 A block shows the ports its module declares, in declaration order, whether

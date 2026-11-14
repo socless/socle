@@ -60,6 +60,12 @@ object BottomPanel {
   private val Types    = Set("Module","IO","Bundle","Vec","Flipped","Decoupled","Queue","RRArbiter","UInt","SInt","Bool","Clock","Reset","Reg","RegInit","Mem","DontCare")
   private val TokRe    = """[^\s(){}.,;]+|\s+|[(){}.,;]""".r
 
+  /** A tab button's style (also the Hierarchy pane's tabs). */
+  def tabStyle(active: Boolean): String =
+    s"border:none;background:transparent;cursor:pointer;padding:0 14px;font-size:11.5px;font-family:inherit;" +
+      s"color:${if (active) Tokens.ink else Tokens.ink3};font-weight:${if (active) 600 else 500};" +
+      s"border-bottom:2px solid ${if (active) Tokens.accent else "transparent"};display:flex;align-items:center;gap:6px"
+
   def render(
     designSig: Signal[Option[Design]],
     moduleSig: Signal[Option[ModuleDef]],
@@ -107,10 +113,7 @@ object BottomPanel {
     def tabButton(id: String, icon: String, label: String): Element =
       button(
         dataAttr("bottom-tab") := id,
-        styleAttr <-- shownTabSig.map(t =>
-          s"border:none;background:transparent;cursor:pointer;padding:0 14px;font-size:11.5px;font-family:inherit;" +
-            s"color:${if (t == id) Tokens.ink else Tokens.ink3};font-weight:${if (t == id) 600 else 500};" +
-            s"border-bottom:2px solid ${if (t == id) Tokens.accent else "transparent"};display:flex;align-items:center;gap:6px"),
+        styleAttr <-- shownTabSig.map(t => tabStyle(t == id)),
         onClick --> { _ => tabVar.set(id) },
         span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink4}", icon), label)
 
