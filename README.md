@@ -144,6 +144,7 @@ Mill plugin are the first integrations. Planned directions:
 - What changed in each release: [CHANGELOG.md](CHANGELOG.md).
 - Versioning and the release procedure: [RELEASING.md](RELEASING.md).
 - Architecture and design decisions for contributors: [CLAUDE.md](CLAUDE.md).
+- Reporting a vulnerability: [SECURITY.md](SECURITY.md).
 
 ## Licence
 
