@@ -641,7 +641,8 @@ object App {
     * the selection and the details of the selected instance, else of the current
     * module; plus, only when the design changed since the last message, the
     * design's hierarchy (`design`: each module's Scala class, kind, children
-    * and, when the editor can open it, its source; null without a design). */
+    * and, when the editor can open it, its source; null without a design) and
+    * its class view (`classes`, [[ClassRows.toJson]]; empty without classes). */
   private def sideState(d: Option[Design], path: List[String], sel: Option[String]): js.Any = {
     def design(d: Design) = ujson.Obj(
       "top" -> topOf(d),
@@ -681,13 +682,14 @@ object App {
       "path"      -> path,
       "selection" -> sel.fold[ujson.Value](ujson.Null)(ujson.Str(_)),
       "details"   -> d.fold[ujson.Value](ujson.Null)(details))
-    // The hierarchy (about 200 bytes a module) only when the design changed since the last post.
+    // The hierarchy (about 200 bytes a module) and the class view only when the design changed since the last post.
     val first = !postedDesign.exists {
       case Some(x) => d.exists(_ eq x)
       case None    => d.isEmpty
     }
     if (first) {
       msg("design") = d.fold[ujson.Value](ujson.Null)(design)
+      msg("classes") = d.fold(ujson.Arr())(x => ClassRows.toJson(ClassGroups.of(x)))
       postedDesign = Some(d)
     }
     js.JSON.parse(ujson.write(msg))

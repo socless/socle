@@ -104,7 +104,9 @@ is still there. Embedded, the hierarchy and inspector panes and their toggles
 are gone too (VS Code's side panel shows them): on the DeepSoc design, framed by
 a cross-origin loopback page, the UI posts `socle-state` (hierarchy, drill
 path, selection, details) on load, drill and select, follows `socle-navigate`
-from the parent, and ignores self-posted or malformed messages:
+from the parent, and ignores self-posted or malformed messages; on the captured
+DeepSoc, its first `socle-state` carries the class view (`classes`), whose
+instance paths `socle-navigate` follows:
 
 ```bash
 ./mill socle-ui.dist && ./mill 'example.{socleRunGcd,socleRunDeepSoc,socleCapturedFsm}'
