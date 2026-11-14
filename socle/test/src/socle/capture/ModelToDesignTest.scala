@@ -287,7 +287,43 @@ object ModelToDesignTest extends TestSuite {
       // Declaration order and declared types survive in parameterDecls.
       val q = d.modules.find(_.name == "Queue4_Token").get
       assert(q.parameterDecls.map(_.name) == Seq("gen", "entries", "pipe", "flow", "useSyncReadMem", "hasFlush"))
-      assert(q.parameterDecls(1) == ParamDef("entries", "Int", "4"))
+      val entries = q.parameterDecls(1)
+      assert(entries.copy(digest = "") == ParamDef("entries", "Int", "4", "ctor"))
+    }
+
+    test("parameter origin and digest reach the schema") {
+      val d = ModelToDesign.design(deepsoc)
+      for (c <- deepsoc.modules) {
+        val m = d.modules.find(_.name == c.name).get
+        check(m.parameterDecls.map(p => (p.origin, p.digest)) == c.params.map(p => (p.origin, p.digest)),
+          s"${c.name}: ${m.parameterDecls}")
+      }
+      val n = d.modules.find(_.name == "Cluster").get.parameterDecls.head
+      assert(n.origin == "ctor", n.digest.nonEmpty)
+      // Equal values give equal digests across the uniquified copies.
+      assert(d.modules.find(_.name == "Cluster_1").get.parameterDecls.head.digest == n.digest)
+    }
+
+    test("old json without parameter origin and digest parses, defaults stay unwritten") {
+      val p = upickle.default.read[ParamDef]("""{"name":"nCores","tpe":"Int","value":"2"}""")
+      assert(p == ParamDef("nCores", "Int", "2"), p.origin == "", p.digest == "")
+      assert(upickle.default.write(p) == """{"name":"nCores","tpe":"Int","value":"2"}""")
+    }
+
+    test("an instance's source is its inst marker") {
+      val d = ModelToDesign.design(deepsoc)
+      val cores = d.modules.find(_.name == "Cluster").get.children.filter(_.name.startsWith("cores_"))
+      assert(cores.nonEmpty)
+      cores.foreach(c => check(c.source == SourceRef("example/src/deephier/DeepSoc.scala", 125, 38), s"${c.name}: ${c.source}"))
+      // The same position as the CHIRRTL path gives, for every instance.
+      val oracle = SocleExporter.designFromChirrtl(deepsoc.chirrtl)
+      for (om <- oracle.modules; oc <- om.children) {
+        val c = d.modules.find(_.name == om.name).get.children.find(_.name == oc.name).get
+        check(c.source == oc.source, s"${om.name}.${oc.name}: ${c.source} != ${oc.source}")
+      }
+      // No CHIRRTL in the capture: unknown, as before.
+      val bare = ModelToDesign.design(deepsoc.copy(chirrtl = ""))
+      assert(bare.modules.flatMap(_.children).forall(_.source == SourceRef.unknown))
     }
 
     test("seq.fill copies share a fold group") {

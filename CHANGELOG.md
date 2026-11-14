@@ -19,6 +19,18 @@ and [tags](https://github.com/socless/socle/tags) pages.
   modules and objects without a `toString` of their own as placeholders. Each captured parameter
   also says where its value was read (`origin`: `ctor` or `val`) and carries a digest of the
   whole value, empty when the value is not fully known.
+- design.json carries each constructor parameter's `origin` and `digest` (`ParamDef`; omitted when
+  empty, so older files still load), and `ClassGroups` groups a view's modules by Scala class, then
+  by parameterization (equal parameter digests), with the instance paths of each module: the data
+  for a class view of the hierarchy. A parameter whose value is not fully known keeps its module
+  apart. Designs from CHIRRTL (no Scala class) give no group.
+
+### Changed
+
+- View design gives each instance the source position where it is created (its `Module(...)`
+  call), as the CHIRRTL path already does: selecting an instance in the schematic now highlights
+  that line in the Source tab instead of the module declaration, and the instantiation files are
+  embedded with the other sources.
 
 ## [0.28.0] - 2026-11-14
 

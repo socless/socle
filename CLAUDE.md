@@ -82,6 +82,8 @@ socle/src/socle/
   layout/                # LayoutCore (pure, shared with socle-js), Layout (JVM ELK bake),
                          # LayoutDebug (headless dump), InstanceFold (folds generator copies; shared)
                          # PortModel (declared ports as pin rows, #332; shared)
+                         # ClassGroups (modules by Scala class and parameterization, with
+                         # their instance paths: derived, not in design.json; shared)
   capture/               # View-mode capture: CapturedModel (shared with socle-probe),
                          # ModelToDesign (capture -> Design), WiresFromChirrtl (wiring fallback),
                          # LogicGroups (which logic nodes form one block), LogicBlocks (collapse

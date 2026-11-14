@@ -225,7 +225,9 @@ object ModelToDesign {
         children   = c.instances.map { i =>
           // Its clock and reset domain, from the CHIRRTL walk when the capture has it.
           val ir: Option[InstanceDef] = if (m.chirrtl.nonEmpty) irModules.get(c.name).flatMap(_.children.find(_.name == i.name)) else None
-          InstanceDef(i.name, i.module, "", SourceRef.unknown, params = params(i.module),
+          // Its source is the CHIRRTL `inst` marker (where Module(...) is called), as on the CHIRRTL path.
+          val at = if (m.chirrtl.isEmpty) None else chirrtlInsts.get(c.name).flatMap(_.get(i.name))
+          InstanceDef(i.name, i.module, "", at.fold(SourceRef.unknown)(s => SourceRef(s.file, s.line, s.col)), params = params(i.module),
             foldGroup = foldGroups.getOrElse(i.name, ""), clock = ir.fold("")(_.clock), reset = ir.fold("")(_.reset))
         },
         wires      = wires,
@@ -233,7 +235,7 @@ object ModelToDesign {
         metrics    = irModule.map(_.metrics).getOrElse(Metrics(0, 0, 0)),
         parameters = params(c.name),
         scalaClass = c.scalaClass,
-        parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value)),
+        parameterDecls = c.params.map(p => ParamDef(p.name, p.tpe, p.value, p.origin, p.digest)),
         logic      = logic,
         tieOffs    = tied,
         signals    = signalsOf(circ.modules.find(_.name == c.name)),
