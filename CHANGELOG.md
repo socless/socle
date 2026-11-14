@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.30.0] - 2026-11-14
+
 ### Added
 
 - Editor clients: the `socle-state` message carries the class view in a new `classes` field,
