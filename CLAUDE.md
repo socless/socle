@@ -71,6 +71,8 @@ socle/src/socle/
   SocleExporter.scala  # Public entry point: SocleExporter.export(gen, path, sourceRoot?), fromCaptured
   schema/                # Schema.scala: JSON case classes, the contract with the UI (Design, ModuleDef, ...);
                          # BundleTree.scala (shared with the UI)
+                         # Scaladoc.scala (module/port scaladoc from embedded sources),
+                         # SchematicSettings.scala (panel defaults from the editor's socle.schematic*)
   parse/ChirrtlParser.scala  # CHIRRTL text → typed AST (GroundT, BundleT, VecT, Port, Inst, Conn)
   ir/                    # IrWalk (AST → Design; bundle dedup & wire coalescing), NetTrace, WhenMux,
                          # FsmDetect, MemNodes, Synthetic (logic-node extraction), CodeBlocks
@@ -79,11 +81,18 @@ socle/src/socle/
                          # from-capture, debug-layout, serve), Serve (standalone UI server)
   layout/                # LayoutCore (pure, shared with socle-js), Layout (JVM ELK bake),
                          # LayoutDebug (headless dump), InstanceFold (folds generator copies; shared)
+                         # PortModel (declared ports as pin rows, #332; shared)
   capture/               # View-mode capture: CapturedModel (shared with socle-probe),
                          # ModelToDesign (capture -> Design), WiresFromChirrtl (wiring fallback),
                          # LogicGroups (which logic nodes form one block), LogicBlocks (collapse
                          # groups into boxes with pins), SourceIndex (trait: source position ->
                          # generator construct, FSM diagram; implemented in socle-lsp)
+                         # FoldGroups (which generator copies fold into one box), FsmEncoding
+                         # (FSM state encodings, for state names in waveforms)
+  wave/                  # Waveform support shared by the JVM and the UI: WaveLayout (signal list),
+                         # WaveLinks (Surfer right-click: locate, drivers, loads), WaveEnums (FSM
+                         # state names for traces), WaveSettings (socle.waves*), SurferWire (panel
+                         # to VS Code Surfer tab messages)
 
 socle-probe/             # Java agent: captures a ChiselSim test's elaborated design (view mode)
   src/socle/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk
@@ -105,6 +114,10 @@ socle-lsp/src/socle/lsp/  # Language server (stdio): View design / Simulate lens
   ScalaSourceIndex.scala # scalameta SourceIndex: generator constructs, FSM state diagrams
   FsmFacts.scala         # switch(register) state machines, syntax only (for ScalaSourceIndex.fsm)
   FromCapture.scala      # CLI: capture -> design.json with the source index (socleCapturedFsm)
+  WaveFollower.scala     # POST /wave/select: the external Surfer follows the panel selection
+  WcpSession.scala       # WCP session with the external Surfer app (WaveTarget)
+  TraceNames.scala       # reads a VCD header: the trace's signal names and design scope
+  TraceEnums.scala       # writes FSM state names into a copy of a VCD trace
 
 mill-socle/src/socle/mill/
   SocleModule.scala    # Trait users mix into ScalaModule; defines `socle` and `socleUI` tasks
@@ -130,13 +143,19 @@ socle-ui/                # Scala.js + Laminar frontend - owns all its UI assets
                            # filter, minimap), SchematicBoxes / SchematicChrome / SchematicGeom /
                            # SchematicColors / LogicSymbols, FsmDiagramView (an FSM block's state
                            # diagram), Export (SVG/PNG + self-contained HTML snapshot)
+                           # Gestures (pan/zoom/keyboard), Highlight (hover/selection styling),
+                           # NetFollow (follow a net across drill levels), Tooltip, ViewHistory (Back/Forward)
     panels/                # Inspector (right pane), BottomPanel (Source / Waveform / Ports), Chrome
                            # (command palette, keyboard-help overlay, warnings banner)
+                           # Help (hint bar, first-time tips)
     model/                 # RowModel (expansion rows, shared BundleTree), Glyphs, LogicLabels, ScalaClassLabel
     data/                  # DesignLoader (load, live poll, drag-drop, picker), Embedded (?host=vscode), IdeLink
     wave/                  # SurferPane (embedded Surfer WASM over in-page WCP), WaveFollow (the
                            # waveform viewer follows the selection: panel Surfer or POST /wave/select)
+                           # WavePane (what WaveFollow drives), RemotePane / SurferTab (VS Code Surfer
+                           # tab, driven from the panel), ColorLegend (signal list colour legend)
     theme/Tokens.scala     # theme tokens
+    theme/Logo.scala       # the Socle logo SVG
   html/socle.src.html    # template the `dist` task inlines into the single-file UI
   vendor/                  # elk.bundled.js + elk-worker.min.js (vendored elkjs), inlined offline
 
@@ -144,6 +163,8 @@ tools/
   ci/selective.sh          # Mill selective execution for PR CI (ALL_TASKS: keep in sync with ci.yml)
   ui-smoke/                # headless UI smokes: smoke.mjs, serve-smoke.mjs, embedded.mjs (README inside)
   check-chirrtl-fixtures.sh, consume-test/  # CI: fixture drift check; plugin consumption smoke
+  release/notes.sh         # a version's release notes from CHANGELOG.md (release workflow)
+  screenshots/             # retakes the README images (run.sh, shots.mjs, check.sh; README inside)
 ```
 
 The frontend is **Scala.js + Laminar** (`socle-ui`). The shipped single-file
