@@ -335,7 +335,7 @@ object `socle-ui` extends ScalaJSModule {
     )
     def uiPureSources = Task.Sources(
       Seq("model/RowModel.scala", "model/Glyphs.scala", "model/LogicLabels.scala", "model/ScalaClassLabel.scala",
-        "schematic/SchematicGeom.scala", "theme/Tokens.scala")
+        "schematic/SchematicGeom.scala", "schematic/PathIndex.scala", "theme/Tokens.scala")
         .map(f => mill.api.BuildCtx.workspaceRoot / "socle-ui" / "src" / "socle" / "ui" / os.RelPath(f))*
     )
     def allSourceFiles = Task { super.allSourceFiles() ++ uiPureSources() }

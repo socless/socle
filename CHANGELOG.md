@@ -25,6 +25,10 @@ and [tags](https://github.com/socless/socle/tags) pages.
   bundle or Vec pin starts from that pin again, not from a sibling pin whose name is a prefix
   of it (`io.a` for `io.ab.bits`, `in[1]` for `in[10].x`), which could sit on the other side
   of the box.
+- Selecting or hovering a wire, pin or box no longer lights the wires and pins of a sibling
+  whose name merely starts with the same text: `io.a` lit `io.ab`, box `core1` lit `core10`'s
+  wires, op node `_T` lit `_T_1`'s. A selection still lights the fields, elements and logic
+  pins (`r~q`) under it and the bundle pins over it.
 
 ### Documentation
 

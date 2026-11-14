@@ -4,6 +4,7 @@ import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.collection.mutable
 import SchematicGeom.{Geom, Wire, ownerBoxId, fuzzyHas}
+import PathIndex.within
 import socle.layout.LayoutCore
 import socle.ui.theme.Tokens
 
@@ -28,13 +29,14 @@ import socle.ui.theme.Tokens
   *    export embeds the same rules ([[Export]]).
   *
   * Matching keeps the exact predicates of the old per-render code:
-  *  - a wire is lit by a selection `s` when one path is a prefix of the other
-  *    (`from`/`to` vs `s`, both ways), hovered by `h` when `from` or `to` starts
-  *    with `h`;
+  *  - a wire is lit by a selection `s` when one path is under the other
+  *    (`from`/`to` vs `s`, both ways), hovered by `h` when `from` or `to` is
+  *    under `h`; under means on a `.`, `[` or `~` boundary ([[PathIndex]]),
+  *    so `c.io.a` never lights its sibling `c.io.ab`;
   *  - a box is selected when `s` is its id or under it (`id.`), and an
   *    instance is a clock peer when it shares the selected instance's clock;
-  *  - a pin is selected (or hovered) when its path and the key are prefixes
-  *    of one another.
+  *  - a pin is selected (or hovered) when its path and the key are under one
+  *    another.
   *
   * The selection and hover keys stay App's `Var[Option[String]]`, shared with
   * the Inspector, the bottom panel, the waveform follow and the palette.
@@ -245,25 +247,6 @@ object Highlight {
   }
   private val NoMatch = new Match(Set.empty, Set.empty, Set.empty, Set.empty)
 
-  /** Paths to elements, answering the two prefix questions without a scan:
-    * the paths that start with `k` (a binary-searched range of the sorted
-    * paths, O(log n + hits)), and the paths `k` starts with (a map lookup per
-    * prefix of `k`, O(|k|)). */
-  final class PathIndex(entries: Iterable[(String, dom.Element)]) {
-    private val sorted: Array[(String, dom.Element)] = entries.toArray.sortBy(_._1)
-    private val byPath: Map[String, Seq[dom.Element]] = entries.groupMap(_._1)(_._2).map { case (k, v) => k -> v.toSeq }
-    /** The elements whose path starts with `k`. */
-    def startingWith(k: String): Iterator[dom.Element] = {
-      var lo = 0; var hi = sorted.length
-      while (lo < hi) { val mid = (lo + hi) >>> 1; if (sorted(mid)._1.compareTo(k) < 0) lo = mid + 1 else hi = mid }
-      sorted.iterator.drop(lo).takeWhile(_._1.startsWith(k)).map(_._2)
-    }
-    /** The elements whose path is a prefix of `k` (`k.startsWith(path)`). */
-    def prefixesOf(k: String): Iterator[dom.Element] =
-      (0 to k.length).iterator.flatMap(i => byPath.getOrElse(k.substring(0, i), Nil))
-    def exactly(k: String): Seq[dom.Element] = byPath.getOrElse(k, Nil)
-  }
-
   /** The elements of one render that a highlight can touch, registered as the
     * render builds them (a Laminar element's DOM node exists from construction).
     * `geom` is the geometry they were built from (null for the empty registry).
@@ -285,11 +268,11 @@ object Highlight {
     /** The label of an expanded bundle's field row (a followed net lights it). */
     def row(path: String, el: dom.Element): Unit = rows += new PinEntry(path, el)
 
-    private lazy val wireFrom = new PathIndex(wires.map(w => w.from -> w.el))
-    private lazy val wireTo   = new PathIndex(wires.map(w => w.to -> w.el))
-    private lazy val pinIdx   = new PathIndex(pins.map(p => p.path -> p.el))
+    private lazy val wireFrom = new PathIndex[dom.Element](wires.map(w => w.from -> w.el))
+    private lazy val wireTo   = new PathIndex[dom.Element](wires.map(w => w.to -> w.el))
+    private lazy val pinIdx   = new PathIndex[dom.Element](pins.map(p => p.path -> p.el))
     // Selectable boxes by id; instance boxes by the clock of their child.
-    private lazy val selBoxes = new PathIndex(boxes.filter(_.kind != BoxKind.Stub).map(b => b.id -> b.el))
+    private lazy val selBoxes = new PathIndex[dom.Element](boxes.filter(_.kind != BoxKind.Stub).map(b => b.id -> b.el))
     private lazy val byClock: Map[String, Seq[BoxEntry]] =
       boxes.filter(_.kind == BoxKind.Instance)
         .flatMap(b => geom.childByName.get(b.id).map(ch => ch.clock -> b)).toSeq.groupMap(_._1)(_._2)
@@ -322,14 +305,14 @@ object Highlight {
 
     private lazy val wiresByPair: Map[(String, String), Seq[dom.Element]] =
       wires.groupMap(w => (w.from, w.to))(_.el).map { case (k, v) => k -> v.toSeq }
-    private lazy val markIdx = new PathIndex((pins ++ marks).map(p => p.path -> p.el))
-    private lazy val rowIdx  = new PathIndex(rows.map(p => p.path -> p.el))
+    private lazy val markIdx = new PathIndex[dom.Element]((pins ++ marks).map(p => p.path -> p.el))
+    private lazy val rowIdx  = new PathIndex[dom.Element](rows.map(p => p.path -> p.el))
 
     /** What a followed net lights here: its wires, and every pin, stub and
       * field row whose path is one of its ends, under one or over one (a
       * collapsed bundle pin for a field, the field pins of a bundle). */
     def followMatch(l: NetFollow.Lit): Match = if (geom == null || (l.wires.isEmpty && l.ends.isEmpty)) NoMatch else {
-      def related(idx: PathIndex, k: String): Iterator[dom.Element] =
+      def related(idx: PathIndex[dom.Element], k: String): Iterator[dom.Element] =
         idx.exactly(k).iterator ++ idx.startingWith(k + ".") ++ idx.startingWith(k + "[") ++
           k.indices.iterator.filter(i => k.charAt(i) == '.' || k.charAt(i) == '[').flatMap(i => idx.exactly(k.substring(0, i)))
       new Match(
@@ -361,7 +344,7 @@ object Highlight {
     def boxMatch(id: String): Match = if (geom == null) NoMatch else
       new Match(wiresByBox.getOrElse(id, Set.empty), boxesById.getOrElse(id, Set.empty), Set.empty, Set.empty)
 
-    /** What a selection `s` lights. Wires and pins: either path a prefix of the
+    /** What a selection `s` lights. Wires and pins: either path under the
       * other. Boxes: `s` is the id or under it (`id.`). Peers: the instances
       * sharing the selected instance's clock. */
     def selMatch(s: String): Match = if (geom == null) NoMatch else selCache.getOrElseUpdate(s, {
@@ -370,20 +353,20 @@ object Highlight {
       // `s == id` or `s.startsWith(id + ".")`: the ids among `s` and its prefixes ending before a dot.
       val boxIds = Iterator.single(s) ++ s.indices.iterator.filter(i => s.charAt(i) == '.').map(s.substring(0, _))
       new Match(
-        (wireFrom.startingWith(s) ++ wireTo.startingWith(s) ++ wireFrom.prefixesOf(s) ++ wireTo.prefixesOf(s)).toSet,
+        (wireFrom.under(s) ++ wireTo.under(s) ++ wireFrom.over(s) ++ wireTo.over(s)).toSet,
         boxIds.flatMap(selBoxes.exactly).toSet,
         if (selClock.isEmpty) Set.empty
         else byClock.getOrElse(selClock, Nil).iterator.filter(_.id != selInst).map(_.el).toSet,
-        (pinIdx.startingWith(s) ++ pinIdx.prefixesOf(s)).toSet,
+        (pinIdx.under(s) ++ pinIdx.over(s)).toSet,
       )
     })
 
-    /** What a hover `h` lights: wires whose `from` or `to` starts with `h`, and
+    /** What a hover `h` lights: wires whose `from` or `to` is under `h`, and
       * pins related to `h` both ways. */
     def hovMatch(h: String): Match = if (geom == null) NoMatch else hovCache.getOrElseUpdate(h, new Match(
-      (wireFrom.startingWith(h) ++ wireTo.startingWith(h)).toSet,
+      (wireFrom.under(h) ++ wireTo.under(h)).toSet,
       Set.empty, Set.empty,
-      (pinIdx.startingWith(h) ++ pinIdx.prefixesOf(h)).toSet,
+      (pinIdx.under(h) ++ pinIdx.over(h)).toSet,
     ))
 
     // The same matches by a full scan, the reference for the self-check below.
@@ -391,17 +374,17 @@ object Highlight {
       val selInst  = ownerBoxId(geom.boxById, s)
       val selClock = geom.childByName.get(selInst).map(_.clock).getOrElse("")
       new Match(
-        wires.iterator.filter(w => w.from.startsWith(s) || w.to.startsWith(s) || s.startsWith(w.from) || s.startsWith(w.to)).map(_.el).toSet,
+        wires.iterator.filter(w => within(w.from, s) || within(w.to, s) || within(s, w.from) || within(s, w.to)).map(_.el).toSet,
         boxes.iterator.filter(b => b.kind != BoxKind.Stub && (s == b.id || s.startsWith(b.id + "."))).map(_.el).toSet,
         if (selClock.isEmpty) Set.empty
         else boxes.iterator.filter(b => b.kind == BoxKind.Instance && b.id != selInst && geom.childByName.get(b.id).exists(_.clock == selClock)).map(_.el).toSet,
-        pins.iterator.filter(p => p.path.startsWith(s) || s.startsWith(p.path)).map(_.el).toSet,
+        pins.iterator.filter(p => within(p.path, s) || within(s, p.path)).map(_.el).toSet,
       )
     }
     private def hovScan(h: String): Match = new Match(
-      wires.iterator.filter(w => w.from.startsWith(h) || w.to.startsWith(h)).map(_.el).toSet,
+      wires.iterator.filter(w => within(w.from, h) || within(w.to, h)).map(_.el).toSet,
       Set.empty, Set.empty,
-      pins.iterator.filter(p => p.path.startsWith(h) || h.startsWith(p.path)).map(_.el).toSet,
+      pins.iterator.filter(p => within(p.path, h) || within(h, p.path)).map(_.el).toSet,
     )
 
     /** Test hook (smoke): the indexed matches against a full scan, for every
@@ -409,7 +392,7 @@ object Highlight {
       * Returns (keys checked, the keys that differ). */
     def selfCheck(): (Int, Seq[String]) = if (geom == null) (0, Nil) else {
       val base = (wires.flatMap(w => Seq(w.from, w.to)) ++ pins.map(_.path) ++ boxes.map(_.id)).toSet
-      val keys = base ++ base.flatMap(k => k.indices.filter(i => k.charAt(i) == '.' || k.charAt(i) == '[').map(k.substring(0, _))) - ""
+      val keys = base ++ base.flatMap(k => k.indices.filter(i => PathIndex.isSep(k.charAt(i))).map(k.substring(0, _))) - ""
       val bad = keys.toSeq.sorted.filterNot(k => selMatch(k).sameAs(selScan(k)) && hovMatch(k).sameAs(hovScan(k)))
       val ids = boxes.map(_.id).distinct
       val badBox = ids.sorted.filterNot(id => boxMatch(id).sameAs(boxScan(id))).map("box " + _)
