@@ -41,7 +41,9 @@ There are three ways in, all front doors to the same UI:
   language server in Neovim or any LSP editor
   ([docs/ide-neovim.md](docs/ide-neovim.md); in Neovim, the
   [socle.nvim](https://github.com/socless/socle.nvim) plugin sets it up).
-  Your tests are never modified.
+  Your tests are never modified. To read constructor arguments, the probe
+  instruments module constructors in memory, at run time, inside the forked
+  view process only: sources, compiled classes on disk and builds are untouched.
 
 However you open it, [docs/usage-ui.md](docs/usage-ui.md) shows how to move
 around the schematic (mouse, keyboard, history, following a net) and what the

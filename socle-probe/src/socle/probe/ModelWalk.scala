@@ -34,7 +34,7 @@ object ModelWalk {
       seen(m.name) = CModule(
         name       = m.name,
         scalaClass = m.getClass.getName,
-        params     = attempt(m, "params", problems)(paramsOf(m)).getOrElse(Nil),
+        params     = attempt(m, "params", problems)(paramsOf(m, problems)).getOrElse(Nil),
         source     = attempt(m, "source", problems)(sourceOf(m)).flatten,
         ports      = attempt(m, "ports", problems)(portsOf(m)).getOrElse(Nil),
         instances  = children.map(_._2),
@@ -59,32 +59,96 @@ object ModelWalk {
 
   // ── Constructor parameters ────────────────────────────────────────────────
   // Names and types come from the primary constructor (Scala runtime
-  // reflection); a value is read back only through a same-named zero-arg
-  // method declared by the module's own class, i.e. when the parameter is a
-  // val (an inherited member like BaseModule.name must not stand in for a
-  // plain `name` parameter). Otherwise it is "<unreadable>".
-  private def paramsOf(m: BaseModule): Seq[CParam] = {
+  // reflection). A value comes from the arguments the agent recorded for that
+  // constructor (CtorArgs, origin "ctor"). Without them (no agent, or recorded
+  // arguments that do not line up with the parameters) it is read back only
+  // through a same-named zero-arg method declared by the module's own class,
+  // i.e. when the parameter is a val (origin "val"; an inherited member like
+  // BaseModule.name must not stand in for a plain `name` parameter).
+  // Otherwise it is "<unreadable>".
+  //
+  // An anonymous subclass (`new Fifo(4) { ... }`) shows the parameters and
+  // arguments of its nearest named superclass: its own constructor only
+  // passes captured values.
+  private def paramsOf(m: BaseModule, problems: mutable.Buffer[String]): Seq[CParam] = {
     val mirror = ru.runtimeMirror(m.getClass.getClassLoader)
-    val ctor   = mirror.classSymbol(m.getClass).primaryConstructor
-    if (ctor == ru.NoSymbol) Nil
-    else ctor.asMethod.paramLists.flatten.map { p =>
-      val name = p.name.decodedName.toString
-      CParam(name, p.typeSignature.toString, valueOf(m, p.name.encodedName.toString))
+    val named  = namedClass(m.getClass)
+    CtorArgs.of(m, named).flatMap(fromArgs(mirror, named, _)) match {
+      case Some(params) => capParams(m.name, params, problems)
+      case None =>
+        val ctor = mirror.classSymbol(m.getClass).primaryConstructor
+        if (ctor == ru.NoSymbol) Nil
+        else ctor.asMethod.paramLists.flatten.map { p =>
+          val name = p.name.decodedName.toString
+          valueOf(m, p.name.encodedName.toString) match {
+            case Some(v) =>
+              CParam(name, p.typeSignature.toString, truncate(String.valueOf(v)), "val", ParamValues.digest(v, name))
+            case None => CParam(name, p.typeSignature.toString, Unreadable)
+          }
+        }
     }
   }
 
-  private def valueOf(m: AnyRef, member: String): String =
+  /** The class itself, or its nearest superclass that is not anonymous. */
+  private def namedClass(c: Class[_]): Class[_] =
+    if ((c.isAnonymousClass || c.getName.contains("$anon")) && c.getSuperclass != null) namedClass(c.getSuperclass)
+    else c
+
+  /** The recorded arguments of `cls`'s primary constructor, one per parameter
+    * of all its lists (implicit ones included), after the outer instance an
+    * inner class takes first. None when they do not line up. */
+  private def fromArgs(mirror: ru.Mirror, cls: Class[_], args: Array[AnyRef]): Option[Seq[CParam]] = {
+    val ctor = mirror.classSymbol(cls).primaryConstructor
+    if (ctor == ru.NoSymbol) None
+    else {
+      val params    = ctor.asMethod.paramLists.flatten
+      val enclosing = cls.getEnclosingClass
+      // An outer module (a module class declared in another) is held weakly.
+      def outer = args(0) match {
+        case a: CtorArgs.ModuleArg => a.get
+        case a                     => a
+      }
+      val values =
+        if (args.length == params.length) Some(args.toSeq)
+        else if (args.length == params.length + 1 && enclosing != null && enclosing.isInstance(outer)) Some(args.toSeq.tail)
+        else None
+      values.map(_.zip(params).map { case (v, p) =>
+        val name = p.name.decodedName.toString
+        CParam(name, p.typeSignature.toString, truncate(ParamValues.render(v, name)), "ctor", ParamValues.digest(v, name))
+      })
+    }
+  }
+
+  private def valueOf(m: AnyRef, member: String): Option[Any] =
     try {
       val getter = m.getClass.getMethod(member)
-      if (getter.getDeclaringClass != m.getClass) Unreadable
-      else truncate(String.valueOf(getter.invoke(m)))
-    } catch { case NonFatal(_) => Unreadable }
+      if (getter.getDeclaringClass != m.getClass) None
+      else Some(getter.invoke(m))
+    } catch { case NonFatal(_) => None }
 
-  val MaxValueChars = 200
+  val MaxValueChars       = 200
+  val MaxModuleParamChars = 4096
+  private val Truncated   = "...(truncated)"
 
   /** Cap a parameter value, saying so explicitly when it was cut. */
   private def truncate(s: String): String =
-    if (s.length <= MaxValueChars) s else s.take(MaxValueChars) + "...(truncated)"
+    if (s.length <= MaxValueChars) s else s.take(MaxValueChars) + Truncated
+
+  /** Cap a module's parameter values at [[MaxModuleParamChars]] in all: past
+    * it a value is only "...(truncated)" (its digest stays), and a problem says so. */
+  private[probe] def capParams(module: String, params: Seq[CParam], problems: mutable.Buffer[String]): Seq[CParam] = {
+    var used = 0
+    var hit  = false
+    params.map { p =>
+      used += p.value.length
+      if (used <= MaxModuleParamChars) p
+      else {
+        if (!hit) problems += s"$module: parameter values exceed $MaxModuleParamChars characters, the rest are cut"
+        hit = true
+        p.copy(value = Truncated)
+      }
+    }
+  }
 
   // ── Module source ─────────────────────────────────────────────────────────
   // The chisel plugin overrides the protected `_sourceInfo` in each user
@@ -104,7 +168,7 @@ object ModelWalk {
     DataMirror.modulePorts(m).map { case (name, d) => CPort(name, typeOf(d, name)) }
 
   /** `name` is the field or port name, used as the label of an anonymous bundle. */
-  private def typeOf(d: Data, name: String): CType = {
+  private[probe] def typeOf(d: Data, name: String): CType = {
     val cls = d.getClass.getName
     val base = CType(
       scalaClass = cls,

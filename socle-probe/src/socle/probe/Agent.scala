@@ -28,6 +28,20 @@ object Agent {
           .disableClassFormatChanges()
           .`with`(AgentBuilder.RedefinitionStrategy.RETRANSFORMATION)
           .`with`(AgentBuilder.Listener.StreamWriting.toSystemError().withErrorsOnly())
+          // The JDK, Scala and the probe itself define no Chisel module: skip
+          // them before the module matcher below resolves their hierarchy.
+          .ignore(
+            isSynthetic[TypeDescription]()
+              .or(nameStartsWith[TypeDescription]("java."))
+              .or(nameStartsWith[TypeDescription]("javax."))
+              .or(nameStartsWith[TypeDescription]("jdk."))
+              .or(nameStartsWith[TypeDescription]("sun."))
+              .or(nameStartsWith[TypeDescription]("com.sun."))
+              .or(nameStartsWith[TypeDescription]("scala."))
+              .or(nameStartsWith[TypeDescription]("net.bytebuddy."))
+              .or(nameStartsWith[TypeDescription]("socle.probe."))
+              .or(nameStartsWith[TypeDescription]("socle.shaded."))
+          )
           .`type`(
             named[TypeDescription]("chisel3.stage.ChiselCircuitAnnotation")
               .or(named[TypeDescription]("chisel3.stage.DesignAnnotation"))
@@ -45,6 +59,8 @@ object Agent {
           )
         // View mode only: ChiselSim looks Verilator up before elaborating; a
         // failed lookup must not stop a run that never reaches Verilator.
+        // The user's module constructors are instrumented in view mode only
+        // too, so a run that goes on to simulate runs their code unchanged.
         val viewBuilder =
           if (!view) builder
           else
@@ -56,6 +72,14 @@ object Agent {
                     .to(classOf[CaptureAdvice.OnVerilatorLookup])
                     .on(named[MethodDescription]("initializeFromProcessEnvironment").and(takesNoArguments[MethodDescription]()))
                 )
+              )
+              // Constructor arguments of every module (CtorArgs): only
+              // references are stored, rendered after elaboration by ModelWalk.
+              // BaseModule is a class, so its subclasses are matched by
+              // superclass alone, without resolving every loaded class's interfaces.
+              .`type`(hasSuperClass[TypeDescription](named[TypeDescription]("chisel3.experimental.BaseModule")))
+              .transform((b, _, _, _, _) =>
+                b.visit(Advice.to(classOf[CaptureAdvice.OnModuleConstructed]).on(isConstructor[MethodDescription]()))
               )
         viewBuilder.installOn(inst)
         ()

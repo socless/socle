@@ -95,8 +95,10 @@ socle/src/socle/
                          # to VS Code Surfer tab messages)
 
 socle-probe/             # Java agent: captures a ChiselSim test's elaborated design (view mode)
-  src/socle/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk
-  fixtures/src/probefix/ # NoSimulateSpec, BrokenSpec: compiled fixtures for AgentRunTest
+  src/socle/probe/     # Agent (premain), CaptureAdvice (Byte Buddy hooks), Capture, ModelWalk,
+                         # CtorArgs (module constructor arguments, recorded in view mode),
+                         # ParamValues (their display text and digest)
+  fixtures/src/probefix/ # NoSimulateSpec, BrokenSpec, ConfigSpec, ParamsSpec: compiled fixtures for AgentRunTest
 
 socle-lsp/src/socle/lsp/  # Language server (stdio): View design / Simulate lenses + live panel
   Main.scala             # entry point; stdout is the JSON-RPC channel (prints go to stderr)

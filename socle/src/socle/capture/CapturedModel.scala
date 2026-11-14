@@ -32,8 +32,12 @@ case class CModule(
   wires:      Seq[CWire] = Nil,  // empty with non-empty chirrtl: consumer derives them (WiresFromChirrtl)
 )
 
-/** A primary-constructor parameter; `value` is "<unreadable>" when it is not a val. */
-case class CParam(name: String, tpe: String, value: String)
+/** A primary-constructor parameter. `value` is "<unreadable>" when it could
+  * not be read. `origin` says where it was read: "ctor" (the constructor
+  * arguments the probe recorded), "val" (the parameter's getter), "" (not
+  * read). `digest` hashes the value's full structure (not the capped display
+  * text); "" means unknown, never equal to anything. */
+case class CParam(name: String, tpe: String, value: String, origin: String = "", digest: String = "")
 
 case class CSource(file: String, line: Int, col: Int)
 

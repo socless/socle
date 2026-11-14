@@ -283,7 +283,7 @@ object ModelToDesignTest extends TestSuite {
         check(m.children.map(c => c.name -> c.`type`).toSet == om.children.map(c => c.name -> c.`type`).toSet,
           s"instances of ${om.name}: ${m.children} != ${om.children}")
       }
-      assert(d.modules.find(_.name == "Cluster").get.parameters("nCores") == "<unreadable>")
+      assert(d.modules.find(_.name == "Cluster").get.parameters("nCores") == "2")
       // Declaration order and declared types survive in parameterDecls.
       val q = d.modules.find(_.name == "Queue4_Token").get
       assert(q.parameterDecls.map(_.name) == Seq("gen", "entries", "pipe", "flow", "useSyncReadMem", "hasFlush"))

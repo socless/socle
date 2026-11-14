@@ -9,6 +9,17 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Added
+
+- View design reads every module constructor argument, not only `val` parameters:
+  `Cluster(nCores = 2)` instead of `Cluster(nCores = <unreadable>)`. The probe records the
+  arguments as each module is built (in memory, inside the forked view process: sources, class
+  files on disk and builds are untouched) and renders them after elaboration: case classes as
+  `Name(field = value)`, collections up to 8 elements, Chisel types by their label, functions,
+  modules and objects without a `toString` of their own as placeholders. Each captured parameter
+  also says where its value was read (`origin`: `ctor` or `val`) and carries a digest of the
+  whole value, empty when the value is not fully known.
+
 ## [0.28.0] - 2026-11-14
 
 ### Added

@@ -1,6 +1,6 @@
 package socle.probe
 
-import socle.capture.{CapturedModel, WiresFromChirrtl}
+import socle.capture.{CParam, CapturedModel, WiresFromChirrtl}
 import utest._
 
 /** Runs unmodified ChiselSim scalatest tests in a forked JVM with the probe
@@ -101,6 +101,57 @@ object AgentRunTest extends TestSuite {
       val cluster = r.model.modules.find(_.name == "Cluster").get
       val coreModules = r.model.modules.filter(_.scalaClass == "deephier.Core").map(_.name).toSet
       assert(cluster.instances.count(i => coreModules(i.module)) == 3)
+      // nCores is a plain parameter: read from the recorded constructor arguments.
+      val nCores = cluster.params.find(_.name == "nCores").get
+      assert(nCores.value == "3", nCores.origin == "ctor", nCores.digest.nonEmpty)
+    }
+    test("constructor arguments") {
+      val r = viewRun("fixtures.cp", "probefix.ParamsSpec", None)
+      assert(r.model.status == "ok")
+      assertConsumable(r.model)
+      val byName = r.model.modules.map(m => m.name -> m).toMap
+      val top    = byName("ParamsTop")
+      /** The params of the module instance `inst` of ParamsTop, by name. */
+      def params(inst: String): Map[String, CParam] =
+        byName(top.instances.find(_.name == inst).get.module).params.map(p => p.name -> p).toMap
+      def value(inst: String, p: String) = params(inst)(p).value
+      def digest(inst: String, p: String) = params(inst)(p).digest
+
+      assert(params("plain")("nCores") == params("plain")("nCores").copy(value = "2", origin = "ctor"))
+      assert(digest("plain", "nCores").nonEmpty)
+      assert(value("cfgA", "cfg") == "LaneCfg(width = 8, label = a)")
+      assert(value("seq", "taps") == "Seq(1, 2, 3, 4, 5, 6, 7, 8, ... (20 total))")
+      assert(value("fn", "f") == "<function>")
+      assert(value("tpe", "gen") == "UInt<8>")
+      assert(value("opaque", "o") == "<Opaque>")
+      assert(value("bomb", "b") == "<unreadable>")
+      assert(value("deep", "w") == "Wrap(inner = Wrap2(inner = Wrap3(inner = Wrap4(...))))")
+      // multiple and implicit parameter lists, flattened in declaration order
+      assert(params("lists").keys.toSet == Set("a", "b", "cfg"))
+      assert(value("lists", "a") == "1", value("lists", "b") == "two", value("lists", "cfg") == "LaneCfg(width = 4, label = imp)")
+      // a secondary constructor: the primary's arguments, its default filled in
+      assert(value("secondary", "depth") == "3", value("secondary", "width") == "8")
+      // an anonymous subclass: the named superclass's parameters
+      assert(byName(top.instances.find(_.name == "anon").get.module).scalaClass.contains("$anon"))
+      assert(params("anon").keys.toSet == Set("depth"), value("anon", "depth") == "4")
+      // an inherited chain: the module's own level, not the superclass's (6)
+      assert(params("striped").keys.toSet == Set("stripes"), value("striped", "stripes") == "3")
+      // an inner class: its outer instance is not a parameter
+      assert(params("inner").keys.toSet == Set("depth"), value("inner", "depth") == "5")
+      // a module class declared in a module: its outer instance is a module
+      assert(params("nested").keys.toSet == Set("k"), value("nested", "k") == "9")
+      // Chisel literals show their value; same type, different values, different digests
+      assert(value("lit5", "init") == "UInt<3>(5)", value("lit7", "init") == "UInt<3>(7)")
+      assert(digest("lit5", "init").nonEmpty, digest("lit5", "init") != digest("lit7", "init"))
+      // hardware is a reference, not a value: no digest
+      assert(value("hw", "sig") == "UInt<8>", digest("hw", "sig") == "")
+      // long values: the same display, different digests
+      assert(value("longA", "s") == "x" * 200 + "...(truncated)", value("longA", "s") == value("longB", "s"))
+      assert(digest("longA", "s").nonEmpty, digest("longB", "s").nonEmpty, digest("longA", "s") != digest("longB", "s"))
+      // equal values, equal digests; different values, different digests
+      assert(digest("cfgA", "cfg") == digest("cfgB", "cfg"), digest("cfgA", "cfg") != digest("cfgC", "cfg"))
+      // opaque values have no digest
+      for ((i, p) <- Seq("fn" -> "f", "opaque" -> "o", "bomb" -> "b")) assert(digest(i, p) == "")
     }
     test("no simulate") {
       val r = viewRun("fixtures.cp", "probefix.NoSimulateSpec", None)
