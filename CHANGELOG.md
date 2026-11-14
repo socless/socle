@@ -24,6 +24,11 @@ and [tags](https://github.com/socless/socle/tags) pages.
   by parameterization (equal parameter digests), with the instance paths of each module: the data
   for a class view of the hierarchy. A parameter whose value is not fully known keeps its module
   apart. Designs from CHIRRTL (no Scala class) give no group.
+- The Hierarchy pane has a Classes tab beside the tree (Instances) for a design opened from a
+  test: one row per Scala class, then one per set of constructor arguments (`(nCores = 2)`, a `?`
+  when a value could not be read and was not compared), then one per instance path; a click on an
+  instance opens it as the tree does. Classes start closed, library classes after the user's.
+  Designs from CHIRRTL keep the tree alone, with no tab bar.
 
 ### Changed
 

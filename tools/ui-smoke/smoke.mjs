@@ -74,6 +74,8 @@ const historyDesigns = new Set();
 // opened a leaf module by a double-click with the hierarchy following it.
 const navButtonDesigns = new Set();
 const leafDrillDesigns = new Set();
+// The designs whose Classes tab (or its absence, for an export) was checked.
+const classesDesigns = new Set();
 // The designs with a drillable child of the top and a leaf with content:
 // each must run both checks (a design that skips one fails on its own).
 // The designs with a state diagram: each runs the diagram's Back / Forward check.
@@ -859,6 +861,48 @@ async function smokeDesignIn(design, ctx) {
       if (!(await page.locator('[data-inst-inspect="cores"] [data-inst-fold-count="2"]').count()))
         note(design, where, 'the folded box\'s Inspector lacks "2 generator copies"');
     }
+    drain(where);
+  }
+
+  // Classes tab: a captured design's Hierarchy also lists its modules by Scala
+  // class, then by constructor arguments, then by instance; an instance row
+  // opens its module as a tree row does. An export-mode design has no tab bar.
+  if (design === 'deepsoc-view' || design === 'deepsoc') {
+    const where = 'classes tab';
+    const tabs = await page.locator('[data-hier-tabs]').count();
+    if (design === 'deepsoc') { if (tabs) note(design, where, 'an export-mode design shows the Instances | Classes tab bar'); }
+    else if (tabs !== 1) note(design, where, `expected one tab bar, got ${tabs}`);
+    else {
+      const crumbs = () => page.evaluate(() => Array.from(document.querySelectorAll('.scl-crumbs .scl-crumb')).map((b) => b.textContent).join(' > '));
+      await page.locator('[data-hier-tab="classes"]').click({ timeout: 3000 }).catch((e) => note(design, where, `open Classes: ${e.message}`));
+      const cluster = page.locator('[data-class-row="class:deephier.Cluster"]');
+      const args = page.locator('[data-class-row="class:deephier.Cluster#0"]');
+      // Every class starts closed: no parameterization or instance row shows.
+      const inner = await page.locator('[data-class-kind="params"], [data-class-instance]').count();
+      if (inner) note(design, where, `${inner} parameterization or instance rows show before any class is opened`);
+      // Open Cluster (its arguments) and Core (the instance clicked below).
+      for (const c of ['deephier.Cluster', 'deephier.Core'])
+        await page.locator(`[data-class-row="class:${c}"]`).click({ timeout: 3000 }).catch((e) => note(design, where, `open ${c}: ${e.message}`));
+      if (!(await cluster.count())) note(design, where, 'no Cluster class row');
+      else if (!(await args.count())) note(design, where, 'no parameterization row under Cluster');
+      else if (!(await args.innerText()).includes('(nCores = 2)')) note(design, where, `Cluster's parameterization row lacks "(nCores = 2)": ${JSON.stringify(await args.innerText())}`);
+      // Queue (a library class) comes after the user's classes, still closed.
+      const classes = await page.$$eval('[data-class-kind="class"]', (els) => els.map((e) => e.getAttribute('data-class-row')));
+      if (classes[classes.length - 1] !== 'class:chisel3.util.Queue') note(design, where, `the library class is not last: ${classes.join(', ')}`);
+      if (await page.locator('[data-class-row="class:chisel3.util.Queue#0"]').count()) note(design, where, 'a class is open by default');
+      const target = 'DeepSoc/cluster1/cores_0';
+      const before = await crumbs();
+      await page.locator(`[data-class-instance="${target}"]`).click({ timeout: 3000 }).catch((e) => note(design, where, `click ${target}: ${e.message}`));
+      await settled(page).catch((e) => note(design, where, e.message));
+      const after = await crumbs();
+      if (after === before || after !== 'DeepSoc > cluster1 > cores_0') note(design, where, `the instance row did not open ${target}: "${before}" -> "${after}"`);
+      const cur = await page.$$eval('[data-hier-current="1"]', (els) => els.map((e) => e.getAttribute('data-class-instance')));
+      if (cur.length !== 1 || cur[0] !== target) note(design, where, `the current rows are ${JSON.stringify(cur)}, expected ${target}`);
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/${design}__classes.png` }).catch(() => {});
+      await page.locator('[data-hier-tab="instances"]').click({ timeout: 3000 }).catch((e) => note(design, where, `back to Instances: ${e.message}`));
+      if (!(await page.locator('[data-hier-path]').count())) note(design, where, 'the Instances tab shows no tree row');
+    }
+    classesDesigns.add(design);
     drain(where);
   }
 
@@ -3855,6 +3899,7 @@ if (!ONLY && cursorZoomDesigns.size === 0) note('(all)', 'hover feedback', 'no d
 console.log(`Cursor pointer on symbols and stubs checked on: ${Array.from(cursorPointerDesigns).join(', ') || '(none)'}`);
 if (!ONLY && cursorPointerDesigns.size === 0) note('(all)', 'hover feedback', 'no design had a logic symbol or a stub for the cursor check');
 
+console.log(`Classes tab checked on: ${Array.from(classesDesigns).join(', ') || '(none)'}`);
 console.log(`Hint bar checked on: ${Array.from(hintDesigns).join(', ') || '(none)'}`);
 if (!ONLY && hintDesigns.size === 0) note('(all)', 'hover feedback', 'no design checked the hint bar against a card');
 for (const [what, set] of [['History walk', historyDesigns], ['Fly to', flyDesigns], ['Fly to from another module', flyCrossDesigns],
