@@ -37,6 +37,15 @@ and [tags](https://github.com/socless/socle/tags) pages.
   that line in the Source tab instead of the module declaration, and the instantiation files are
   embedded with the other sources.
 
+### Security
+
+- The standalone server (`serve`) answers only requests whose `Host` names the address it serves
+  on (`localhost`, `127.0.0.1`, `[::1]`, the `--host` given, or under `0.0.0.0` the IP the
+  connection reached, with the port), as the language server's panel does: another site can no
+  longer read a design or convert through it by DNS rebinding. `POST /convert` also refuses a
+  cross-origin `Origin` (a request without one, as curl sends, still works), and its 128 MB cap
+  now counts the bytes read, so a chunked body cannot pass it.
+
 ## [0.28.0] - 2026-11-14
 
 ### Added
