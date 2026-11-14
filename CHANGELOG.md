@@ -9,6 +9,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Added
+
+- Editor clients: the `socle-state` message carries the class view in a new `classes` field,
+  sent with `design` when the design changes: each Scala class, its parameterizations (modules
+  built with the same arguments: `label`, `unknown`, `params`) and their instances, whose `path`
+  a host posts back in `socle-navigate` to show one. Additive: a host that ignores the field
+  works as before ([lsp-protocol.md](docs/lsp-protocol.md)).
+
 ## [0.29.0] - 2026-11-14
 
 ### Added

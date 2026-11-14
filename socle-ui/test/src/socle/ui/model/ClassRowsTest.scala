@@ -79,6 +79,33 @@ object ClassRowsTest extends TestSuite {
     test("an export-mode design gives no row") {
       val d = Design("Top", Map.empty, Seq(mod("Top", "")))
       assert(ClassRows.build(ClassGroups.of(d), Set.empty).isEmpty)
+      assert(ClassRows.toJson(ClassGroups.of(d)) == ujson.Arr())
+    }
+    test("the editor's class view: every level, in the rows' order") {
+      val js = ClassRows.toJson(ClassGroups.of(deepSoc))
+      assert(js.arr.map(c => (c("name").str, c("library").bool, c("modules").num.toInt)) ==
+        Seq(("Cluster", false, 2), ("Core", false, 4), ("DeepSoc", false, 1), ("Queue", true, 1)))
+      val cluster = js(0)
+      assert(cluster("scalaClass").str == "deephier.Cluster")
+      val p = cluster("parameterizations")(0)
+      assert(p("label").str == "(nCores = 2)" && !p("unknown").bool)
+      assert(p("params") == ujson.Arr(ujson.Obj("name" -> "nCores", "tpe" -> "Int", "value" -> "2")))
+      assert(p("instances") == ujson.Arr(
+        ujson.Obj("path" -> ujson.Arr("DeepSoc", "cluster0"), "label" -> "cluster0", "module" -> "Cluster"),
+        ujson.Obj("path" -> ujson.Arr("DeepSoc", "cluster1"), "label" -> "cluster1", "module" -> "Cluster_1")))
+      // A lone parameterization without parameters stays (the rows skip that level).
+      val core = js(1)("parameterizations").arr
+      assert(core.map(_("label").str) == Seq("(no parameters)"))
+      assert(core(0)("instances").arr.map(_("module").str) == Seq("Core", "Core_1", "Core_2", "Core_3"))
+      assert(js(2)("parameterizations")(0)("instances")(0)("label").str == "DeepSoc")
+    }
+    test("the editor's class view marks an unknown parameterization") {
+      val d = Design("Top", Map.empty, Seq(
+        mod("Top", "x.Top", children = Seq("a" -> "Q", "b" -> "Q_1")),
+        mod("Q", "x.Q", Seq(("f", "<function>", ""))), mod("Q_1", "x.Q", Seq(("f", "<function>", "")))))
+      val q = ClassRows.toJson(ClassGroups.of(d)).arr.find(_("name").str == "Q").get
+      assert(q("parameterizations").arr.map(p => (p("label").str, p("unknown").bool, p("instances").arr.size)) ==
+        Seq(("(f = <function>)", true, 1), ("(f = <function>)", true, 1)))
     }
   }
 }

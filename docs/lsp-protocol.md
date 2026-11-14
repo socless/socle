@@ -134,7 +134,7 @@ From the UI to its host:
 
 | `type` | Fields | When |
 |---|---|---|
-| `socle-state` | `path`, `selection`, `details`, and `design` when the design changed | Once per change of the design, the drill path or the selection |
+| `socle-state` | `path`, `selection`, `details`, and `design` and `classes` when the design changed | Once per change of the design, the drill path or the selection |
 | `socle-surfer-open` | `trace` (absolute URL), `traceTest` (`<suite>#<test>`), `force` | `surfer-panel` viewer: a new trace (`force: false`: open the Surfer tab unless it was opened for that trace before) or the Show Surfer button (`force: true`) |
 | `socle-surfer-cmd` | `cmd` | `surfer-panel` viewer: a command for the Surfer tab, which the host relays unchanged |
 
@@ -147,6 +147,50 @@ From the UI to its host:
   `{name, scalaClass, kind, source, children}`. `source` is `{file, line}` when the editor can
   open it, else null; each child is `{name, type}`, plus `foldGroup` (its fold group's id) for a
   generator copy.
+- `classes` is the class view (the UI's Hierarchy Classes tab), sent with `design` and only then:
+  the design's modules by Scala class, then by parameterization, then their instances. It is an
+  empty array without a design, or for a design whose modules carry no Scala class (export mode).
+  User classes come first, then library classes (`chisel3.`...), each by full class name;
+  parameterizations come in design order; a parameterization's instances come module by module
+  (design order), each module's instances in hierarchy order (depth first).
+  - A class is `{scalaClass, name, library, modules, parameterizations}`: `scalaClass` the full
+    name, `name` the short label the UI shows, `library` true for a Chisel library class,
+    `modules` how many modules the class built.
+  - A parameterization is `{label, unknown, params, instances}`: the modules of the class built
+    with the same arguments (say "same arguments", not "same hardware": two modules with the same
+    arguments are grouped whatever they elaborate to). `label` is `(nCores = 2)`, or
+    `(no parameters)`; `params` is `[{name, tpe, value}]` in declaration order. `unknown` is true
+    when some value could not be read (a function, say): it is then not compared, and the
+    parameterization holds exactly one module, so two such entries may carry the same `label`. The
+    UI marks it with a `?`. Every class has at least one parameterization; when a class has a
+    single one without parameters, the UI lists its instances directly under the class.
+  - An instance is `{path, label, module}`: `path` its drill path, in the form of `socle-state`'s
+    `path` (the top module's name, then instance names); `label` the path below the top
+    (`cluster0/cores_0`), or the top module's name for the top; `module` the module it
+    instantiates. To show an instance, a host posts `{"type": "socle-navigate", "path": <path>}`;
+    a generator copy folded away in the schematic is reached the same way.
+
+  The captured DeepSoc (`./mill example.socleCapturedDeepSoc`), cut to two of its six classes:
+
+  ```json
+  "classes": [
+    {"scalaClass": "deephier.Cluster", "name": "Cluster", "library": false, "modules": 2,
+     "parameterizations": [
+       {"label": "(nCores = 2)", "unknown": false,
+        "params": [{"name": "nCores", "tpe": "Int", "value": "2"}],
+        "instances": [
+          {"path": ["DeepSoc", "cluster0"], "label": "cluster0", "module": "Cluster"},
+          {"path": ["DeepSoc", "cluster1"], "label": "cluster1", "module": "Cluster_1"}]}]},
+    {"scalaClass": "deephier.Core", "name": "Core", "library": false, "modules": 4,
+     "parameterizations": [
+       {"label": "(no parameters)", "unknown": false, "params": [],
+        "instances": [
+          {"path": ["DeepSoc", "cluster0", "cores_0"], "label": "cluster0/cores_0", "module": "Core"},
+          {"path": ["DeepSoc", "cluster0", "cores_1"], "label": "cluster0/cores_1", "module": "Core_1"},
+          {"path": ["DeepSoc", "cluster1", "cores_0"], "label": "cluster1/cores_0", "module": "Core_2"},
+          {"path": ["DeepSoc", "cluster1", "cores_1"], "label": "cluster1/cores_1", "module": "Core_3"}]}]}
+  ]
+  ```
 - `cmd` is one of `{"$type": "Load", url}`, `{"$type": "Show", seq, plan, path, trace}`,
   `{"$type": "Focus", trace}`, `{"$type": "Add", traces, after}` and `{"$type": "Hello"}`.
 

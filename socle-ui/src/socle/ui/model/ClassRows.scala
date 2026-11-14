@@ -36,13 +36,12 @@ object ClassRows {
     * flips that. A class with a single parameterization without
     * parameters lists its instances directly. */
   def build(groups: Seq[ClassGroup], toggled: Set[String]): List[Row] = {
-    val (user, library) = groups.partition(!_.library)
     val out = List.newBuilder[Row]
     def instances(p: Parameterization, depth: Int): Unit =
       for (m <- p.modules; path <- m.paths)
         out += Row(path.mkString("/"), "instance", depth, pathLabel(path), path.mkString(" > "), 0,
           path = path, module = m.name)
-    (user ++ library).foreach { g =>
+    ordered(groups).foreach { g =>
       val id   = s"class:${g.scalaClass}"
       val open = toggled(id)
       out += Row(id, "class", 0, ScalaClassLabel.simpleName(g.scalaClass, g.scalaClass), g.scalaClass,
@@ -62,4 +61,30 @@ object ClassRows {
     }
     out.result()
   }
+
+  /** The user's classes first, then the library's, each in `groups` order. */
+  private def ordered(groups: Seq[ClassGroup]): Seq[ClassGroup] = {
+    val (user, library) = groups.partition(!_.library)
+    user ++ library
+  }
+
+  /** The class view as `socle-state` gives it to an editor (`classes`): every
+    * class with every parameterization (a lone one without parameters too)
+    * and its instances, in the order the rows show them. */
+  def toJson(groups: Seq[ClassGroup]): ujson.Arr =
+    ujson.Arr.from(ordered(groups).map { g =>
+      ujson.Obj(
+        "scalaClass" -> g.scalaClass,
+        "name"       -> ScalaClassLabel.simpleName(g.scalaClass, g.scalaClass),
+        "library"    -> g.library,
+        "modules"    -> g.parameterizations.map(_.modules.size).sum,
+        "parameterizations" -> g.parameterizations.map { p =>
+          ujson.Obj(
+            "label"   -> paramsLabel(p.params),
+            "unknown" -> p.unknown,
+            "params"  -> p.params.map(d => ujson.Obj("name" -> d.name, "tpe" -> d.tpe, "value" -> d.value)),
+            "instances" -> (for (m <- p.modules; path <- m.paths)
+              yield ujson.Obj("path" -> path, "label" -> pathLabel(path), "module" -> m.name)))
+        })
+    })
 }

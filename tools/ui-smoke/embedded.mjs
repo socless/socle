@@ -4,7 +4,7 @@
 //
 // Embedded, the hierarchy and inspector panes are gone (VS Code's side panel shows
 // them), and the UI talks to the parent page: it posts `socle-state` (design
-// hierarchy only when the design changes, drill path, selection, details) and
+// hierarchy and class view only when the design changes, drill path, selection, details) and
 // follows `socle-navigate`.
 //
 // Usage (from the repo root, after `./mill socle-ui.dist`, the elaborated designs
@@ -454,6 +454,7 @@ for (const width of [620, 360]) {
     const q = d.design.modules.find((m) => m.name === 'Queue4_Token');
     check('side', !!top.source && top.source.line === 162 && q && q.source === null, 'module source only when openable');
     check('side', d.details && d.details.module === 'DeepSoc' && d.details.ports.length === 3, `details of the current module ${JSON.stringify(d.details).slice(0, 200)}`);
+    check('side', JSON.stringify(d.classes) === '[]', `no class view without Scala classes (${JSON.stringify(d.classes)?.slice(0, 100)})`);
   }
 
   const n0 = (await states()).length;
@@ -1329,6 +1330,49 @@ let seq1 = -1;
       `the folded group's details give its copies ${JSON.stringify(sel && sel.data.details)?.slice(0, 200)}`);
   }
   check('fold', errors.length === 0, `no page errors ${errors.join(' | ')}`);
+  await ctx.close();
+}
+
+// 15. The class view in the side panel channel (the captured DeepSoc): the first
+// socle-state carries `classes` (Cluster, its `(nCores = 2)` parameterization and
+// its instances), and an instance's path, posted back as a socle-navigate, shows
+// that instance's module; a drill does not post the classes again.
+{
+  const { ctx, page, errors } = await open(PARENT_DEEPV);
+  const frame = page.frameLocator('#f');
+  await frame.locator('[data-design-loaded="true"]').waitFor({ timeout: 30000 });
+  const f = page.frames().find((x) => x !== page.mainFrame());
+  const states = () => page.evaluate(() => window.__msgs.filter((m) => m.data && m.data.type === 'socle-state'));
+  const last = async () => (await states()).at(-1);
+  const crumb = () => f.evaluate(() => { const a = document.querySelector('.scl-crumb.active'); return a && a.textContent; });
+  const navigate = (msg) => page.evaluate((m) => document.getElementById('f').contentWindow.postMessage(m, '*'), msg);
+  const waitFor = async (what, pred) => {
+    for (let i = 0; i < 50; i++) { const s = await last(); if (s && pred(s.data)) return s; await page.waitForTimeout(100); }
+    check('classes', false, `timed out waiting for ${what}: last ${JSON.stringify((await last())?.data)?.slice(0, 300)}`);
+    return null;
+  };
+  const s0 = await waitFor('the loaded state', (d) => d.design && d.design.top);
+  const classes = s0 && s0.data.classes;
+  check('classes', Array.isArray(classes) && classes.length > 0, `socle-state carries the class view (${JSON.stringify(classes)?.slice(0, 200)})`);
+  const cluster = Array.isArray(classes) && classes.find((c) => c.scalaClass === 'deephier.Cluster');
+  check('classes', !!cluster && cluster.name === 'Cluster' && !cluster.library && cluster.modules === 2, `a Cluster class ${JSON.stringify(cluster)?.slice(0, 200)}`);
+  const lib = Array.isArray(classes) ? classes.findIndex((c) => c.library) : -1;
+  check('classes', lib > 0 && classes.slice(lib).every((c) => c.library), `user classes before library ones ${JSON.stringify(classes?.map((c) => c.name))}`);
+  const p = cluster && cluster.parameterizations.find((x) => x.label === '(nCores = 2)');
+  check('classes', !!p && !p.unknown && JSON.stringify(p.params) === '[{"name":"nCores","tpe":"Int","value":"2"}]' &&
+    JSON.stringify(p.instances.map((i) => i.label)) === '["cluster0","cluster1"]', `a (nCores = 2) parameterization ${JSON.stringify(p)?.slice(0, 300)}`);
+  // An instance folded away in its cluster: its path still navigates there.
+  const core = Array.isArray(classes) && classes.find((c) => c.scalaClass === 'deephier.Core');
+  const inst = core && core.parameterizations.flatMap((x) => x.instances).find((i) => i.label === 'cluster1/cores_1');
+  check('classes', !!inst, `a Core instance at cluster1/cores_1 ${JSON.stringify(core)?.slice(0, 300)}`);
+  if (inst) {
+    await navigate({ type: 'socle-navigate', path: inst.path, select: null });
+    const s1 = await waitFor('the instance shown', (d) => JSON.stringify(d.path) === JSON.stringify(inst.path));
+    check('classes', (await crumb()) === 'cores_1', `the instance's path navigates (breadcrumb ${await crumb()})`);
+    check('classes', !!s1 && s1.data.details.module === inst.module, `the module in view is the instance's (${s1 && s1.data.details.module}, ${inst.module})`);
+    check('classes', !!s1 && !('classes' in s1.data), 'a drill does not post the classes again');
+  }
+  check('classes', errors.length === 0, `no page errors ${errors.join(' | ')}`);
   await ctx.close();
 }
 
