@@ -27,8 +27,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - The Hierarchy pane has a Classes tab beside the tree (Instances) for a design opened from a
   test: one row per Scala class, then one per set of constructor arguments (`(nCores = 2)`, a `?`
   when a value could not be read and was not compared), then one per instance path; a click on an
-  instance opens it as the tree does. Library classes come last, closed. Designs from CHIRRTL keep
-  the tree alone, with no tab bar.
+  instance opens it as the tree does. Classes start closed, library classes after the user's.
+  Designs from CHIRRTL keep the tree alone, with no tab bar.
 
 ### Changed
 

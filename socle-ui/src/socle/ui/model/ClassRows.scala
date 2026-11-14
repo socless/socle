@@ -31,9 +31,9 @@ object ClassRows {
   def pathLabel(path: List[String]): String =
     if (path.tail.isEmpty) path.head else path.tail.mkString("/")
 
-  /** The rows shown: the user's classes first, then the library's. A class or
-    * parameterization row is open by default except a library class; an id in
-    * `toggled` flips that. A class with a single parameterization without
+  /** The rows shown: the user's classes first, then the library's. A class row
+    * is closed by default, a parameterization row open; an id in `toggled`
+    * flips that. A class with a single parameterization without
     * parameters lists its instances directly. */
   def build(groups: Seq[ClassGroup], toggled: Set[String]): List[Row] = {
     val (user, library) = groups.partition(!_.library)
@@ -44,7 +44,7 @@ object ClassRows {
           path = path, module = m.name)
     (user ++ library).foreach { g =>
       val id   = s"class:${g.scalaClass}"
-      val open = !g.library != toggled(id)
+      val open = toggled(id)
       out += Row(id, "class", 0, ScalaClassLabel.simpleName(g.scalaClass, g.scalaClass), g.scalaClass,
         g.parameterizations.map(_.modules.size).sum, expandable = true, expanded = open)
       if (open) g.parameterizations match {

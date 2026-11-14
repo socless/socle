@@ -877,13 +877,19 @@ async function smokeDesignIn(design, ctx) {
       await page.locator('[data-hier-tab="classes"]').click({ timeout: 3000 }).catch((e) => note(design, where, `open Classes: ${e.message}`));
       const cluster = page.locator('[data-class-row="class:deephier.Cluster"]');
       const args = page.locator('[data-class-row="class:deephier.Cluster#0"]');
+      // Every class starts closed: no parameterization or instance row shows.
+      const inner = await page.locator('[data-class-kind="params"], [data-class-instance]').count();
+      if (inner) note(design, where, `${inner} parameterization or instance rows show before any class is opened`);
+      // Open Cluster (its arguments) and Core (the instance clicked below).
+      for (const c of ['deephier.Cluster', 'deephier.Core'])
+        await page.locator(`[data-class-row="class:${c}"]`).click({ timeout: 3000 }).catch((e) => note(design, where, `open ${c}: ${e.message}`));
       if (!(await cluster.count())) note(design, where, 'no Cluster class row');
       else if (!(await args.count())) note(design, where, 'no parameterization row under Cluster');
       else if (!(await args.innerText()).includes('(nCores = 2)')) note(design, where, `Cluster's parameterization row lacks "(nCores = 2)": ${JSON.stringify(await args.innerText())}`);
-      // Queue (a library class) comes after the user's classes, closed.
+      // Queue (a library class) comes after the user's classes, still closed.
       const classes = await page.$$eval('[data-class-kind="class"]', (els) => els.map((e) => e.getAttribute('data-class-row')));
       if (classes[classes.length - 1] !== 'class:chisel3.util.Queue') note(design, where, `the library class is not last: ${classes.join(', ')}`);
-      if (await page.locator('[data-class-row="class:chisel3.util.Queue#0"]').count()) note(design, where, 'a library class is open by default');
+      if (await page.locator('[data-class-row="class:chisel3.util.Queue#0"]').count()) note(design, where, 'a class is open by default');
       const target = 'DeepSoc/cluster1/cores_0';
       const before = await crumbs();
       await page.locator(`[data-class-instance="${target}"]`).click({ timeout: 3000 }).catch((e) => note(design, where, `click ${target}: ${e.message}`));

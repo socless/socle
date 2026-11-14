@@ -24,9 +24,17 @@ object ClassRowsTest extends TestSuite {
   private def show(rows: Seq[ClassRows.Row]) =
     rows.map(r => ("  " * r.depth) + r.label + (if (r.count > 0) s" ${r.count}" else "") + (if (r.unknown) " ?" else ""))
 
+  /** Every class of `d` opened. */
+  private def allOpen(d: Design) = ClassGroups.of(d).map(g => s"class:${g.scalaClass}").toSet
+
   val tests = Tests {
-    test("user classes open, library last and closed, single no-parameter level skipped") {
-      assert(show(ClassRows.build(ClassGroups.of(deepSoc), Set.empty)) == Seq(
+    test("every class closed by default, user classes before the library's") {
+      assert(show(ClassRows.build(ClassGroups.of(deepSoc), Set.empty)) ==
+        Seq("Cluster 2", "Core 4", "DeepSoc 1", "Queue 1"))
+      assert(ClassRows.build(ClassGroups.of(deepSoc), Set.empty).forall(r => r.expandable && !r.expanded))
+    }
+    test("opened classes: parameterizations open, single no-parameter level skipped") {
+      assert(show(ClassRows.build(ClassGroups.of(deepSoc), allOpen(deepSoc))) == Seq(
         "Cluster 2",
         "  (nCores = 2) 2",
         "    cluster0",
@@ -38,16 +46,17 @@ object ClassRowsTest extends TestSuite {
         "  cluster1/cores_1",
         "DeepSoc 1",
         "  DeepSoc",
-        "Queue 1"))
+        "Queue 1",
+        "  (entries = 4, pipe = false) 1",
+        "    pipe"))
     }
-    test("toggling opens a library class and closes a parameterization") {
-      val rows = ClassRows.build(ClassGroups.of(deepSoc), Set("class:chisel3.util.Queue", "class:deephier.Cluster#0"))
-      assert(show(rows).take(2) == Seq("Cluster 2", "  (nCores = 2) 2"))
+    test("toggling a parameterization closes it") {
+      val rows = ClassRows.build(ClassGroups.of(deepSoc), Set("class:deephier.Cluster", "class:deephier.Cluster#0"))
+      assert(show(rows).take(3) == Seq("Cluster 2", "  (nCores = 2) 2", "Core 4"))
       assert(!rows(1).expanded && rows(1).expandable)
-      assert(show(rows).takeRight(3) == Seq("Queue 1", "  (entries = 4, pipe = false) 1", "    pipe"))
     }
     test("instance rows navigate to their path and name their module") {
-      val core = ClassRows.build(ClassGroups.of(deepSoc), Set.empty).filter(_.kind == "instance")
+      val core = ClassRows.build(ClassGroups.of(deepSoc), allOpen(deepSoc)).filter(_.kind == "instance")
       assert(core.find(_.label == "cluster1/cores_0").map(r => (r.path, r.module, r.id)) ==
         Some((List("DeepSoc", "cluster1", "cores_0"), "Core_2", "DeepSoc/cluster1/cores_0")))
       assert(core.find(_.label == "DeepSoc").map(_.path) == Some(List("DeepSoc")))
@@ -56,7 +65,7 @@ object ClassRowsTest extends TestSuite {
       val d = Design("Top", Map.empty, Seq(
         mod("Top", "x.Top", children = Seq("a" -> "Q", "b" -> "Q_1")),
         mod("Q", "x.Q", Seq(("f", "<function>", ""))), mod("Q_1", "x.Q", Seq(("f", "<function>", "")))))
-      val rows = ClassRows.build(ClassGroups.of(d), Set.empty).filter(_.kind == "params")
+      val rows = ClassRows.build(ClassGroups.of(d), allOpen(d)).filter(_.kind == "params")
       assert(show(rows) == Seq("  (f = <function>) 1 ?", "  (f = <function>) 1 ?"))
       assert(rows.forall(_.title.endsWith(ClassRows.Unknown)))
     }
@@ -64,7 +73,7 @@ object ClassRowsTest extends TestSuite {
       val d = Design("Top", Map.empty, Seq(
         mod("Top", "x.Top", children = Seq("a" -> "Q", "b" -> "Q_1")),
         mod("Q", "x.Q"), mod("Q_1", "x.Q", Seq(("n", "1", "d1")))))
-      assert(show(ClassRows.build(ClassGroups.of(d), Set.empty)).take(5) ==
+      assert(show(ClassRows.build(ClassGroups.of(d), allOpen(d))).take(5) ==
         Seq("Q 2", "  (no parameters) 1", "    a", "  (n = 1) 1", "    b"))
     }
     test("an export-mode design gives no row") {

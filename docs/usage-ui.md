@@ -47,9 +47,9 @@ fits, and its `fit` / `100%` buttons sit bottom-right.
 
 A design opened from a test (view mode) knows each module's Scala class, so
 the Hierarchy pane has two tabs: Instances (the tree) and Classes. Classes
-lists one row per class with its number of modules (the user's classes first,
-open; Chisel library classes after them, closed). Under a class, one row per
-set of constructor arguments, `(nCores = 2)` or `(no parameters)`, with its
+lists one row per class with its number of modules, the user's classes first
+and Chisel library classes after them, all closed: ▸ opens one. Under a
+class, one row per set of constructor arguments, `(nCores = 2)` or `(no parameters)`, with its
 number of instances: the modules built with the same arguments (modules built
 from equal arguments can still differ). Under it, one row per instance,
 by its path below the top (`cluster0/cores_1`); a click opens it, as the
