@@ -37,6 +37,11 @@ and [tags](https://github.com/socless/socle/tags) pages.
   that line in the Source tab instead of the module declaration, and the instantiation files are
   embedded with the other sources.
 
+### Fixed
+
+- The Source tab no longer lights a line where the selected instance's name appears only in a
+  comment (`//`, `/* */`, Scaladoc) or a string literal.
+
 ## [0.28.0] - 2026-11-14
 
 ### Added
