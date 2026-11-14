@@ -216,8 +216,12 @@ object TieOff { implicit val rw: ReadWriter[TieOff] = macroRW }
 
 /** One constructor parameter of a captured generator: its name, its declared
   * Scala type ("Int", "T") and its value as read at elaboration ("4",
-  * "<unreadable>", or a long value cut with "...(truncated)"). */
-case class ParamDef(name: String, tpe: String, value: String)
+  * "<unreadable>", or a long value cut with "...(truncated)"). `origin` says
+  * where the value was read ("ctor": the recorded constructor arguments,
+  * "val": the parameter's getter, "": not read); `digest` hashes the whole
+  * value, "" when it is not fully known (never equal to anything). Both
+  * additive, last: older design.json omits them. */
+case class ParamDef(name: String, tpe: String, value: String, origin: String = "", digest: String = "")
 object ParamDef { implicit val rw: ReadWriter[ParamDef] = macroRW }
 
 case class PortDef(

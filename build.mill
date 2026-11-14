@@ -205,6 +205,8 @@ object `socle-js` extends ScalaJSModule {
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "Schema.scala",
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "LayoutCore.scala",
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "InstanceFold.scala",
+    // The modules by Scala class and parameterization, for the Hierarchy's class view.
+    mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "layout" / "ClassGroups.scala",
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "BundleTree.scala",
     // A module's and its port fields' scaladoc, from the embedded sources (the Inspector, pin cards).
     mill.api.BuildCtx.workspaceRoot / "socle" / "src" / "socle" / "schema" / "Scaladoc.scala",
