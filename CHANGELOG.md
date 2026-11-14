@@ -9,6 +9,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-11-14
+
 ### Added
 
 - View design reads every module constructor argument, not only `val` parameters:
