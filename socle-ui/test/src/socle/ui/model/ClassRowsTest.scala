@@ -89,7 +89,7 @@ object ClassRowsTest extends TestSuite {
       assert(cluster("scalaClass").str == "deephier.Cluster")
       val p = cluster("parameterizations")(0)
       assert(p("label").str == "(nCores = 2)" && !p("unknown").bool)
-      assert(p("params") == ujson.Arr(ujson.Obj("name" -> "nCores", "tpe" -> "Int", "value" -> "2")))
+      assert(p("params") == ujson.Arr(ujson.Obj("name" -> "nCores", "type" -> "Int", "value" -> "2")))
       assert(p("instances") == ujson.Arr(
         ujson.Obj("path" -> ujson.Arr("DeepSoc", "cluster0"), "label" -> "cluster0", "module" -> "Cluster"),
         ujson.Obj("path" -> ujson.Arr("DeepSoc", "cluster1"), "label" -> "cluster1", "module" -> "Cluster_1")))

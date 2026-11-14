@@ -1359,7 +1359,7 @@ let seq1 = -1;
   const lib = Array.isArray(classes) ? classes.findIndex((c) => c.library) : -1;
   check('classes', lib > 0 && classes.slice(lib).every((c) => c.library), `user classes before library ones ${JSON.stringify(classes?.map((c) => c.name))}`);
   const p = cluster && cluster.parameterizations.find((x) => x.label === '(nCores = 2)');
-  check('classes', !!p && !p.unknown && JSON.stringify(p.params) === '[{"name":"nCores","tpe":"Int","value":"2"}]' &&
+  check('classes', !!p && !p.unknown && JSON.stringify(p.params) === '[{"name":"nCores","type":"Int","value":"2"}]' &&
     JSON.stringify(p.instances.map((i) => i.label)) === '["cluster0","cluster1"]', `a (nCores = 2) parameterization ${JSON.stringify(p)?.slice(0, 300)}`);
   // An instance folded away in its cluster: its path still navigates there.
   const core = Array.isArray(classes) && classes.find((c) => c.scalaClass === 'deephier.Core');

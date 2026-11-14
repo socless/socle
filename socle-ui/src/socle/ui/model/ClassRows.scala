@@ -82,7 +82,7 @@ object ClassRows {
           ujson.Obj(
             "label"   -> paramsLabel(p.params),
             "unknown" -> p.unknown,
-            "params"  -> p.params.map(d => ujson.Obj("name" -> d.name, "tpe" -> d.tpe, "value" -> d.value)),
+            "params"  -> p.params.map(d => ujson.Obj("name" -> d.name, "type" -> d.tpe, "value" -> d.value)),
             "instances" -> (for (m <- p.modules; path <- m.paths)
               yield ujson.Obj("path" -> path, "label" -> pathLabel(path), "module" -> m.name)))
         })

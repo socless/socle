@@ -159,7 +159,8 @@ From the UI to its host:
   - A parameterization is `{label, unknown, params, instances}`: the modules of the class built
     with the same arguments (say "same arguments", not "same hardware": two modules with the same
     arguments are grouped whatever they elaborate to). `label` is `(nCores = 2)`, or
-    `(no parameters)`; `params` is `[{name, tpe, value}]` in declaration order. `unknown` is true
+    `(no parameters)`; `params` is `[{name, type, value}]` (as in `details`) in declaration order.
+    `unknown` is true
     when some value could not be read (a function, say): it is then not compared, and the
     parameterization holds exactly one module, so two such entries may carry the same `label`. The
     UI marks it with a `?`. Every class has at least one parameterization; when a class has a
@@ -177,7 +178,7 @@ From the UI to its host:
     {"scalaClass": "deephier.Cluster", "name": "Cluster", "library": false, "modules": 2,
      "parameterizations": [
        {"label": "(nCores = 2)", "unknown": false,
-        "params": [{"name": "nCores", "tpe": "Int", "value": "2"}],
+        "params": [{"name": "nCores", "type": "Int", "value": "2"}],
         "instances": [
           {"path": ["DeepSoc", "cluster0"], "label": "cluster0", "module": "Cluster"},
           {"path": ["DeepSoc", "cluster1"], "label": "cluster1", "module": "Cluster_1"}]}]},
