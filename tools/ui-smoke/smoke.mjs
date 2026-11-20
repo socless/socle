@@ -166,6 +166,7 @@ console.log(`Designs: ${designs.join(', ')}${perfDesigns.length ? ` (performance
 // closed whatever happens.
 async function smokeDesign(design) {
   if (design === designs[0]) await smokeHelpFirstRun(design);
+  if (design === designs[0]) await smokePaneFit(design);
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   // The first-time tips are seen: they would sit over the schematic on every
   // first load (smokeHelpFirstRun checks them in a context of its own).
@@ -282,6 +283,43 @@ async function smokeToggles(design, ctx) {
 // Help on a first visit, in a fresh context (empty storage): the first-time
 // tips show, Next moves on, Skip closes them for good; closing the hint bar
 // lasts across a reload, and the settings panel brings it back.
+// The side panes fit the window (PaneFit): at 1024 px the inspector starts
+// closed and the hierarchy open; widening past 1280 opens the inspector,
+// narrowing back closes it; a pane closed by hand stays closed on widening.
+async function smokePaneFit(design) {
+  const where = 'panes fit the window';
+  const ctx = await browser.newContext({ viewport: { width: 1024, height: 800 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
+  try {
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+    const shown = async () => [await page.locator('[data-pane="hierarchy"]').count(), await page.locator('[data-pane="inspector"]').count()].join('');
+    const expect = async (step, want) => { const got = await shown(); if (got !== want) note(design, where, `${step}: panes (hierarchy, inspector) ${got}, expected ${want}`); };
+    await expect('1024 px start', '10');
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForFunction(() => document.querySelector('[data-pane="inspector"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('widened to 1440', '11');
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.waitForFunction(() => !document.querySelector('[data-pane="hierarchy"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('narrowed to 900', '00');
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForFunction(() => document.querySelector('[data-pane="hierarchy"]') && document.querySelector('[data-pane="inspector"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('widened back to 1440', '11');
+    // closed by hand: the toggle is the user's choice, kept across a narrow-and-widen
+    await page.locator('[data-toggle-pane="inspector"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `toggle: ${e.message}`));
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(200);
+    await expect('closed by hand, then narrowed and widened', '10');
+    for (const e of errors) note(design, where, e);
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
 async function smokeHelpFirstRun(design) {
   const where = 'help first run';
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });

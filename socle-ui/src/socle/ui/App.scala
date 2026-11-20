@@ -85,8 +85,11 @@ object App {
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
-  private val leftOpenVar      = Var(true)
-  private val rightOpenVar     = Var(true)
+  // A narrow window starts with them closed, and closes them when it narrows
+  // past their width ([[PaneFit]]).
+  private val leftOpenVar      = Var(PaneFit.leftFits(dom.window.innerWidth))
+  private val rightOpenVar     = Var(PaneFit.rightFits(dom.window.innerWidth))
+  private val paneFit          = new PaneFit(leftOpenVar, rightOpenVar, dom.window.innerWidth)
   private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
   private val bottomHeightVar  = Var(240.0)
   private val bottomTabVar     = Var(if (Embedded.on) "ports" else "source") // embedded: no Source tab
@@ -845,6 +848,7 @@ object App {
     div(
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
+      windowEvents(_.onResize) --> { _ => paneFit.resized(dom.window.innerWidth) },
       topBar(),
       Chrome.warningsBanner(loader.designSig),
       div(
