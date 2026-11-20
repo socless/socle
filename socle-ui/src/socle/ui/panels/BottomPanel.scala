@@ -185,7 +185,17 @@ object BottomPanel {
       else absPath.map(p => tmpl.replace("{path}", p).replace("{line}", ln.toString))
     }
     div(styleAttr := "display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden",
-      span(title := absPath.getOrElse(file), styleAttr := "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px", file),
+      // Under the source root it reads relative to it; the folder ellipsizes, the
+      // file name always shows. The full path is the tooltip.
+      {
+        val root  = d.sourceRoot.replaceAll("/$", "")
+        val shown = if (root.nonEmpty && file.startsWith(root + "/")) file.drop(root.length + 1) else file
+        val cut   = shown.lastIndexOf('/') + 1
+        span(title := absPath.getOrElse(file), dataAttr("source-path") := shown,
+          styleAttr := "display:flex;min-width:0;max-width:420px;white-space:nowrap",
+          span(styleAttr := s"overflow:hidden;text-overflow:ellipsis;min-width:0;color:${Tokens.ink4}", shown.take(cut)),
+          span(styleAttr := s"flex-shrink:0;color:${Tokens.ink2}", shown.drop(cut)))
+      },
       if (file.nonEmpty) button(dataAttr("open-editor") := "1",
         dataAttr("editor") <-- editorVar.signal,
         title <-- editorVar.signal.map { id =>

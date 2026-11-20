@@ -30,10 +30,11 @@ object Help {
   def hint(target: Option[(String, String)]): (String, String) = target.getOrElse(("", Background))
 
   /** The first-time tips, one line each. */
+  // Panning and zooming are left to the hint bar, which says them under the
+  // schematic from the first visit.
   def tips(mac: Boolean): Seq[String] = Seq(
-    "Drag anywhere to pan. The wheel zooms at the pointer.",
+    "Click a block to inspect it, a bundle pin to expand it, a wire to follow its net. Rest on one to see what it is.",
     "Double-click a block to open it. The breadcrumb takes you back up.",
-    "Click a block's title to inspect it, a bundle pin to expand it, a wire to follow its net. Rest on one to see what it is.",
     s"Press ? for every mouse action and key. ${if (mac) "⌘K" else "Ctrl K"} searches the design.",
   )
 

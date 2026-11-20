@@ -18,6 +18,10 @@ and [tags](https://github.com/socless/socle/tags) pages.
   first segment) or `live (design.json)` (the LIVE badge says it).
 - Schematic toolbar: SVG, PNG and the HTML snapshot moved into one `export` menu; the toolbar
   keeps the view controls.
+- Source tab: the file reads relative to the source root, its folder grey and its name always
+  shown (the folder ellipsizes first).
+- First-visit tips: three, not four (the hint bar under the schematic says how to pan and zoom),
+  and the inspect tip says a click on a block, not on its title.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

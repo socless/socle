@@ -291,7 +291,7 @@ async function waitLoaded(frame) {
     seen.push(await page.locator('[data-first-tips-text]').textContent());
     await page.click('[data-first-tips-next]');
   }
-  check('normal', seen.length === 4 && new Set(seen).size === 4, `four tips, then closed (${JSON.stringify(seen)})`);
+  check('normal', seen.length === 3 && new Set(seen).size === 3, `three tips, then closed (${JSON.stringify(seen)})`);
   check('normal', (await page.evaluate(() => localStorage.getItem('socle-tips'))) === 'done', 'tips remembered as seen');
   await page.reload();
   await waitLoaded(page);
