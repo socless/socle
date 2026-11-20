@@ -337,6 +337,8 @@
     border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
   .scl-hier-toggle { width: 12px; display: inline-flex; justify-content: center;
     color: var(--ink3); font-size: 10px; }
+  .scl-hier-toggle svg { transition: transform .12s; }
+  .scl-hier-toggle[data-open="1"] svg { transform: rotate(90deg); }
   .scl-hier-glyph { width: 12px; text-align: center; color: var(--ink3); font-size: 10px; }
   .scl-hier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .scl-hier-type { margin-left: auto; color: var(--ink3); font-size: 10.5px;

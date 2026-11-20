@@ -419,6 +419,14 @@ object App {
   private def iconPanelLeft   = ico(panelRect, svg.line(svg.x1 := "9",  svg.y1 := "4", svg.x2 := "9",  svg.y2 := "20"))
   private def iconPanelBottom = ico(panelRect, svg.line(svg.x1 := "3",  svg.y1 := "15", svg.x2 := "21", svg.y2 := "15"))
   private def iconPanelRight  = ico(panelRect, svg.line(svg.x1 := "15", svg.y1 := "4", svg.x2 := "15", svg.y2 := "20"))
+  // Small icons of the hierarchy (12 px): the row toggle's chevron, turned by CSS
+  // when open (data-open), and Show in parent's crosshair.
+  private def small(shapes: com.raquo.laminar.nodes.ChildNode.Base*): Element =
+    svg.svg(svg.viewBox := "0 0 24 24", svg.width := "12", svg.height := "12", svg.style := iconStyle + ";stroke-width:2.4", shapes)
+  private def chevron(): Element = small(svg.polyline(svg.points := "9 6 15 12 9 18"))
+  private def iconLocate: Element = small(svg.circle(svg.cx := "12", svg.cy := "12", svg.r := "6"),
+    svg.line(svg.x1 := "12", svg.y1 := "2", svg.x2 := "12", svg.y2 := "6"), svg.line(svg.x1 := "12", svg.y1 := "18", svg.x2 := "12", svg.y2 := "22"),
+    svg.line(svg.x1 := "2", svg.y1 := "12", svg.x2 := "6", svg.y2 := "12"), svg.line(svg.x1 := "18", svg.y1 := "12", svg.x2 := "22", svg.y2 := "12"))
   private def iconMoon = ico(svg.path(svg.d := "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"))
   private def iconSun = ico(
     svg.circle(svg.cx := "12", svg.cy := "12", svg.r := "4"),
@@ -1294,7 +1302,7 @@ object App {
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",
       title := r.title,
       onClick --> { _ => classToggledVar.update(s => if (s(r.id)) s - r.id else s + r.id) },
-      span(cls := "scl-hier-toggle", if (r.expanded) "▾" else "▸"),
+      span(cls := "scl-hier-toggle", dataAttr("open") := (if (r.expanded) "1" else "0"), chevron()),
       span(cls := "scl-hier-label", r.label),
       Option.when(r.unknown)(span(cls := "scl-hier-glyph", dataAttr("class-unknown") := "1", title := ClassRows.Unknown, "?")),
       span(cls := "scl-hier-type", styleAttr := "flex-shrink: 0",
@@ -1306,8 +1314,10 @@ object App {
       if (r.isLeaf) Seq.empty
       else Seq(
         dataAttr("hier-toggle") := r.id,
+        dataAttr("open") <-- expandedVar.signal.map(s => if (s(r.id)) "1" else "0"),
+        aria.expanded <-- expandedVar.signal.map(_(r.id)),
         onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); toggle(r.id) },
-        child.text <-- expandedVar.signal.map(s => if (s(r.id)) "▾" else "▸"),
+        chevron(),
       )
     r.group match {
       case Some(g) =>
@@ -1352,7 +1362,7 @@ object App {
         button(cls := "scl-hier-locate", dataAttr("hier-locate") := r.id, title := "Show in parent",
           aria.label := s"Show ${r.label} in its parent",
           onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); flyToInstance(pm, r.label, Some(r.path.init)) },
-          "◎")
+          iconLocate)
       },
     )
 

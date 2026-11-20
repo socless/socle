@@ -663,7 +663,7 @@ async function smokeDesignIn(design, ctx) {
   // Fully expand the hierarchy tree: open every closed row (a click on an
   // open one would close it), until none is left.
   for (let i = 0; i < 200; i++) {
-    const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+    const shut = page.locator('[data-hier-toggle][data-open="0"]');
     if (!await shut.count()) break;
     await shut.first().click({ timeout: 1500 }).catch(() => {});
   }
@@ -2900,7 +2900,7 @@ async function smokeDesignIn(design, ctx) {
         if (!await title.count()) continue;
         // Collapse the tree at the top (the smoke expanded all of it).
         const tt = page.locator(`[data-hier-toggle="${esc(top)}"]`).first();
-        if (await tt.count() && (await tt.textContent()) === '▾') await tt.click();
+        if (await tt.count() && (await tt.getAttribute('data-open')) === '1') await tt.click();
         const pre = await readView(), preC = await crumbs();
         await title.dblclick();
         await settle();
@@ -2911,7 +2911,7 @@ async function smokeDesignIn(design, ctx) {
           const row = document.querySelector(`[data-hier-path="${CSS.escape(lp)}"]`);
           const cur = Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path'));
           const ups = lp.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'));
-          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.textContent);
+          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.getAttribute('data-open'));
           const p = document.querySelector(pane)?.getBoundingClientRect(), r = row?.getBoundingClientRect();
           return { row: !!row, cur, open, inView: !!(p && r && r.top >= p.top - 1 && r.bottom <= p.bottom + 1),
                    active: !!row?.classList.contains('active'), focus: document.activeElement?.closest(pane) ? 'tree' : 'other' };
@@ -2919,7 +2919,7 @@ async function smokeDesignIn(design, ctx) {
         if (!t.row) note(design, where2, `after opening ${lp} its hierarchy row is not shown (rows above: ${fmt(t.open)})`);
         else {
           if (t.cur.length !== 1 || t.cur[0] !== lp || !t.active) note(design, where2, `after opening ${lp} the current rows are ${fmt(t.cur)} (active ${t.active})`);
-          if (t.open.some((g) => g !== '▾')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
+          if (t.open.some((g) => g !== '1')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
           if (!t.inView) note(design, where2, `after opening ${lp} its hierarchy row is out of view`);
           if (t.focus === 'tree') note(design, where2, `opening ${lp} moved the focus into the hierarchy`);
         }
@@ -2945,7 +2945,7 @@ async function smokeDesignIn(design, ctx) {
       }
       // Expand the whole tree again, as the checks below found it.
       for (let i = 0; i < 200; i++) {
-        const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+        const shut = page.locator('[data-hier-toggle][data-open="0"]');
         if (!await shut.count()) break;
         await shut.first().click({ timeout: 1500 }).catch(() => {});
       }
