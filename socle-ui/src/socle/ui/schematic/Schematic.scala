@@ -655,12 +655,13 @@ object Schematic {
               s"cursor:${if (opens) "zoom-in" else "default"};overflow:visible;" +
               "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
             onDblClick --> { (_: dom.MouseEvent) => if (isFolded) toggleFold(n.id) else if (drillable) drillInto(n.id) },
+            // a click anywhere on the box inspects it (a drag pans: its click lands on the overlay)
+            onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
             // header
             div(
               cls := "scl-hd",
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
-              onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
               // A fold box's name (and count) never shrinks: only the signature ellipsizes.
               span(dataAttr("box-name") := n.id,
                 styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" +

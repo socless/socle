@@ -308,11 +308,11 @@ private[schematic] object SchematicBoxes {
         s"border-width:1px;border-style:solid;border-radius:6px;cursor:${if (opens) "zoom-in" else "default"};overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
       if (opens) onDblClick --> { (_: dom.MouseEvent) => ctx.openBlock(n.id) } else emptyMod,
+      onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       div(
         cls := "scl-hd",
         styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"display:inline-flex;justify-content:center;color:${Tokens.ink3};font-family:${Tokens.mono};font-size:10px;white-space:nowrap", "{ }"),
         span(dataAttr("block-label") := n.id,
           styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
@@ -344,11 +344,11 @@ private[schematic] object SchematicBoxes {
         boxVars(n.kind, Tokens.border, RestShadow, RestShadow, SelShadow, Tokens.panel) +
         "border-width:1px;border-style:solid;border-radius:6px;cursor:default;overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
+      onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
       div(
         cls := "scl-hd",
         styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.borderSoft};" +
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:pointer",
-        onClick --> { (_: dom.MouseEvent) => toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.ink3};font-size:11px", "▤"),
         span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", n.id),
         div(styleAttr := "margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px",

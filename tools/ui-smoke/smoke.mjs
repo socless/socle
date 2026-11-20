@@ -684,6 +684,27 @@ async function smokeDesignIn(design, ctx) {
     drain(where);
   }
 
+  // A click anywhere on a box inspects it, not only on its header: the body
+  // (below the pin rows) selects `xbar`, a second click clears it.
+  if (design === 'axisystem') {
+    const where = 'click box body inspects';
+    const count = (sel) => page.locator(sel).count();
+    const top = paths[0].path;
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    const box = page.locator('[data-box-inst="xbar"]').first();
+    const bb = await box.boundingBox();
+    if (!bb) note(design, where, 'no xbar box');
+    else {
+      const body = { position: { x: bb.width / 2, y: bb.height - 4 }, timeout: 3000 };
+      await box.click(body).catch((e) => note(design, where, `click: ${e.message}`));
+      if (!(await count('[data-inst-inspect="xbar"]'))) note(design, where, 'a click on the box body did not inspect xbar');
+      await box.click(body).catch((e) => note(design, where, `second click: ${e.message}`));
+      if (await count('[data-inst-inspect="xbar"]')) note(design, where, 'a second click on the box body did not clear the selection');
+    }
+    drain(where);
+  }
+
   // Generator copies fold into one box: in the captured DeepSoc, `cluster0`
   // holds group `cores` (cores_0, cores_1). Unfold with `+`, fold back with a
   // copy's `-`, unfold again with a double-click on the folded box.
@@ -3651,7 +3672,7 @@ async function smokeDesignIn(design, ctx) {
     });
     for (const s of ['Anywhere', 'Blocks', 'Wires', 'Pins', 'Logic blocks', 'Schematic'])
       if (!card.sections.includes(s)) note(design, 'keyboard help', `no "${s}" section in the help card (${card.sections.join(', ')})`);
-    for (const k of ['Double-click', 'Click title', 'Middle drag', 'Shift + wheel', 'Ctrl + wheel', '+ / -', '0 / f', 'Zoom to the selection', 'Alt ←', 'Alt →', 'side buttons', 'in its parent', 'Select and follow the net', 'stop following a net'])
+    for (const k of ['Double-click', 'Click', 'Middle drag', 'Shift + wheel', 'Ctrl + wheel', '+ / -', '0 / f', 'Zoom to the selection', 'Alt ←', 'Alt →', 'side buttons', 'in its parent', 'Select and follow the net', 'stop following a net'])
       if (!card.text.includes(k)) note(design, 'keyboard help', `the help card does not mention "${k}"`);
     if (/[\u2013\u2014]/.test(card.text)) note(design, 'keyboard help', 'the help card has an en or em dash');
     const helpTitle = await page.locator('[data-help-trigger]').first().getAttribute('title').catch(() => null);
@@ -3767,7 +3788,7 @@ async function smokeDesignIn(design, ctx) {
 // runner cannot fail it; the timings are printed.
 const PERF_MIN_BOXES = 200;
 const PERF_HOVER_MAX = 24;  // attribute changes of a hover (3 on GCD and on BigArray's 256 boxes)
-const PERF_SELECT_MAX = 48; // of a selection and its clearing
+const PERF_SELECT_MAX = 48; // of a selection and its clearing, plus 2 per clock peer it lights
 const PERF_LONG_MS = 250;
 async function smokePerf(design) {
   const where = 'perf';
@@ -3827,8 +3848,12 @@ async function smokePerf(design) {
     report('a hover', await unwatch(), PERF_HOVER_MAX);
     await watch(); await page.waitForTimeout(1000);
     report('a rest on a box', await unwatch(), 0);
-    await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200); await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
-    report('a selection and its clearing', await unwatch(), PERF_SELECT_MAX);
+    // A selected instance lights the instances on its clock (#341): each peer it
+    // lights costs one class flip on and one off, on top of the fixed budget.
+    await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200);
+    const peers = await page.evaluate(() => document.querySelectorAll('[data-content] .peer').length);
+    await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
+    report(`a selection (${peers} clock peers lit) and its clearing`, await unwatch(), PERF_SELECT_MAX + 2 * peers);
     await page.mouse.move(vp.cx, vp.cy); await settled(page);
     await watch(); for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(30); } await page.waitForTimeout(300);
     const wheel = await unwatch();

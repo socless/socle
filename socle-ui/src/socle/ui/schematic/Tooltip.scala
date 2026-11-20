@@ -230,12 +230,12 @@ object Tooltip {
         val d = ln.flatMap(_.fsm)
         Content("box", label, "state machine",
           d.map(f => s"${plural(f.states.size, "state")}, ${plural(f.transitions.size, "transition")}").toSeq,
-          if (d.isDefined) acts("Double-click: state diagram", "Click title: inspect") else acts("Click title: inspect"))
+          if (d.isDefined) acts("Double-click: state diagram", "Click: inspect") else acts("Click: inspect"))
       case NodeKind.Block =>
-        Content("box", label, "logic block", Seq("Logic of this module, grouped into one block"), acts("Click title: inspect"))
+        Content("box", label, "logic block", Seq("Logic of this module, grouped into one block"), acts("Click: inspect"))
       case NodeKind.Mem =>
         val tag = ln.flatMap(_.memInfo).map(mi => s"${if (mi.sync) "SRAM" else "RAM"} ${mi.depth}x${mi.elem}")
-        Content("box", id, "memory", tag.toSeq, acts("Click title: inspect"))
+        Content("box", id, "memory", tag.toSeq, acts("Click: inspect"))
       case _ =>
         g.childByName.get(id).filter(_ => n.kind != NodeKind.Boundary) match {
           case Some(ch) =>
@@ -251,9 +251,9 @@ object Tooltip {
               counts,
             ).flatten
             val actions =
-              if (info.folded) acts("Double-click: unfold", "Click title: inspect")
-              else if (info.drillable) acts("Double-click: open", "Click title: inspect")
-              else acts("Click title: inspect")
+              if (info.folded) acts("Double-click: unfold", "Click: inspect")
+              else if (info.drillable) acts("Double-click: open", "Click: inspect")
+              else acts("Click: inspect")
             Content("box", if (info.folded) s"$id × ${ch.foldCount}" else id, if (sig.nonEmpty) sig else ch.`type`, detail, actions)
           case None =>
             Content("box", id, if (n.kind == NodeKind.Boundary) "port of this module" else n.kind, Nil, acts("Click: inspect"))

@@ -190,14 +190,14 @@ object Chrome {
     ),
     "Blocks" -> Seq(
       Seq("Double-click") -> "Open the module, or unfold a group",
-      Seq("Click title")  -> "Inspect",
+      Seq("Click")  -> "Inspect",
       Seq("Breadcrumb")   -> "Go back up",
     ),
     "Wires" -> Seq(Seq("Click") -> "Select and follow the net (it stays lit across levels)"),
     "Pins" -> Seq(Seq("Click") -> "Expand or collapse a bundle"),
     "Logic blocks" -> Seq(
       Seq("Click")        -> "Inspect a register or an operator",
-      Seq("Click title")  -> "Inspect a block or a state machine",
+      Seq("Click")  -> "Inspect a block or a state machine",
       Seq("Double-click") -> "Open a state machine's diagram",
     ),
   )

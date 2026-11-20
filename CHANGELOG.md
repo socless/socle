@@ -9,6 +9,11 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Changed
+
+- Schematic: a click anywhere on a module, block or memory box selects it and shows it in the
+  Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
+
 ## [0.30.0] - 2026-11-14
 
 ### Added
