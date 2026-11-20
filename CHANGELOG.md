@@ -11,7 +11,7 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ### Changed
 
-- Schematic: a click anywhere on a module, block or memory box selects it and shows it in the
+- Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the
   inspector; narrowing past those widths closes them, widening back reopens the ones it closed.

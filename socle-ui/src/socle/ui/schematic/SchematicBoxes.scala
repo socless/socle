@@ -261,15 +261,16 @@ private[schematic] object SchematicBoxes {
         s"border-width:1px;border-style:solid;border-radius:6px;cursor:${if (hasDiagram) "zoom-in" else "default"};overflow:visible;" +
         "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
       if (hasDiagram) onDblClick --> { (_: dom.MouseEvent) => ctx.openFsm(n.id) } else emptyMod,
+      // A click anywhere on the box inspects it; the second click of a
+      // double-click (detail 2) opens the diagram instead of toggling the
+      // selection back off.
+      onClick --> { (e: dom.MouseEvent) =>
+        if (hasDiagram && e.detail >= 2) ctx.openFsm(n.id) else toggleSelect(ctx.selectedVar, n.id) },
       // header (no drill handler: an FSM box is non-drillable)
       div(
         cls := "scl-hd",
         styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px solid ${Tokens.accentLine};" +
           s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (hasDiagram) "zoom-in" else "pointer"}",
-        // The second click of a double-click (detail 2) opens the diagram
-        // instead of toggling the selection back off.
-        onClick --> { (e: dom.MouseEvent) =>
-          if (hasDiagram && e.detail >= 2) ctx.openFsm(n.id) else toggleSelect(ctx.selectedVar, n.id) },
         span(styleAttr := s"width:12px;display:inline-flex;justify-content:center;color:${Tokens.accent};font-size:10px", "◇"),
         span(styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0", label),
         if (hasDiagram) span(dataAttr("fsm-open") := n.id, title := "Open the state diagram",

@@ -1303,6 +1303,21 @@ async function smokeDesignIn(design, ctx) {
 
     await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch((e) => note(design, where, e.message));
     await settle();
+    // A click on the FSM box's body (below its header) inspects it, a second clears it.
+    {
+      const fsmBox = page.locator(`[data-fsm="${id}"]`).first();
+      const bb = await fsmBox.boundingBox();
+      const inspected = () => page.locator(`[data-logic-inspect="${id}"]`).count();
+      if (!bb) note(design, where, 'no FSM box');
+      else {
+        const body = { position: { x: bb.width / 2, y: bb.height - 4 }, timeout: 3000 };
+        await fsmBox.click(body).catch((e) => note(design, where, `body click: ${e.message}`));
+        if (!(await inspected())) note(design, where, 'a click on the FSM box body did not inspect it');
+        await page.waitForTimeout(400); // apart from the first: not a double-click
+        await fsmBox.click(body).catch((e) => note(design, where, `second body click: ${e.message}`));
+        if (await inspected()) note(design, where, 'a second click on the FSM box body did not clear the selection');
+      }
+    }
     if (await openDiagram('open')) {
       const r = await readDiagram();
       const names = r.states.map((s) => s.name).sort().join(',');
