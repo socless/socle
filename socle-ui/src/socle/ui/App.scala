@@ -1060,6 +1060,33 @@ object App {
         div(cls := s"scl-toast scl-toast-$kind", dataAttr("toast") := kind, msg)
       }))
 
+  // The breadcrumb segment's sibling menu: which one is open (its parent path).
+  // Where it opens: under its caret, in window coordinates (the breadcrumb
+  // clips what overflows it, so the menu is fixed, not inside it).
+  private val crumbMenuVar = Var[Option[List[String]]](None)
+  private val crumbMenuAt  = Var((0.0, 0.0))
+
+  /** A ▾ after a breadcrumb segment: the other instances of its parent module,
+    * a click opens that one in its place. */
+  private def crumbSiblings(parent: List[String], seg: String, siblings: Seq[String]): Element = {
+    val open = crumbMenuVar.signal.map(_.contains(parent))
+    span(cls := "scl-crumb-more", dataAttr("crumb-siblings") := seg,
+      documentEvents(_.onMouseDown) --> { (e: dom.MouseEvent) =>
+        if (crumbMenuVar.now().contains(parent) && e.target.asInstanceOf[dom.Element].closest(s"[data-crumb-siblings]") == null)
+          crumbMenuVar.set(None) },
+      button(cls := "scl-crumb-caret", title := s"Other instances beside $seg", aria.hasPopup := true,
+        aria.expanded <-- open,
+        onClick --> { (e: dom.MouseEvent) =>
+          val r = e.currentTarget.asInstanceOf[dom.Element].getBoundingClientRect()
+          crumbMenuAt.set((r.left, r.bottom + 4))
+          crumbMenuVar.update(o => if (o.contains(parent)) None else Some(parent)) }, "▾"),
+      div(cls := "scl-menu down", styleAttr <-- Signal.combine(open, crumbMenuAt.signal).map { case (o, (x, y)) =>
+        s"display:${if (o) "flex" else "none"};position:fixed;left:${x}px;top:${y}px" },
+        siblings.map(sib => button(cls := "scl-menu-item", dataAttr("crumb-sibling") := sib,
+          styleAttr := s"font-family:${Tokens.mono}",
+          onClick --> { _ => crumbMenuVar.set(None); pathVar.set(parent :+ sib) }, sib))))
+  }
+
   private def topBar(): Element =
     div(
       cls := "scl-topbar", dataAttr("topbar") := "1",
@@ -1075,10 +1102,15 @@ object App {
             // An open logic block shows its label (`logic`), not its id.
             val block = loader.currentDesign.flatMap(d => currentModule(d, p.take(i)))
               .flatMap(_.logic.find(n => n.id == seg && n.kind == NodeKind.Block))
-            sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
+            // The other instances of the module holding this one: a menu to jump to one.
+            val siblings = if (i == 0 || block.isDefined) Nil
+              else loader.currentDesign.flatMap(d => currentModule(d, p.take(i))).toSeq
+                .flatMap(_.children.map(_.name)).filter(_ != seg)
+            (sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
               title := p.take(i + 1).mkString(" > "),
               block.map(n => dataAttr("crumb-block") := n.id),
-              onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)
+              onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)) ++
+              Option.when(siblings.nonEmpty)(crumbSiblings(p.take(i), seg, siblings)).toSeq
           }
           path ++ fsm.toSeq.flatMap { id =>
             // The FSM box's register (`state`; it may sit in a block's body),

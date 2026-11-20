@@ -292,6 +292,11 @@
   .scl-crumb:hover { background: var(--panelAlt); }
   .scl-crumb.active { color: var(--ink); font-weight: 600; }
   .scl-crumb-sep { color: var(--ink4); flex-shrink: 0; }
+  .scl-crumb-more { position: relative; flex-shrink: 0; display: inline-flex; }
+  .scl-crumb-caret { border: none; background: transparent; cursor: pointer; border-radius: 4px;
+    padding: 2px 3px; color: var(--ink4); font-size: 10px; }
+  .scl-crumb-caret:hover { background: var(--panelAlt); color: var(--ink2); }
+  .scl-menu.down { bottom: auto; right: auto; max-height: 60vh; overflow: auto; z-index: 20; }
   .scl-search { display: flex; align-items: center; gap: 6px; background: var(--panelAlt);
     padding: 5px 10px; border-radius: 5px; color: var(--ink3); width: 220px; border: none;
     cursor: pointer; text-align: left; flex: 0 1 220px; min-width: 72px; font-size: 11.5px;

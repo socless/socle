@@ -814,6 +814,29 @@ async function smokeDesignIn(design, ctx) {
     drain(where);
   }
 
+  // The breadcrumb's sibling menu: in DeepSoc, cluster0's caret lists cluster1
+  // and pipe; a click on cluster1 opens it in cluster0's place.
+  if (design === 'deepsoc') {
+    const where = 'breadcrumb siblings';
+    const top = paths[0].path;
+    await page.locator(`[data-hier-path="${top}/cluster0"]`).first().click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    const caret = page.locator('[data-crumb-siblings="cluster0"] button').first();
+    if (!(await caret.count())) note(design, where, 'no sibling caret after the cluster0 crumb');
+    else {
+      await caret.click();
+      const sibs = await page.locator('[data-crumb-siblings="cluster0"] [data-crumb-sibling]').allTextContents();
+      if (JSON.stringify(sibs.sort()) !== JSON.stringify(['cluster1', 'pipe'])) note(design, where, `siblings ${JSON.stringify(sibs)}, expected cluster1, pipe`);
+      await page.locator('[data-crumb-sibling="cluster1"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `pick: ${e.message}`));
+      await settled(page).catch((e) => note(design, where, e.message));
+      const cur = await page.locator('[data-hier-current="1"]').first().getAttribute('data-hier-path').catch(() => null);
+      if (cur !== `${top}/cluster1`) note(design, where, `after picking cluster1 the open module is ${cur}`);
+    }
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch(() => {});
+    await settled(page).catch((e) => note(design, where, e.message));
+    drain(where);
+  }
+
   // Generator copies fold into one box: in the captured DeepSoc, `cluster0`
   // holds group `cores` (cores_0, cores_1). Unfold with `+`, fold back with a
   // copy's `-`, unfold again with a double-click on the folded box.
