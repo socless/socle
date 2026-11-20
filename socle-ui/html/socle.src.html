@@ -227,7 +227,14 @@
   .scl-sub { color: var(--ink3); }
   /* The top bar fits its window (#12): the design label and the search button
      shrink (ellipsis) before anything overflows; the buttons keep their size. */
-  .scl-engine { color: var(--accent); flex: 0 1 auto; min-width: 0; overflow: hidden;
+  /* A small menu opening above its button (the export menu, bottom-right). */
+  .scl-menu { position: absolute; right: 0; bottom: calc(100% + 6px); flex-direction: column; min-width: 190px;
+    padding: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.16); z-index: 5; }
+  .scl-menu-item { border: none; background: transparent; text-align: left; padding: 6px 10px; border-radius: 4px;
+    font: inherit; font-size: 12px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+  .scl-menu-item:hover, .scl-menu-item:focus-visible { background: var(--panelAlt); color: var(--ink); outline: none; }
+  .scl-engine { color: var(--ink3); font-size: 12px; flex: 0 1 auto; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   /* SOURCE indicator + LIVE badge (#194 / #120). */
   .scl-live { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;

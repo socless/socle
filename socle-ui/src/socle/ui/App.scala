@@ -1098,9 +1098,11 @@ object App {
         dataAttr("source") <-- loader.sourceSig.map(_.map(_._1).getOrElse("none")),
         dataAttr("top")    <-- loader.designSig.map(_.map(topOf).getOrElse("")),
         child.text <-- Signal.combine(loader.designSig, loader.sourceSig, loader.waitingSig).map {
+          // The top is the breadcrumb's first segment, and a live design has its
+          // LIVE badge: what is left is the size and where else it came from.
           case (Some(d), src, _) =>
-            val label = src.map(_._2).getOrElse("")
-            s"${topOf(d)}  -  ${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
+            val label = src.collect { case ("snapshot", _) => "snapshot"; case (k, l) if k != "live" => l }.getOrElse("")
+            s"${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
           case (None, _, true)  => "waiting for the first design…"
           case (None, _, false) => "loading design.json…"
         },

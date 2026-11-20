@@ -3398,6 +3398,8 @@ async function smokeDesignIn(design, ctx) {
     const where = 'export';
     const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const grab = async (btn) => {
+      // the choices sit in the export menu: open it first
+      await page.locator('[data-export-menu]').first().click();
       const [dl] = await Promise.all([
         page.waitForEvent('download', { timeout: 10000 }),
         page.locator(btn).first().click(),
@@ -3497,6 +3499,7 @@ async function smokeDesignIn(design, ctx) {
     }
     // An export from the overview has the full detail (no overview class, no --z).
     if (a.ov && await page.locator('[data-export-svg]').count()) {
+      await page.locator('[data-export-menu]').first().click();
       const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.locator('[data-export-svg]').first().click()]);
       const svg = (await import('node:fs')).readFileSync(await dl.path()).toString();
       if (/class="[^"]*\bov\b/.test(svg) || /--z:/.test(svg)) note(design, where, 'an SVG exported from the overview keeps the overview (pin text faded)');

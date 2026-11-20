@@ -14,6 +14,10 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - UI typography: the interface (menus, tabs, toolbars, tips, the Inspector's labels) is set in
   IBM Plex Sans; names, types and code stay in IBM Plex Mono. The Inspector's module summary
   leaves out counts of zero.
+- Top bar: the design status reads `N modules` in grey, without the top's name (the breadcrumb's
+  first segment) or `live (design.json)` (the LIVE badge says it).
+- Schematic toolbar: SVG, PNG and the HTML snapshot moved into one `export` menu; the toolbar
+  keeps the view controls.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

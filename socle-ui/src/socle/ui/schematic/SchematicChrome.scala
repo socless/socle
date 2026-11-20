@@ -143,7 +143,8 @@ private[schematic] object SchematicChrome {
   private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:inherit;font-size:11px;border-radius:3px"
 
   def controls(c: ControlsCtx): Element =
-    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:3;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-size:11px;font-variant-numeric:tabular-nums",
+    // above the clock legend (z 3), which sits right over it and would cover the export menu
+    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:4;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-size:11px;font-variant-numeric:tabular-nums",
       button(dataAttr("optimize") := "1", title := "Re-layout to minimize wire length (in-browser elkjs, issue #167)",
         styleAttr <-- Signal.combine(c.pendingSig, c.engineSig).map { case (p, e) =>
           zbtn + s";color:${if (p) Tokens.ink4 else if (e.isDefined) Tokens.accent else Tokens.ink3};cursor:${if (p) "default" else "pointer"}" },
@@ -171,14 +172,32 @@ private[schematic] object SchematicChrome {
       button(styleAttr := zbtn, title := "Zoom in", onClick --> { (_: dom.MouseEvent) => c.zoomBy(1.25) }, "+"),
       button(styleAttr := zbtn, title := "Reset to 100%", onClick --> { (_: dom.MouseEvent) => c.onResetView() }, "1:1"),
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
-      button(styleAttr := zbtn, dataAttr("export-svg") := "1", title := "Export schematic as SVG",
-        onClick --> { _ => c.onExportSvg() }, "svg"),
-      button(styleAttr := zbtn, dataAttr("export-png") := "1", title := "Export schematic as PNG (2x)",
-        onClick --> { _ => c.onExportPng() }, "png"),
-      c.onShare.map(share =>
-        button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
-          onClick --> { _ => share() }, "share")),
+      exportMenu(c),
     )
+
+  // ── export menu: one button, its choices above it ──
+  // The items stay in the page (hidden while closed), so a count of them says
+  // what this view can export; a click outside or a choice closes it.
+  private def exportMenu(c: ControlsCtx): Element = {
+    val open = Var(false)
+    def item(hook: String, label: String, hint: String, go: () => Unit) =
+      button(cls := "scl-menu-item", dataAttr(hook) := "1", title := hint,
+        onClick --> { _ => open.set(false); go() }, label)
+    div(styleAttr := "position:relative",
+      documentEvents(_.onMouseDown) --> { (e: dom.MouseEvent) =>
+        if (open.now() && !e.target.asInstanceOf[dom.Element].closest("[data-export-root]").isInstanceOf[dom.Element]) open.set(false) },
+      dataAttr("export-root") := "1",
+      button(styleAttr := zbtn, dataAttr("export-menu") := "1", title := "Export the schematic",
+        aria.hasPopup := true, aria.expanded <-- open.signal,
+        onClick --> { _ => open.update(!_) }, "export ▾"),
+      div(cls := "scl-menu", dataAttr("export-items") := "1",
+        styleAttr <-- open.signal.map(o => s"display:${if (o) "flex" else "none"}"),
+        item("export-svg", "SVG image", "Export the schematic as SVG", () => c.onExportSvg()),
+        item("export-png", "PNG image (2×)", "Export the schematic as PNG at twice the size", () => c.onExportPng()),
+        c.onShare.map(share =>
+          item("export-snapshot", "Interactive HTML snapshot", "Save a self-contained interactive HTML snapshot (opens from file://)", share))),
+    )
+  }
 
   // ── minimap (issue #5) ──
   // Overview + draggable viewport rect; the caller decides when to show it (only
