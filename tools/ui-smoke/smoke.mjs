@@ -779,6 +779,24 @@ async function smokeDesignIn(design, ctx) {
         await settled(page).catch((e) => note(design, where, e.message));
       }
     }
+    // Enter in the filter steps through its matches: AXISlave matches mem (above)
+    // then periph; Shift+Enter goes back.
+    {
+      const input = page.locator('[data-filter-input]').first();
+      await input.fill('AXISlave');
+      const shown = async () => (await page.locator('[data-inst-inspect]').first().getAttribute('data-inst-inspect').catch(() => null));
+      const order = [];
+      for (const k of ['Enter', 'Enter', 'Enter', 'Shift+Enter']) {
+        await input.press(k);
+        await settled(page).catch((e) => note(design, where, e.message));
+        order.push(await shown());
+      }
+      if (JSON.stringify(order) !== JSON.stringify(['mem', 'periph', 'mem', 'periph']))
+        note(design, where, `Enter / Shift+Enter in the filter selected ${JSON.stringify(order)}, expected mem, periph, mem, periph`);
+      await input.press('Escape');
+      await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+      await settled(page).catch((e) => note(design, where, e.message));
+    }
     drain(where);
   }
 

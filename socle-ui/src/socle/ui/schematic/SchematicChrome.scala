@@ -44,7 +44,8 @@ private[schematic] object SchematicChrome {
              focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => (),
              blockSig: Signal[Boolean] = Val(false),
              navSig: Signal[(Boolean, Boolean)] = Val((false, false)),
-             onBack: () => Unit = () => (), onForward: () => Unit = () => ()): Element =
+             onBack: () => Unit = () => (), onForward: () => Unit = () => (),
+             onStep: Int => Unit = _ => ()): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       // Wraps in a narrow panel (#12) rather than running past its edge.
       div(styleAttr := "display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto",
@@ -68,7 +69,10 @@ private[schematic] object SchematicChrome {
           input(dataAttr("filter-input") := "1", placeholder := "filter…",
             styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink}",
             controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
-            onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
+            title := "Filter the boxes; Enter: the next match, Shift+Enter: the previous",
+            onKeyDown --> { (e: dom.KeyboardEvent) =>
+              if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() }
+              else if (e.key == "Enter") { e.preventDefault(); onStep(if (e.shiftKey) -1 else 1) } }),
           // Live match count "N / M" while filtering (#276).
           child.maybe <-- matchSig.map {
             case Some((m, t)) => Some(span(dataAttr("filter-count") := "1",

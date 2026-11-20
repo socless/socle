@@ -411,6 +411,24 @@ object Schematic {
     def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
     def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
+    // Enter in the filter: the next box it matches (Shift+Enter: the previous),
+    // in reading order (top to bottom, then left to right), selected and zoomed
+    // to; from the selection when it is a match, else from the first.
+    def stepMatch(dir: Int): Unit = Option(hl.geom).foreach { g =>
+      val q = filterVar.now().trim.toLowerCase
+      if (q.nonEmpty) {
+        val hits = g.layout.nodes.filter(n =>
+          fuzzyHas((n.id + " " + g.childByName.get(n.id).map(_.`type`).getOrElse("")).toLowerCase, q))
+          .sortBy(n => (n.y, n.x)).map(_.id)
+        if (hits.nonEmpty) {
+          val at = selectedVar.now().map(hits.indexOf(_)).getOrElse(-1)
+          val next = if (at < 0) (if (dir > 0) 0 else hits.length - 1) else Math.floorMod(at + dir, hits.length)
+          selectedVar.set(Some(hits(next)))
+          zoomToSelection()
+        }
+      }
+    }
+
     // Back and Forward, also over an open state diagram: Back closes it (the
     // schematic below keeps its view), and Forward reopens it until the user
     // moves or navigates (`reopenVar`, dropped by the history's `onMove`, a
@@ -881,7 +899,7 @@ object Schematic {
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
         Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
-        navSig, () => moduleBack(), () => moduleForward()),
+        navSig, () => moduleBack(), () => moduleForward(), stepMatch),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
