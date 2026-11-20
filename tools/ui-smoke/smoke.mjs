@@ -751,6 +751,30 @@ async function smokeDesignIn(design, ctx) {
       const left = await page.evaluate(() => document.querySelector('[data-box-inst="cpu"]')?.classList.contains('ohov') ?? null);
       if (left !== false) note(design, where, 'the cpu box stayed outlined after the pointer left its row');
     }
+    // A drawn wire standing for several (xbar.io.in, a Vec's two elements) lists
+    // them in the Inspector; a click on one shows that wire alone.
+    {
+      const hit = page.locator('path[data-wire="xbar.io.in"][data-wire-to="cpu.io"]').first();
+      const pt = await page.evaluate(() => {
+        const p = document.querySelector('path[data-wire="xbar.io.in"][data-wire-to="cpu.io"]');
+        if (!p) return null;
+        const q = p.getPointAtLength(p.getTotalLength() / 2); const m = p.getScreenCTM();
+        return { x: m.a * q.x + m.c * q.y + m.e, y: m.b * q.x + m.d * q.y + m.f };
+      });
+      if (!pt) note(design, where, 'no drawn wire xbar.io.in -> cpu.io');
+      else {
+        await page.mouse.click(pt.x, pt.y);
+        const items = await page.locator('[data-wire-list="xbar.io.in"] [data-wire-list-item]').count();
+        if (items !== 2) note(design, where, `the xbar.io.in wire's Inspector lists ${items} connections, expected 2`);
+        await page.locator('[data-wire-list-item="xbar.io.in[0]"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `list item: ${e.message}`));
+        const one = await page.locator('[data-pane="inspector"]').first().innerText().catch(() => '');
+        if (!one.includes('xbar.io.in[0]') || !one.includes('cpu.io') || await count('[data-wire-list]'))
+          note(design, where, `a click on a listed connection did not show it alone: ${JSON.stringify(one.slice(0, 120))}`);
+        await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+        await page.keyboard.press('Escape');
+        await settled(page).catch((e) => note(design, where, e.message));
+      }
+    }
     drain(where);
   }
 

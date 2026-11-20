@@ -85,7 +85,15 @@ object Inspector {
             case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
                 case Some(inst) => instanceView(inst, mod.children, d, setSel)
-                case None       => emptyNode
+                case None       =>
+                  // A drawn wire can stand for several: a Vec's elements drawn
+                  // as one (`xbar.io.in` for `xbar.io.in[0]` and `[1]`). Its
+                  // path is over theirs: one is shown as itself, several listed.
+                  Inspector.wiresUnder(mod, s) match {
+                    case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
+                    case Seq()  => emptyNode
+                    case ws     => wireListView(s, ws, d, setSel)
+                  }
               }
           }
         case _ => emptyNode
@@ -404,6 +412,31 @@ object Inspector {
       child.text <-- copied.signal.map(c => if (c) "✓" else "📋"),
     )
   }
+
+  /** The wires of `mod` an end of which is under `path` (on a `.` or `[`
+    * boundary): what a drawn wire standing for several selects. */
+  def wiresUnder(mod: ModuleDef, path: String): Seq[WireDef] = {
+    def under(p: String) = p.startsWith(path + ".") || p.startsWith(path + "[")
+    mod.wires.filter(w => under(w.from) || under(w.to))
+  }
+
+  /** Several wires under one drawn wire: each its two ends and its type; a
+    * click selects that wire alone. */
+  private def wireListView(path: String, ws: Seq[WireDef], d: Design, setSel: String => Unit): Element =
+    div(dataAttr("wire-list") := path, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:12px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", path),
+      div(styleAttr := s"font-size:11.5px;color:${Tokens.ink4};margin-bottom:12px", s"${ws.length} connections drawn as one wire"),
+      ws.map { w =>
+        button(dataAttr("wire-list-item") := w.from,
+          styleAttr := s"display:block;width:100%;text-align:left;border:1px solid ${Tokens.borderSoft};background:${Tokens.panel};" +
+            s"border-radius:5px;padding:6px 9px;margin-bottom:6px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
+          title := "Inspect this connection",
+          onClick --> { _ => setSel(w.from) },
+          div(styleAttr := s"color:${Tokens.ink}", w.from),
+          div(styleAttr := s"color:${Tokens.ink3}", s"↓ ${w.to}"),
+          div(styleAttr := s"color:${Tokens.ink4};font-family:${Tokens.sans};font-size:10.5px;margin-top:2px",
+            s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)} bits"))
+      })
 
   private def sectionTitle(text: String): Element =
     div(styleAttr := s"font-size:10.5px;font-weight:600;color:${Tokens.ink3};letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px", text)

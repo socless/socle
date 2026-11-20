@@ -41,6 +41,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - Schematic overview (zoomed out): a bundle wire's type label no longer runs past its wire onto
   the boxes beside it. It is drawn no larger than its wire segment holds, and hidden where that
   would be under 9 px on screen.
+- Inspector: a click on a wire drawn for several connections (a Vec's elements drawn as one, such
+  as `xbar.io.in`) left it blank. It lists the connections; a click on one shows it alone.
 
 ## [0.30.0] - 2026-11-14
 

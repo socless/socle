@@ -22,6 +22,7 @@ object Tokens {
   val ok         = "var(--ok)"
   val warn       = "var(--warn)"
   val mono       = "var(--mono)"
+  val sans       = "var(--sans)"
   // The hovered block's outline and its connected wires (schematic), a hue
   // apart from the selection's accent.
   val hov        = "var(--hov)"

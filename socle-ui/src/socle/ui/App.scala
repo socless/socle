@@ -140,7 +140,8 @@ object App {
     val head = s.takeWhile(_ != '.')
     mod.logic.exists(_.id == s) ||
     mod.wires.exists(w => w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")) ||
-    mod.children.exists(_.name == head)
+    mod.children.exists(_.name == head) ||
+    socle.ui.panels.Inspector.wiresUnder(mod, s).nonEmpty
   }
 
   // A fresh load (first load, picker, dropped file) also forgets the view
