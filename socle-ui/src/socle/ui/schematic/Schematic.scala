@@ -1017,8 +1017,15 @@ object Schematic {
         child.maybe <-- Signal.combine(geomSig, designSig).map {
           case (Some(g), _) if g.layout.nodes.isEmpty && g.mod.children.isEmpty =>
             Some(div(styleAttr := "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none",
-              span(dataAttr("empty-module") := "1", styleAttr := s"font-family:${Tokens.mono};font-size:12px;color:${Tokens.ink4}",
+              span(dataAttr("empty-module") := "1", styleAttr := s"font-size:12.5px;color:${Tokens.ink4}",
                 "This module has no instances, ports, or wires to display.")))
+          // Nothing inside but wires from its inputs to its outputs: say so, so
+          // the lone wire does not read as a missing drawing.
+          case (Some(g), _) if g.mod.children.isEmpty && g.mod.logic.isEmpty && g.mod.wires.nonEmpty =>
+            Some(div(styleAttr := "position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;pointer-events:none",
+              span(dataAttr("passthrough-module") := "1",
+                styleAttr := s"font-size:12px;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.borderSoft};border-radius:6px;padding:5px 10px",
+                "This module wires its inputs straight to its outputs: there is no logic inside to draw.")))
           case _ => None
         },
         // Shown over the content while panning (Gestures): the grabbing cursor

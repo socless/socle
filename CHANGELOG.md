@@ -43,6 +43,7 @@ and [tags](https://github.com/socless/socle/tags) pages.
   (remembered in this browser).
 - Hierarchy: the row toggles and Show in parent are line icons like the top bar's, not text
   characters (▸ ▾ ◎).
+- Schematic: a module that only wires its inputs to its outputs says so under its drawing.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

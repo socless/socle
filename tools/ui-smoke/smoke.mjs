@@ -809,6 +809,15 @@ async function smokeDesignIn(design, ctx) {
         if (off !== false) note(design, where, 'the periph box stayed outlined after the pointer left the source');
       }
     }
+    // xbar only wires its inputs to its outputs: a note says so; the top does not.
+    {
+      if (await count('[data-passthrough-module]')) note(design, where, 'the pass-through note shows on the top module');
+      await page.locator(`[data-hier-path="${top}/xbar"]`).first().click().catch((e) => note(design, where, e.message));
+      await settled(page).catch((e) => note(design, where, e.message));
+      if (!(await count('[data-passthrough-module]'))) note(design, where, 'no pass-through note in xbar, which only wires its inputs to its outputs');
+      await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+      await settled(page).catch((e) => note(design, where, e.message));
+    }
     // Enter in the filter steps through its matches: AXISlave matches mem (above)
     // then periph; Shift+Enter goes back.
     {
