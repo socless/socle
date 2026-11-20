@@ -95,7 +95,13 @@ object App {
   private val rightOpenVar     = Var(PaneFit.rightFits(dom.window.innerWidth))
   private val paneFit          = new PaneFit(leftOpenVar, rightOpenVar, dom.window.innerWidth)
   private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
-  private val bottomHeightVar  = Var(240.0)
+  // Sizes the user dragged, remembered in this browser (not when embedded:
+  // the editor's panel is not a page of its own).
+  private def storedSize(key: String, min: Double, max: Double, default: Double): Double =
+    (if (Embedded.on) None else stored(key)).flatMap(_.toDoubleOption).filter(v => v >= min && v <= max).getOrElse(default)
+  private val bottomHeightVar  = Var(storedSize("socle-bottom-h", 80, 700, 220))
+  private val leftWidthVar     = Var(storedSize("socle-left-w", 180, 480, 240))
+  private val rightWidthVar    = Var(storedSize("socle-right-w", 240, 560, 304))
   private val bottomTabVar     = Var(if (Embedded.on) "ports" else "source") // embedded: no Source tab
   // The FSM block (its id) whose state diagram is open in the schematic pane.
   // Cleared when the drill path changes and when a design change drops the block.
@@ -855,12 +861,17 @@ object App {
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
       windowEvents(_.onResize) --> { _ => paneFit.resized(dom.window.innerWidth) },
+      // A dragged size is kept once the drag rests.
+      Option.when(!Embedded.on)(Seq(
+        bottomHeightVar.signal.changes.debounce(300) --> { h => store("socle-bottom-h", h.round.toString) },
+        leftWidthVar.signal.changes.debounce(300) --> { w => store("socle-left-w", w.round.toString) },
+        rightWidthVar.signal.changes.debounce(300) --> { w => store("socle-right-w", w.round.toString) })),
       topBar(),
       Chrome.warningsBanner(loader.designSig),
       div(
         cls := "scl-panes",
         // Embedded, VS Code's side panel shows the hierarchy and the details: no side panes.
-        Option.when(!Embedded.on)(child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None)),
+        Option.when(!Embedded.on)(child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(sidePane(hierEl, leftWidthVar, 180, 480, left = true)) else None)),
         // Center column: schematic above, the Source/Waveform/Ports panel below.
         div(cls := "scl-center",
           Schematic.render(
@@ -899,7 +910,7 @@ object App {
             hintBar.el),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
-        Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None)),
+        Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(sidePane(inspectorEl, rightWidthVar, 240, 560, left = false)) else None)),
       ),
       // Clear the selection and the inspector's bundle tree on navigation. The
       // in-box expansions are kept per module name instead (expandedPortsVar), so
@@ -1086,6 +1097,31 @@ object App {
           styleAttr := s"font-family:${Tokens.mono}",
           onClick --> { _ => crumbMenuVar.set(None); pathVar.set(parent :+ sib) }, sib))))
   }
+
+  /** A side panel at its width, with a handle on its inner edge (the right one
+    * for the left panel) that drags the width between `min` and `max`. */
+  private def sidePane(pane: Element, widthVar: Var[Double], min: Double, max: Double, left: Boolean): Element =
+    div(cls := "scl-side", dataAttr("side") := (if (left) "left" else "right"),
+      styleAttr <-- widthVar.signal.map(w => s"width:${w}px"),
+      pane,
+      div(cls := "scl-side-resize", dataAttr("side-resize") := (if (left) "left" else "right"),
+        styleAttr := (if (left) "right:-3px" else "left:-3px"),
+        title := "Drag to resize",
+        onMouseDown --> { (e: dom.MouseEvent) =>
+          e.preventDefault()
+          val startX = e.clientX; val startW = widthVar.now()
+          val move: js.Function1[dom.MouseEvent, Unit] = (ev: dom.MouseEvent) => {
+            val dx = ev.clientX - startX
+            widthVar.set(math.max(min, math.min(max, if (left) startW + dx else startW - dx)))
+          }
+          var up: js.Function1[dom.MouseEvent, Unit] = null
+          up = (_: dom.MouseEvent) => {
+            dom.document.removeEventListener("mousemove", move)
+            dom.document.removeEventListener("mouseup", up)
+          }
+          dom.document.addEventListener("mousemove", move)
+          dom.document.addEventListener("mouseup", up)
+        }))
 
   private def topBar(): Element =
     div(

@@ -314,6 +314,22 @@ async function smokePaneFit(design) {
     await page.setViewportSize({ width: 1440, height: 800 });
     await page.waitForTimeout(200);
     await expect('closed by hand, then narrowed and widened', '10');
+    // The hierarchy's inner edge drags its width, kept across a reload.
+    const width = () => page.evaluate(() => Math.round(document.querySelector('[data-side="left"]')?.getBoundingClientRect().width ?? -1));
+    const w0 = await width();
+    const h = await page.locator('[data-side-resize="left"]').first().boundingBox();
+    if (!h) note(design, where, 'no resize handle on the hierarchy');
+    else {
+      await page.mouse.move(h.x + h.width / 2, h.y + 200);
+      await page.mouse.down(); await page.mouse.move(h.x + h.width / 2 + 60, h.y + 200, { steps: 4 }); await page.mouse.up();
+      const w1 = await width();
+      if (Math.abs(w1 - (w0 + 60)) > 2) note(design, where, `dragging the hierarchy's edge 60 px made it ${w1} px wide, from ${w0}`);
+      await page.waitForTimeout(500); // the size is stored once the drag rests
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+      const w2 = await width();
+      if (Math.abs(w2 - w1) > 2) note(design, where, `the hierarchy's width ${w1} px was not kept across a reload (${w2} px)`);
+    }
     for (const e of errors) note(design, where, e);
   } finally {
     await ctx.close().catch(() => {});

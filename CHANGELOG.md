@@ -37,6 +37,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - Source tab: an instance name under the pointer outlines its box in the schematic.
 - Breadcrumb: a ▾ after a segment lists the other instances of its parent module; a click opens
   one in its place.
+- The side panels resize by dragging their inner edge; their widths and the bottom panel's height
+  are remembered in this browser. The bottom panel starts at 220 px (was 240).
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

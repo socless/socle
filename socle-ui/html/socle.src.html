@@ -359,6 +359,11 @@
   .scl-bottom { height: 240px; flex-shrink: 0; border-top: 1px solid var(--border);
     background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
   /* Drag handle on the top edge of the bottom panel (#206). */
+  /* A side panel's box: its width is the user's (dragged, remembered); the pane fills it. */
+  .scl-side { position: relative; flex-shrink: 0; display: flex; min-height: 0; }
+  .scl-side > .scl-pane { width: 100% !important; flex: 1; min-width: 0; }
+  .scl-side-resize { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; z-index: 4; }
+  .scl-side-resize:hover { background: var(--accent); opacity: 0.45; }
   .scl-bottom-resize { height: 6px; flex-shrink: 0; cursor: ns-resize; background: transparent; }
   .scl-bottom-resize:hover { background: var(--accent); opacity: 0.45; }
   /* Panel-toggle buttons dim when their pane is hidden (#206). */
