@@ -737,6 +737,10 @@ async function smokeDesignIn(design, ctx) {
       const body = { position: { x: bb.width / 2, y: bb.height - 4 }, timeout: 3000 };
       await box.click(body).catch((e) => note(design, where, `click: ${e.message}`));
       if (!(await count('[data-inst-inspect="xbar"]'))) note(design, where, 'a click on the box body did not inspect xbar');
+      // its ports, each with what it connects to in the module shown
+      const links = await page.locator('[data-inst-ports="xbar"] [data-inst-port="io"] [data-inst-port-link]').allTextContents();
+      if (['cpu.io', 'dma.io', 'mem.io', 'periph.io'].some((l) => !links.includes(l)))
+        note(design, where, `xbar's io port lists ${JSON.stringify(links)}, expected cpu.io, dma.io, mem.io, periph.io`);
       await box.click(body).catch((e) => note(design, where, `second click: ${e.message}`));
       if (await count('[data-inst-inspect="xbar"]')) note(design, where, 'a second click on the box body did not clear the selection');
       // The box under the pointer lights its hierarchy row, and a row hovered its box.

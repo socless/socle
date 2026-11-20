@@ -84,7 +84,7 @@ object Inspector {
             case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle, bulkBundle)
             case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
-                case Some(inst) => instanceView(inst, mod.children, d, setSel)
+                case Some(inst) => instanceView(inst, mod, d, setSel)
                 case None       =>
                   // A drawn wire can stand for several: a Vec's elements drawn
                   // as one (`xbar.io.in` for `xbar.io.in[0]` and `[1]`). Its
@@ -153,7 +153,8 @@ object Inspector {
   }
 
   // ── Instance detail (clock/reset domains + peers + params) ──────────────────
-  private def instanceView(inst: InstanceDef, siblings: Seq[InstanceDef], d: Design, setSel: String => Unit): Element = {
+  private def instanceView(inst: InstanceDef, parent: ModuleDef, d: Design, setSel: String => Unit): Element = {
+    val siblings   = parent.children
     val instMod    = d.modules.find(_.name == inst.`type`)
     val params     = instMod.map(_.parameters).getOrElse(Map.empty)
     val clockPeers = if (inst.clock.nonEmpty) siblings.filter(c => c.name != inst.name && c.clock == inst.clock) else Nil
@@ -182,6 +183,7 @@ object Inspector {
               styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2};background:${Tokens.panelAlt};border:1px solid ${Tokens.borderSoft};border-radius:4px;padding:2px 6px;cursor:pointer",
               onClick --> { _ => setSel(c.name) }, c.name))))
       else emptyNode,
+      instMod.fold[Modifier[HtmlElement]](emptyMod)(m => portsView(inst, m, parent, d, setSel)),
       // A captured module lists its Scala class and typed, ordered parameters
       // instead of the plain name -> value grid below.
       instMod.filter(_.scalaClass.nonEmpty).fold[Modifier[HtmlElement]](emptyMod)(scalaClassView),
@@ -194,6 +196,40 @@ object Inspector {
             ) }))
       else emptyNode,
     )
+  }
+
+  // ── An instance's ports: direction, type, width, and what each connects to ──
+  // The parent's wires with an end on `<inst>.<port>` (or under it, a field or
+  // a Vec element); a click on the other end selects that wire.
+  private def portsView(inst: InstanceDef, m: ModuleDef, parent: ModuleDef, d: Design, setSel: String => Unit): Element = {
+    def onPort(path: String, port: String): Boolean = {
+      val p = s"${inst.name}.$port"
+      path == p || path.startsWith(p + ".") || path.startsWith(p + "[")
+    }
+    val ports = m.ports.filterNot(p => p.name == "clock" || p.name == "reset")
+    if (ports.isEmpty) div()
+    else div(dataAttr("inst-ports") := inst.name, styleAttr := "margin-bottom:12px",
+      sectionTitle(s"Ports (${ports.length})"),
+      ports.map { p =>
+        val links = parent.wires.flatMap { w =>
+          if (onPort(w.from, p.name)) Some(w -> w.to) else if (onPort(w.to, p.name)) Some(w -> w.from) else None
+        }
+        div(dataAttr("inst-port") := p.name, styleAttr := s"padding:4px 0;border-bottom:1px solid ${Tokens.borderSoft}",
+          div(styleAttr := "display:flex;align-items:baseline;gap:6px;font-size:11px",
+            span(styleAttr := s"color:${Tokens.ink4};width:38px;flex-shrink:0;font-size:10px", p.dir),
+            span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink};min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", p.name),
+            span(styleAttr := s"margin-left:auto;flex-shrink:0;color:${Tokens.ink4};font-variant-numeric:tabular-nums",
+              s"${typeName(p.bundle, d)} · ${totalWidth(p.bundle, d)}b")),
+          if (links.isEmpty)
+            div(styleAttr := s"margin-left:44px;font-size:10.5px;color:${Tokens.ink4}", if (p.connected) "connected inside the module" else "not connected")
+          else
+            div(styleAttr := "margin-left:44px;display:flex;flex-wrap:wrap;gap:4px;margin-top:2px",
+              links.map { case (w, other) =>
+                button(dataAttr("inst-port-link") := other, title := s"Select this connection (${w.from} ↔ ${w.to})",
+                  styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.accent};background:transparent;border:none;padding:0;cursor:pointer",
+                  onClick --> { _ => setSel(w.from) }, other)
+              }))
+      })
   }
 
   // ── Scala generator of a captured module: full class + every parameter ─────
