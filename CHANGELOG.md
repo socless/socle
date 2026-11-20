@@ -22,6 +22,9 @@ and [tags](https://github.com/socless/socle/tags) pages.
   shown (the folder ellipsizes first).
 - First-visit tips: three, not four (the hint bar under the schematic says how to pan and zoom),
   and the inspect tip says a click on a block, not on its title.
+- Brand charter: the light theme's accent is Signal (`#0074ca`); the top bar's logo is 24 px tall
+  (about 99 px wide, over the charter's 96 px minimum); the theme gallery's Paper and Carbon
+  swatches show their real colors.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

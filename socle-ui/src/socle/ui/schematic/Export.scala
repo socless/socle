@@ -44,7 +44,7 @@ object Export {
     val varDecls = VarRe.findAllMatchIn(xhtml + css).map(_.group(1)).toSet.toSeq
       .map((v: String) => v -> rootStyle.getPropertyValue(v).trim).filter(_._2.nonEmpty)
       .map { case (v, value) => s"$v: $value;" }.mkString(" ")
-    val bg = { val b = rootStyle.getPropertyValue("--bg").trim; if (b.nonEmpty) b else "#fbfbfa" }
+    val bg = { val b = rootStyle.getPropertyValue("--bg").trim; if (b.nonEmpty) b else "#edf0f4" } // pierre, the light page
     s"""<svg xmlns="http://www.w3.org/2000/svg" width="$w" height="$h" viewBox="0 0 $w $h">""" +
       s"""<rect width="100%" height="100%" fill="$bg"/>""" +
       s"""<foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="$varDecls position: relative; width: ${w}px; height: ${h}px; font-family: ui-monospace, monospace;">""" +

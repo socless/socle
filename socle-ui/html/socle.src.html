@@ -16,13 +16,13 @@
      at paint time. Light is the default; dark overrides below. The set-before-
      paint script and the topbar toggle (App.scala) drive data-theme. */
   :root {
-    /* Socle charter: pierre #edf0f4, calcaire #f9fafc, ardoise #16202b,
-       granit #4d5660, laiton #be810a / or #e6ac3d; signal (the accent) unchanged. */
+    /* Socle charter (brand/README.md): pierre #edf0f4, calcaire #f9fafc, ardoise
+       #16202b, granit #4d5660, laiton #be810a / or #e6ac3d, signal #0074ca (the accent). */
     --bg: #edf0f4; --panel: #f9fafc; --panelAlt: #edf0f4;
     --border: #d5dbe2; --borderSoft: #e2e7ed;
     --ink: #16202b; --ink2: #4d5660; --ink3: #626c78; --ink4: #6d7783;
-    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.95 0.025 250);
-    --accentLine: oklch(0.55 0.16 250 / 0.18);
+    --accent: #0074ca; --accentBg: #e6f0f9;
+    --accentLine: rgba(0, 116, 202, 0.18);
     --hi: oklch(0.94 0.06 80);
     --logo-chip: #be810a; --logo-ink: #16202b; --logo-dot: #16202b; --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
     /* Hover outline + connected wires (schematic), apart from the accent. */
@@ -223,7 +223,8 @@
   .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     border-bottom: 1px solid var(--border); background: var(--panel); }
   .scl-logo { flex-shrink: 0; display: inline-flex; align-items: center; }
-  .scl-logo svg { height: 22px; width: auto; display: block; }
+  /* 24 px tall: the horizontal logo is ~99 px wide, over the charter's 96 px minimum. */
+  .scl-logo svg { height: 24px; width: auto; display: block; }
   .scl-sub { color: var(--ink3); }
   /* The top bar fits its window (#12): the design label and the search button
      shrink (ellipsis) before anything overflows; the buttons keep their size. */

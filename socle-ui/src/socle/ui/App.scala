@@ -272,8 +272,8 @@ object App {
   // set-before-paint script applies the saved theme; keep `darkThemes` in sync
   // with the DARK map there. Each entry: (id, label, previewBg, previewAccent).
   private val themes: List[(String, String, String, String)] = List(
-    ("light",     "Paper",      "#fbfbfa", "oklch(0.55 0.16 250)"),
-    ("dark",      "Carbon",     "#0d1117", "#1f6feb"),
+    ("light",     "Paper",      "#edf0f4", "#0074ca"),
+    ("dark",      "Carbon",     "#0e151d", "#4aa3f0"),
     ("blueprint", "Blueprint",  "#08182b", "#39c2ff"),
     ("nord",      "Nord",       "#2e3440", "#88c0d0"),
     ("gruvbox",   "Gruvbox",    "#282828", "#fabd2f"),
