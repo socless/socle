@@ -45,7 +45,8 @@ import socle.ui.theme.Tokens
   * selection: the wire clicked and its level. Each registry knows the drill
   * path it was rendered for, so the net is resolved against the level whose
   * elements it lights (never another level's paths, which can share names). */
-final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[String]]) {
+final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[String]],
+    boxHoverOut: Var[Option[String]] = Var(None)) {
   import Highlight._
 
   private var reg: Registry = Registry.empty
@@ -131,9 +132,13 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
   /** Drop the box hover whatever the state (a pan, an export). */
   def clearBox(): Unit = if (boxHover.isDefined) { boxHover = None; applyBoxHover() }
 
-  private def applyBoxHover(): Unit = boxHover match {
-    case None     => boxOut.set(Set.empty); wireOut.set(Set.empty)
-    case Some(id) => val m = reg.boxMatch(id); boxOut.set(m.boxes); wireOut.set(m.wires)
+  private def applyBoxHover(): Unit = {
+    boxHover match {
+      case None     => boxOut.set(Set.empty); wireOut.set(Set.empty)
+      case Some(id) => val m = reg.boxMatch(id); boxOut.set(m.boxes); wireOut.set(m.wires)
+    }
+    // shared with the hierarchy, whose row of the box lights up
+    if (boxHoverOut.now() != boxHover) boxHoverOut.set(boxHover)
   }
 
   private var net: Option[NetFollow.Net] = None

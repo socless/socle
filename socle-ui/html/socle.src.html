@@ -324,7 +324,9 @@
   .scl-hier-row { display: flex; align-items: center; gap: 4px; height: 24px;
     padding: 0 4px; cursor: pointer; font-size: 12px; color: var(--ink);
     border-left: 2px solid transparent; white-space: nowrap; overflow: hidden; }
-  .scl-hier-row:hover { background: var(--bg); }
+  .scl-hier-row:hover, .scl-hier-row.hov { background: var(--bg); }
+  /* The row of the schematic box under the pointer: the box's hover outline color. */
+  .scl-hier-row.hov { box-shadow: inset 0 0 0 1px var(--hov); }
   /* The open module's row (the module that holds an open block or diagram). */
   .scl-hier-row.active { background: color-mix(in srgb, var(--accent) 13%, transparent);
     border-left-color: var(--accent); color: var(--accent); font-weight: 600; }

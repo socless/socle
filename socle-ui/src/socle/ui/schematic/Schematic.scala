@@ -100,6 +100,10 @@ object Schematic {
     // Whether a drill path resolves in the design (what `navigate` would
     // show), without showing it: the Back and Forward buttons' state.
     resolves: List[String] => Boolean = _ => false,
+    // The box under the pointer, shared with the hierarchy: the schematic
+    // writes it, a hierarchy row hovered asks for its box (`hoverBox`).
+    boxHoverVar: Var[Option[String]] = Var(None),
+    hoverBox: EventStream[Option[String]] = EventStream.empty,
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -120,7 +124,7 @@ object Schematic {
     val filterVar   = Var("")              // schematic filter query (issue #121)
     // Hover, selection, dimming and colourization as styling on the elements
     // `renderContent` builds, never a rebuild (perf; see Highlight).
-    val hl = new Highlight(selectedVar, hoveredVar)
+    val hl = new Highlight(selectedVar, hoveredVar, boxHoverVar)
     // The hovered block's outline and the tooltip card (delegated listeners on
     // the viewport, installed at mount).
     val tooltip = new Tooltip(hl)
@@ -976,6 +980,8 @@ object Schematic {
           // class, flipped only when the zoom crosses the threshold.
           cls("ov") <-- zoomVar.signal.map(z => z * SchematicBoxes.labelPx() < SchematicBoxes.OverviewPx).distinct,
           dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
+          // a hierarchy row hovered outlines its box, as the pointer on the box would
+          hoverBox --> { (b: Option[String]) => b match { case Some(id) => hl.enterBox(id); case None => hl.leaveBox() } },
           // View-wide highlight state the rules of Highlight.css key on; on this
           // element so an export's clone carries it.
           cls("hl-sel") <-- selectedVar.signal.map(_.isDefined),

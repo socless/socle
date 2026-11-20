@@ -30,6 +30,10 @@ object App {
   // Schematic + inspector shared state (Phase 2 / Phase 3).
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
+  // The schematic box under the pointer (its id), and a hierarchy row hovered
+  // asking for its box: the two panes light each other's.
+  private val boxHoverVar      = Var[Option[String]](None)
+  private val rowHoverBus      = new EventBus[Option[String]]
   // In-box expanded bundle pin paths, per module name: each module keeps its own
   // and gets it back on return, and no module's layout ever sees another's paths.
   private val expandedPortsVar = Var(Map.empty[String, Set[String]])
@@ -884,6 +888,8 @@ object App {
             commands         = viewCmds,
             navigate         = showPath,
             resolves         = p => loader.currentDesign.exists(d => currentModule(d, p).isDefined),
+            boxHoverVar      = boxHoverVar,
+            hoverBox         = rowHoverBus.events,
           ),
           // The first-time tips float above the schematic's bottom edge, over it.
           div(styleAttr := "position:relative;flex-shrink:0",
@@ -1259,6 +1265,11 @@ object App {
       dataAttr("hier-current") <-- openRowSig.map(o => if (o.contains(r.id)) "1" else "0"),
       dataAttr("hier-path") := r.id,
       dataAttr("hier-leaf") := (if (r.isLeaf) "1" else "0"),
+      // A row of the module shown is a box there: hovering one lights the other.
+      cls.toggle("hov") <-- Signal.combine(pathVar.signal, boxHoverVar.signal).map { case (p, b) =>
+        r.path.nonEmpty && r.path.init == p && b.contains(r.path.last) },
+      onMouseEnter --> { _ => if (r.path.nonEmpty && r.path.init == pathVar.now()) rowHoverBus.emit(Some(r.path.last)) },
+      onMouseLeave --> { _ => if (r.path.nonEmpty && r.path.init == pathVar.now()) rowHoverBus.emit(None) },
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",
       title := r.path.mkString(" > "),
       onClick --> { _ => pathVar.set(r.path) },

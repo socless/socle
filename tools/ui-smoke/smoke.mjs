@@ -739,6 +739,17 @@ async function smokeDesignIn(design, ctx) {
       if (!(await count('[data-inst-inspect="xbar"]'))) note(design, where, 'a click on the box body did not inspect xbar');
       await box.click(body).catch((e) => note(design, where, `second click: ${e.message}`));
       if (await count('[data-inst-inspect="xbar"]')) note(design, where, 'a second click on the box body did not clear the selection');
+      // The box under the pointer lights its hierarchy row, and a row hovered its box.
+      await box.hover(body).catch((e) => note(design, where, `hover box: ${e.message}`));
+      const rowHov = () => page.evaluate((t) => document.querySelector(`[data-hier-path="${t}/xbar"]`)?.classList.contains('hov') ?? null, top);
+      if (await rowHov() !== true) note(design, where, `the xbar box hovered did not light its hierarchy row (${await rowHov()})`);
+      await page.locator(`[data-hier-path="${top}/cpu"]`).first().hover().catch((e) => note(design, where, `hover row: ${e.message}`));
+      const boxHov = await page.evaluate(() => document.querySelector('[data-box-inst="cpu"]')?.classList.contains('ohov') ?? null);
+      if (boxHov !== true) note(design, where, `the cpu row hovered did not outline its box (${boxHov})`);
+      if (await rowHov() !== false) note(design, where, 'the xbar row stayed lit after the pointer left the box');
+      await page.mouse.move(1, 1);
+      const left = await page.evaluate(() => document.querySelector('[data-box-inst="cpu"]')?.classList.contains('ohov') ?? null);
+      if (left !== false) note(design, where, 'the cpu box stayed outlined after the pointer left its row');
     }
     drain(where);
   }
