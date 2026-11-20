@@ -1020,10 +1020,10 @@ object Schematic {
         },
         // Shown over the content while panning (Gestures): the grabbing cursor
         // and no text selection wherever the pointer goes, without restyling
-        // the content's elements. Above the view's controls too (z-index 3), so
-        // a pan that crosses them keeps its cursor.
+        // the content's elements. Above the view's controls too (z-index 3, the
+        // zoom toolbar 4), so a pan that crosses them keeps its cursor.
         div(dataAttr("pan-overlay") := "1",
-          styleAttr := "position:absolute;inset:0;z-index:4;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
+          styleAttr := "position:absolute;inset:0;z-index:5;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
       ),
       SchematicChrome.controls(ctrlCtx),
       tooltip.el,
