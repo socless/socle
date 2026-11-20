@@ -187,6 +187,38 @@ object SimRunnerTest extends TestSuite {
         assert(!os.exists(e.surferArgv))
       } finally e.close()
     }
+    test("a failed run without a trace: the message quotes the failure and names the log") {
+      val e = new Env
+      try {
+        val fail = script(e.bin / "java-fail.sh",
+          """echo 'Run starting. Expected test count is: 1'
+            |echo '- should run *** FAILED ***'
+            |echo '  circt.stage.phases.Exceptions$FirtoolNonZeroExitCode: firtool returned a non-zero exit code.'
+            |echo 'src/Top.scala:78:14: error: connects to a destination outside its layer block'
+            |echo 'src/Top.scala:38:21: note: enclosing layer block is defined here'
+            |exit 1
+            |""".stripMargin)
+        val runner = new SimRunner(e.root, fail.toString, log = _ => ())
+        val out    = runner.run(req, e.settings(), Right(fork))
+        assert(!out.passed, out.waves.isEmpty)
+        val log = runner.dirFor(suite, name) / "sim.log"
+        assert(out.message == s"Simulation failed: $suite $name. No waveform: the test failed before writing one: " +
+          s"src/Top.scala:78:14: error: connects to a destination outside its layer block. Log: $log")
+      } finally e.close()
+    }
+    test("failure reason: an error line first, else the line after FAILED, else none") {
+      val e = new Env
+      try {
+        val log = e.root / "sim.log"
+        os.write.over(log, "- t *** FAILED ***\n\n  java.lang.AssertionError: 3 != 4\n  at x\n")
+        assert(SimRunner.failureReason(log) == Some("java.lang.AssertionError: 3 != 4"))
+        os.write.over(log, "Error: Could not find or load main class org.scalatest.tools.Runner\n")
+        assert(SimRunner.failureReason(log) == None)
+        assert(SimRunner.failureReason(e.root / "absent.log") == None)
+        os.write.over(log, "- t *** FAILED ***\n  " + "x" * 400 + "\n")
+        assert(SimRunner.failureReason(log).exists(_.length == 300))
+      } finally e.close()
+    }
     test("the newest trace wins, .fst too") {
       val e = new Env
       try {
