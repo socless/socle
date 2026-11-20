@@ -842,6 +842,7 @@ object App {
       embedded    = Embedded.on,
       wave        = Some(wave),
       tabVar      = bottomTabVar,
+      hoverBox    = b => rowHoverBus.emit(b),
     )
     val inspectorEl = Inspector.render(
       designSig          = loader.designSig,

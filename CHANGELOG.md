@@ -34,6 +34,7 @@ and [tags](https://github.com/socless/socle/tags) pages.
   to in the module shown; a click on one selects that connection.
 - Schematic filter: Enter selects the next box it matches and zooms to it (Shift+Enter: the
   previous), in reading order.
+- Source tab: an instance name under the pointer outlines its box in the schematic.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

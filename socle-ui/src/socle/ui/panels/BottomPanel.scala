@@ -81,6 +81,7 @@ object BottomPanel {
     // owned by the caller so a new trace can show the Waveform tab.
     wave: Option[WaveFollow] = None,
     tabVar: Var[String] = Var("source"),
+    hoverBox: Option[String] => Unit = _ => (),
   ): Element = {
     def setSel(p: String): Unit = selectedVar.set(Some(p))
     val waveViewSig: Signal[Option[WaveFollow.View]] =
@@ -145,7 +146,7 @@ object BottomPanel {
     // The Source tab renders a file once and moves its highlight: mounted only
     // while it shows (never when embedded, where the tab is hidden).
     val source: Option[SourcePane] =
-      Option.when(!embedded)(new SourcePane(moduleSig, selectedVar.signal, designSig, drillInto))
+      Option.when(!embedded)(new SourcePane(moduleSig, selectedVar.signal, designSig, drillInto, hoverBox))
     val sourceSig: Signal[ChildNode.Base] =
       shownTabSig.map(_ == "source").distinct.map(on => source.filter(_ => on).fold[ChildNode.Base](emptyNode)(_.root))
 
@@ -226,7 +227,11 @@ object BottomPanel {
     selectedSig: Signal[Option[String]],
     designSig: Signal[Option[Design]],
     drillInto: String => Unit,
+    // An instance name under the pointer lights its box (None: none).
+    hoverBox: Option[String] => Unit,
   ) {
+    private var hovering: Option[String] = None
+    private def hoverTo(b: Option[String]): Unit = if (b != hovering) { hovering = b; hoverBox(b) }
     private final class FileView(val file: String, val text: String, val lines: Array[String], val grid: ChildNode.Base) {
       val code: IndexedSeq[String] = SourceUses.codeOnly(lines.toIndexedSeq) // the lines with comments and strings blanked
     }
@@ -254,12 +259,15 @@ object BottomPanel {
       // A child's name drills in; the selected instance's name does nothing.
       onClick --> { (e: dom.MouseEvent) => wordOf(e).filter(children).foreach(drillInto) },
       onMouseOver --> { (e: dom.MouseEvent) =>
-        wordOf(e).foreach { w =>
+        val w = wordOf(e)
+        w.foreach { w =>
           val el = e.target.asInstanceOf[dom.Element]
           if (children(w)) el.setAttribute("title", s"Open $w")
           else if (el.hasAttribute("title")) el.removeAttribute("title")
         }
+        hoverTo(w.filter(children))
       },
+      onMouseLeave --> { _ => hoverTo(None) },
       onUnmountCallback(_ => scrolledFor = null),
       Signal.combine(moduleSig, selectedSig, designSig) --> { case (m, s, d) => update(m, s, d) },
     )

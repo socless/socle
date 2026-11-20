@@ -779,6 +779,20 @@ async function smokeDesignIn(design, ctx) {
         await settled(page).catch((e) => note(design, where, e.message));
       }
     }
+    // An instance name in the Source tab, hovered, outlines its box.
+    {
+      const word = page.locator('[data-source-view] [data-w="periph"]').first();
+      if (!(await word.count())) note(design, where, 'no periph word in the Source tab');
+      else {
+        await word.scrollIntoViewIfNeeded().catch(() => {});
+        await word.hover().catch((e) => note(design, where, `hover source word: ${e.message}`));
+        const lit = await page.evaluate(() => document.querySelector('[data-box-inst="periph"]')?.classList.contains('ohov') ?? null);
+        if (lit !== true) note(design, where, `periph hovered in the Source tab did not outline its box (${lit})`);
+        await page.mouse.move(1, 1);
+        const off = await page.evaluate(() => document.querySelector('[data-box-inst="periph"]')?.classList.contains('ohov') ?? null);
+        if (off !== false) note(design, where, 'the periph box stayed outlined after the pointer left the source');
+      }
+    }
     // Enter in the filter steps through its matches: AXISlave matches mem (above)
     // then periph; Shift+Enter goes back.
     {
