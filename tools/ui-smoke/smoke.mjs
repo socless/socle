@@ -3508,14 +3508,16 @@ async function smokeDesignIn(design, ctx) {
       if (pe !== 'none') note(design, where, `a faded row label takes clicks in the overview (pointer-events ${pe})`);
     }
     // In the overview, a bundle wire's type is readable (at least 9px on screen)
-    // and an edge stub's label fades like the pin text.
+    // where it shows: one its wire segment cannot hold at that size is hidden.
+    // An edge stub's label fades like the pin text.
     if (a.ov) {
       const ov = await page.evaluate(() => {
         const c = document.querySelector('[data-content]');
         const z = parseFloat((c.style.transform.match(/scale\(([-\d.e]+)\)/) || [])[1] || '1');
-        const wl = document.querySelector('.scl-wl:not(.sig)');
+        const shown = [...document.querySelectorAll('.scl-wl:not(.sig)')].filter((l) => parseFloat(getComputedStyle(l).opacity) > 0);
+        const px = shown.map((l) => parseFloat(getComputedStyle(l).fontSize) * z);
         const st = document.querySelector('.scl-stubl');
-        return { wirePx: wl ? parseFloat(getComputedStyle(wl).fontSize) * z : null, stubOpacity: st ? getComputedStyle(st).opacity : null };
+        return { wirePx: px.length ? Math.min(...px) : null, stubOpacity: st ? getComputedStyle(st).opacity : null };
       });
       if (ov.wirePx != null && ov.wirePx < 9) note(design, where, `a bundle wire label is ${ov.wirePx.toFixed(1)}px at fit`);
       if (ov.stubOpacity != null && ov.stubOpacity !== '0') note(design, where, `an edge stub label is not faded in the overview (opacity ${ov.stubOpacity})`);

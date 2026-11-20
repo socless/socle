@@ -32,6 +32,14 @@ object Schematic {
 
   /** Toggle an id in the single-select model: select it, or clear if it is
     * already selected. Shared by every clickable box/wire. */
+  /** The largest font size (px, layout units) at which wire label `t` fits the
+    * longest horizontal segment of `points` (where [[LayoutCore.wireLabelAt]]
+    * puts it), at 0.6 em per character and 4 px clear at each end. */
+  private[schematic] def labelFontCap(points: Seq[(Double, Double)], t: String): Double = {
+    val seg = points.sliding(2).collect { case Seq(a, b) if a._2 == b._2 => math.abs(b._1 - a._1) }.maxOption.getOrElse(0.0)
+    math.max(0.0, seg - 8) / (math.max(1, t.length) * 0.6)
+  }
+
   private def toggleSelect(sel: Var[Option[String]], id: String): Unit =
     sel.update(s => if (s.contains(id)) None else Some(id))
 
@@ -740,7 +748,11 @@ object Schematic {
               .filter { case (lx, ly) => freeLabelSpot(t, lx, ly) }
               .map { case (lx, ly) =>
               svg.text(sa("data-wire-label") := t, sa("class") := (if (isBundle) "scl-wl" else "scl-wl sig"),
-                sa("x") := lx.toString, sa("y") := (ly - 5).toString, sa("text-anchor") := "middle", t)
+                sa("x") := lx.toString, sa("y") := (ly - 5).toString, sa("text-anchor") := "middle",
+                // The overview draws it at a fixed screen size, capped here to what
+                // its segment holds, so it never runs past the wire onto a box; it
+                // fades out where that cap is too small to read (Highlight.css).
+                sa("style") := { val f = math.floor(labelFontCap(w.points, t) * 10) / 10; s"--wlf:${f}px;--wln:$f" }, t)
             }
           }
           val el = svg.g(

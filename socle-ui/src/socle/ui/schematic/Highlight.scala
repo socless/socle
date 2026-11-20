@@ -551,7 +551,9 @@ object Highlight {
     ".scl-ovt.out{left:0}",
     ".ov .scl-ovt{display:block}",
     ".ov [data-boundary-stub]{overflow:visible !important}",
-    ".ov .scl-wl:not(.sig){font-size:calc(10px / var(--z))}",
+    ".ov .scl-wl:not(.sig){font-size:min(calc(10px / var(--z)), var(--wlf, 10px))}",
+    // ...and hidden where its capped size is under 9 screen px, the overview's readable minimum.
+    ".ov .scl-wl:not(.sig){opacity:clamp(0, calc((var(--wln, 99) * var(--z) - 9) * 1000), 1)}",
     // A declared port no wire ends on (#332).
     ".scl-nc{opacity:.45}",
     s".scl-pin.follow,.scl-fpin.follow{background:${Tokens.fol}}",
