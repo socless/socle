@@ -39,6 +39,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
   one in its place.
 - The side panels resize by dragging their inner edge; their widths and the bottom panel's height
   are remembered in this browser. The bottom panel starts at 220 px (was 240).
+- Schematic toolbar: a `map` button keeps the minimap shown even when the design fits the view
+  (remembered in this browser).
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

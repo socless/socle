@@ -1735,6 +1735,22 @@ async function smokeDesignIn(design, ctx) {
   // (its node rects are built once per geometry, never per pan), and a click or
   // a drag in it moves the main view there.
   await settled(page).catch((e) => note(design, 'back to the top', e.message));
+  // The toolbar's map button keeps the minimap shown at fit, where it would hide.
+  if (design === 'gcd') {
+    const where = 'minimap pin';
+    const mm = () => page.locator('[data-minimap]').count();
+    const toggle = page.locator('[data-minimap-toggle]').first();
+    await page.locator('button[title="Fit to view"]').first().click().catch(() => {});
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (await mm()) note(design, where, 'a minimap at fit before the map button');
+    await toggle.click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (!(await mm())) note(design, where, 'the map button did not show the minimap');
+    await toggle.click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (await mm()) note(design, where, 'the map button pressed again did not hide the minimap');
+    drain(where);
+  }
   {
     const where = 'minimap';
     const settle = () => settled(page).catch((e) => note(design, where, e.message));

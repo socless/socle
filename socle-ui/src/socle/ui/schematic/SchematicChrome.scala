@@ -33,6 +33,8 @@ private[schematic] object SchematicChrome {
     onExportSvg:   () => Unit,
     onExportPng:   () => Unit,
     onShare:       Option[() => Unit], // None: no share button
+    // The minimap shown even when everything fits (it shows itself on overflow).
+    minimapPinVar: Var[Boolean] = Var(false),
   )
 
   // ── chrome (top-left chips) ──
@@ -169,6 +171,10 @@ private[schematic] object SchematicChrome {
       // The colorize-components / colorize-wires toggles moved into the settings
       // panel (#274); they live in App now and the schematic reads them via params.
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
+      button(dataAttr("minimap-toggle") := "1", title := "Keep the minimap shown (it shows by itself when the design overflows the view)",
+        aria.pressed <-- c.minimapPinVar.signal.map(_.toString),
+        styleAttr <-- c.minimapPinVar.signal.map(on => zbtn + s";color:${if (on) Tokens.accent else Tokens.ink3}"),
+        onClick --> { (_: dom.MouseEvent) => c.minimapPinVar.update(!_) }, "map"),
       button(styleAttr := zbtn, title := "Fit to view", onClick --> { (_: dom.MouseEvent) => c.onFit() }, "fit"),
       button(styleAttr := zbtn, title := "Zoom out", onClick --> { (_: dom.MouseEvent) => c.zoomBy(0.8) }, "−"),
       span(styleAttr := s"padding:3px 6px;color:${Tokens.ink2};min-width:38px;text-align:center",

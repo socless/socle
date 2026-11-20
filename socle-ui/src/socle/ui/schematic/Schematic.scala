@@ -122,6 +122,8 @@ object Schematic {
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
+    // The minimap kept shown (the toolbar's map button), remembered in this browser.
+    val minimapPinVar = Var(try dom.window.localStorage.getItem("socle-minimap") == "on" catch { case _: Throwable => false })
     // Hover, selection, dimming and colourization as styling on the elements
     // `renderContent` builds, never a rebuild (perf; see Highlight).
     val hl = new Highlight(selectedVar, hoveredVar, boxHoverVar)
@@ -887,6 +889,7 @@ object Schematic {
       onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
       onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
       onShare       = Option.when(showShare)(() => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) }),
+      minimapPinVar = minimapPinVar,
     )
 
     // ── pane root ──
@@ -1060,10 +1063,11 @@ object Schematic {
       // when the geometry changes or it shows or hides); pan and zoom move just
       // its viewport rect, through `minimapViewSig`. Hidden until the module's
       // view is in place (`settledPathVar`).
+      minimapPinVar.signal.changes --> { on => try dom.window.localStorage.setItem("socle-minimap", if (on) "on" else "off") catch { case _: Throwable => () } },
       child.maybe <-- Signal.combine(geomSig, zoomVar.signal, viewSizeVar.signal, pathSig.map(_.mkString("/")), settledPathVar.signal,
-          Signal.combine(totalWVar.signal, canvasHVar.signal, showLayersVar.signal)).map {
-        case (Some(g), z, (vw, vh), pk, settled, (tw, th, layers))
-          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (tw * z > vw + 1 || th * z > vh + 1) => Some((g, layers))
+          Signal.combine(totalWVar.signal, canvasHVar.signal, showLayersVar.signal, minimapPinVar.signal)).map {
+        case (Some(g), z, (vw, vh), pk, settled, (tw, th, layers, pin))
+          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (pin || tw * z > vw + 1 || th * z > vh + 1) => Some((g, layers))
         case _ => None
       }.distinctByFn {
         case (Some(a), Some(b)) => (a._1 eq b._1) && a._2 == b._2
