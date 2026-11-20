@@ -450,7 +450,8 @@ object App {
     * Display (density + colorize) and Theme (gallery). Esc closes it. */
   private def settingsControl(): Element =
     span(styleAttr := "position:relative;display:inline-flex",
-      button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings",
+      button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings", aria.label := "View settings",
+        aria.expanded <-- settingsOpenVar.signal,
         onClick --> { _ => settingsOpenVar.update(!_) }, iconSettings),
       child.maybe <-- settingsOpenVar.signal.map { open =>
         if (!open) None else Some(
@@ -1218,15 +1219,18 @@ object App {
       // focus on the schematic. The `off` class dims a button when its pane is hidden.
       Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
         cls.toggle("off") <-- leftOpenVar.signal.map(!_),
-        title := "Toggle the hierarchy panel",
+        title := "Toggle the hierarchy panel", aria.label := "Hierarchy panel",
+        aria.pressed <-- leftOpenVar.signal.map(_.toString),
         onClick --> { _ => leftOpenVar.update(!_) }, iconPanelLeft)),
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "bottom",
         cls.toggle("off") <-- bottomOpenVar.signal.map(!_),
-        title := "Toggle the bottom panel",
+        title := "Toggle the bottom panel", aria.label := "Bottom panel",
+        aria.pressed <-- bottomOpenVar.signal.map(_.toString),
         onClick --> { _ => bottomOpenVar.update(!_) }, iconPanelBottom),
       Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
         cls.toggle("off") <-- rightOpenVar.signal.map(!_),
-        title := "Toggle the inspector panel",
+        title := "Toggle the inspector panel", aria.label := "Inspector panel",
+        aria.pressed <-- rightOpenVar.signal.map(_.toString),
         onClick --> { _ => rightOpenVar.update(!_) }, iconPanelRight)),
       // View settings (#198): density + accent presets.
       settingsControl(),
@@ -1234,10 +1238,11 @@ object App {
       Option.when(!Embedded.on)(button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
         dataAttr("theme") <-- themeVar.signal,
         title <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
+        aria.label <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
         onClick --> { _ => toggleTheme() },
         child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon))),
       // Help affordance.
-      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Mouse and keyboard (?)",
+      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Mouse and keyboard (?)", aria.label := "Mouse and keyboard help",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),
     )
 

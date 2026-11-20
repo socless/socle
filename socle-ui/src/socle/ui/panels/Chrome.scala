@@ -207,6 +207,7 @@ object Chrome {
       Seq("+ / -")   -> "Zoom",
       Seq("0 / f")   -> "Fit to view",
       Seq("z")       -> "Zoom to the selection",
+      Seq("Shift ←↑→↓") -> "Select the next box that way",
       Seq("Alt ←", "Alt →") -> "Back, forward",
       Seq("/")       -> "Focus the filter",
       Seq("Esc")     -> "Close a card, the palette or a diagram; stop following a net",

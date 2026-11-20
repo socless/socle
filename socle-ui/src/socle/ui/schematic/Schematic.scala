@@ -413,6 +413,27 @@ object Schematic {
     def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
     def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
+    // Shift+Arrow: from the selected box to the nearest one that way (within
+    // 45 degrees of it, the closest by distance plus twice the sideways offset),
+    // centred in the view when it is outside it. False: no box selected.
+    def stepSelection(dx: Int, dy: Int): Boolean = Option(hl.geom).exists { g =>
+      val c = g.layout.nodes.map(n => n.id -> (n.x + n.w / 2.0, n.y + n.h / 2.0)).toMap
+      selectedVar.now().filter(c.contains).exists { from =>
+        val (fx, fy) = c(from)
+        val best = c.toSeq.filter(_._1 != from).flatMap { case (id, (nx, ny)) =>
+          val ax = (nx - fx) * dx + (ny - fy) * dy; val side = math.abs((nx - fx) * dy - (ny - fy) * dx)
+          Option.when(ax > 0 && side <= ax)(id -> (math.hypot(nx - fx, ny - fy) + 2 * side))
+        }.sortBy(_._1).minByOption(_._2).map(_._1)
+        best.foreach { id =>
+          selectedVar.set(Some(id))
+          val (vw, vh) = viewSizeVar.now(); val z = zoomVar.now(); val (px, py) = panVar.now(); val (nx, ny) = c(id)
+          val (sx, sy) = (px + nx * z, py + ny * z)
+          if (sx < 0 || sy < 0 || sx > vw || sy > vh) { userView(); panVar.set((vw / 2 - nx * z, vh / 2 - ny * z)) }
+        }
+        true
+      }
+    }
+
     // Enter in the filter: the next box it matches (Shift+Enter: the previous),
     // in reading order (top to bottom, then left to right), selected and zoomed
     // to; from the selection when it is a match, else from the first.
@@ -945,6 +966,7 @@ object Schematic {
               back           = () => navBack(),
               forward        = () => navForward(),
               zoomToSelection = () => zoomToSelection(),
+              stepSelection  = (dx, dy) => stepSelection(dx, dy),
             ), hl)
             gesturesOff = gestures.install()
             tooltipOff = tooltip.install(viewportNode)

@@ -44,6 +44,11 @@ and [tags](https://github.com/socless/socle/tags) pages.
 - Hierarchy: the row toggles and Show in parent are line icons like the top bar's, not text
   characters (▸ ▾ ◎).
 - Schematic: a module that only wires its inputs to its outputs says so under its drawing.
+- Keyboard: with a box selected, Shift+Arrow selects the nearest box that way (and brings it into
+  view); without one it pans, as an arrow does.
+- Accessibility: the two lightest greys read at 4.5:1 or more on panels and page in both themes
+  (WCAG AA); the top bar's icon buttons have labels and pressed or expanded states for screen
+  readers.
 - Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
   Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
 - The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the

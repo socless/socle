@@ -809,6 +809,23 @@ async function smokeDesignIn(design, ctx) {
         if (off !== false) note(design, where, 'the periph box stayed outlined after the pointer left the source');
       }
     }
+    // Shift+Arrow moves the selection to the nearest box that way: cpu, up to
+    // dma, right to xbar.
+    {
+      const cpu = page.locator('[data-box-inst="cpu"]').first();
+      const cb = await cpu.boundingBox();
+      if (cb) {
+        await cpu.click({ position: { x: cb.width / 2, y: cb.height - 4 } }).catch((e) => note(design, where, e.message));
+        const sel = () => page.locator('[data-inst-inspect]').first().getAttribute('data-inst-inspect').catch(() => null);
+        await page.keyboard.press('Shift+ArrowUp');
+        const up = await sel();
+        await page.keyboard.press('Shift+ArrowRight');
+        const right = await sel();
+        if (up !== 'dma' || right !== 'xbar') note(design, where, `Shift+Up then Shift+Right from cpu selected ${up}, ${right}; expected dma, xbar`);
+        await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+        await settled(page).catch((e) => note(design, where, e.message));
+      }
+    }
     // xbar only wires its inputs to its outputs: a note says so; the top does not.
     {
       if (await count('[data-passthrough-module]')) note(design, where, 'the pass-through note shows on the top module');
