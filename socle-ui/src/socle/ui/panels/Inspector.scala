@@ -124,20 +124,23 @@ object Inspector {
         Seq("Block" -> mod.`type`, "Pins" -> mod.ports.length.toString, "Registers" -> count(NodeKind.Reg),
           "Operators" -> count(NodeKind.Op), "Memories" -> count(NodeKind.Mem), "Connects" -> mod.wires.length.toString)
       else
-      Seq("Type" -> mod.`type`, "Instances" -> mod.children.length.toString, "Connects" -> mod.wires.length.toString) ++
-        m.gates.map(g => Seq("Gates" -> g.toString)).getOrElse(Nil) ++
-        Seq("Registers" -> m.registers.toString, "Memories" -> m.memories.toString, "LOC" -> m.lines.toString)
-    div(styleAttr := s"padding:24px 16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
+      // a count of none says nothing about this module: left out (the type is always shown)
+      (Seq("Instances" -> mod.children.length, "Connects" -> mod.wires.length) ++
+        m.gates.map(g => "Gates" -> g).toSeq ++
+        Seq("Registers" -> m.registers, "Memories" -> m.memories, "Lines" -> m.lines))
+        .collect { case (k, n) if n > 0 => k -> n.toString }
+    div(styleAttr := s"padding:16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
       Option.when(block)(dataAttr("block-meta") := mod.name),
-      div(styleAttr := s"margin-bottom:12px;font-weight:500;color:${Tokens.ink2}", if (block) s"${mod.`type`} block" else mod.`type`),
+      div(styleAttr := s"margin-bottom:2px;font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink}", mod.`type`),
+      div(styleAttr := s"margin-bottom:12px;font-size:11.5px;color:${Tokens.ink4}", if (block) "logic block" else "module"),
       if (block) emptyMod else docBlock(mod, d),
-      div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-family:${Tokens.mono};font-size:11px",
+      div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-size:12px;font-variant-numeric:tabular-nums",
         items.flatMap { case (k, v) => Seq(
           span(styleAttr := s"color:${Tokens.ink4}", k),
           span(styleAttr := s"color:${Tokens.ink2}", v),
         ) }),
       if (mod.scalaClass.nonEmpty) div(styleAttr := "margin-top:14px", scalaClassView(mod)) else emptyMod,
-      div(styleAttr := s"margin-top:14px;color:${Tokens.ink4};font-size:11px", "Click a wire or module to inspect."),
+      div(styleAttr := s"margin-top:16px;color:${Tokens.ink4};font-size:11.5px", "Click a box or a wire to inspect it."),
     )
   }
 

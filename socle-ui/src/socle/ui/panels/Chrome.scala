@@ -146,7 +146,7 @@ object Chrome {
                     case _           =>
                   }
                 }),
-              span(styleAttr := s"font-family:${Tokens.mono};font-size:10px;color:${Tokens.ink4}",
+              span(styleAttr := s"font-size:10.5px;color:${Tokens.ink4};font-variant-numeric:tabular-nums",
                 child.text <-- resultsVar.signal.map(r => s"${r.length} ${if (r.length == 1) "result" else "results"}"))),
             // Build the list only on results change; bind each row's active
             // highlight reactively to the cursor. (Rebuilding the list on cursor
@@ -265,7 +265,7 @@ object Chrome {
         case (Some(d), false, expanded) if d.warnings.nonEmpty =>
           val total = d.warnings.map(_.count).sum
           Some(div(dataAttr("warnings-banner") := "1",
-            styleAttr := s"display:flex;flex-direction:column;background:${Tokens.panelAlt};border-bottom:1px solid ${Tokens.border};font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
+            styleAttr := s"display:flex;flex-direction:column;background:${Tokens.panelAlt};border-bottom:1px solid ${Tokens.border};font-size:11.5px;color:${Tokens.ink2}",
             div(styleAttr := "display:flex;align-items:center;gap:8px;padding:5px 12px",
               span(styleAttr := s"color:${Tokens.warn};font-weight:600", s"⚠ $total export warning${if (total == 1) "" else "s"}"),
               button(styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:11px;padding:0",

@@ -51,22 +51,22 @@ private[schematic] object SchematicChrome {
         navButtons(navSig, onBack, onForward),
         child <-- Signal.combine(moduleSig, blockSig).map {
           case (Some(mod), block) => div(dataAttr("module-chip") := (if (block) "block" else "module"),
-            styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
-            span(styleAttr := s"color:${Tokens.ink4}", if (block) "block" else "module"), span(styleAttr := s"color:${Tokens.ink}", mod.`type`))
+            styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px",
+            span(styleAttr := s"color:${Tokens.ink4}", if (block) "block" else "module"), span(styleAttr := s"color:${Tokens.ink};font-family:${Tokens.mono}", mod.`type`))
           case (None, _) => emptyNode
         },
         // A block holds logic, not instances: its registers and operators.
         child <-- Signal.combine(moduleSig, blockSig).map {
-          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono};white-space:nowrap",
+          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-variant-numeric:tabular-nums;white-space:nowrap",
             if (block) s"${mod.logic.count(_.kind == NodeKind.Reg)} reg · ${mod.logic.count(_.kind == NodeKind.Op)} op · ${mod.wires.length} connects"
             else s"${mod.children.length} inst · ${mod.wires.length} connects")
           case (None, _) => emptyNode
         },
         // Filter box (issue #121): dims non-matching boxes + wires.
         div(styleAttr <-- filterVar.signal.map(f =>
-            s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-family:${Tokens.mono};font-size:11px"),
+            s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-size:11px"),
           input(dataAttr("filter-input") := "1", placeholder := "filter…",
-            styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:inherit;font-size:11px;color:${Tokens.ink}",
+            styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink}",
             controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
             onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
           // Live match count "N / M" while filtering (#276).
@@ -85,8 +85,8 @@ private[schematic] object SchematicChrome {
           val short = cls.split('.').last
           div(dataAttr("focus-chip") := cls,
             title := s"$cls is the class under your editor's cursor: its ${if (n == 1) "box is" else s"$n boxes are"} lit, the rest dimmed. Select something to see everything, or × to stop until the cursor moves to another class.",
-            styleAttr := s"display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.accent};border-radius:5px;padding:0 4px 0 10px;height:26px;font-size:11px;color:${Tokens.ink2};font-family:${Tokens.mono}",
-            span(styleAttr := s"color:${Tokens.ink4}", "focus"), span(styleAttr := s"color:${Tokens.ink}", short),
+            styleAttr := s"display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.accent};border-radius:5px;padding:0 4px 0 10px;height:26px;font-size:11px;color:${Tokens.ink2}",
+            span(styleAttr := s"color:${Tokens.ink4}", "focus"), span(styleAttr := s"color:${Tokens.ink};font-family:${Tokens.mono}", short),
             button(dataAttr("focus-off") := "1", title := "Stop lighting this class (until the cursor moves to another class)",
               styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0 4px",
               onClick --> { _ => onFocusOff() }, "×"))
@@ -140,10 +140,10 @@ private[schematic] object SchematicChrome {
   }
 
   // ── zoom / optimize controls (bottom-right) ──
-  private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
+  private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:inherit;font-size:11px;border-radius:3px"
 
   def controls(c: ControlsCtx): Element =
-    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:3;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-family:${Tokens.mono};font-size:11px",
+    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:3;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-size:11px;font-variant-numeric:tabular-nums",
       button(dataAttr("optimize") := "1", title := "Re-layout to minimize wire length (in-browser elkjs, issue #167)",
         styleAttr <-- Signal.combine(c.pendingSig, c.engineSig).map { case (p, e) =>
           zbtn + s";color:${if (p) Tokens.ink4 else if (e.isDefined) Tokens.accent else Tokens.ink3};cursor:${if (p) "default" else "pointer"}" },
