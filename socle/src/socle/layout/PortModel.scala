@@ -88,7 +88,8 @@ object PortModel {
         (p.name == "io" && design.bundles.get(p.bundle).exists(_.kind == BundleKind.Bundle))
       if (wrapper && !wireEnds(tree.path))
         tree.children.map(c => (c, c.name, sideOf(c, None, design)))
-      else Seq((tree, p.name, sideOf(tree, role, design)))
+      // shown by its source path when it has one (a block pin, #333)
+      else Seq((tree, if (p.label.nonEmpty) p.label else p.name, sideOf(tree, role, design)))
     }
 
   private def emit(n: BundleTree.PortNode, label: String, depth: Int, side: String,

@@ -54,6 +54,17 @@ object ModelToDesign {
         (p.name, dir, reg.keyed(p.tpe, clear = user == In || user == Out, s"${c.name}.${p.name}"))
       }
     }.toMap
+    // The ports as the schematic draws them (PortModel's rows), for naming block
+    // pins after the declared port a wire reaches: the bundles the ports use are
+    // all registered above.
+    lazy val portModules: Map[String, ModuleDef] = m.modules.map { c =>
+      c.name -> ModuleDef(name = c.name, `type` = c.name, doc = "", source = SourceRef.unknown,
+        ports = ports(c.name).map { case (n, d, k) => PortDef(n, d, k.key, "", SourceRef.unknown) },
+        children = Nil, wires = Nil, metrics = Metrics(0, 0, 0))
+    }.toMap
+    lazy val portDesign = Design(top = m.top, bundles = reg.defs.toMap, modules = portModules.values.toSeq)
+    val ownRows   = mutable.HashMap.empty[String, Seq[socle.layout.PortModel.Row]]
+    val instRows  = mutable.HashMap.empty[(String, String), Seq[socle.layout.PortModel.Row]]
     lazy val circ      = ChirrtlParser.parse(m.chirrtl)
     lazy val ir        = WiresFromChirrtl.design(circ, lines)
     lazy val irModules = ir.modules.map(im => im.name -> im).toMap
@@ -91,23 +102,50 @@ object ModelToDesign {
           }
           FoldGroups.refine(candidates, c.instances.map(_.name), links, own.keySet)
         } else Map.empty[String, String]
-      // A block pin whose external end is a port or an instance pin is named
-      // after that endpoint with every Vec index removed, so the lanes of
-      // `io.out.data.bits[0][i]` share `io_out_data_bits`; a generator copy
-      // takes its fold group's id (`acc_io_deq_bits`, not `acc_0_0_io_deq_bits`).
-      // The wire keeps the real path, so folding merges the copies' wires and
-      // unfolding splits them. Any other pin is named after its wire's driver.
+      // A block pin whose external end is a port or an instance pin is that
+      // port as the Scala code declares it and the box draws it: the declared
+      // row the end is on (PortModel: `io` dissolved into `io.in`, `io.out`; a
+      // Vec of bundles one row), named after its path with every Vec index
+      // removed and typed as it (`io_in: Vec[DecoupledIO, 3]`). The wire keeps
+      // the field below it (`<box>.io_in[0].valid`), so the pin opens to the
+      // fields the logic touches. A generator copy takes its fold group's id
+      // (`acc_io_deq`, not `acc_0_0_io_deq`); the wire keeps the real path, so
+      // folding merges the copies' wires and unfolding splits them. Any other
+      // pin is named after its wire's driver.
       def foldHead(h: String): String = foldGroups.getOrElse(stripIdx(h), h)
+      def rowOf(external: String): Option[socle.layout.PortModel.Row] =
+        if (resolve(external).isEmpty) None
+        else {
+          val h = external.takeWhile(ch => ch != '.' && ch != '[')
+          val rows =
+            if (instances.contains(stripIdx(h)) && external.length > h.length)
+              instRows.getOrElseUpdate((c.name, h), portModules.get(instances(stripIdx(h))).toSeq
+                .flatMap(im => socle.layout.PortModel.instanceRows(h, im, portDesign, Set.empty)))
+            else ownRows.getOrElseUpdate(c.name, portModules.get(c.name).toSeq
+              .flatMap(om => socle.layout.PortModel.boundaryStubs(om, portDesign, Set.empty).flatMap(_._2)))
+          socle.layout.PortModel.attach(external, rows).flatMap(p => rows.find(_.path == p))
+        }
+      val pinTypes = mutable.HashMap.empty[String, String]
       def pinName(driver: String, external: String, boxes: Set[String]): (String, String) =
-        if (resolve(external).isDefined)
-          LogicBlocks.driverPin(external.replaceAll("""\[[^\]]*\]""", ""), boxes, foldHead)
-        else LogicBlocks.driverPin(driver, boxes, foldHead)
+        rowOf(external).filter(r => BundleTree.isAggregateType(r.bundle, portDesign)) match {
+          case Some(r) =>
+            val named = LogicBlocks.driverPin(r.path.replaceAll("""\[[^\]]*\]""", ""), boxes, foldHead)
+            pinTypes(named._1) = r.bundle
+            named
+          // a ground port or instance pin: named after it, without any Vec index
+          case None if resolve(external).isDefined =>
+            LogicBlocks.driverPin(external.replaceAll("""\[[^\]]*\]""", ""), boxes, foldHead)
+          case None => LogicBlocks.driverPin(driver, boxes, foldHead)
+        }
+      def pinField(external: String, key: String): String =
+        rowOf(external).filter(r => pinTypes.contains(key)).fold("")(r => external.drop(r.path.length))
       // Logic and wires from IrWalk, collapsed into blocks; probe-supplied
       // wires (no logic) when the capture carries them.
       val (collapsed, collapsedWires) = irModule match {
         case Some(im) =>
           val named            = im.copy(scalaClass = c.scalaClass)
-          val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName)
+          val (folded, bodies) = LogicBlocks.collapse(named, LogicGroups.assign(named, index), pinName,
+            pinType = k => pinTypes.getOrElse(k, ""), pinField = pinField)
           lazy val caseLits = circ.modules.find(_.name == c.name).toSeq.flatMap(FsmDetect.detect)
             .map(f => f.stateReg -> f.caseLits).toMap
           // An FSM box carries its state diagram, on its register (`state`).

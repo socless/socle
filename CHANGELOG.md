@@ -11,6 +11,14 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ### Changed
 
+- View mode: a logic block meets a bundle or Vec port the way the Scala code declares it: one pin
+  per declared port, typed as it (`io.in: Vec[DecoupledIO, 3]`), and one bus wire to it, not one
+  pin and one ground wire per field with the Vec's elements merged onto it. The module keeps every
+  field wire, under the pin (`<block>.io_in[0].valid`), so the waveform links and the Inspector
+  still see each field.
+
+### Changed
+
 - UI typography: the interface (menus, tabs, toolbars, tips, the Inspector's labels) is set in
   IBM Plex Sans; names, types and code stay in IBM Plex Mono. The Inspector's module summary
   leaves out counts of zero.

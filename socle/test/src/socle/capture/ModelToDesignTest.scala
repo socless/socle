@@ -39,6 +39,7 @@ object ModelToDesignTest extends TestSuite {
   private lazy val rvpipeline = captured("rvpipeline")
   private lazy val deepsoc    = captured("deepsoc")
   private lazy val fsm        = captured("fsm")
+  private lazy val interconnect = captured("interconnect")
 
   private def check(cond: Boolean, msg: => String): Unit =
     if (!cond) throw new java.lang.RuntimeException(msg)
@@ -348,10 +349,17 @@ object ModelToDesignTest extends TestSuite {
       // each copy's real path.
       val fed = cluster.wires.filter(w => w.from.startsWith(s"$B.") && w.to.startsWith("cores_"))
       check(fed.map(_.to.takeWhile(_ != '.')).toSet == Set("cores_0", "cores_1"), s"copy-fed block wires $fed")
+      // The pin is the copies' declared port on the group (`cores_io_out`), the
+      // wire keeps the field below it (`.valid`).
+      def onGroupPin(end: String, tail: String): Boolean = {
+        val rest  = end.drop(B.length + 1)
+        val pin   = rest.takeWhile(c => c != '.' && c != '[')
+        val field = rest.drop(pin.length)
+        tail.endsWith(field) && pin == ("cores" + tail.dropRight(field.length)).replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_")
+      }
       for ((pin, ws) <- fed.groupBy(_.from)) {
         val tail = ws.map(_.to.dropWhile(_ != '.')).distinct
-        check(tail.size == 1 && pin == s"$B.cores" + tail.head.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_"),
-          s"$pin <- ${ws.map(_.to)}")
+        check(tail.size == 1 && onGroupPin(pin, tail.head), s"$pin <- ${ws.map(_.to)}")
         check(ws.size == 2, s"$pin is fed by ${ws.map(_.to)}, not by both copies")
       }
       // Out pins feeding a copy: named after the copy's signal on the group,
@@ -360,8 +368,7 @@ object ModelToDesignTest extends TestSuite {
       check(feeding.map(_.from.takeWhile(_ != '.')).toSet == Set("cores_0", "cores_1"), s"block wires to copies $feeding")
       for ((pin, ws) <- feeding.groupBy(_.to)) {
         val tail = ws.map(_.from.dropWhile(_ != '.')).distinct
-        check(tail.size == 1 && pin == s"$B.cores" + tail.head.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_"),
-          s"${ws.map(_.from)} <- $pin")
+        check(tail.size == 1 && onGroupPin(pin, tail.head), s"${ws.map(_.from)} <- $pin")
         check(ws.size == 2, s"$pin feeds ${ws.map(_.from)}, not both copies")
       }
       // Folding retargets them to the group and merges the copies' wires.
@@ -375,8 +382,10 @@ object ModelToDesignTest extends TestSuite {
     test("a port the block reads back and writes is one inout pin") {
       val d = ModelToDesign.design(deepsoc)
       val ports = d.regions("blk$Cluster$logic").ports.map(p => p.name -> p.dir).toMap
-      check(ports.get("io_in_ready").contains(PortDir.Inout), s"Cluster block pins $ports")
-      check(ports.get("io_out_valid").contains(PortDir.Inout), s"Cluster block pins $ports")
+      // One pin per declared port, as the Scala code has it: a Decoupled's
+      // valid and bits go one way, its ready the other.
+      check(ports.get("io_in").contains(PortDir.Inout), s"Cluster block pins $ports")
+      check(ports.get("io_out").contains(PortDir.Inout), s"Cluster block pins $ports")
     }
 
     test("the baked layout folds groups") {
@@ -524,12 +533,13 @@ object ModelToDesignTest extends TestSuite {
     test("block pins show their source path, not the lowered name (#333)") {
       val d     = ModelToDesign.design(gcd)
       val ports = d.regions("blk$GCD$logic").ports
-      // The pin id stays lowered (paths address it as <block>.<pin>); its label is the source path.
-      val bitsA = ports.find(_.name == "io_in_bits_a").get
-      assert(bitsA.label == "io.in.bits.a")
+      // The pin id stays lowered (paths address it as <block>.<pin>); its label
+      // is the source path of the port as declared, typed as it.
+      val in = ports.find(_.name == "io_in").get
+      assert(in.label == "io.in", in.bundle.nonEmpty)
       val top    = d.modules.find(_.name == "GCD").get
       val labels = LayoutCore.prepare(top, d).nodes.find(_.id == "blk$GCD$logic").get.pins.map(_.label)
-      assert(labels.contains("io.in.bits.a") && !labels.exists(_.contains("io_in")))
+      assert(labels.contains("io.in") && !labels.exists(_.contains("io_in")))
     }
 
     test("captured modules carry their register and memory counts (#333)") {
@@ -695,7 +705,19 @@ object ModelToDesignTest extends TestSuite {
               }
             shown.replaceAll("[^A-Za-z0-9_]", "_").replaceAll("_{2,}", "_").replaceAll("_+$", "")
           }
-          def pinOk(b: String, now: String, src: String): Boolean = now.startsWith(s"$b.") && {
+          // A typed pin is a declared port: the external end lies under its path
+          // (a generator copy under its fold group's), the wire keeps the field.
+          def typedPinOk(b: String, now: String, src: String): Option[Boolean] = {
+            val rest = now.drop(b.length + 1)
+            val pin  = rest.takeWhile(c => c != '.' && c != '[')
+            d.regions(b).ports.find(p => p.name == pin && p.bundle.nonEmpty).map { p =>
+              val at = if (p.label.nonEmpty) p.label else p.name
+              val parts = src.split('.').toList
+              val s = (m.children.find(_.name == LayoutCore.stripIdx(parts.head)).map(_.foldGroup).filter(_.nonEmpty).getOrElse(parts.head) :: parts.tail).mkString(".")
+              s == at || s.startsWith(at + ".")
+            }
+          }
+          def pinOk(b: String, now: String, src: String): Boolean = now.startsWith(s"$b.") && typedPinOk(b, now, src).getOrElse {
             val pin = LayoutCore.stripIdx(now.drop(b.length + 1))
             val exp = expectedPin(src)
             pin == exp || (pin.matches(java.util.regex.Pattern.quote(exp) + "_\\d+") && d.regions(b).ports.exists(_.name == exp))
@@ -809,8 +831,9 @@ object ModelToDesignTest extends TestSuite {
       val pairs = x.wires.map(w => (w.from, w.to, w.bundle))
       // IrWalk coalesces c.io.y into c.io; the pin is named after that endpoint.
       check(pairs.contains((s"$B.c_io", "c.io", "C.io")), s"instance-pin wire missing: $pairs")
-      // The out pin is named after the port it drives, without the Vec index.
-      check(pairs.contains(("v[0]", s"$B.v", "UInt<8>")), s"vec-indexed wire missing: $pairs")
+      // The out pin is the port it drives as declared (`v`, a Vec); the wire
+      // keeps the element below it.
+      check(pairs.contains(("v[0]", s"$B.v[0]", "UInt<8>")), s"vec-indexed wire missing: $pairs")
       assert(body.ports.map(p => (p.name, p.dir)).toSet == Set(("c_io", PortDir.In), ("v", PortDir.Out)))
       check(pairs.contains(("v[1]", "a", "UInt<8>")), s"port wire missing: $pairs")
       // A const that only ties off a port is dropped with its wire: the port
@@ -962,6 +985,27 @@ object ModelToDesignTest extends TestSuite {
       }
     }
 
+    test("a Vec of Decoupled meets a block as the port the Scala code declares") {
+      // Aggregator: io.in = Vec(3, Flipped(Decoupled(SocPayload))), io.out =
+      // Decoupled(SocPayload), read and written field by field by its logic.
+      val d   = ModelToDesign.design(interconnect)
+      val agg = d.modules.find(_.name.startsWith("Aggregator")).get
+      val B   = agg.logic.find(_.kind == NodeKind.Block).get.id
+      val pins = d.regions(B).ports.map(p => p.name -> (p.dir, p.bundle, p.label)).toMap
+      check(pins.keySet == Set("io_in", "io_out"), s"$B pins $pins")
+      check(pins("io_in")._2.startsWith("Vec[") && pins("io_in")._2.endsWith(", 3]") && pins("io_in")._3 == "io.in", s"io_in ${pins("io_in")}")
+      check(d.bundles.get(pins("io_out")._2).exists(_.kind == BundleKind.Decoupled) && pins("io_out")._3 == "io.out", s"io_out ${pins("io_out")}")
+      // Every field connection is kept, under its pin (the waveform links walk them).
+      val ends = agg.wires.flatMap(w => Seq(w.from, w.to)).filter(_.startsWith(s"$B."))
+      for (i <- 0 until 3; f <- Seq("valid", "ready", "bits"))
+        check(ends.contains(s"$B.io_in[$i].$f"), s"no $B.io_in[$i].$f in ${ends.sorted}")
+      check(ends.forall(e => e.startsWith(s"$B.io_in[") || e.startsWith(s"$B.io_out.")), s"ends ${ends.sorted}")
+      // Drawn as the two buses they are, not as field wires.
+      val drawn = LayoutCore.displayWires(agg, d)
+      check(drawn.map(w => Set(w.from, w.to)).toSet == Set(Set("io.in", s"$B.io_in"), Set("io.out", s"$B.io_out")), s"drawn $drawn")
+      check(drawn.forall(w => !w.bidir && BundleTree.isAggregateType(w.bundle, d)), s"drawn $drawn")
+    }
+
     test("the lanes of a Vec port share one block pin") {
       val chirrtl =
         """FIRRTL version 3.3.0
@@ -986,10 +1030,14 @@ object ModelToDesignTest extends TestSuite {
       val d = ModelToDesign.design(model)
       val x = d.modules.head
       val B = "blk$X$logic"
-      assert(d.regions(B).ports.map(p => (p.name, p.dir)).toSet == Set(("w", PortDir.In), ("v", PortDir.Out), ("y", PortDir.Out)))
+      check(d.regions(B).ports.map(p => (p.name, p.dir)).toSet == Set(("w", PortDir.In), ("v", PortDir.Out), ("y", PortDir.Out)),
+        s"pins ${d.regions(B).ports.map(p => (p.name, p.dir))}")
       val pairs = x.wires.map(w => (w.from, w.to)).toSet
-      check(Set((s"$B.w", "w[0]"), (s"$B.w", "w[1]"), ("v[0][0]", s"$B.v"), ("v[0][1]", s"$B.v"), ("y", s"$B.y")).subsetOf(pairs),
+      // One pin per declared port, typed as it; each lane's wire keeps its element below the pin.
+      check(Set((s"$B.w[0]", "w[0]"), (s"$B.w[1]", "w[1]"), ("v[0][0]", s"$B.v[0][0]"), ("v[0][1]", s"$B.v[0][1]"), ("y", s"$B.y")).subsetOf(pairs),
         s"wires $pairs")
+      check(d.regions(B).ports.map(p => p.name -> p.bundle).toMap == Map("w" -> "Vec[UInt<8>, 2]", "v" -> "Vec[Vec[UInt<8>, 2], 1]", "y" -> ""),
+        s"pin types ${d.regions(B).ports}")
     }
 
     test("a block's own source file is embedded") {

@@ -61,10 +61,16 @@ object LogicBlocks {
 
   private def stripIdx(s: String): String = s.takeWhile(_ != '[')
 
+  /** `pinType`: a pin's type from its key ("" for none, the default).
+    * `pinField`: the path below its pin a wire end keeps, from the external end
+    * and the pin's key (a field of a bundle pin: `[0].valid` under `io_in`;
+    * "" by default, the wire lands on the pin itself). */
   def collapse(module: ModuleDef, groups: Seq[Group],
                pinName: PinNamer = (driver, _, boxes) => driverPin(driver, boxes),
                pinOverride: Option[PinOverride] = None,
-               onNamed: (String, String, String) => Unit = (_, _, _) => ()): (ModuleDef, Map[String, ModuleDef]) = {
+               onNamed: (String, String, String) => Unit = (_, _, _) => (),
+               pinType: String => String = _ => "",
+               pinField: (String, String) => String = (_, _) => ""): (ModuleDef, Map[String, ModuleDef]) = {
     var logic  = module.logic
     var wires  = module.wires
     val bodies = mutable.LinkedHashMap.empty[String, ModuleDef]
@@ -73,7 +79,7 @@ object LogicBlocks {
       val members = g.members.intersect(logic.iterator.map(_.id).toSet)
       if (members.nonEmpty) {
         val boxes = logic.iterator.filter(n => NodeKind.isBox(n.kind)).map(_.id).toSet
-        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes), pinOverride, onNamed, boxes)
+        val (body, nextLogic, nextWires) = rewire(g, members, logic, wires, pinName(_, _, boxes), pinOverride, onNamed, boxes, pinType, pinField)
         bodies(g.id) = body
         logic = nextLogic
         wires = nextWires
@@ -91,6 +97,8 @@ object LogicBlocks {
     pinOverride: Option[PinOverride],
     onNamed: (String, String, String) => Unit,
     boxes:   Set[String],
+    pinType: String => String,
+    pinField: (String, String) => String,
   ): (ModuleDef, Seq[LogicNodeDef], Seq[WireDef]) = {
     // Exact id first (a const id carries its `~in<i>` suffix), then the head base.
     def inMember(endpoint: String): Boolean =
@@ -106,19 +114,20 @@ object LogicBlocks {
         case None =>
           val name = (base #:: LazyList.from(2).map(n => s"${base}_$n")).find(!taken(_)).get
           taken += name
-          pins(key) = PortDef(name = name, dir = dir, bundle = "", doc = "", source = SourceRef.unknown,
+          pins(key) = PortDef(name = name, dir = dir, bundle = pinType(key), doc = "", source = SourceRef.unknown,
             label = if (label == name) "" else label)
         case Some(p) if p.dir != dir => pins(key) = p.copy(dir = PortDir.Inout)
         case Some(_) =>
       }
       pins(key).name
     }
-    def addPin(driver: String, external: String, dir: String): String = {
+    // The pin's name and the path below it the wire end keeps.
+    def addPin(driver: String, external: String, dir: String): (String, String) = {
       val (key, base) = pinOf(driver, external)
       // Shown by its source path (#333): the key, below a box's id for a box pin.
       val h     = key.takeWhile(c => c != '.' && c != '[')
       val label = if (boxes(h) && key.length > h.length + 1) key.drop(h.length + 1) else key
-      putPin(key, base, label, dir)
+      (putPin(key, base, label, dir), pinField(external, key))
     }
     // The pins the caller names itself, claimed first, in wire order.
     val overridden: Map[Int, (String, String, String)] = pinOverride.fold(Map.empty[Int, (String, String, String)]) { f =>
@@ -149,11 +158,11 @@ object LogicBlocks {
       if (fromMem && toMem) internal += w
       else if (fromMem || toMem) {
         val dir     = if (toMem) PortDir.Out else PortDir.In
-        val pin     = overridden.get(i) match {
-          case Some((key, _, _)) => pins(key).name
+        val (pin, field) = overridden.get(i) match {
+          case Some((key, _, _)) => (pins(key).name, "")
           case None              => addPin(w.to, if (fromMem) w.to else w.from, dir)
         }
-        val pinPath = s"${g.id}.$pin"
+        val pinPath = s"${g.id}.$pin$field"
         parent += (if (fromMem) w.copy(from = pinPath) else w.copy(to = pinPath))
         internal += (if (fromMem) w.copy(to = pinPath) else w.copy(from = pinPath))
       } else parent += w

@@ -1254,7 +1254,7 @@ async function smokeDesignIn(design, ctx) {
             note(design, where, `${step}: expected POST /open ${src}:${line}, got ${JSON.stringify(opened)}`);
         };
         opened.length = 0;
-        await page.locator(`[data-wire="io.in"][data-wire-to="${id}.io_in_ready"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
+        await page.locator(`[data-wire-to="${id}.io_in"], [data-wire="${id}.io_in"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
         await expectLine('the wire into a block pin', 136);
         await page.keyboard.press('Escape');
         // A register a `when` box writes, at module level, opens its declaration.
