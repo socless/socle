@@ -15,7 +15,9 @@ and [tags](https://github.com/socless/socle/tags) pages.
   per declared port, typed as it (`io.in: Vec[DecoupledIO, 3]`), and one bus wire to it, not one
   pin and one ground wire per field with the Vec's elements merged onto it. The module keeps every
   field wire, under the pin (`<block>.io_in[0].valid`), so the waveform links and the Inspector
-  still see each field.
+  still see each field. A click on that bus inspects the port as declared (its type, width and
+  fields, each field a click away) and the waveform follows the port; the bus and its hover card
+  run producer to consumer, as an instance's bus does.
 
 ### Changed
 

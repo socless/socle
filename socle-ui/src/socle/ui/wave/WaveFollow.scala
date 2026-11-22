@@ -331,7 +331,8 @@ object WaveFollow {
       case Some(_) => None
       case None => mod.wires.find(_.from == sel) match {
         case Some(w) => Seq(w.from, w.to).find(own).map(clean)
-        case None    => Some(sel)
+        // A bus into a block's typed pin, selected by the pin's end: the port.
+        case None    => socle.ui.model.TypedBus.of(mod, d, sel).fold(Option(sel))(b => Seq(b.end, b.pin).find(own).map(clean))
       }
     }
   }

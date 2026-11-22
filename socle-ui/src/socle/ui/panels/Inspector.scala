@@ -3,7 +3,7 @@ package socle.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socle.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind, Scaladoc}
+import socle.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind, Scaladoc, SourceRef}
 import socle.ui.theme._
 import socle.ui.model._
 
@@ -89,10 +89,19 @@ object Inspector {
                   // A drawn wire can stand for several: a Vec's elements drawn
                   // as one (`xbar.io.in` for `xbar.io.in[0]` and `[1]`). Its
                   // path is over theirs: one is shown as itself, several listed.
-                  Inspector.wiresUnder(mod, s) match {
-                    case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
-                    case Seq()  => emptyNode
-                    case ws     => wireListView(s, ws, d, setSel)
+                  // A bus into a block's typed pin is the port it draws, of
+                  // the type the Scala code declares, under the port's name
+                  // whichever end was clicked; its fields under it.
+                  val ws = Inspector.wiresUnder(mod, s)
+                  TypedBus.of(mod, d, s) match {
+                    case Some(b) =>
+                      val src = ws.map(_.source).distinct match { case Seq(one) => one; case _ => SourceRef.unknown }
+                      bundleView(WireDef(b.end, b.pin, b.bundle, "", src), b.end, expanded, d, setSel, toggleBundle, bulkBundle)
+                    case None => ws match {
+                      case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
+                      case Seq()  => emptyNode
+                      case ws     => wireListView(s, ws, d, setSel)
+                    }
                   }
               }
           }

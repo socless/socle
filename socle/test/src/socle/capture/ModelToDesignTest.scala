@@ -1004,6 +1004,13 @@ object ModelToDesignTest extends TestSuite {
       val drawn = LayoutCore.displayWires(agg, d)
       check(drawn.map(w => Set(w.from, w.to)).toSet == Set(Set("io.in", s"$B.io_in"), Set("io.out", s"$B.io_out")), s"drawn $drawn")
       check(drawn.forall(w => !w.bidir && BundleTree.isAggregateType(w.bundle, d)), s"drawn $drawn")
+      // Each runs producer to consumer (`from` is the sink), as an instance's bus.
+      check(drawn.map(w => (w.from, w.to)).toSet == Set((s"$B.io_in", "io.in"), ("io.out", s"$B.io_out")), s"drawn $drawn")
+      // The Queue reads back `deq.valid` for `fire`: its wide `bits` decide, not that read.
+      val q  = d.modules.find(_.name.startsWith("Queue2")).get
+      val QB = q.logic.find(_.kind == NodeKind.Block).get.id
+      val qd = LayoutCore.displayWires(q, d).map(w => (w.from, w.to)).toSet
+      check(Set((s"$QB.io_enq", "io.enq"), ("io.deq", s"$QB.io_deq")).subsetOf(qd), s"queue drawn $qd")
     }
 
     test("the lanes of a Vec port share one block pin") {
