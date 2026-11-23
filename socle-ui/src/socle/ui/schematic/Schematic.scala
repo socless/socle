@@ -104,6 +104,8 @@ object Schematic {
     // writes it, a hierarchy row hovered asks for its box (`hoverBox`).
     boxHoverVar: Var[Option[String]] = Var(None),
     hoverBox: EventStream[Option[String]] = EventStream.empty,
+    // The wire a click selected, both its ends (the inspector lists its wires).
+    wireClickVar: Var[Option[(String, String)]] = Var(None),
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -561,6 +563,7 @@ object Schematic {
             // A click selects the wire and follows its net across levels
             // (NetFollow); a click that deselects it stops following it.
             onClick --> { (_: dom.MouseEvent) =>
+              wireClickVar.set(Some(w.fromPath -> w.toPath))
               toggleSelect(selectedVar, w.fromPath)
               hl.clickWire(w.fromPath, w.toPath, selectedVar.now().contains(w.fromPath))
             },

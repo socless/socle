@@ -18,6 +18,11 @@ and [tags](https://github.com/socless/socle/tags) pages.
   still see each field. A click on that bus inspects the port as declared (its type, width and
   fields, each field a click away) and the waveform follows the port; the bus and its hover card
   run producer to consumer, as an instance's bus does.
+- Inspector: a wire drawn for several connections lists the connections it draws, not one row per
+  field. A whole-bundle connect captured field by field (`io.mem.rd(1) <> dma.io.rd(0)`) is
+  one entry, `io.mem.rd[1] ↔ dma.io.rd[0]`, with its declared type (`ReadPort`), its
+  field count and width, opened on its fields. Only the clicked wire's connections are listed:
+  the wire from a Vec port to one instance no longer lists the elements that go to the others.
 
 ### Changed
 

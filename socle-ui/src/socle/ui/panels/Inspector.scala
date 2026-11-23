@@ -56,6 +56,9 @@ object Inspector {
     selectedVar: Var[Option[String]],
     hoveredVar: Var[Option[String]],
     expandedBundlesVar: Var[Set[String]],
+    // The wire last clicked, both its drawn ends: its `from` selected stands
+    // for that wire alone, not every wire from the same pin.
+    wireClickSig: Signal[Option[(String, String)]] = Val(None),
   ): Element = {
 
     def setSel(p: String): Unit  = selectedVar.set(Some(p))
@@ -70,8 +73,8 @@ object Inspector {
       Signal.combine(selectedVar.signal, hoveredVar.signal).map { case (s, h) => s.orElse(h) }.distinct
 
     val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
-      Signal.combine(moduleSig, sigSig, expandedBundlesVar.signal, designSig).map {
-        case (Some(mod), sig, expanded, Some(d)) =>
+      Signal.combine(moduleSig, sigSig, expandedBundlesVar.signal, designSig, wireClickSig).map {
+        case (Some(mod), sig, expanded, Some(d), wireClick) =>
           val wire = sig.flatMap(s => mod.wires.find(w =>
             w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")))
           // A selected logic node (register / constant, issue #188 B1) is keyed by
@@ -92,16 +95,21 @@ object Inspector {
                   // A bus into a block's typed pin is the port it draws, of
                   // the type the Scala code declares, under the port's name
                   // whichever end was clicked; its fields under it.
-                  val ws = Inspector.wiresUnder(mod, s)
+                  val all = Inspector.wiresUnder(mod, s)
                   TypedBus.of(mod, d, s) match {
                     case Some(b) =>
-                      val src = ws.map(_.source).distinct match { case Seq(one) => one; case _ => SourceRef.unknown }
+                      val src = all.map(_.source).distinct match { case Seq(one) => one; case _ => SourceRef.unknown }
                       bundleView(WireDef(b.end, b.pin, b.bundle, "", src), b.end, expanded, d, setSel, toggleBundle, bulkBundle)
-                    case None => ws match {
-                      case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
-                      case Seq()  => emptyNode
-                      case ws     => wireListView(s, ws, d, setSel)
-                    }
+                    case None =>
+                      // The clicked wire's own (its far end), as the connections
+                      // the Scala code makes: field wires grouped by bundle.
+                      val far    = wireClick.collect { case (f, t) if f == s => t }
+                      val groups = Some(WireGroups.of(all, s, far)).filter(_.nonEmpty).getOrElse(WireGroups.of(all, s))
+                      groups.flatMap(_.wires) match {
+                        case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
+                        case Seq()  => emptyNode
+                        case _      => wireListView(s, groups, mod, d, expanded, setSel, toggleBundle)
+                      }
                   }
               }
           }
@@ -465,23 +473,60 @@ object Inspector {
     mod.wires.filter(w => under(w.from) || under(w.to))
   }
 
-  /** Several wires under one drawn wire: each its two ends and its type; a
-    * click selects that wire alone. */
-  private def wireListView(path: String, ws: Seq[WireDef], d: Design, setSel: String => Unit): Element =
+  /** Several wires under one drawn wire, as the connections they make: a
+    * whole-bundle connect kept field by field is one entry (`io.mem.rd[1] ↔
+    * dma.io.rd[0]`, its type), opened on its fields; a click on a
+    * wire selects it alone. */
+  private def wireListView(path: String, groups: Seq[WireGroups.Group], mod: ModuleDef, d: Design,
+                           expanded: Set[String], setSel: String => Unit, toggle: String => Unit): Element = {
+    val nWires = groups.map(_.wires.size).sum
+    val card = s"display:block;width:100%;text-align:left;border:1px solid ${Tokens.borderSoft};background:${Tokens.panel};" +
+      s"border-radius:5px;padding:6px 9px;margin-bottom:6px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}"
+    def meta(text: String) = div(styleAttr := s"color:${Tokens.ink4};font-family:${Tokens.sans};font-size:10.5px;margin-top:2px", text)
+    def one(w: WireDef) =
+      button(dataAttr("wire-list-item") := w.from, styleAttr := card, title := "Inspect this connection",
+        onClick --> { _ => setSel(w.from) },
+        div(styleAttr := s"color:${Tokens.ink}", w.from),
+        div(styleAttr := s"color:${Tokens.ink3}", s"↓ ${w.to}"),
+        meta(s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)} bits"))
+    def group(g: WireGroups.Group) = {
+      val key  = s"conn:${g.end}|${g.far}"
+      // A lone connection shows its fields at once; a click hides them.
+      val open = expanded(key) != (groups.size == 1)
+      val ty   = Some(WireGroups.typeAt(mod, d, g.end)).filter(_.nonEmpty).getOrElse(WireGroups.typeAt(mod, d, g.far))
+      val bits = g.wires.map(w => totalWidth(w.bundle, d)).sum
+      div(dataAttr("wire-group") := g.end, styleAttr := s"border:1px solid ${Tokens.borderSoft};border-radius:5px;margin-bottom:6px;overflow:hidden",
+        button(dataAttr("wire-group-toggle") := g.end, aria.expanded := open, title := (if (open) "Hide its fields" else "Show its fields"),
+          styleAttr := s"display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;border:none;background:${Tokens.panelAlt};" +
+            s"padding:6px 9px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
+          onClick --> { _ => toggle(key) },
+          div(styleAttr := "flex:1;min-width:0",
+            div(styleAttr := s"color:${Tokens.ink}", g.end),
+            div(styleAttr := s"color:${Tokens.ink3}", s"↔ ${g.far}"),
+            meta((if (ty.nonEmpty) s"${typeName(ty, d)} · " else "") + s"${g.wires.size} fields · $bits bits")),
+          span(styleAttr := s"color:${Tokens.ink4};font-size:9px;margin-top:3px;transition:transform .12s;transform:${if (open) "rotate(90deg)" else "none"}", "▶")),
+        if (!open) emptyNode
+        else div(g.wires.map { w =>
+          val endSide = if (w.from == g.end || w.from.startsWith(g.end + ".") || w.from.startsWith(g.end + "[")) w.from else w.to
+          val field   = endSide.drop(g.end.length).stripPrefix(".")
+          // `to` drives `from`: the arrow says which way the field runs, from the end listed first.
+          val arrow   = if (endSide == w.to) "→" else "←"
+          div(cls := "scl-insp-leaf", dataAttr("wire-list-item") := w.from, title := s"${w.from} ↓ ${w.to}",
+            styleAttr := s"display:flex;align-items:center;gap:8px;padding:3px 9px 3px 18px;font-family:${Tokens.mono};font-size:10.5px;cursor:pointer;color:${Tokens.ink2}",
+            onClick --> { _ => setSel(w.from) },
+            span(styleAttr := s"width:12px;color:${Tokens.ink4};font-size:9px;flex-shrink:0", arrow),
+            span(if (field.nonEmpty) field else endSide),
+            span(styleAttr := s"margin-left:auto;color:${Tokens.ink4}", s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)}b"))
+        }))
+    }
+    val subtitle =
+      if (groups.size == nWires) s"$nWires connections drawn as one wire"
+      else s"${groups.size} connection${if (groups.size == 1) "" else "s"} drawn as one wire, $nWires field wires"
     div(dataAttr("wire-list") := path, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
       div(styleAttr := s"font-family:${Tokens.mono};font-size:12px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", path),
-      div(styleAttr := s"font-size:11.5px;color:${Tokens.ink4};margin-bottom:12px", s"${ws.length} connections drawn as one wire"),
-      ws.map { w =>
-        button(dataAttr("wire-list-item") := w.from,
-          styleAttr := s"display:block;width:100%;text-align:left;border:1px solid ${Tokens.borderSoft};background:${Tokens.panel};" +
-            s"border-radius:5px;padding:6px 9px;margin-bottom:6px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
-          title := "Inspect this connection",
-          onClick --> { _ => setSel(w.from) },
-          div(styleAttr := s"color:${Tokens.ink}", w.from),
-          div(styleAttr := s"color:${Tokens.ink3}", s"↓ ${w.to}"),
-          div(styleAttr := s"color:${Tokens.ink4};font-family:${Tokens.sans};font-size:10.5px;margin-top:2px",
-            s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)} bits"))
-      })
+      div(styleAttr := s"font-size:11.5px;color:${Tokens.ink4};margin-bottom:12px", subtitle),
+      groups.map(g => if (g.wires.size == 1) one(g.wires.head) else group(g)))
+  }
 
   private def sectionTitle(text: String): Element =
     div(styleAttr := s"font-size:10.5px;font-weight:600;color:${Tokens.ink3};letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px", text)

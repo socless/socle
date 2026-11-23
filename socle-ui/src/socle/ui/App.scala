@@ -34,6 +34,9 @@ object App {
   // asking for its box: the two panes light each other's.
   private val boxHoverVar      = Var[Option[String]](None)
   private val rowHoverBus      = new EventBus[Option[String]]
+  // The wire last clicked (its two drawn ends): a selection by its `from`
+  // stands for that wire alone, not every wire from the same pin.
+  private val wireClickVar     = Var[Option[(String, String)]](None)
   // In-box expanded bundle pin paths, per module name: each module keeps its own
   // and gets it back on return, and no module's layout ever sees another's paths.
   private val expandedPortsVar = Var(Map.empty[String, Set[String]])
@@ -865,6 +868,7 @@ object App {
       selectedVar        = selectedSigVar,
       hoveredVar         = hoveredSigVar,
       expandedBundlesVar = expandedBundlesVar,
+      wireClickSig       = wireClickVar.signal,
     )
     div(
       dataAttr("app-shell") := "1",
@@ -912,6 +916,7 @@ object App {
             resolves         = p => loader.currentDesign.exists(d => currentModule(d, p).isDefined),
             boxHoverVar      = boxHoverVar,
             hoverBox         = rowHoverBus.events,
+            wireClickVar     = wireClickVar,
           ),
           // The first-time tips float above the schematic's bottom edge, over it.
           div(styleAttr := "position:relative;flex-shrink:0",
