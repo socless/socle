@@ -247,6 +247,9 @@ final class SimRunner(
         .flatMap(openWaves(settings, _, dir))
       val tail = waves match {
         case None if noTest => s"""No test named "${req.test}" ran in ${req.suite}."""
+        // a test that fails before simulating (elaboration, firtool) writes no trace: say why, not the flag
+        case None if exit != 0 && !timedOut =>
+          s"No waveform: the test failed before writing one${SimRunner.failureReason(simLog).fold("")(r => s": $r")}. Log: $simLog"
         case None => s"No waveform found (is waves support enabled? flag -D${settings.waveFlag}=1)"
         case Some(w) => s"Waves: $w" + viewerProblem.fold("")(e => s" ($e)")
       }
@@ -336,6 +339,17 @@ object SimRunner {
   private[lsp] def ranNoTest(log: os.Path): Boolean =
     os.isFile(log) && os.read.lines.stream(log).exists(l =>
       l.contains("Total number of tests run: 0") || l.contains("No tests were executed"))
+
+  /** Why ScalaTest's failed test failed, from its log: after the first
+    * `*** FAILED ***` line, the first compiler-style `error:` line (firtool's,
+    * which names the Scala line), else the first non-blank line (the
+    * exception); trimmed, at most 300 chars. None without a FAILED line. */
+  private[lsp] def failureReason(log: os.Path): Option[String] =
+    if (!os.isFile(log)) None
+    else {
+      val after = os.read.lines(log).dropWhile(!_.contains("*** FAILED ***")).drop(1).map(_.trim).filter(_.nonEmpty)
+      after.find(_.contains(" error: ")).orElse(after.headOption).map(_.take(300))
+    }
 
   /** The most recently modified `*.vcd` / `*.fst` under `dir`. */
   private[lsp] def newestTrace(dir: os.Path): Option[os.Path] =

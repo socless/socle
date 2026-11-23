@@ -25,9 +25,6 @@ and [tags](https://github.com/socless/socle/tags) pages.
   the wire from a Vec port to one instance no longer lists the elements that go to the others.
 - Schematic: a Vec of bundles (`Vec[AXI4, 2]`) has the Vec pin glyph, two stacked tabs, like a Vec
   of signals, not the single tab of a bundle. Open, a Vec's second tab drops below it.
-
-### Changed
-
 - UI typography: the interface (menus, tabs, toolbars, tips, the Inspector's labels) is set in
   IBM Plex Sans; names, types and code stay in IBM Plex Mono. The Inspector's module summary
   leaves out counts of zero.
@@ -79,6 +76,10 @@ and [tags](https://github.com/socless/socle/tags) pages.
   would be under 9 px on screen.
 - Inspector: a click on a wire drawn for several connections (a Vec's elements drawn as one, such
   as `xbar.io.in`) left it blank. It lists the connections; a click on one shows it alone.
+- Simulate: a test that fails before simulating (elaboration, firtool) no longer reports
+  `No waveform found (is waves support enabled? ...)`. The message quotes the failure's first
+  line (firtool's `error:` line, which names the Scala line, or the exception) and names
+  `sim.log`.
 
 ## [0.30.0] - 2026-11-14
 

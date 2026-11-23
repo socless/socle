@@ -174,7 +174,9 @@ test sees (the server's, with Mill's `allForkEnv` `PATH` on top), as
   to the viewer `waveViewer` names: by default the Surfer app, started as
   `<surferCommand> --wcp-initiate <port> <trace>`. Neovim then shows
   `Simulation passed: <suite> <test>. Waves: <path>` (a warning when it failed),
-  or `No waveform found` with the flag to check. A test name that matches no
+  or `No waveform found` with the flag to check. A test that fails before
+  simulating (elaboration, firtool) writes no trace: the message then quotes
+  the failure's first line and names `sim.log`. A test name that matches no
   test is a failure (`No test named "<test>" ran in <suite>.`), and a build or
   Mill problem is reported as `Simulation not run`.
 - One simulation at a time: a second `Simulate` while one runs is refused with

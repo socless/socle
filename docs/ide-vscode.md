@@ -239,6 +239,8 @@ test sees, as for `./mill <module>.test`), and the Surfer app unless
 - When the test ends, pass or fail, the newest `*.vcd` or `*.fst` there is the
   trace. VS Code shows `Simulation passed: <suite> <test>. Waves: <path>` (a
   warning when it failed), or `No waveform found` with the flag to check. A
+  test that fails before simulating (elaboration, firtool) writes no trace:
+  the message then quotes the failure's first line and names `sim.log`. A
   test name that matches no test is a failure, and a build or Mill problem is
   reported as `Simulation not run`.
 - The trace goes to the viewer `socle.waveViewer` names, which follows the
