@@ -534,6 +534,8 @@ object Highlight {
     ".bun.open{clip-path:polygon(0 0,100% 0,100% 55%,50% 100%,0 55%)}",
     ".scl-fpin.bun{background:var(--accent)}",
     ".vec{border-radius:2px;box-shadow:2px -2px 0 0 var(--ink4)}",
+    // An open Vec: its second tab drops below, toward the elements hung under it.
+    ".vec.open{box-shadow:2px 2px 0 0 var(--ink4)}",
     // The overview (#334): names at a fixed screen size, no pin text.
     s".scl-ovn{display:none;position:absolute;inset:28px 12px 0 12px;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;white-space:nowrap;font-family:${Tokens.mono};font-weight:700;color:${Tokens.ink}}",
     ".ov .scl-ovn{display:flex}",

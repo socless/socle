@@ -390,7 +390,7 @@ private[schematic] object SchematicBoxes {
   // children opened in place below it and hung from a guide line; a row no
   // wire ends on is faint. The pin is a glyph (#334): a signal a triangle
   // pointing the way it flows, a bundle a tab (out: closed, down: open) that
-  // opens it, a Vec of signals two stacked tabs. `glyphs = false` keeps plain
+  // opens it, a Vec (of signals or of bundles) two stacked tabs that open it too. `glyphs = false` keeps plain
   // dots, for logic symbols that draw their own.
   /** An instance's clk and rst pins, in the rows the layout keeps for them at
     * the bottom of its West side (no wire): the flip-flop chevron in its clock
@@ -457,10 +457,10 @@ private[schematic] object SchematicBoxes {
       val top      = row.isTopLevel
       val faint    = if (g.wiredPins(row.path) || condRows(row.path)) emptyMod else cls := "scl-nc"
       val pinAbsX  = if (isWest) 0.0 else n.w.toDouble
-      val isVec    = PortModel.isVecOfSignals(row.bundleKey, g.design)
+      val isVec    = PortModel.isVec(row.bundleKey)
       val shape =
         if (!glyphs) ""
-        else if (isVec) " vec"
+        else if (isVec) s" vec${if (row.open) " open" else ""}"
         else if (toggles) s" bun ${if (isWest) "w" else "e"}${if (row.open) " open" else ""}"
         else s" sig ${if (flowPointsRight(row, isWest)) "r" else "l"}"
       val (pw, ph) = if (!glyphs) (if (top && toggles) (10.0, 10.0) else (8.0, 8.0)) else if (toggles) (12.0, 12.0) else (9.0, 10.0)

@@ -23,6 +23,8 @@ and [tags](https://github.com/socless/socle/tags) pages.
   one entry, `io.mem.rd[1] ↔ dma.io.rd[0]`, with its declared type (`ReadPort`), its
   field count and width, opened on its fields. Only the clicked wire's connections are listed:
   the wire from a Vec port to one instance no longer lists the elements that go to the others.
+- Schematic: a Vec of bundles (`Vec[AXI4, 2]`) has the Vec pin glyph, two stacked tabs, like a Vec
+  of signals, not the single tab of a bundle. Open, a Vec's second tab drops below it.
 
 ### Changed
 

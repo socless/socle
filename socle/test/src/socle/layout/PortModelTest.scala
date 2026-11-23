@@ -169,11 +169,12 @@ object PortModelTest extends TestSuite {
       assert(sides(rows(other, "s", "Src")) == Seq("s.stats" -> PinSide.East))
     }
 
-    test("a Vec of signals is told apart from a Vec of bundles (#334 glyphs)") {
-      assert(PortModel.isVecOfSignals("Vec[UInt<8>, 4]", axi))
-      assert(PortModel.isVecOfSignals("Vec[Vec[UInt<1>, 2], 3]", axi))
-      assert(!PortModel.isVecOfSignals("Vec[AXI4, 2]", axi))
-      assert(!PortModel.isVecOfSignals("UInt<8>", axi))
+    test("a Vec is a Vec, of signals or of bundles (#334 glyphs)") {
+      assert(PortModel.isVec("Vec[UInt<8>, 4]"))
+      assert(PortModel.isVec("Vec[Vec[UInt<1>, 2], 3]"))
+      assert(PortModel.isVec("Vec[AXI4, 2]"))
+      assert(!PortModel.isVec("UInt<8>"))
+      assert(!PortModel.isVec("AXI4"))
     }
 
     test("a module missing from the design has no rows") {
