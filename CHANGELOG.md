@@ -9,6 +9,13 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Fixed
+
+- Simulate: a test that fails before simulating (elaboration, firtool) no longer reports
+  `No waveform found (is waves support enabled? ...)`. The message quotes the failure's first
+  line (firtool's `error:` line, which names the Scala line, or the exception) and names
+  `sim.log`.
+
 ## [0.30.0] - 2026-11-14
 
 ### Added
