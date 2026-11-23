@@ -32,6 +32,14 @@ object Schematic {
 
   /** Toggle an id in the single-select model: select it, or clear if it is
     * already selected. Shared by every clickable box/wire. */
+  /** The largest font size (px, layout units) at which wire label `t` fits the
+    * longest horizontal segment of `points` (where [[LayoutCore.wireLabelAt]]
+    * puts it), at 0.6 em per character and 4 px clear at each end. */
+  private[schematic] def labelFontCap(points: Seq[(Double, Double)], t: String): Double = {
+    val seg = points.sliding(2).collect { case Seq(a, b) if a._2 == b._2 => math.abs(b._1 - a._1) }.maxOption.getOrElse(0.0)
+    math.max(0.0, seg - 8) / (math.max(1, t.length) * 0.6)
+  }
+
   private def toggleSelect(sel: Var[Option[String]], id: String): Unit =
     sel.update(s => if (s.contains(id)) None else Some(id))
 
@@ -92,6 +100,12 @@ object Schematic {
     // Whether a drill path resolves in the design (what `navigate` would
     // show), without showing it: the Back and Forward buttons' state.
     resolves: List[String] => Boolean = _ => false,
+    // The box under the pointer, shared with the hierarchy: the schematic
+    // writes it, a hierarchy row hovered asks for its box (`hoverBox`).
+    boxHoverVar: Var[Option[String]] = Var(None),
+    hoverBox: EventStream[Option[String]] = EventStream.empty,
+    // The wire a click selected, both its ends (the inspector lists its wires).
+    wireClickVar: Var[Option[(String, String)]] = Var(None),
   ): Element = {
 
     // Schematic-internal state (persists for the life of the pane).
@@ -110,9 +124,11 @@ object Schematic {
     val totalWVar   = Var(1.0)
     val canvasHVar  = Var(1.0)
     val filterVar   = Var("")              // schematic filter query (issue #121)
+    // The minimap kept shown (the toolbar's map button), remembered in this browser.
+    val minimapPinVar = Var(try dom.window.localStorage.getItem("socle-minimap") == "on" catch { case _: Throwable => false })
     // Hover, selection, dimming and colourization as styling on the elements
     // `renderContent` builds, never a rebuild (perf; see Highlight).
-    val hl = new Highlight(selectedVar, hoveredVar)
+    val hl = new Highlight(selectedVar, hoveredVar, boxHoverVar)
     // The hovered block's outline and the tooltip card (delegated listeners on
     // the viewport, installed at mount).
     val tooltip = new Tooltip(hl)
@@ -399,6 +415,45 @@ object Schematic {
     def fitNow(): Unit = { history.stopFlight(); history.commitDirty(); cancelFit(); if (doFit()) { settle(); history.pushView() } }
     def zoomToSelection(): Boolean = history.zoomToSelection(selectedVar.now(), Option(hl.geom))
 
+    // Shift+Arrow: from the selected box to the nearest one that way (within
+    // 45 degrees of it, the closest by distance plus twice the sideways offset),
+    // centred in the view when it is outside it. False: no box selected.
+    def stepSelection(dx: Int, dy: Int): Boolean = Option(hl.geom).exists { g =>
+      val c = g.layout.nodes.map(n => n.id -> (n.x + n.w / 2.0, n.y + n.h / 2.0)).toMap
+      selectedVar.now().filter(c.contains).exists { from =>
+        val (fx, fy) = c(from)
+        val best = c.toSeq.filter(_._1 != from).flatMap { case (id, (nx, ny)) =>
+          val ax = (nx - fx) * dx + (ny - fy) * dy; val side = math.abs((nx - fx) * dy - (ny - fy) * dx)
+          Option.when(ax > 0 && side <= ax)(id -> (math.hypot(nx - fx, ny - fy) + 2 * side))
+        }.sortBy(_._1).minByOption(_._2).map(_._1)
+        best.foreach { id =>
+          selectedVar.set(Some(id))
+          val (vw, vh) = viewSizeVar.now(); val z = zoomVar.now(); val (px, py) = panVar.now(); val (nx, ny) = c(id)
+          val (sx, sy) = (px + nx * z, py + ny * z)
+          if (sx < 0 || sy < 0 || sx > vw || sy > vh) { userView(); panVar.set((vw / 2 - nx * z, vh / 2 - ny * z)) }
+        }
+        true
+      }
+    }
+
+    // Enter in the filter: the next box it matches (Shift+Enter: the previous),
+    // in reading order (top to bottom, then left to right), selected and zoomed
+    // to; from the selection when it is a match, else from the first.
+    def stepMatch(dir: Int): Unit = Option(hl.geom).foreach { g =>
+      val q = filterVar.now().trim.toLowerCase
+      if (q.nonEmpty) {
+        val hits = g.layout.nodes.filter(n =>
+          fuzzyHas((n.id + " " + g.childByName.get(n.id).map(_.`type`).getOrElse("")).toLowerCase, q))
+          .sortBy(n => (n.y, n.x)).map(_.id)
+        if (hits.nonEmpty) {
+          val at = selectedVar.now().map(hits.indexOf(_)).getOrElse(-1)
+          val next = if (at < 0) (if (dir > 0) 0 else hits.length - 1) else Math.floorMod(at + dir, hits.length)
+          selectedVar.set(Some(hits(next)))
+          zoomToSelection()
+        }
+      }
+    }
+
     // Back and Forward, also over an open state diagram: Back closes it (the
     // schematic below keeps its view), and Forward reopens it until the user
     // moves or navigates (`reopenVar`, dropped by the history's `onMove`, a
@@ -508,6 +563,7 @@ object Schematic {
             // A click selects the wire and follows its net across levels
             // (NetFollow); a click that deselects it stops following it.
             onClick --> { (_: dom.MouseEvent) =>
+              wireClickVar.set(Some(w.fromPath -> w.toPath))
               toggleSelect(selectedVar, w.fromPath)
               hl.clickWire(w.fromPath, w.toPath, selectedVar.now().contains(w.fromPath))
             },
@@ -655,12 +711,13 @@ object Schematic {
               s"cursor:${if (opens) "zoom-in" else "default"};overflow:visible;" +
               "display:flex;flex-direction:column;transition:box-shadow .12s,border-color .12s,opacity .15s",
             onDblClick --> { (_: dom.MouseEvent) => if (isFolded) toggleFold(n.id) else if (drillable) drillInto(n.id) },
+            // a click anywhere on the box inspects it (a drag pans: its click lands on the overlay)
+            onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
             // header
             div(
               cls := "scl-hd",
               styleAttr := s"height:${c.headerH}px;box-sizing:border-box;padding:0 10px;border-bottom:1px ${if (isBlackbox) "dashed" else "solid"} ${Tokens.borderSoft};" +
                 s"display:flex;align-items:center;gap:6px;background:${Tokens.panelAlt};flex-shrink:0;min-width:0;overflow:hidden;cursor:${if (opens) "zoom-in" else "pointer"}",
-              onClick --> { (_: dom.MouseEvent) => toggleSelect(selectedVar, n.id) },
               // A fold box's name (and count) never shrinks: only the signature ellipsizes.
               span(dataAttr("box-name") := n.id,
                 styleAttr := s"font-family:${Tokens.mono};font-size:var(--sch-name);font-weight:600;color:${Tokens.ink};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0" +
@@ -739,7 +796,11 @@ object Schematic {
               .filter { case (lx, ly) => freeLabelSpot(t, lx, ly) }
               .map { case (lx, ly) =>
               svg.text(sa("data-wire-label") := t, sa("class") := (if (isBundle) "scl-wl" else "scl-wl sig"),
-                sa("x") := lx.toString, sa("y") := (ly - 5).toString, sa("text-anchor") := "middle", t)
+                sa("x") := lx.toString, sa("y") := (ly - 5).toString, sa("text-anchor") := "middle",
+                // The overview draws it at a fixed screen size, capped here to what
+                // its segment holds, so it never runs past the wire onto a box; it
+                // fades out where that cap is too small to read (Highlight.css).
+                sa("style") := { val f = math.floor(labelFontCap(w.points, t) * 10) / 10; s"--wlf:${f}px;--wln:$f" }, t)
             }
           }
           val el = svg.g(
@@ -852,6 +913,7 @@ object Schematic {
       onExportSvg   = () => if (contentNode != null) withCleared(() => Export.exportSvg(contentNode, expW, expH, curModName)),
       onExportPng   = () => if (contentNode != null) withCleared(() => Export.exportPng(contentNode, expW, expH, curModName)),
       onShare       = Option.when(showShare)(() => designSnapshot().foreach { case (raw, top) => Export.snapshot(raw, top) }),
+      minimapPinVar = minimapPinVar,
     )
 
     // ── pane root ──
@@ -864,7 +926,7 @@ object Schematic {
       hl.bind(filterDimSig, focusClassSig),
       SchematicChrome.chrome(moduleSig, filterVar, matchSig, hl.focusShownVar.signal, onFocusOff,
         Signal.combine(designSig, moduleSig).map { case (d, m) => m.exists(x => d.exists(_.regions.contains(x.name))) },
-        navSig, () => moduleBack(), () => moduleForward()),
+        navSig, () => moduleBack(), () => moduleForward(), stepMatch),
       div(
         // Focusable (not by Tab), so the navigation keys act after a click here.
         tabIndex := -1,
@@ -907,6 +969,7 @@ object Schematic {
               back           = () => navBack(),
               forward        = () => navForward(),
               zoomToSelection = () => zoomToSelection(),
+              stepSelection  = (dx, dy) => stepSelection(dx, dy),
             ), hl)
             gesturesOff = gestures.install()
             tooltipOff = tooltip.install(viewportNode)
@@ -963,6 +1026,8 @@ object Schematic {
           // class, flipped only when the zoom crosses the threshold.
           cls("ov") <-- zoomVar.signal.map(z => z * SchematicBoxes.labelPx() < SchematicBoxes.OverviewPx).distinct,
           dataAttr("content") := "1",   // test hook: the pan/zoom-transformed content layer
+          // a hierarchy row hovered outlines its box, as the pointer on the box would
+          hoverBox --> { (b: Option[String]) => b match { case Some(id) => hl.enterBox(id); case None => hl.leaveBox() } },
           // View-wide highlight state the rules of Highlight.css key on; on this
           // element so an export's clone carries it.
           cls("hl-sel") <-- selectedVar.signal.map(_.isDefined),
@@ -977,16 +1042,23 @@ object Schematic {
         child.maybe <-- Signal.combine(geomSig, designSig).map {
           case (Some(g), _) if g.layout.nodes.isEmpty && g.mod.children.isEmpty =>
             Some(div(styleAttr := "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none",
-              span(dataAttr("empty-module") := "1", styleAttr := s"font-family:${Tokens.mono};font-size:12px;color:${Tokens.ink4}",
+              span(dataAttr("empty-module") := "1", styleAttr := s"font-size:12.5px;color:${Tokens.ink4}",
                 "This module has no instances, ports, or wires to display.")))
+          // Nothing inside but wires from its inputs to its outputs: say so, so
+          // the lone wire does not read as a missing drawing.
+          case (Some(g), _) if g.mod.children.isEmpty && g.mod.logic.isEmpty && g.mod.wires.nonEmpty =>
+            Some(div(styleAttr := "position:absolute;left:0;right:0;bottom:56px;display:flex;justify-content:center;pointer-events:none",
+              span(dataAttr("passthrough-module") := "1",
+                styleAttr := s"font-size:12px;color:${Tokens.ink3};background:${Tokens.panel};border:1px solid ${Tokens.borderSoft};border-radius:6px;padding:5px 10px",
+                "This module wires its inputs straight to its outputs: there is no logic inside to draw.")))
           case _ => None
         },
         // Shown over the content while panning (Gestures): the grabbing cursor
         // and no text selection wherever the pointer goes, without restyling
-        // the content's elements. Above the view's controls too (z-index 3), so
-        // a pan that crosses them keeps its cursor.
+        // the content's elements. Above the view's controls too (z-index 3, the
+        // zoom toolbar 4), so a pan that crosses them keeps its cursor.
         div(dataAttr("pan-overlay") := "1",
-          styleAttr := "position:absolute;inset:0;z-index:4;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
+          styleAttr := "position:absolute;inset:0;z-index:5;cursor:grabbing;user-select:none;-webkit-user-select:none;display:none"),
       ),
       SchematicChrome.controls(ctrlCtx),
       tooltip.el,
@@ -1023,10 +1095,11 @@ object Schematic {
       // when the geometry changes or it shows or hides); pan and zoom move just
       // its viewport rect, through `minimapViewSig`. Hidden until the module's
       // view is in place (`settledPathVar`).
+      minimapPinVar.signal.changes --> { on => try dom.window.localStorage.setItem("socle-minimap", if (on) "on" else "off") catch { case _: Throwable => () } },
       child.maybe <-- Signal.combine(geomSig, zoomVar.signal, viewSizeVar.signal, pathSig.map(_.mkString("/")), settledPathVar.signal,
-          Signal.combine(totalWVar.signal, canvasHVar.signal, showLayersVar.signal)).map {
-        case (Some(g), z, (vw, vh), pk, settled, (tw, th, layers))
-          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (tw * z > vw + 1 || th * z > vh + 1) => Some((g, layers))
+          Signal.combine(totalWVar.signal, canvasHVar.signal, showLayersVar.signal, minimapPinVar.signal)).map {
+        case (Some(g), z, (vw, vh), pk, settled, (tw, th, layers, pin))
+          if settled.contains(pk) && g.layout.nodes.nonEmpty && vw > 0 && (pin || tw * z > vw + 1 || th * z > vh + 1) => Some((g, layers))
         case _ => None
       }.distinctByFn {
         case (Some(a), Some(b)) => (a._1 eq b._1) && a._2 == b._2

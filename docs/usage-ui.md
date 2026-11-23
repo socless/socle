@@ -90,7 +90,8 @@ Decoupled starts closed, as one row.
 
 - **Pins:** a signal pin is a triangle on the box edge pointing the way data
   flows; a bundle pin is a blue tab (pointing out: closed, pointing down: open);
-  a Vec of signals is two stacked tabs. A clocked box has a `clk` pin (the
+  a Vec, of signals or of bundles, is two stacked tabs (the second drops below
+  when it is open). A clocked box has a `clk` pin (the
   flip-flop chevron) and a `rst` pin (a ring, marked `(async)` for an
   AsyncReset) at the bottom of its left side; they carry no wire.
 - **Clock domains:** when a module's instances run on two or more clocks, each

@@ -3,7 +3,7 @@ package socle.ui.panels
 import com.raquo.laminar.api.L._
 import org.scalajs.dom
 import scala.scalajs.js
-import socle.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind, Scaladoc}
+import socle.schema.{Design, ModuleDef, InstanceDef, WireDef, LogicNodeDef, BundleTree, NodeKind, PortDir, BundleKind, Scaladoc, SourceRef}
 import socle.ui.theme._
 import socle.ui.model._
 
@@ -56,6 +56,9 @@ object Inspector {
     selectedVar: Var[Option[String]],
     hoveredVar: Var[Option[String]],
     expandedBundlesVar: Var[Set[String]],
+    // The wire last clicked, both its drawn ends: its `from` selected stands
+    // for that wire alone, not every wire from the same pin.
+    wireClickSig: Signal[Option[(String, String)]] = Val(None),
   ): Element = {
 
     def setSel(p: String): Unit  = selectedVar.set(Some(p))
@@ -70,8 +73,8 @@ object Inspector {
       Signal.combine(selectedVar.signal, hoveredVar.signal).map { case (s, h) => s.orElse(h) }.distinct
 
     val bodySig: Signal[com.raquo.laminar.nodes.ChildNode.Base] =
-      Signal.combine(moduleSig, sigSig, expandedBundlesVar.signal, designSig).map {
-        case (Some(mod), sig, expanded, Some(d)) =>
+      Signal.combine(moduleSig, sigSig, expandedBundlesVar.signal, designSig, wireClickSig).map {
+        case (Some(mod), sig, expanded, Some(d), wireClick) =>
           val wire = sig.flatMap(s => mod.wires.find(w =>
             w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")))
           // A selected logic node (register / constant, issue #188 B1) is keyed by
@@ -84,8 +87,30 @@ object Inspector {
             case (Some(_), None, Some(w))  => bundleView(w, sig.get, expanded, d, setSel, toggleBundle, bulkBundle)
             case (Some(s), None, None)     =>
               mod.children.find(_.name == s) match {
-                case Some(inst) => instanceView(inst, mod.children, d, setSel)
-                case None       => emptyNode
+                case Some(inst) => instanceView(inst, mod, d, setSel)
+                case None       =>
+                  // A drawn wire can stand for several: a Vec's elements drawn
+                  // as one (`xbar.io.in` for `xbar.io.in[0]` and `[1]`). Its
+                  // path is over theirs: one is shown as itself, several listed.
+                  // A bus into a block's typed pin is the port it draws, of
+                  // the type the Scala code declares, under the port's name
+                  // whichever end was clicked; its fields under it.
+                  val all = Inspector.wiresUnder(mod, s)
+                  TypedBus.of(mod, d, s) match {
+                    case Some(b) =>
+                      val src = all.map(_.source).distinct match { case Seq(one) => one; case _ => SourceRef.unknown }
+                      bundleView(WireDef(b.end, b.pin, b.bundle, "", src), b.end, expanded, d, setSel, toggleBundle, bulkBundle)
+                    case None =>
+                      // The clicked wire's own (its far end), as the connections
+                      // the Scala code makes: field wires grouped by bundle.
+                      val far    = wireClick.collect { case (f, t) if f == s => t }
+                      val groups = Some(WireGroups.of(all, s, far)).filter(_.nonEmpty).getOrElse(WireGroups.of(all, s))
+                      groups.flatMap(_.wires) match {
+                        case Seq(w) => bundleView(w, w.from, expanded, d, setSel, toggleBundle, bulkBundle)
+                        case Seq()  => emptyNode
+                        case _      => wireListView(s, groups, mod, d, expanded, setSel, toggleBundle)
+                      }
+                  }
               }
           }
         case _ => emptyNode
@@ -124,25 +149,29 @@ object Inspector {
         Seq("Block" -> mod.`type`, "Pins" -> mod.ports.length.toString, "Registers" -> count(NodeKind.Reg),
           "Operators" -> count(NodeKind.Op), "Memories" -> count(NodeKind.Mem), "Connects" -> mod.wires.length.toString)
       else
-      Seq("Type" -> mod.`type`, "Instances" -> mod.children.length.toString, "Connects" -> mod.wires.length.toString) ++
-        m.gates.map(g => Seq("Gates" -> g.toString)).getOrElse(Nil) ++
-        Seq("Registers" -> m.registers.toString, "Memories" -> m.memories.toString, "LOC" -> m.lines.toString)
-    div(styleAttr := s"padding:24px 16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
+      // a count of none says nothing about this module: left out (the type is always shown)
+      (Seq("Instances" -> mod.children.length, "Connects" -> mod.wires.length) ++
+        m.gates.map(g => "Gates" -> g).toSeq ++
+        Seq("Registers" -> m.registers, "Memories" -> m.memories, "Lines" -> m.lines))
+        .collect { case (k, n) if n > 0 => k -> n.toString }
+    div(styleAttr := s"padding:16px;color:${Tokens.ink3};font-size:12px;line-height:1.55",
       Option.when(block)(dataAttr("block-meta") := mod.name),
-      div(styleAttr := s"margin-bottom:12px;font-weight:500;color:${Tokens.ink2}", if (block) s"${mod.`type`} block" else mod.`type`),
+      div(styleAttr := s"margin-bottom:2px;font-family:${Tokens.mono};font-size:13px;font-weight:600;color:${Tokens.ink}", mod.`type`),
+      div(styleAttr := s"margin-bottom:12px;font-size:11.5px;color:${Tokens.ink4}", if (block) "logic block" else "module"),
       if (block) emptyMod else docBlock(mod, d),
-      div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-family:${Tokens.mono};font-size:11px",
+      div(styleAttr := s"display:grid;grid-template-columns:90px 1fr;row-gap:5px;column-gap:8px;font-size:12px;font-variant-numeric:tabular-nums",
         items.flatMap { case (k, v) => Seq(
           span(styleAttr := s"color:${Tokens.ink4}", k),
           span(styleAttr := s"color:${Tokens.ink2}", v),
         ) }),
       if (mod.scalaClass.nonEmpty) div(styleAttr := "margin-top:14px", scalaClassView(mod)) else emptyMod,
-      div(styleAttr := s"margin-top:14px;color:${Tokens.ink4};font-size:11px", "Click a wire or module to inspect."),
+      div(styleAttr := s"margin-top:16px;color:${Tokens.ink4};font-size:11.5px", "Click a box or a wire to inspect it."),
     )
   }
 
   // ── Instance detail (clock/reset domains + peers + params) ──────────────────
-  private def instanceView(inst: InstanceDef, siblings: Seq[InstanceDef], d: Design, setSel: String => Unit): Element = {
+  private def instanceView(inst: InstanceDef, parent: ModuleDef, d: Design, setSel: String => Unit): Element = {
+    val siblings   = parent.children
     val instMod    = d.modules.find(_.name == inst.`type`)
     val params     = instMod.map(_.parameters).getOrElse(Map.empty)
     val clockPeers = if (inst.clock.nonEmpty) siblings.filter(c => c.name != inst.name && c.clock == inst.clock) else Nil
@@ -171,6 +200,7 @@ object Inspector {
               styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.ink2};background:${Tokens.panelAlt};border:1px solid ${Tokens.borderSoft};border-radius:4px;padding:2px 6px;cursor:pointer",
               onClick --> { _ => setSel(c.name) }, c.name))))
       else emptyNode,
+      instMod.fold[Modifier[HtmlElement]](emptyMod)(m => portsView(inst, m, parent, d, setSel)),
       // A captured module lists its Scala class and typed, ordered parameters
       // instead of the plain name -> value grid below.
       instMod.filter(_.scalaClass.nonEmpty).fold[Modifier[HtmlElement]](emptyMod)(scalaClassView),
@@ -183,6 +213,40 @@ object Inspector {
             ) }))
       else emptyNode,
     )
+  }
+
+  // ── An instance's ports: direction, type, width, and what each connects to ──
+  // The parent's wires with an end on `<inst>.<port>` (or under it, a field or
+  // a Vec element); a click on the other end selects that wire.
+  private def portsView(inst: InstanceDef, m: ModuleDef, parent: ModuleDef, d: Design, setSel: String => Unit): Element = {
+    def onPort(path: String, port: String): Boolean = {
+      val p = s"${inst.name}.$port"
+      path == p || path.startsWith(p + ".") || path.startsWith(p + "[")
+    }
+    val ports = m.ports.filterNot(p => p.name == "clock" || p.name == "reset")
+    if (ports.isEmpty) div()
+    else div(dataAttr("inst-ports") := inst.name, styleAttr := "margin-bottom:12px",
+      sectionTitle(s"Ports (${ports.length})"),
+      ports.map { p =>
+        val links = parent.wires.flatMap { w =>
+          if (onPort(w.from, p.name)) Some(w -> w.to) else if (onPort(w.to, p.name)) Some(w -> w.from) else None
+        }
+        div(dataAttr("inst-port") := p.name, styleAttr := s"padding:4px 0;border-bottom:1px solid ${Tokens.borderSoft}",
+          div(styleAttr := "display:flex;align-items:baseline;gap:6px;font-size:11px",
+            span(styleAttr := s"color:${Tokens.ink4};width:38px;flex-shrink:0;font-size:10px", p.dir),
+            span(styleAttr := s"font-family:${Tokens.mono};color:${Tokens.ink};min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap", p.name),
+            span(styleAttr := s"margin-left:auto;flex-shrink:0;color:${Tokens.ink4};font-variant-numeric:tabular-nums",
+              s"${typeName(p.bundle, d)} · ${totalWidth(p.bundle, d)}b")),
+          if (links.isEmpty)
+            div(styleAttr := s"margin-left:44px;font-size:10.5px;color:${Tokens.ink4}", if (p.connected) "connected inside the module" else "not connected")
+          else
+            div(styleAttr := "margin-left:44px;display:flex;flex-wrap:wrap;gap:4px;margin-top:2px",
+              links.map { case (w, other) =>
+                button(dataAttr("inst-port-link") := other, title := s"Select this connection (${w.from} ↔ ${w.to})",
+                  styleAttr := s"font-family:${Tokens.mono};font-size:10.5px;color:${Tokens.accent};background:transparent;border:none;padding:0;cursor:pointer",
+                  onClick --> { _ => setSel(w.from) }, other)
+              }))
+      })
   }
 
   // ── Scala generator of a captured module: full class + every parameter ─────
@@ -400,6 +464,68 @@ object Inspector {
       },
       child.text <-- copied.signal.map(c => if (c) "✓" else "📋"),
     )
+  }
+
+  /** The wires of `mod` an end of which is under `path` (on a `.` or `[`
+    * boundary): what a drawn wire standing for several selects. */
+  def wiresUnder(mod: ModuleDef, path: String): Seq[WireDef] = {
+    def under(p: String) = p.startsWith(path + ".") || p.startsWith(path + "[")
+    mod.wires.filter(w => under(w.from) || under(w.to))
+  }
+
+  /** Several wires under one drawn wire, as the connections they make: a
+    * whole-bundle connect kept field by field is one entry (`io.mem.rd[1] ↔
+    * dma.io.rd[0]`, its type), opened on its fields; a click on a
+    * wire selects it alone. */
+  private def wireListView(path: String, groups: Seq[WireGroups.Group], mod: ModuleDef, d: Design,
+                           expanded: Set[String], setSel: String => Unit, toggle: String => Unit): Element = {
+    val nWires = groups.map(_.wires.size).sum
+    val card = s"display:block;width:100%;text-align:left;border:1px solid ${Tokens.borderSoft};background:${Tokens.panel};" +
+      s"border-radius:5px;padding:6px 9px;margin-bottom:6px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}"
+    def meta(text: String) = div(styleAttr := s"color:${Tokens.ink4};font-family:${Tokens.sans};font-size:10.5px;margin-top:2px", text)
+    def one(w: WireDef) =
+      button(dataAttr("wire-list-item") := w.from, styleAttr := card, title := "Inspect this connection",
+        onClick --> { _ => setSel(w.from) },
+        div(styleAttr := s"color:${Tokens.ink}", w.from),
+        div(styleAttr := s"color:${Tokens.ink3}", s"↓ ${w.to}"),
+        meta(s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)} bits"))
+    def group(g: WireGroups.Group) = {
+      val key  = s"conn:${g.end}|${g.far}"
+      // A lone connection shows its fields at once; a click hides them.
+      val open = expanded(key) != (groups.size == 1)
+      val ty   = Some(WireGroups.typeAt(mod, d, g.end)).filter(_.nonEmpty).getOrElse(WireGroups.typeAt(mod, d, g.far))
+      val bits = g.wires.map(w => totalWidth(w.bundle, d)).sum
+      div(dataAttr("wire-group") := g.end, styleAttr := s"border:1px solid ${Tokens.borderSoft};border-radius:5px;margin-bottom:6px;overflow:hidden",
+        button(dataAttr("wire-group-toggle") := g.end, aria.expanded := open, title := (if (open) "Hide its fields" else "Show its fields"),
+          styleAttr := s"display:flex;align-items:flex-start;gap:8px;width:100%;text-align:left;border:none;background:${Tokens.panelAlt};" +
+            s"padding:6px 9px;cursor:pointer;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink2}",
+          onClick --> { _ => toggle(key) },
+          div(styleAttr := "flex:1;min-width:0",
+            div(styleAttr := s"color:${Tokens.ink}", g.end),
+            div(styleAttr := s"color:${Tokens.ink3}", s"↔ ${g.far}"),
+            meta((if (ty.nonEmpty) s"${typeName(ty, d)} · " else "") + s"${g.wires.size} fields · $bits bits")),
+          span(styleAttr := s"color:${Tokens.ink4};font-size:9px;margin-top:3px;transition:transform .12s;transform:${if (open) "rotate(90deg)" else "none"}", "▶")),
+        if (!open) emptyNode
+        else div(g.wires.map { w =>
+          val endSide = if (w.from == g.end || w.from.startsWith(g.end + ".") || w.from.startsWith(g.end + "[")) w.from else w.to
+          val field   = endSide.drop(g.end.length).stripPrefix(".")
+          // `to` drives `from`: the arrow says which way the field runs, from the end listed first.
+          val arrow   = if (endSide == w.to) "→" else "←"
+          div(cls := "scl-insp-leaf", dataAttr("wire-list-item") := w.from, title := s"${w.from} ↓ ${w.to}",
+            styleAttr := s"display:flex;align-items:center;gap:8px;padding:3px 9px 3px 18px;font-family:${Tokens.mono};font-size:10.5px;cursor:pointer;color:${Tokens.ink2}",
+            onClick --> { _ => setSel(w.from) },
+            span(styleAttr := s"width:12px;color:${Tokens.ink4};font-size:9px;flex-shrink:0", arrow),
+            span(if (field.nonEmpty) field else endSide),
+            span(styleAttr := s"margin-left:auto;color:${Tokens.ink4}", s"${typeName(w.bundle, d)} · ${totalWidth(w.bundle, d)}b"))
+        }))
+    }
+    val subtitle =
+      if (groups.size == nWires) s"$nWires connections drawn as one wire"
+      else s"${groups.size} connection${if (groups.size == 1) "" else "s"} drawn as one wire, $nWires field wires"
+    div(dataAttr("wire-list") := path, styleAttr := "padding:12px 14px;font-size:12px;overflow:auto",
+      div(styleAttr := s"font-family:${Tokens.mono};font-size:12px;font-weight:600;color:${Tokens.ink};margin-bottom:2px", path),
+      div(styleAttr := s"font-size:11.5px;color:${Tokens.ink4};margin-bottom:12px", subtitle),
+      groups.map(g => if (g.wires.size == 1) one(g.wires.head) else group(g)))
   }
 
   private def sectionTitle(text: String): Element =

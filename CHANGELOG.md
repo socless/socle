@@ -9,8 +9,73 @@ and [tags](https://github.com/socless/socle/tags) pages.
 
 ## [Unreleased]
 
+### Changed
+
+- View mode: a logic block meets a bundle or Vec port the way the Scala code declares it: one pin
+  per declared port, typed as it (`io.in: Vec[DecoupledIO, 3]`), and one bus wire to it, not one
+  pin and one ground wire per field with the Vec's elements merged onto it. The module keeps every
+  field wire, under the pin (`<block>.io_in[0].valid`), so the waveform links and the Inspector
+  still see each field. A click on that bus inspects the port as declared (its type, width and
+  fields, each field a click away) and the waveform follows the port; the bus and its hover card
+  run producer to consumer, as an instance's bus does.
+- Inspector: a wire drawn for several connections lists the connections it draws, not one row per
+  field. A whole-bundle connect captured field by field (`io.mem.rd(1) <> dma.io.rd(0)`) is
+  one entry, `io.mem.rd[1] ↔ dma.io.rd[0]`, with its declared type (`ReadPort`), its
+  field count and width, opened on its fields. Only the clicked wire's connections are listed:
+  the wire from a Vec port to one instance no longer lists the elements that go to the others.
+- Schematic: a Vec of bundles (`Vec[AXI4, 2]`) has the Vec pin glyph, two stacked tabs, like a Vec
+  of signals, not the single tab of a bundle. Open, a Vec's second tab drops below it.
+- UI typography: the interface (menus, tabs, toolbars, tips, the Inspector's labels) is set in
+  IBM Plex Sans; names, types and code stay in IBM Plex Mono. The Inspector's module summary
+  leaves out counts of zero.
+- Top bar: the design status reads `N modules` in grey, without the top's name (the breadcrumb's
+  first segment) or `live (design.json)` (the LIVE badge says it).
+- Schematic toolbar: SVG, PNG and the HTML snapshot moved into one `export` menu; the toolbar
+  keeps the view controls.
+- Source tab: the file reads relative to the source root, its folder grey and its name always
+  shown (the folder ellipsizes first).
+- First-visit tips: three, not four (the hint bar under the schematic says how to pan and zoom),
+  and the inspect tip says a click on a block, not on its title.
+- Brand charter: the light theme's accent is Signal (`#0074ca`); the top bar's logo is 24 px tall
+  (about 99 px wide, over the charter's 96 px minimum); the theme gallery's Paper and Carbon
+  swatches show their real colors.
+
+### Added
+
+- The hierarchy and the schematic light each other: the box under the pointer outlines its row in
+  the hierarchy, and a row of the module shown, hovered, outlines its box.
+- Inspector: a selected instance lists its ports (direction, type, width) and what each connects
+  to in the module shown; a click on one selects that connection.
+- Schematic filter: Enter selects the next box it matches and zooms to it (Shift+Enter: the
+  previous), in reading order.
+- Source tab: an instance name under the pointer outlines its box in the schematic.
+- Breadcrumb: a ▾ after a segment lists the other instances of its parent module; a click opens
+  one in its place.
+- The side panels resize by dragging their inner edge; their widths and the bottom panel's height
+  are remembered in this browser. The bottom panel starts at 220 px (was 240).
+- Schematic toolbar: a `map` button keeps the minimap shown even when the design fits the view
+  (remembered in this browser).
+- Hierarchy: the row toggles and Show in parent are line icons like the top bar's, not text
+  characters (▸ ▾ ◎).
+- Schematic: a module that only wires its inputs to its outputs says so under its drawing.
+- Keyboard: with a box selected, Shift+Arrow selects the nearest box that way (and brings it into
+  view); without one it pans, as an arrow does.
+- Accessibility: the two lightest greys read at 4.5:1 or more on panels and page in both themes
+  (WCAG AA); the top bar's icon buttons have labels and pressed or expanded states for screen
+  readers.
+- Schematic: a click anywhere on a module, block, memory or state machine box selects it and shows it in the
+  Inspector, not only a click on its header (a drag still pans; a double-click still opens it).
+- The side panels fit the window: below 1000 px the hierarchy starts closed, below 1280 px the
+  inspector; narrowing past those widths closes them, widening back reopens the ones it closed.
+  A panel opened or closed by hand stays as it is.
+
 ### Fixed
 
+- Schematic overview (zoomed out): a bundle wire's type label no longer runs past its wire onto
+  the boxes beside it. It is drawn no larger than its wire segment holds, and hidden where that
+  would be under 9 px on screen.
+- Inspector: a click on a wire drawn for several connections (a Vec's elements drawn as one, such
+  as `xbar.io.in`) left it blank. It lists the connections; a click on one shows it alone.
 - Simulate: a test that fails before simulating (elaboration, firtool) no longer reports
   `No waveform found (is waves support enabled? ...)`. The message quotes the failure's first
   line (firtool's `error:` line, which names the Scala line, or the exception) and names

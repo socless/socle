@@ -45,7 +45,8 @@ import socle.ui.theme.Tokens
   * selection: the wire clicked and its level. Each registry knows the drill
   * path it was rendered for, so the net is resolved against the level whose
   * elements it lights (never another level's paths, which can share names). */
-final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[String]]) {
+final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[String]],
+    boxHoverOut: Var[Option[String]] = Var(None)) {
   import Highlight._
 
   private var reg: Registry = Registry.empty
@@ -131,9 +132,13 @@ final class Highlight(val selection: Var[Option[String]], val hover: Var[Option[
   /** Drop the box hover whatever the state (a pan, an export). */
   def clearBox(): Unit = if (boxHover.isDefined) { boxHover = None; applyBoxHover() }
 
-  private def applyBoxHover(): Unit = boxHover match {
-    case None     => boxOut.set(Set.empty); wireOut.set(Set.empty)
-    case Some(id) => val m = reg.boxMatch(id); boxOut.set(m.boxes); wireOut.set(m.wires)
+  private def applyBoxHover(): Unit = {
+    boxHover match {
+      case None     => boxOut.set(Set.empty); wireOut.set(Set.empty)
+      case Some(id) => val m = reg.boxMatch(id); boxOut.set(m.boxes); wireOut.set(m.wires)
+    }
+    // shared with the hierarchy, whose row of the box lights up
+    if (boxHoverOut.now() != boxHover) boxHoverOut.set(boxHover)
   }
 
   private var net: Option[NetFollow.Net] = None
@@ -529,6 +534,8 @@ object Highlight {
     ".bun.open{clip-path:polygon(0 0,100% 0,100% 55%,50% 100%,0 55%)}",
     ".scl-fpin.bun{background:var(--accent)}",
     ".vec{border-radius:2px;box-shadow:2px -2px 0 0 var(--ink4)}",
+    // An open Vec: its second tab drops below, toward the elements hung under it.
+    ".vec.open{box-shadow:2px 2px 0 0 var(--ink4)}",
     // The overview (#334): names at a fixed screen size, no pin text.
     s".scl-ovn{display:none;position:absolute;inset:28px 12px 0 12px;align-items:center;justify-content:center;pointer-events:none;overflow:hidden;white-space:nowrap;font-family:${Tokens.mono};font-weight:700;color:${Tokens.ink}}",
     ".ov .scl-ovn{display:flex}",
@@ -551,7 +558,9 @@ object Highlight {
     ".scl-ovt.out{left:0}",
     ".ov .scl-ovt{display:block}",
     ".ov [data-boundary-stub]{overflow:visible !important}",
-    ".ov .scl-wl:not(.sig){font-size:calc(10px / var(--z))}",
+    ".ov .scl-wl:not(.sig){font-size:min(calc(10px / var(--z)), var(--wlf, 10px))}",
+    // ...and hidden where its capped size is under 9 screen px, the overview's readable minimum.
+    ".ov .scl-wl:not(.sig){opacity:clamp(0, calc((var(--wln, 99) * var(--z) - 9) * 1000), 1)}",
     // A declared port no wire ends on (#332).
     ".scl-nc{opacity:.45}",
     s".scl-pin.follow,.scl-fpin.follow{background:${Tokens.fol}}",

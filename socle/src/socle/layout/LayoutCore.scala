@@ -340,11 +340,22 @@ object LayoutCore {
         // pin drives rightward (EAST), an in/inout pin receives (WEST); the
         // dataflow vote in `prepare` refines this, this is just the declared side.
         val pinName = stripIdx(parts(1))
-        val dir     = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName)).map(_.dir).getOrElse(PortDir.In)
-        // FSM box pins carry no bundle: the synthesized region ports store no
-        // bundle key, so a pin reflects its own (bundleless) port rather than
-        // the wire's aggregate type (#237).
+        val port    = design.regions.get(rawHead).flatMap(_.ports.find(_.name == pinName))
+        val dir     = port.map(_.dir).getOrElse(PortDir.In)
         val boxKind = ix.logicById.get(rawHead).map(_.kind).getOrElse(NodeKind.Fsm)
+        // A pin with a type is a declared port the box meets as written in the
+        // Scala code (view mode: `io_in: Vec[DecoupledIO, 3]`): a wire to one of
+        // its fields (`<box>.io_in[0].valid`) lands on the pin itself, as one
+        // to an instance's field lands on its port's row.
+        port.filter(_.bundle.nonEmpty) match {
+          case Some(p) =>
+            return Some(Endpoint(rawHead, boxKind, s"$rawHead.${p.name}", sideFor(boxKind, dir),
+              isInterfaceBundle(p.bundle, design), p.bundle))
+          case None =>
+        }
+        // Otherwise a box pin carries no bundle: the synthesized region ports
+        // store no bundle key, so a pin reflects its own (bundleless) port rather
+        // than the wire's aggregate type (#237).
         return Some(Endpoint(rawHead, boxKind, path, sideFor(boxKind, dir), false, ""))
       }
       ix.ports.get(head).map { p =>
@@ -607,6 +618,9 @@ object LayoutCore {
         // A stub's top row keeps its full path ("io.in: Decoupled"), as before #332.
         else if (rowOf.get((id, kind, p.path)).exists(r => kind == NodeKind.Inst || (kind == NodeKind.Boundary && r.depth > 0)))
           rowLabel(rowOf((id, kind, p.path)), design)
+        // An open block's own pin, by its source path (`io.in: Vec[...]`, #333), not its id.
+        else if (kind == NodeKind.Boundary && module.ports.exists(q => q.name == p.path && q.label.nonEmpty))
+          pinLabel(id, module.ports.find(_.name == p.path).get.label, Some(BundleTree.displayName(p.bundle, design)))
         // The type at Chisel's level (#333): a class or a known shape, never a hash.
         else pinLabel(id, p.path, Some(BundleTree.displayName(p.bundle, design)))
       // Const nodes share the boundary stub's compact geometry (a single small
@@ -929,7 +943,37 @@ object LayoutCore {
     val portRows = new PortRows(module, design, design.modules.iterator.map(m => m.name -> m).toMap, expanded)
     val seen = mutable.LinkedHashMap.empty[(String, String), Int] // pin-pair -> index in out
     val out  = mutable.ArrayBuffer.empty[DisplayWire]
+    // A typed-pin bus's fields: (bus index, field) -> (wired the bus's way, wired against it, bits).
+    val busFields = mutable.LinkedHashMap.empty[(Int, String), (Boolean, Boolean, Int)]
     def pairKey(a: String, b: String): (String, String) = if (a <= b) (a, b) else (b, a)
+    // A typed block pin (a declared port the box meets, view mode): the field
+    // wires that land on it are one connection of its type, drawn as the bus
+    // it is (`io.in: Vec[DecoupledIO, 3]`), not a two-way ground wire. The
+    // module keeps each field wire (the waveform links walk them).
+    def busType(a: String, b: String): Option[String] =
+      Iterator(a, b).flatMap { e =>
+        val box = e.takeWhile(_ != '.')
+        if (e.length <= box.length + 1) None
+        else design.regions.get(box).flatMap(_.ports.find(p => p.name == e.drop(box.length + 1) && p.bundle.nonEmpty)).map(_.bundle)
+      }.nextOption()
+    def bits(key: String): Int = {
+      def sum(n: BundleTree.PortNode): Int = if (n.children.isEmpty) n.width else n.children.map(sum).sum
+      math.max(1, sum(BundleTree.portTree(key, None, "", design)))
+    }
+    // One field wire of the bus at `i`, the bus's way or against it.
+    def vote(i: Int, w: WireDef, its: Boolean): Unit = {
+      val pinEnd = if (typedPin(w.from).isDefined) w.from else w.to
+      val k      = (i, pinEnd.drop(typedPin(pinEnd).fold(0)(_.length)))
+      val (a, b, n) = busFields.getOrElse(k, (false, false, bits(w.bundle)))
+      busFields(k) = if (its) (true, b, n) else (a, true, n)
+    }
+    // A field of a typed block pin lands on the pin, as `classify` lands it.
+    def typedPin(e: String): Option[String] = {
+      val box = e.takeWhile(_ != '.')
+      val pin = e.drop(box.length + 1).takeWhile(c => c != '.' && c != '[')
+      design.regions.get(box).filter(_ => pin.nonEmpty)
+        .flatMap(_.ports.find(p => p.name == pin && p.bundle.nonEmpty)).map(_ => s"$box.$pin")
+    }
     module.wires.iterator
       .filterNot(isClockReset)
       .filterNot(_.to.startsWith("const$"))
@@ -937,8 +981,8 @@ object LayoutCore {
         // Each end lands on its deepest shown declared row (#332), or its Vec
         // group path (#260), exactly as `prepare` collapses the layout edges.
         // Clock/reset and const filtering above still key on the ORIGINAL `w`.
-        val gf = portRows.group(w.from)
-        val gt = portRows.group(w.to)
+        val gf = typedPin(w.from).getOrElse(portRows.group(w.from))
+        val gt = typedPin(w.to).getOrElse(portRows.group(w.to))
         val a = gf.split('.').headOption.getOrElse("")
         val b = gt.split('.').headOption.getOrElse("")
         if (a.isEmpty || b.isEmpty || a == b)
@@ -946,6 +990,10 @@ object LayoutCore {
         else {
           val k = pairKey(gf, gt)
           seen.get(k) match {
+            case Some(i) if busType(gf, gt).isDefined =>
+              val d = out(i)
+              out(i) = d.copy(count = d.count + groundCount(w.label))
+              vote(i, w, d.from == gf)
             case Some(i) =>
               val d       = out(i)
               val reverse = d.from == gt && d.to == gf
@@ -956,10 +1004,19 @@ object LayoutCore {
               out(i) = d.copy(bundle = bundle, label = label, bidir = bidir, count = count)
             case None =>
               seen(k) = out.length
-              out += DisplayWire(gf, gt, w.bundle, w.label, bidir = false, groundCount(w.label))
+              if (busType(gf, gt).isDefined) vote(out.length, w, true)
+              out += DisplayWire(gf, gt, busType(gf, gt).getOrElse(w.bundle), if (busType(gf, gt).isDefined) "" else w.label,
+                bidir = false, groundCount(w.label))
           }
         }
       }
+    // A bus runs the way most of its bits do: a Decoupled from producer to
+    // consumer (`bits` against `ready`), as an instance's bus does. A field
+    // wired both ways (`valid` read back for `fire`) has no say.
+    busFields.groupBy(_._1._1).foreach { case (i, fs) =>
+      val v = fs.valuesIterator.map { case (a, b, n) => if (a == b) 0 else if (a) n else -n }.sum
+      if (v < 0) out(i) = out(i).copy(from = out(i).to, to = out(i).from)
+    }
     out.toSeq
   }
 }

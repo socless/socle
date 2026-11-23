@@ -121,6 +121,8 @@ object Gestures {
     back: () => Unit,            // the view history (ViewHistory)
     forward: () => Unit,
     zoomToSelection: () => Boolean, // false: nothing selected, nothing done
+    // Shift+Arrow: select the nearest box that way (dx, dy in -1, 0, 1); false: no box selected
+    stepSelection: (Int, Int) => Boolean = (_, _) => false,
   )
 
   /** The gesture controller on the schematic viewport. [[install]] adds its
@@ -345,7 +347,11 @@ object Gestures {
           v.panVar.set((px + dx, py + dy))
         }
         // An arrow looks that way: ArrowRight moves the content left.
-        val handled = e.key match {
+        val step = if (!e.shiftKey) None else e.key match {
+          case "ArrowLeft" => Some((-1, 0)); case "ArrowRight" => Some((1, 0))
+          case "ArrowUp"   => Some((0, -1)); case "ArrowDown"  => Some((0, 1)); case _ => None
+        }
+        val handled = if (step.exists { case (dx, dy) => v.stepSelection(dx, dy) }) true else e.key match {
           case "ArrowLeft"  => panBy(0.1 * vw, 0); true
           case "ArrowRight" => panBy(-0.1 * vw, 0); true
           case "ArrowUp"    => panBy(0, 0.1 * vh); true

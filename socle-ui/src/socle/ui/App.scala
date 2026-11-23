@@ -30,6 +30,13 @@ object App {
   // Schematic + inspector shared state (Phase 2 / Phase 3).
   private val selectedSigVar   = Var[Option[String]](None)   // selected wire / instance path
   private val hoveredSigVar    = Var[Option[String]](None)
+  // The schematic box under the pointer (its id), and a hierarchy row hovered
+  // asking for its box: the two panes light each other's.
+  private val boxHoverVar      = Var[Option[String]](None)
+  private val rowHoverBus      = new EventBus[Option[String]]
+  // The wire last clicked (its two drawn ends): a selection by its `from`
+  // stands for that wire alone, not every wire from the same pin.
+  private val wireClickVar     = Var[Option[(String, String)]](None)
   // In-box expanded bundle pin paths, per module name: each module keeps its own
   // and gets it back on return, and no module's layout ever sees another's paths.
   private val expandedPortsVar = Var(Map.empty[String, Set[String]])
@@ -85,10 +92,19 @@ object App {
   private val tickVar        = Var(0)                           // 1 Hz clock for the "updated Ns ago" badge
   // Panel layout (#206): toggle the side / bottom panels to focus on the
   // schematic; the bottom panel is also drag-resizable.
-  private val leftOpenVar      = Var(true)
-  private val rightOpenVar     = Var(true)
+  // A narrow window starts with them closed, and closes them when it narrows
+  // past their width ([[PaneFit]]).
+  private val leftOpenVar      = Var(PaneFit.leftFits(dom.window.innerWidth))
+  private val rightOpenVar     = Var(PaneFit.rightFits(dom.window.innerWidth))
+  private val paneFit          = new PaneFit(leftOpenVar, rightOpenVar, dom.window.innerWidth)
   private val bottomOpenVar    = Var(!Embedded.on) // embedded: only Ports is left, start closed
-  private val bottomHeightVar  = Var(240.0)
+  // Sizes the user dragged, remembered in this browser (not when embedded:
+  // the editor's panel is not a page of its own).
+  private def storedSize(key: String, min: Double, max: Double, default: Double): Double =
+    (if (Embedded.on) None else stored(key)).flatMap(_.toDoubleOption).filter(v => v >= min && v <= max).getOrElse(default)
+  private val bottomHeightVar  = Var(storedSize("socle-bottom-h", 80, 700, 220))
+  private val leftWidthVar     = Var(storedSize("socle-left-w", 180, 480, 240))
+  private val rightWidthVar    = Var(storedSize("socle-right-w", 240, 560, 304))
   private val bottomTabVar     = Var(if (Embedded.on) "ports" else "source") // embedded: no Source tab
   // The FSM block (its id) whose state diagram is open in the schematic pane.
   // Cleared when the drill path changes and when a design change drops the block.
@@ -133,7 +149,8 @@ object App {
     val head = s.takeWhile(_ != '.')
     mod.logic.exists(_.id == s) ||
     mod.wires.exists(w => w.from == s || w.to == s || s.startsWith(w.from + ".") || s.startsWith(w.to + ".")) ||
-    mod.children.exists(_.name == head)
+    mod.children.exists(_.name == head) ||
+    socle.ui.panels.Inspector.wiresUnder(mod, s).nonEmpty
   }
 
   // A fresh load (first load, picker, dropped file) also forgets the view
@@ -269,8 +286,8 @@ object App {
   // set-before-paint script applies the saved theme; keep `darkThemes` in sync
   // with the DARK map there. Each entry: (id, label, previewBg, previewAccent).
   private val themes: List[(String, String, String, String)] = List(
-    ("light",     "Paper",      "#fbfbfa", "oklch(0.55 0.16 250)"),
-    ("dark",      "Carbon",     "#0d1117", "#1f6feb"),
+    ("light",     "Paper",      "#edf0f4", "#0074ca"),
+    ("dark",      "Carbon",     "#0e151d", "#4aa3f0"),
     ("blueprint", "Blueprint",  "#08182b", "#39c2ff"),
     ("nord",      "Nord",       "#2e3440", "#88c0d0"),
     ("gruvbox",   "Gruvbox",    "#282828", "#fabd2f"),
@@ -405,6 +422,14 @@ object App {
   private def iconPanelLeft   = ico(panelRect, svg.line(svg.x1 := "9",  svg.y1 := "4", svg.x2 := "9",  svg.y2 := "20"))
   private def iconPanelBottom = ico(panelRect, svg.line(svg.x1 := "3",  svg.y1 := "15", svg.x2 := "21", svg.y2 := "15"))
   private def iconPanelRight  = ico(panelRect, svg.line(svg.x1 := "15", svg.y1 := "4", svg.x2 := "15", svg.y2 := "20"))
+  // Small icons of the hierarchy (12 px): the row toggle's chevron, turned by CSS
+  // when open (data-open), and Show in parent's crosshair.
+  private def small(shapes: com.raquo.laminar.nodes.ChildNode.Base*): Element =
+    svg.svg(svg.viewBox := "0 0 24 24", svg.width := "12", svg.height := "12", svg.style := iconStyle + ";stroke-width:2.4", shapes)
+  private def chevron(): Element = small(svg.polyline(svg.points := "9 6 15 12 9 18"))
+  private def iconLocate: Element = small(svg.circle(svg.cx := "12", svg.cy := "12", svg.r := "6"),
+    svg.line(svg.x1 := "12", svg.y1 := "2", svg.x2 := "12", svg.y2 := "6"), svg.line(svg.x1 := "12", svg.y1 := "18", svg.x2 := "12", svg.y2 := "22"),
+    svg.line(svg.x1 := "2", svg.y1 := "12", svg.x2 := "6", svg.y2 := "12"), svg.line(svg.x1 := "18", svg.y1 := "12", svg.x2 := "22", svg.y2 := "12"))
   private def iconMoon = ico(svg.path(svg.d := "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"))
   private def iconSun = ico(
     svg.circle(svg.cx := "12", svg.cy := "12", svg.r := "4"),
@@ -428,7 +453,8 @@ object App {
     * Display (density + colorize) and Theme (gallery). Esc closes it. */
   private def settingsControl(): Element =
     span(styleAttr := "position:relative;display:inline-flex",
-      button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings",
+      button(cls := "scl-help-btn", dataAttr("settings-toggle") := "1", title := "View settings", aria.label := "View settings",
+        aria.expanded <-- settingsOpenVar.signal,
         onClick --> { _ => settingsOpenVar.update(!_) }, iconSettings),
       child.maybe <-- settingsOpenVar.signal.map { open =>
         if (!open) None else Some(
@@ -834,6 +860,7 @@ object App {
       embedded    = Embedded.on,
       wave        = Some(wave),
       tabVar      = bottomTabVar,
+      hoverBox    = b => rowHoverBus.emit(b),
     )
     val inspectorEl = Inspector.render(
       designSig          = loader.designSig,
@@ -841,16 +868,23 @@ object App {
       selectedVar        = selectedSigVar,
       hoveredVar         = hoveredSigVar,
       expandedBundlesVar = expandedBundlesVar,
+      wireClickSig       = wireClickVar.signal,
     )
     div(
       dataAttr("app-shell") := "1",
       cls := "scl-shell",
+      windowEvents(_.onResize) --> { _ => paneFit.resized(dom.window.innerWidth) },
+      // A dragged size is kept once the drag rests.
+      Option.when(!Embedded.on)(Seq(
+        bottomHeightVar.signal.changes.debounce(300) --> { h => store("socle-bottom-h", h.round.toString) },
+        leftWidthVar.signal.changes.debounce(300) --> { w => store("socle-left-w", w.round.toString) },
+        rightWidthVar.signal.changes.debounce(300) --> { w => store("socle-right-w", w.round.toString) })),
       topBar(),
       Chrome.warningsBanner(loader.designSig),
       div(
         cls := "scl-panes",
         // Embedded, VS Code's side panel shows the hierarchy and the details: no side panes.
-        Option.when(!Embedded.on)(child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(hierEl) else None)),
+        Option.when(!Embedded.on)(child.maybe <-- leftOpenVar.signal.map(o => if (o) Some(sidePane(hierEl, leftWidthVar, 180, 480, left = true)) else None)),
         // Center column: schematic above, the Source/Waveform/Ports panel below.
         div(cls := "scl-center",
           Schematic.render(
@@ -880,6 +914,9 @@ object App {
             commands         = viewCmds,
             navigate         = showPath,
             resolves         = p => loader.currentDesign.exists(d => currentModule(d, p).isDefined),
+            boxHoverVar      = boxHoverVar,
+            hoverBox         = rowHoverBus.events,
+            wireClickVar     = wireClickVar,
           ),
           // The first-time tips float above the schematic's bottom edge, over it.
           div(styleAttr := "position:relative;flex-shrink:0",
@@ -887,7 +924,7 @@ object App {
             hintBar.el),
           child.maybe <-- bottomOpenVar.signal.map(o => if (o) Some(bottomEl) else None),
         ),
-        Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(inspectorEl) else None)),
+        Option.when(!Embedded.on)(child.maybe <-- rightOpenVar.signal.map(o => if (o) Some(sidePane(inspectorEl, rightWidthVar, 240, 560, left = false)) else None)),
       ),
       // Clear the selection and the inspector's bundle tree on navigation. The
       // in-box expansions are kept per module name instead (expandedPortsVar), so
@@ -1048,6 +1085,58 @@ object App {
         div(cls := s"scl-toast scl-toast-$kind", dataAttr("toast") := kind, msg)
       }))
 
+  // The breadcrumb segment's sibling menu: which one is open (its parent path).
+  // Where it opens: under its caret, in window coordinates (the breadcrumb
+  // clips what overflows it, so the menu is fixed, not inside it).
+  private val crumbMenuVar = Var[Option[List[String]]](None)
+  private val crumbMenuAt  = Var((0.0, 0.0))
+
+  /** A ▾ after a breadcrumb segment: the other instances of its parent module,
+    * a click opens that one in its place. */
+  private def crumbSiblings(parent: List[String], seg: String, siblings: Seq[String]): Element = {
+    val open = crumbMenuVar.signal.map(_.contains(parent))
+    span(cls := "scl-crumb-more", dataAttr("crumb-siblings") := seg,
+      documentEvents(_.onMouseDown) --> { (e: dom.MouseEvent) =>
+        if (crumbMenuVar.now().contains(parent) && e.target.asInstanceOf[dom.Element].closest(s"[data-crumb-siblings]") == null)
+          crumbMenuVar.set(None) },
+      button(cls := "scl-crumb-caret", title := s"Other instances beside $seg", aria.hasPopup := true,
+        aria.expanded <-- open,
+        onClick --> { (e: dom.MouseEvent) =>
+          val r = e.currentTarget.asInstanceOf[dom.Element].getBoundingClientRect()
+          crumbMenuAt.set((r.left, r.bottom + 4))
+          crumbMenuVar.update(o => if (o.contains(parent)) None else Some(parent)) }, "▾"),
+      div(cls := "scl-menu down", styleAttr <-- Signal.combine(open, crumbMenuAt.signal).map { case (o, (x, y)) =>
+        s"display:${if (o) "flex" else "none"};position:fixed;left:${x}px;top:${y}px" },
+        siblings.map(sib => button(cls := "scl-menu-item", dataAttr("crumb-sibling") := sib,
+          styleAttr := s"font-family:${Tokens.mono}",
+          onClick --> { _ => crumbMenuVar.set(None); pathVar.set(parent :+ sib) }, sib))))
+  }
+
+  /** A side panel at its width, with a handle on its inner edge (the right one
+    * for the left panel) that drags the width between `min` and `max`. */
+  private def sidePane(pane: Element, widthVar: Var[Double], min: Double, max: Double, left: Boolean): Element =
+    div(cls := "scl-side", dataAttr("side") := (if (left) "left" else "right"),
+      styleAttr <-- widthVar.signal.map(w => s"width:${w}px"),
+      pane,
+      div(cls := "scl-side-resize", dataAttr("side-resize") := (if (left) "left" else "right"),
+        styleAttr := (if (left) "right:-3px" else "left:-3px"),
+        title := "Drag to resize",
+        onMouseDown --> { (e: dom.MouseEvent) =>
+          e.preventDefault()
+          val startX = e.clientX; val startW = widthVar.now()
+          val move: js.Function1[dom.MouseEvent, Unit] = (ev: dom.MouseEvent) => {
+            val dx = ev.clientX - startX
+            widthVar.set(math.max(min, math.min(max, if (left) startW + dx else startW - dx)))
+          }
+          var up: js.Function1[dom.MouseEvent, Unit] = null
+          up = (_: dom.MouseEvent) => {
+            dom.document.removeEventListener("mousemove", move)
+            dom.document.removeEventListener("mouseup", up)
+          }
+          dom.document.addEventListener("mousemove", move)
+          dom.document.addEventListener("mouseup", up)
+        }))
+
   private def topBar(): Element =
     div(
       cls := "scl-topbar", dataAttr("topbar") := "1",
@@ -1063,10 +1152,15 @@ object App {
             // An open logic block shows its label (`logic`), not its id.
             val block = loader.currentDesign.flatMap(d => currentModule(d, p.take(i)))
               .flatMap(_.logic.find(n => n.id == seg && n.kind == NodeKind.Block))
-            sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
+            // The other instances of the module holding this one: a menu to jump to one.
+            val siblings = if (i == 0 || block.isDefined) Nil
+              else loader.currentDesign.flatMap(d => currentModule(d, p.take(i))).toSeq
+                .flatMap(_.children.map(_.name)).filter(_ != seg)
+            (sep :+ button(cls := "scl-crumb", cls.toggle("active") := (fsm.isEmpty && i == p.length - 1),
               title := p.take(i + 1).mkString(" > "),
               block.map(n => dataAttr("crumb-block") := n.id),
-              onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)
+              onClick --> { _ => navTo(i) }, block.map(_.label).filter(_.nonEmpty).getOrElse(seg): String)) ++
+              Option.when(siblings.nonEmpty)(crumbSiblings(p.take(i), seg, siblings)).toSeq
           }
           path ++ fsm.toSeq.flatMap { id =>
             // The FSM box's register (`state`; it may sit in a block's body),
@@ -1094,9 +1188,11 @@ object App {
         dataAttr("source") <-- loader.sourceSig.map(_.map(_._1).getOrElse("none")),
         dataAttr("top")    <-- loader.designSig.map(_.map(topOf).getOrElse("")),
         child.text <-- Signal.combine(loader.designSig, loader.sourceSig, loader.waitingSig).map {
+          // The top is the breadcrumb's first segment, and a live design has its
+          // LIVE badge: what is left is the size and where else it came from.
           case (Some(d), src, _) =>
-            val label = src.map(_._2).getOrElse("")
-            s"${topOf(d)}  -  ${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
+            val label = src.collect { case ("snapshot", _) => "snapshot"; case (k, l) if k != "live" => l }.getOrElse("")
+            s"${d.modules.length} modules" + (if (label.nonEmpty) s"  ·  $label" else "")
           case (None, _, true)  => "waiting for the first design…"
           case (None, _, false) => "loading design.json…"
         },
@@ -1128,15 +1224,18 @@ object App {
       // focus on the schematic. The `off` class dims a button when its pane is hidden.
       Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "hierarchy",
         cls.toggle("off") <-- leftOpenVar.signal.map(!_),
-        title := "Toggle the hierarchy panel",
+        title := "Toggle the hierarchy panel", aria.label := "Hierarchy panel",
+        aria.pressed <-- leftOpenVar.signal.map(_.toString),
         onClick --> { _ => leftOpenVar.update(!_) }, iconPanelLeft)),
       button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "bottom",
         cls.toggle("off") <-- bottomOpenVar.signal.map(!_),
-        title := "Toggle the bottom panel",
+        title := "Toggle the bottom panel", aria.label := "Bottom panel",
+        aria.pressed <-- bottomOpenVar.signal.map(_.toString),
         onClick --> { _ => bottomOpenVar.update(!_) }, iconPanelBottom),
       Option.when(!Embedded.on)(button(cls := "scl-help-btn scl-panel-btn", dataAttr("toggle-pane") := "inspector",
         cls.toggle("off") <-- rightOpenVar.signal.map(!_),
-        title := "Toggle the inspector panel",
+        title := "Toggle the inspector panel", aria.label := "Inspector panel",
+        aria.pressed <-- rightOpenVar.signal.map(_.toString),
         onClick --> { _ => rightOpenVar.update(!_) }, iconPanelRight)),
       // View settings (#198): density + accent presets.
       settingsControl(),
@@ -1144,10 +1243,11 @@ object App {
       Option.when(!Embedded.on)(button(cls := "scl-theme-btn", dataAttr("theme-toggle") := "1",
         dataAttr("theme") <-- themeVar.signal,
         title <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
+        aria.label <-- themeVar.signal.map(t => if (darkThemes(t)) "Switch to light theme" else "Switch to dark theme"),
         onClick --> { _ => toggleTheme() },
         child <-- themeVar.signal.map(t => if (darkThemes(t)) iconSun else iconMoon))),
       // Help affordance.
-      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Mouse and keyboard (?)",
+      button(cls := "scl-help-btn", dataAttr("help-trigger") := "1", title := "Mouse and keyboard (?)", aria.label := "Mouse and keyboard help",
         onClick --> { _ => helpOpenVar.set(true) }, "?"),
     )
 
@@ -1212,7 +1312,7 @@ object App {
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",
       title := r.title,
       onClick --> { _ => classToggledVar.update(s => if (s(r.id)) s - r.id else s + r.id) },
-      span(cls := "scl-hier-toggle", if (r.expanded) "▾" else "▸"),
+      span(cls := "scl-hier-toggle", dataAttr("open") := (if (r.expanded) "1" else "0"), chevron()),
       span(cls := "scl-hier-label", r.label),
       Option.when(r.unknown)(span(cls := "scl-hier-glyph", dataAttr("class-unknown") := "1", title := ClassRows.Unknown, "?")),
       span(cls := "scl-hier-type", styleAttr := "flex-shrink: 0",
@@ -1224,8 +1324,10 @@ object App {
       if (r.isLeaf) Seq.empty
       else Seq(
         dataAttr("hier-toggle") := r.id,
+        dataAttr("open") <-- expandedVar.signal.map(s => if (s(r.id)) "1" else "0"),
+        aria.expanded <-- expandedVar.signal.map(_(r.id)),
         onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); toggle(r.id) },
-        child.text <-- expandedVar.signal.map(s => if (s(r.id)) "▾" else "▸"),
+        chevron(),
       )
     r.group match {
       case Some(g) =>
@@ -1253,6 +1355,11 @@ object App {
       dataAttr("hier-current") <-- openRowSig.map(o => if (o.contains(r.id)) "1" else "0"),
       dataAttr("hier-path") := r.id,
       dataAttr("hier-leaf") := (if (r.isLeaf) "1" else "0"),
+      // A row of the module shown is a box there: hovering one lights the other.
+      cls.toggle("hov") <-- Signal.combine(pathVar.signal, boxHoverVar.signal).map { case (p, b) =>
+        r.path.nonEmpty && r.path.init == p && b.contains(r.path.last) },
+      onMouseEnter --> { _ => if (r.path.nonEmpty && r.path.init == pathVar.now()) rowHoverBus.emit(Some(r.path.last)) },
+      onMouseLeave --> { _ => if (r.path.nonEmpty && r.path.init == pathVar.now()) rowHoverBus.emit(None) },
       styleAttr := s"padding-left: ${4 + r.depth * 14}px",
       title := r.path.mkString(" > "),
       onClick --> { _ => pathVar.set(r.path) },
@@ -1265,7 +1372,7 @@ object App {
         button(cls := "scl-hier-locate", dataAttr("hier-locate") := r.id, title := "Show in parent",
           aria.label := s"Show ${r.label} in its parent",
           onClick --> { (ev: dom.MouseEvent) => ev.stopPropagation(); flyToInstance(pm, r.label, Some(r.path.init)) },
-          "◎")
+          iconLocate)
       },
     )
 

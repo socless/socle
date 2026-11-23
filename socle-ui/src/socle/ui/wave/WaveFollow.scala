@@ -323,13 +323,16 @@ object WaveFollow {
       case Some(n) if n.kind == NodeKind.Block =>
         d.regions.get(n.id).toSeq.flatMap(_.ports).view.flatMap { p =>
           val pin = s"${n.id}.${p.name}"
-          mod.wires.find(w => w.from == pin || w.to == pin).map(w => if (w.from == pin) w.to else w.from)
+          // on the pin, or on a field of it (a typed pin: `<box>.io_in.ready`)
+          def on(e: String) = e == pin || e.startsWith(pin + ".") || e.startsWith(pin + "[")
+          mod.wires.find(w => on(w.from) || on(w.to)).map(w => if (on(w.from)) w.to else w.from)
         }.find(own).map(clean)
       case Some(n) if n.kind == NodeKind.Reg => Some(clean(n.id))
       case Some(_) => None
       case None => mod.wires.find(_.from == sel) match {
         case Some(w) => Seq(w.from, w.to).find(own).map(clean)
-        case None    => Some(sel)
+        // A bus into a block's typed pin, selected by the pin's end: the port.
+        case None    => socle.ui.model.TypedBus.of(mod, d, sel).fold(Option(sel))(b => Seq(b.end, b.pin).find(own).map(clean))
       }
     }
   }

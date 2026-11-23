@@ -166,6 +166,7 @@ console.log(`Designs: ${designs.join(', ')}${perfDesigns.length ? ` (performance
 // closed whatever happens.
 async function smokeDesign(design) {
   if (design === designs[0]) await smokeHelpFirstRun(design);
+  if (design === designs[0]) await smokePaneFit(design);
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
   // The first-time tips are seen: they would sit over the schematic on every
   // first load (smokeHelpFirstRun checks them in a context of its own).
@@ -282,6 +283,59 @@ async function smokeToggles(design, ctx) {
 // Help on a first visit, in a fresh context (empty storage): the first-time
 // tips show, Next moves on, Skip closes them for good; closing the hint bar
 // lasts across a reload, and the settings panel brings it back.
+// The side panes fit the window (PaneFit): at 1024 px the inspector starts
+// closed and the hierarchy open; widening past 1280 opens the inspector,
+// narrowing back closes it; a pane closed by hand stays closed on widening.
+async function smokePaneFit(design) {
+  const where = 'panes fit the window';
+  const ctx = await browser.newContext({ viewport: { width: 1024, height: 800 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem('socle-tips', 'done'); } catch {} });
+  try {
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+    await page.goto(`${BASE}/${design}/socle.html`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+    const shown = async () => [await page.locator('[data-pane="hierarchy"]').count(), await page.locator('[data-pane="inspector"]').count()].join('');
+    const expect = async (step, want) => { const got = await shown(); if (got !== want) note(design, where, `${step}: panes (hierarchy, inspector) ${got}, expected ${want}`); };
+    await expect('1024 px start', '10');
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForFunction(() => document.querySelector('[data-pane="inspector"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('widened to 1440', '11');
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.waitForFunction(() => !document.querySelector('[data-pane="hierarchy"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('narrowed to 900', '00');
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForFunction(() => document.querySelector('[data-pane="hierarchy"]') && document.querySelector('[data-pane="inspector"]'), null, { timeout: 3000 }).catch(() => {});
+    await expect('widened back to 1440', '11');
+    // closed by hand: the toggle is the user's choice, kept across a narrow-and-widen
+    await page.locator('[data-toggle-pane="inspector"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `toggle: ${e.message}`));
+    await page.setViewportSize({ width: 1100, height: 800 });
+    await page.setViewportSize({ width: 1440, height: 800 });
+    await page.waitForTimeout(200);
+    await expect('closed by hand, then narrowed and widened', '10');
+    // The hierarchy's inner edge drags its width, kept across a reload.
+    const width = () => page.evaluate(() => Math.round(document.querySelector('[data-side="left"]')?.getBoundingClientRect().width ?? -1));
+    const w0 = await width();
+    const h = await page.locator('[data-side-resize="left"]').first().boundingBox();
+    if (!h) note(design, where, 'no resize handle on the hierarchy');
+    else {
+      await page.mouse.move(h.x + h.width / 2, h.y + 200);
+      await page.mouse.down(); await page.mouse.move(h.x + h.width / 2 + 60, h.y + 200, { steps: 4 }); await page.mouse.up();
+      const w1 = await width();
+      if (Math.abs(w1 - (w0 + 60)) > 2) note(design, where, `dragging the hierarchy's edge 60 px made it ${w1} px wide, from ${w0}`);
+      await page.waitForTimeout(500); // the size is stored once the drag rests
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.waitForSelector('[data-hier-path]', { timeout: 15000 });
+      const w2 = await width();
+      if (Math.abs(w2 - w1) > 2) note(design, where, `the hierarchy's width ${w1} px was not kept across a reload (${w2} px)`);
+    }
+    for (const e of errors) note(design, where, e);
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
 async function smokeHelpFirstRun(design) {
   const where = 'help first run';
   const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 } });
@@ -609,7 +663,7 @@ async function smokeDesignIn(design, ctx) {
   // Fully expand the hierarchy tree: open every closed row (a click on an
   // open one would close it), until none is left.
   for (let i = 0; i < 200; i++) {
-    const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+    const shut = page.locator('[data-hier-toggle][data-open="0"]');
     if (!await shut.count()) break;
     await shut.first().click({ timeout: 1500 }).catch(() => {});
   }
@@ -681,6 +735,144 @@ async function smokeDesignIn(design, ctx) {
     // Collapse it again, so the later checks start from the default view.
     await page.locator(`[data-bundle-toggle="${pin}"]`).first().click({ timeout: 3000 }).catch((e) => note(design, where, `collapse ${pin}: ${e.message}`));
     if (!await ready()) note(design, where, `collapse ${pin}: layout not ready within 5 s`);
+    drain(where);
+  }
+
+  // A click anywhere on a box inspects it, not only on its header: the body
+  // (below the pin rows) selects `xbar`, a second click clears it.
+  if (design === 'axisystem') {
+    const where = 'click box body inspects';
+    const count = (sel) => page.locator(sel).count();
+    const top = paths[0].path;
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    const box = page.locator('[data-box-inst="xbar"]').first();
+    const bb = await box.boundingBox();
+    if (!bb) note(design, where, 'no xbar box');
+    else {
+      const body = { position: { x: bb.width / 2, y: bb.height - 4 }, timeout: 3000 };
+      await box.click(body).catch((e) => note(design, where, `click: ${e.message}`));
+      if (!(await count('[data-inst-inspect="xbar"]'))) note(design, where, 'a click on the box body did not inspect xbar');
+      // its ports, each with what it connects to in the module shown
+      const links = await page.locator('[data-inst-ports="xbar"] [data-inst-port="io"] [data-inst-port-link]').allTextContents();
+      if (['cpu.io', 'dma.io', 'mem.io', 'periph.io'].some((l) => !links.includes(l)))
+        note(design, where, `xbar's io port lists ${JSON.stringify(links)}, expected cpu.io, dma.io, mem.io, periph.io`);
+      await box.click(body).catch((e) => note(design, where, `second click: ${e.message}`));
+      if (await count('[data-inst-inspect="xbar"]')) note(design, where, 'a second click on the box body did not clear the selection');
+      // The box under the pointer lights its hierarchy row, and a row hovered its box.
+      await box.hover(body).catch((e) => note(design, where, `hover box: ${e.message}`));
+      const rowHov = () => page.evaluate((t) => document.querySelector(`[data-hier-path="${t}/xbar"]`)?.classList.contains('hov') ?? null, top);
+      if (await rowHov() !== true) note(design, where, `the xbar box hovered did not light its hierarchy row (${await rowHov()})`);
+      await page.locator(`[data-hier-path="${top}/cpu"]`).first().hover().catch((e) => note(design, where, `hover row: ${e.message}`));
+      const boxHov = await page.evaluate(() => document.querySelector('[data-box-inst="cpu"]')?.classList.contains('ohov') ?? null);
+      if (boxHov !== true) note(design, where, `the cpu row hovered did not outline its box (${boxHov})`);
+      if (await rowHov() !== false) note(design, where, 'the xbar row stayed lit after the pointer left the box');
+      await page.mouse.move(1, 1);
+      const left = await page.evaluate(() => document.querySelector('[data-box-inst="cpu"]')?.classList.contains('ohov') ?? null);
+      if (left !== false) note(design, where, 'the cpu box stayed outlined after the pointer left its row');
+    }
+    // A drawn wire from a Vec's pin (xbar.io.in, two elements, one to cpu and
+    // one to dma) inspects the connection it draws alone: xbar.io.in[0] to cpu.io.
+    {
+      const hit = page.locator('path[data-wire="xbar.io.in"][data-wire-to="cpu.io"]').first();
+      const pt = await page.evaluate(() => {
+        const p = document.querySelector('path[data-wire="xbar.io.in"][data-wire-to="cpu.io"]');
+        if (!p) return null;
+        const q = p.getPointAtLength(p.getTotalLength() / 2); const m = p.getScreenCTM();
+        return { x: m.a * q.x + m.c * q.y + m.e, y: m.b * q.x + m.d * q.y + m.f };
+      });
+      if (!pt) note(design, where, 'no drawn wire xbar.io.in -> cpu.io');
+      else {
+        await page.mouse.click(pt.x, pt.y);
+        const one = await page.locator('[data-pane="inspector"]').first().innerText().catch(() => '');
+        if (!one.includes('xbar.io.in[0]') || !one.includes('cpu.io') || one.includes('dma.io') || await count('[data-wire-list]'))
+          note(design, where, `the cpu wire did not show its connection alone: ${JSON.stringify(one.slice(0, 120))}`);
+        await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+        await page.keyboard.press('Escape');
+        await settled(page).catch((e) => note(design, where, e.message));
+      }
+    }
+    // An instance name in the Source tab, hovered, outlines its box.
+    {
+      const word = page.locator('[data-source-view] [data-w="periph"]').first();
+      if (!(await word.count())) note(design, where, 'no periph word in the Source tab');
+      else {
+        await word.scrollIntoViewIfNeeded().catch(() => {});
+        await word.hover().catch((e) => note(design, where, `hover source word: ${e.message}`));
+        const lit = await page.evaluate(() => document.querySelector('[data-box-inst="periph"]')?.classList.contains('ohov') ?? null);
+        if (lit !== true) note(design, where, `periph hovered in the Source tab did not outline its box (${lit})`);
+        await page.mouse.move(1, 1);
+        const off = await page.evaluate(() => document.querySelector('[data-box-inst="periph"]')?.classList.contains('ohov') ?? null);
+        if (off !== false) note(design, where, 'the periph box stayed outlined after the pointer left the source');
+      }
+    }
+    // Shift+Arrow moves the selection to the nearest box that way: cpu, up to
+    // dma, right to xbar.
+    {
+      const cpu = page.locator('[data-box-inst="cpu"]').first();
+      const cb = await cpu.boundingBox();
+      if (cb) {
+        await cpu.click({ position: { x: cb.width / 2, y: cb.height - 4 } }).catch((e) => note(design, where, e.message));
+        const sel = () => page.locator('[data-inst-inspect]').first().getAttribute('data-inst-inspect').catch(() => null);
+        await page.keyboard.press('Shift+ArrowUp');
+        const up = await sel();
+        await page.keyboard.press('Shift+ArrowRight');
+        const right = await sel();
+        if (up !== 'dma' || right !== 'xbar') note(design, where, `Shift+Up then Shift+Right from cpu selected ${up}, ${right}; expected dma, xbar`);
+        await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+        await settled(page).catch((e) => note(design, where, e.message));
+      }
+    }
+    // xbar only wires its inputs to its outputs: a note says so; the top does not.
+    {
+      if (await count('[data-passthrough-module]')) note(design, where, 'the pass-through note shows on the top module');
+      await page.locator(`[data-hier-path="${top}/xbar"]`).first().click().catch((e) => note(design, where, e.message));
+      await settled(page).catch((e) => note(design, where, e.message));
+      if (!(await count('[data-passthrough-module]'))) note(design, where, 'no pass-through note in xbar, which only wires its inputs to its outputs');
+      await page.locator(`[data-hier-path="${top}"]`).first().click().catch((e) => note(design, where, e.message));
+      await settled(page).catch((e) => note(design, where, e.message));
+    }
+    // Enter in the filter steps through its matches: AXISlave matches mem (above)
+    // then periph; Shift+Enter goes back.
+    {
+      const input = page.locator('[data-filter-input]').first();
+      await input.fill('AXISlave');
+      const shown = async () => (await page.locator('[data-inst-inspect]').first().getAttribute('data-inst-inspect').catch(() => null));
+      const order = [];
+      for (const k of ['Enter', 'Enter', 'Enter', 'Shift+Enter']) {
+        await input.press(k);
+        await settled(page).catch((e) => note(design, where, e.message));
+        order.push(await shown());
+      }
+      if (JSON.stringify(order) !== JSON.stringify(['mem', 'periph', 'mem', 'periph']))
+        note(design, where, `Enter / Shift+Enter in the filter selected ${JSON.stringify(order)}, expected mem, periph, mem, periph`);
+      await input.press('Escape');
+      await page.locator('.scl-insp-clear').first().click({ timeout: 3000 }).catch(() => {});
+      await settled(page).catch((e) => note(design, where, e.message));
+    }
+    drain(where);
+  }
+
+  // The breadcrumb's sibling menu: in DeepSoc, cluster0's caret lists cluster1
+  // and pipe; a click on cluster1 opens it in cluster0's place.
+  if (design === 'deepsoc') {
+    const where = 'breadcrumb siblings';
+    const top = paths[0].path;
+    await page.locator(`[data-hier-path="${top}/cluster0"]`).first().click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    const caret = page.locator('[data-crumb-siblings="cluster0"] button').first();
+    if (!(await caret.count())) note(design, where, 'no sibling caret after the cluster0 crumb');
+    else {
+      await caret.click();
+      const sibs = await page.locator('[data-crumb-siblings="cluster0"] [data-crumb-sibling]').allTextContents();
+      if (JSON.stringify(sibs.sort()) !== JSON.stringify(['cluster1', 'pipe'])) note(design, where, `siblings ${JSON.stringify(sibs)}, expected cluster1, pipe`);
+      await page.locator('[data-crumb-sibling="cluster1"]').first().click({ timeout: 3000 }).catch((e) => note(design, where, `pick: ${e.message}`));
+      await settled(page).catch((e) => note(design, where, e.message));
+      const cur = await page.locator('[data-hier-current="1"]').first().getAttribute('data-hier-path').catch(() => null);
+      if (cur !== `${top}/cluster1`) note(design, where, `after picking cluster1 the open module is ${cur}`);
+    }
+    await page.locator(`[data-hier-path="${top}"]`).first().click().catch(() => {});
+    await settled(page).catch((e) => note(design, where, e.message));
     drain(where);
   }
 
@@ -1059,7 +1251,7 @@ async function smokeDesignIn(design, ctx) {
             note(design, where, `${step}: expected POST /open ${src}:${line}, got ${JSON.stringify(opened)}`);
         };
         opened.length = 0;
-        await page.locator(`[data-wire="io.in"][data-wire-to="${id}.io_in_ready"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
+        await page.locator(`[data-wire-to="${id}.io_in"], [data-wire="${id}.io_in"]`).first().dispatchEvent('click').catch((e) => note(design, where, `wire click: ${e.message}`));
         await expectLine('the wire into a block pin', 136);
         await page.keyboard.press('Escape');
         // A register a `when` box writes, at module level, opens its declaration.
@@ -1244,6 +1436,21 @@ async function smokeDesignIn(design, ctx) {
 
     await page.locator(`[data-hier-path="${paths[0].path}"]`).first().click().catch((e) => note(design, where, e.message));
     await settle();
+    // A click on the FSM box's body (below its header) inspects it, a second clears it.
+    {
+      const fsmBox = page.locator(`[data-fsm="${id}"]`).first();
+      const bb = await fsmBox.boundingBox();
+      const inspected = () => page.locator(`[data-logic-inspect="${id}"]`).count();
+      if (!bb) note(design, where, 'no FSM box');
+      else {
+        const body = { position: { x: bb.width / 2, y: bb.height - 4 }, timeout: 3000 };
+        await fsmBox.click(body).catch((e) => note(design, where, `body click: ${e.message}`));
+        if (!(await inspected())) note(design, where, 'a click on the FSM box body did not inspect it');
+        await page.waitForTimeout(400); // apart from the first: not a double-click
+        await fsmBox.click(body).catch((e) => note(design, where, `second body click: ${e.message}`));
+        if (await inspected()) note(design, where, 'a second click on the FSM box body did not clear the selection');
+      }
+    }
     if (await openDiagram('open')) {
       const r = await readDiagram();
       const names = r.states.map((s) => s.name).sort().join(',');
@@ -1551,6 +1758,22 @@ async function smokeDesignIn(design, ctx) {
   // (its node rects are built once per geometry, never per pan), and a click or
   // a drag in it moves the main view there.
   await settled(page).catch((e) => note(design, 'back to the top', e.message));
+  // The toolbar's map button keeps the minimap shown at fit, where it would hide.
+  if (design === 'gcd') {
+    const where = 'minimap pin';
+    const mm = () => page.locator('[data-minimap]').count();
+    const toggle = page.locator('[data-minimap-toggle]').first();
+    await page.locator('button[title="Fit to view"]').first().click().catch(() => {});
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (await mm()) note(design, where, 'a minimap at fit before the map button');
+    await toggle.click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (!(await mm())) note(design, where, 'the map button did not show the minimap');
+    await toggle.click().catch((e) => note(design, where, e.message));
+    await settled(page).catch((e) => note(design, where, e.message));
+    if (await mm()) note(design, where, 'the map button pressed again did not hide the minimap');
+    drain(where);
+  }
   {
     const where = 'minimap';
     const settle = () => settled(page).catch((e) => note(design, where, e.message));
@@ -2700,7 +2923,7 @@ async function smokeDesignIn(design, ctx) {
         if (!await title.count()) continue;
         // Collapse the tree at the top (the smoke expanded all of it).
         const tt = page.locator(`[data-hier-toggle="${esc(top)}"]`).first();
-        if (await tt.count() && (await tt.textContent()) === '▾') await tt.click();
+        if (await tt.count() && (await tt.getAttribute('data-open')) === '1') await tt.click();
         const pre = await readView(), preC = await crumbs();
         await title.dblclick();
         await settle();
@@ -2711,7 +2934,7 @@ async function smokeDesignIn(design, ctx) {
           const row = document.querySelector(`[data-hier-path="${CSS.escape(lp)}"]`);
           const cur = Array.from(document.querySelectorAll('[data-hier-current="1"]')).map((e) => e.getAttribute('data-hier-path'));
           const ups = lp.split('/').slice(0, -1).map((_, i, a) => a.slice(0, i + 1).join('/'));
-          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.textContent);
+          const open = ups.map((u) => document.querySelector(`[data-hier-toggle="${CSS.escape(u)}"]`)?.getAttribute('data-open'));
           const p = document.querySelector(pane)?.getBoundingClientRect(), r = row?.getBoundingClientRect();
           return { row: !!row, cur, open, inView: !!(p && r && r.top >= p.top - 1 && r.bottom <= p.bottom + 1),
                    active: !!row?.classList.contains('active'), focus: document.activeElement?.closest(pane) ? 'tree' : 'other' };
@@ -2719,7 +2942,7 @@ async function smokeDesignIn(design, ctx) {
         if (!t.row) note(design, where2, `after opening ${lp} its hierarchy row is not shown (rows above: ${fmt(t.open)})`);
         else {
           if (t.cur.length !== 1 || t.cur[0] !== lp || !t.active) note(design, where2, `after opening ${lp} the current rows are ${fmt(t.cur)} (active ${t.active})`);
-          if (t.open.some((g) => g !== '▾')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
+          if (t.open.some((g) => g !== '1')) note(design, where2, `after opening ${lp} the rows above it are not all expanded: ${fmt(t.open)}`);
           if (!t.inView) note(design, where2, `after opening ${lp} its hierarchy row is out of view`);
           if (t.focus === 'tree') note(design, where2, `opening ${lp} moved the focus into the hierarchy`);
         }
@@ -2745,7 +2968,7 @@ async function smokeDesignIn(design, ctx) {
       }
       // Expand the whole tree again, as the checks below found it.
       for (let i = 0; i < 200; i++) {
-        const shut = page.locator('[data-hier-toggle]', { hasText: '▸' });
+        const shut = page.locator('[data-hier-toggle][data-open="0"]');
         if (!await shut.count()) break;
         await shut.first().click({ timeout: 1500 }).catch(() => {});
       }
@@ -3324,6 +3547,8 @@ async function smokeDesignIn(design, ctx) {
     const where = 'export';
     const settle = () => settled(page).catch((e) => note(design, where, e.message));
     const grab = async (btn) => {
+      // the choices sit in the export menu: open it first
+      await page.locator('[data-export-menu]').first().click();
       const [dl] = await Promise.all([
         page.waitForEvent('download', { timeout: 10000 }),
         page.locator(btn).first().click(),
@@ -3423,6 +3648,7 @@ async function smokeDesignIn(design, ctx) {
     }
     // An export from the overview has the full detail (no overview class, no --z).
     if (a.ov && await page.locator('[data-export-svg]').count()) {
+      await page.locator('[data-export-menu]').first().click();
       const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 10000 }), page.locator('[data-export-svg]').first().click()]);
       const svg = (await import('node:fs')).readFileSync(await dl.path()).toString();
       if (/class="[^"]*\bov\b/.test(svg) || /--z:/.test(svg)) note(design, where, 'an SVG exported from the overview keeps the overview (pin text faded)');
@@ -3434,14 +3660,16 @@ async function smokeDesignIn(design, ctx) {
       if (pe !== 'none') note(design, where, `a faded row label takes clicks in the overview (pointer-events ${pe})`);
     }
     // In the overview, a bundle wire's type is readable (at least 9px on screen)
-    // and an edge stub's label fades like the pin text.
+    // where it shows: one its wire segment cannot hold at that size is hidden.
+    // An edge stub's label fades like the pin text.
     if (a.ov) {
       const ov = await page.evaluate(() => {
         const c = document.querySelector('[data-content]');
         const z = parseFloat((c.style.transform.match(/scale\(([-\d.e]+)\)/) || [])[1] || '1');
-        const wl = document.querySelector('.scl-wl:not(.sig)');
+        const shown = [...document.querySelectorAll('.scl-wl:not(.sig)')].filter((l) => parseFloat(getComputedStyle(l).opacity) > 0);
+        const px = shown.map((l) => parseFloat(getComputedStyle(l).fontSize) * z);
         const st = document.querySelector('.scl-stubl');
-        return { wirePx: wl ? parseFloat(getComputedStyle(wl).fontSize) * z : null, stubOpacity: st ? getComputedStyle(st).opacity : null };
+        return { wirePx: px.length ? Math.min(...px) : null, stubOpacity: st ? getComputedStyle(st).opacity : null };
       });
       if (ov.wirePx != null && ov.wirePx < 9) note(design, where, `a bundle wire label is ${ov.wirePx.toFixed(1)}px at fit`);
       if (ov.stubOpacity != null && ov.stubOpacity !== '0') note(design, where, `an edge stub label is not faded in the overview (opacity ${ov.stubOpacity})`);
@@ -3651,7 +3879,7 @@ async function smokeDesignIn(design, ctx) {
     });
     for (const s of ['Anywhere', 'Blocks', 'Wires', 'Pins', 'Logic blocks', 'Schematic'])
       if (!card.sections.includes(s)) note(design, 'keyboard help', `no "${s}" section in the help card (${card.sections.join(', ')})`);
-    for (const k of ['Double-click', 'Click title', 'Middle drag', 'Shift + wheel', 'Ctrl + wheel', '+ / -', '0 / f', 'Zoom to the selection', 'Alt ←', 'Alt →', 'side buttons', 'in its parent', 'Select and follow the net', 'stop following a net'])
+    for (const k of ['Double-click', 'Click', 'Middle drag', 'Shift + wheel', 'Ctrl + wheel', '+ / -', '0 / f', 'Zoom to the selection', 'Alt ←', 'Alt →', 'side buttons', 'in its parent', 'Select and follow the net', 'stop following a net'])
       if (!card.text.includes(k)) note(design, 'keyboard help', `the help card does not mention "${k}"`);
     if (/[\u2013\u2014]/.test(card.text)) note(design, 'keyboard help', 'the help card has an en or em dash');
     const helpTitle = await page.locator('[data-help-trigger]').first().getAttribute('title').catch(() => null);
@@ -3767,7 +3995,7 @@ async function smokeDesignIn(design, ctx) {
 // runner cannot fail it; the timings are printed.
 const PERF_MIN_BOXES = 200;
 const PERF_HOVER_MAX = 24;  // attribute changes of a hover (3 on GCD and on BigArray's 256 boxes)
-const PERF_SELECT_MAX = 48; // of a selection and its clearing
+const PERF_SELECT_MAX = 48; // of a selection and its clearing, plus 2 per clock peer it lights
 const PERF_LONG_MS = 250;
 async function smokePerf(design) {
   const where = 'perf';
@@ -3827,8 +4055,12 @@ async function smokePerf(design) {
     report('a hover', await unwatch(), PERF_HOVER_MAX);
     await watch(); await page.waitForTimeout(1000);
     report('a rest on a box', await unwatch(), 0);
-    await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200); await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
-    report('a selection and its clearing', await unwatch(), PERF_SELECT_MAX);
+    // A selected instance lights the instances on its clock (#341): each peer it
+    // lights costs one class flip on and one off, on top of the fixed budget.
+    await watch(); await page.mouse.click(box.x, box.y); await page.waitForTimeout(200);
+    const peers = await page.evaluate(() => document.querySelectorAll('[data-content] .peer').length);
+    await page.mouse.click(vp.x, vp.y); await page.waitForTimeout(200);
+    report(`a selection (${peers} clock peers lit) and its clearing`, await unwatch(), PERF_SELECT_MAX + 2 * peers);
     await page.mouse.move(vp.cx, vp.cy); await settled(page);
     await watch(); for (let i = 0; i < 10; i++) { await page.mouse.wheel(0, -100); await page.waitForTimeout(30); } await page.waitForTimeout(300);
     const wheel = await unwatch();

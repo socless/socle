@@ -39,14 +39,9 @@ object PortModel {
       node.path -> emit(node, label, 0, mirror(side), expanded)
     }
 
-  /** A Vec whose elements are signals, however deeply nested (`Vec[UInt<8>, 4]`,
-    * `Vec[Vec[UInt<1>, 2], 3]`), not of bundles: drawn as stacked tabs (#334). */
-  def isVecOfSignals(typeKey: String, design: Design): Boolean = typeKey match {
-    case VecKey(inner) =>
-      val i = inner.trim
-      if (i.startsWith("Vec[")) isVecOfSignals(i, design) else !BundleTree.isAggregateType(i, design)
-    case _ => false
-  }
+  /** A Vec, of signals or of bundles (`Vec[UInt<8>, 4]`, `Vec[AXI4, 2]`): drawn
+    * as stacked tabs (#334), whatever its elements are. */
+  def isVec(typeKey: String): Boolean = VecKey.matches(typeKey.trim)
   private val VecKey = """^Vec\[(.+),\s*\d+\]$""".r
 
   /** The rows of a register of bundle type: its D side (`id`, West) and its Q
@@ -88,7 +83,8 @@ object PortModel {
         (p.name == "io" && design.bundles.get(p.bundle).exists(_.kind == BundleKind.Bundle))
       if (wrapper && !wireEnds(tree.path))
         tree.children.map(c => (c, c.name, sideOf(c, None, design)))
-      else Seq((tree, p.name, sideOf(tree, role, design)))
+      // shown by its source path when it has one (a block pin, #333)
+      else Seq((tree, if (p.label.nonEmpty) p.label else p.name, sideOf(tree, role, design)))
     }
 
   private def emit(n: BundleTree.PortNode, label: String, depth: Int, side: String,

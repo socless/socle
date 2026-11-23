@@ -33,6 +33,8 @@ private[schematic] object SchematicChrome {
     onExportSvg:   () => Unit,
     onExportPng:   () => Unit,
     onShare:       Option[() => Unit], // None: no share button
+    // The minimap shown even when everything fits (it shows itself on overflow).
+    minimapPinVar: Var[Boolean] = Var(false),
   )
 
   // ── chrome (top-left chips) ──
@@ -44,31 +46,35 @@ private[schematic] object SchematicChrome {
              focusSig: Signal[Option[(String, Int)]] = Val(None), onFocusOff: () => Unit = () => (),
              blockSig: Signal[Boolean] = Val(false),
              navSig: Signal[(Boolean, Boolean)] = Val((false, false)),
-             onBack: () => Unit = () => (), onForward: () => Unit = () => ()): Element =
+             onBack: () => Unit = () => (), onForward: () => Unit = () => (),
+             onStep: Int => Unit = _ => ()): Element =
     div(styleAttr := "position:absolute;top:12px;left:12px;right:12px;display:flex;align-items:center;z-index:2;pointer-events:none",
       // Wraps in a narrow panel (#12) rather than running past its edge.
       div(styleAttr := "display:flex;flex-wrap:wrap;gap:6px;pointer-events:auto",
         navButtons(navSig, onBack, onForward),
         child <-- Signal.combine(moduleSig, blockSig).map {
           case (Some(mod), block) => div(dataAttr("module-chip") := (if (block) "block" else "module"),
-            styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px;font-family:${Tokens.mono}",
-            span(styleAttr := s"color:${Tokens.ink4}", if (block) "block" else "module"), span(styleAttr := s"color:${Tokens.ink}", mod.`type`))
+            styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink2};display:flex;align-items:center;gap:6px",
+            span(styleAttr := s"color:${Tokens.ink4}", if (block) "block" else "module"), span(styleAttr := s"color:${Tokens.ink};font-family:${Tokens.mono}", mod.`type`))
           case (None, _) => emptyNode
         },
         // A block holds logic, not instances: its registers and operators.
         child <-- Signal.combine(moduleSig, blockSig).map {
-          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-family:${Tokens.mono};white-space:nowrap",
+          case (Some(mod), block) => div(styleAttr := s"background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:4px 10px;font-size:11px;color:${Tokens.ink3};font-variant-numeric:tabular-nums;white-space:nowrap",
             if (block) s"${mod.logic.count(_.kind == NodeKind.Reg)} reg · ${mod.logic.count(_.kind == NodeKind.Op)} op · ${mod.wires.length} connects"
             else s"${mod.children.length} inst · ${mod.wires.length} connects")
           case (None, _) => emptyNode
         },
         // Filter box (issue #121): dims non-matching boxes + wires.
         div(styleAttr <-- filterVar.signal.map(f =>
-            s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-family:${Tokens.mono};font-size:11px"),
+            s"display:flex;align-items:center;gap:4px;background:${Tokens.panel};border:1px solid ${if (f.nonEmpty) Tokens.accent else Tokens.border};border-radius:5px;padding:0 8px;font-size:11px"),
           input(dataAttr("filter-input") := "1", placeholder := "filter…",
-            styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:inherit;font-size:11px;color:${Tokens.ink}",
+            styleAttr := s"border:none;outline:none;background:transparent;width:90px;height:24px;font-family:${Tokens.mono};font-size:11px;color:${Tokens.ink}",
             controlled(value <-- filterVar.signal, onInput.mapToValue --> filterVar.writer),
-            onKeyDown --> { (e: dom.KeyboardEvent) => if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() } }),
+            title := "Filter the boxes; Enter: the next match, Shift+Enter: the previous",
+            onKeyDown --> { (e: dom.KeyboardEvent) =>
+              if (e.key == "Escape") { filterVar.set(""); e.target.asInstanceOf[dom.html.Element].blur() }
+              else if (e.key == "Enter") { e.preventDefault(); onStep(if (e.shiftKey) -1 else 1) } }),
           // Live match count "N / M" while filtering (#276).
           child.maybe <-- matchSig.map {
             case Some((m, t)) => Some(span(dataAttr("filter-count") := "1",
@@ -85,8 +91,8 @@ private[schematic] object SchematicChrome {
           val short = cls.split('.').last
           div(dataAttr("focus-chip") := cls,
             title := s"$cls is the class under your editor's cursor: its ${if (n == 1) "box is" else s"$n boxes are"} lit, the rest dimmed. Select something to see everything, or × to stop until the cursor moves to another class.",
-            styleAttr := s"display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.accent};border-radius:5px;padding:0 4px 0 10px;height:26px;font-size:11px;color:${Tokens.ink2};font-family:${Tokens.mono}",
-            span(styleAttr := s"color:${Tokens.ink4}", "focus"), span(styleAttr := s"color:${Tokens.ink}", short),
+            styleAttr := s"display:flex;align-items:center;gap:6px;background:${Tokens.panel};border:1px solid ${Tokens.accent};border-radius:5px;padding:0 4px 0 10px;height:26px;font-size:11px;color:${Tokens.ink2}",
+            span(styleAttr := s"color:${Tokens.ink4}", "focus"), span(styleAttr := s"color:${Tokens.ink};font-family:${Tokens.mono}", short),
             button(dataAttr("focus-off") := "1", title := "Stop lighting this class (until the cursor moves to another class)",
               styleAttr := s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;font-family:inherit;font-size:13px;line-height:1;padding:0 4px",
               onClick --> { _ => onFocusOff() }, "×"))
@@ -140,10 +146,11 @@ private[schematic] object SchematicChrome {
   }
 
   // ── zoom / optimize controls (bottom-right) ──
-  private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:${Tokens.mono};font-size:11px;border-radius:3px"
+  private val zbtn = s"border:none;background:transparent;color:${Tokens.ink3};cursor:pointer;padding:3px 6px;font-family:inherit;font-size:11px;border-radius:3px"
 
   def controls(c: ControlsCtx): Element =
-    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:3;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-family:${Tokens.mono};font-size:11px",
+    // above the clock legend (z 3), which sits right over it and would cover the export menu
+    div(styleAttr := s"position:absolute;bottom:12px;right:12px;z-index:4;display:flex;align-items:center;gap:2px;background:${Tokens.panel};border:1px solid ${Tokens.border};border-radius:5px;padding:2px;font-size:11px;font-variant-numeric:tabular-nums",
       button(dataAttr("optimize") := "1", title := "Re-layout to minimize wire length (in-browser elkjs, issue #167)",
         styleAttr <-- Signal.combine(c.pendingSig, c.engineSig).map { case (p, e) =>
           zbtn + s";color:${if (p) Tokens.ink4 else if (e.isDefined) Tokens.accent else Tokens.ink3};cursor:${if (p) "default" else "pointer"}" },
@@ -164,6 +171,10 @@ private[schematic] object SchematicChrome {
       // The colorize-components / colorize-wires toggles moved into the settings
       // panel (#274); they live in App now and the schematic reads them via params.
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
+      button(dataAttr("minimap-toggle") := "1", title := "Keep the minimap shown (it shows by itself when the design overflows the view)",
+        aria.pressed <-- c.minimapPinVar.signal.map(_.toString),
+        styleAttr <-- c.minimapPinVar.signal.map(on => zbtn + s";color:${if (on) Tokens.accent else Tokens.ink3}"),
+        onClick --> { (_: dom.MouseEvent) => c.minimapPinVar.update(!_) }, "map"),
       button(styleAttr := zbtn, title := "Fit to view", onClick --> { (_: dom.MouseEvent) => c.onFit() }, "fit"),
       button(styleAttr := zbtn, title := "Zoom out", onClick --> { (_: dom.MouseEvent) => c.zoomBy(0.8) }, "−"),
       span(styleAttr := s"padding:3px 6px;color:${Tokens.ink2};min-width:38px;text-align:center",
@@ -171,14 +182,32 @@ private[schematic] object SchematicChrome {
       button(styleAttr := zbtn, title := "Zoom in", onClick --> { (_: dom.MouseEvent) => c.zoomBy(1.25) }, "+"),
       button(styleAttr := zbtn, title := "Reset to 100%", onClick --> { (_: dom.MouseEvent) => c.onResetView() }, "1:1"),
       span(styleAttr := s"width:1px;align-self:stretch;background:${Tokens.borderSoft};margin:0 2px"),
-      button(styleAttr := zbtn, dataAttr("export-svg") := "1", title := "Export schematic as SVG",
-        onClick --> { _ => c.onExportSvg() }, "svg"),
-      button(styleAttr := zbtn, dataAttr("export-png") := "1", title := "Export schematic as PNG (2x)",
-        onClick --> { _ => c.onExportPng() }, "png"),
-      c.onShare.map(share =>
-        button(styleAttr := zbtn, dataAttr("export-snapshot") := "1", title := "Save a self-contained interactive HTML snapshot (opens from file://)",
-          onClick --> { _ => share() }, "share")),
+      exportMenu(c),
     )
+
+  // ── export menu: one button, its choices above it ──
+  // The items stay in the page (hidden while closed), so a count of them says
+  // what this view can export; a click outside or a choice closes it.
+  private def exportMenu(c: ControlsCtx): Element = {
+    val open = Var(false)
+    def item(hook: String, label: String, hint: String, go: () => Unit) =
+      button(cls := "scl-menu-item", dataAttr(hook) := "1", title := hint,
+        onClick --> { _ => open.set(false); go() }, label)
+    div(styleAttr := "position:relative",
+      documentEvents(_.onMouseDown) --> { (e: dom.MouseEvent) =>
+        if (open.now() && !e.target.asInstanceOf[dom.Element].closest("[data-export-root]").isInstanceOf[dom.Element]) open.set(false) },
+      dataAttr("export-root") := "1",
+      button(styleAttr := zbtn, dataAttr("export-menu") := "1", title := "Export the schematic",
+        aria.hasPopup := true, aria.expanded <-- open.signal,
+        onClick --> { _ => open.update(!_) }, "export ▾"),
+      div(cls := "scl-menu", dataAttr("export-items") := "1",
+        styleAttr <-- open.signal.map(o => s"display:${if (o) "flex" else "none"}"),
+        item("export-svg", "SVG image", "Export the schematic as SVG", () => c.onExportSvg()),
+        item("export-png", "PNG image (2×)", "Export the schematic as PNG at twice the size", () => c.onExportPng()),
+        c.onShare.map(share =>
+          item("export-snapshot", "Interactive HTML snapshot", "Save a self-contained interactive HTML snapshot (opens from file://)", share))),
+    )
+  }
 
   // ── minimap (issue #5) ──
   // Overview + draggable viewport rect; the caller decides when to show it (only

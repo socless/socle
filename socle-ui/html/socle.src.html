@@ -16,13 +16,14 @@
      at paint time. Light is the default; dark overrides below. The set-before-
      paint script and the topbar toggle (App.scala) drive data-theme. */
   :root {
-    /* Socle charter: pierre #edf0f4, calcaire #f9fafc, ardoise #16202b,
-       granit #4d5660, laiton #be810a / or #e6ac3d; signal (the accent) unchanged. */
+    /* Socle charter (brand/README.md): pierre #edf0f4, calcaire #f9fafc, ardoise
+       #16202b, granit #4d5660, laiton #be810a / or #e6ac3d, signal #0074ca (the accent). */
     --bg: #edf0f4; --panel: #f9fafc; --panelAlt: #edf0f4;
     --border: #d5dbe2; --borderSoft: #e2e7ed;
-    --ink: #16202b; --ink2: #4d5660; --ink3: #626c78; --ink4: #6d7783;
-    --accent: oklch(0.55 0.16 250); --accentBg: oklch(0.95 0.025 250);
-    --accentLine: oklch(0.55 0.16 250 / 0.18);
+    /* ink3 / ink4 read at 4.5:1 or more on panel and page (WCAG AA small text). */
+    --ink: #16202b; --ink2: #4d5660; --ink3: #59636f; --ink4: #636d79;
+    --accent: #0074ca; --accentBg: #e6f0f9;
+    --accentLine: rgba(0, 116, 202, 0.18);
     --hi: oklch(0.94 0.06 80);
     --logo-chip: #be810a; --logo-ink: #16202b; --logo-dot: #16202b; --ok: oklch(0.60 0.13 150); --warn: oklch(0.65 0.16 50);
     /* Hover outline + connected wires (schematic), apart from the accent. */
@@ -60,7 +61,7 @@
   :root[data-theme="dark"] {
     --bg: #0e151d; --panel: #16202b; --panelAlt: #1e2935;
     --border: #2c3845; --borderSoft: #1e2935;
-    --ink: #edf0f4; --ink2: #c3cbd4; --ink3: #8d98a5; --ink4: #707b88;
+    --ink: #edf0f4; --ink2: #c3cbd4; --ink3: #9ba5b1; --ink4: #8b96a3;
     --accent: #4aa3f0; --accentBg: #12263a; --accentLine: rgba(74,163,240,0.4);
     --hi: rgba(230,172,61,0.16);
     --logo-chip: #e6ac3d; --logo-ink: #edf0f4; --logo-dot: #16202b; --ok: #3fb950; --warn: #d29922;
@@ -218,16 +219,24 @@
   /* The app fills its window and never scrolls as a page (#12): its panes scroll, the
      schematic pans. */
   html, body { margin: 0; height: 100%; overflow: hidden; }
-  body { background: var(--bg); color: var(--ink); font-family: var(--mono); font-size: 13px; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 13px; }
   .scl-shell { display: flex; flex-direction: column; height: 100vh; }
   .scl-topbar { display: flex; align-items: center; gap: 12px; padding: 8px 14px;
     border-bottom: 1px solid var(--border); background: var(--panel); }
   .scl-logo { flex-shrink: 0; display: inline-flex; align-items: center; }
-  .scl-logo svg { height: 22px; width: auto; display: block; }
+  /* 24 px tall: the horizontal logo is ~99 px wide, over the charter's 96 px minimum. */
+  .scl-logo svg { height: 24px; width: auto; display: block; }
   .scl-sub { color: var(--ink3); }
   /* The top bar fits its window (#12): the design label and the search button
      shrink (ellipsis) before anything overflows; the buttons keep their size. */
-  .scl-engine { color: var(--accent); flex: 0 1 auto; min-width: 0; overflow: hidden;
+  /* A small menu opening above its button (the export menu, bottom-right). */
+  .scl-menu { position: absolute; right: 0; bottom: calc(100% + 6px); flex-direction: column; min-width: 190px;
+    padding: 4px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.16); z-index: 5; }
+  .scl-menu-item { border: none; background: transparent; text-align: left; padding: 6px 10px; border-radius: 4px;
+    font: inherit; font-size: 12px; color: var(--ink2); cursor: pointer; white-space: nowrap; }
+  .scl-menu-item:hover, .scl-menu-item:focus-visible { background: var(--panelAlt); color: var(--ink); outline: none; }
+  .scl-engine { color: var(--ink3); font-size: 12px; flex: 0 1 auto; min-width: 0; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; }
   /* SOURCE indicator + LIVE badge (#194 / #120). */
   .scl-live { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
@@ -284,6 +293,11 @@
   .scl-crumb:hover { background: var(--panelAlt); }
   .scl-crumb.active { color: var(--ink); font-weight: 600; }
   .scl-crumb-sep { color: var(--ink4); flex-shrink: 0; }
+  .scl-crumb-more { position: relative; flex-shrink: 0; display: inline-flex; }
+  .scl-crumb-caret { border: none; background: transparent; cursor: pointer; border-radius: 4px;
+    padding: 2px 3px; color: var(--ink4); font-size: 10px; }
+  .scl-crumb-caret:hover { background: var(--panelAlt); color: var(--ink2); }
+  .scl-menu.down { bottom: auto; right: auto; max-height: 60vh; overflow: auto; z-index: 20; }
   .scl-search { display: flex; align-items: center; gap: 6px; background: var(--panelAlt);
     padding: 5px 10px; border-radius: 5px; color: var(--ink3); width: 220px; border: none;
     cursor: pointer; text-align: left; flex: 0 1 220px; min-width: 72px; font-size: 11.5px;
@@ -316,12 +330,16 @@
   .scl-hier-row { display: flex; align-items: center; gap: 4px; height: 24px;
     padding: 0 4px; cursor: pointer; font-size: 12px; color: var(--ink);
     border-left: 2px solid transparent; white-space: nowrap; overflow: hidden; }
-  .scl-hier-row:hover { background: var(--bg); }
+  .scl-hier-row:hover, .scl-hier-row.hov { background: var(--bg); }
+  /* The row of the schematic box under the pointer: the box's hover outline color. */
+  .scl-hier-row.hov { box-shadow: inset 0 0 0 1px var(--hov); }
   /* The open module's row (the module that holds an open block or diagram). */
   .scl-hier-row.active { background: color-mix(in srgb, var(--accent) 13%, transparent);
     border-left-color: var(--accent); color: var(--accent); font-weight: 600; }
   .scl-hier-toggle { width: 12px; display: inline-flex; justify-content: center;
     color: var(--ink3); font-size: 10px; }
+  .scl-hier-toggle svg { transition: transform .12s; }
+  .scl-hier-toggle[data-open="1"] svg { transform: rotate(90deg); }
   .scl-hier-glyph { width: 12px; text-align: center; color: var(--ink3); font-size: 10px; }
   .scl-hier-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .scl-hier-type { margin-left: auto; color: var(--ink3); font-size: 10.5px;
@@ -344,6 +362,11 @@
   .scl-bottom { height: 240px; flex-shrink: 0; border-top: 1px solid var(--border);
     background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
   /* Drag handle on the top edge of the bottom panel (#206). */
+  /* A side panel's box: its width is the user's (dragged, remembered); the pane fills it. */
+  .scl-side { position: relative; flex-shrink: 0; display: flex; min-height: 0; }
+  .scl-side > .scl-pane { width: 100% !important; flex: 1; min-width: 0; }
+  .scl-side-resize { position: absolute; top: 0; bottom: 0; width: 6px; cursor: ew-resize; z-index: 4; }
+  .scl-side-resize:hover { background: var(--accent); opacity: 0.45; }
   .scl-bottom-resize { height: 6px; flex-shrink: 0; cursor: ns-resize; background: transparent; }
   .scl-bottom-resize:hover { background: var(--accent); opacity: 0.45; }
   /* Panel-toggle buttons dim when their pane is hidden (#206). */

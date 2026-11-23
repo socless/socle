@@ -30,10 +30,11 @@ object Help {
   def hint(target: Option[(String, String)]): (String, String) = target.getOrElse(("", Background))
 
   /** The first-time tips, one line each. */
+  // Panning and zooming are left to the hint bar, which says them under the
+  // schematic from the first visit.
   def tips(mac: Boolean): Seq[String] = Seq(
-    "Drag anywhere to pan. The wheel zooms at the pointer.",
+    "Click a block to inspect it, a bundle pin to expand it, a wire to follow its net. Rest on one to see what it is.",
     "Double-click a block to open it. The breadcrumb takes you back up.",
-    "Click a block's title to inspect it, a bundle pin to expand it, a wire to follow its net. Rest on one to see what it is.",
     s"Press ? for every mouse action and key. ${if (mac) "⌘K" else "Ctrl K"} searches the design.",
   )
 
@@ -116,7 +117,7 @@ object Help {
           styleAttr := s"position:absolute;left:50%;bottom:calc(100% + 48px);transform:translateX(-50%);z-index:6;width:max-content;max-width:min(460px, calc(100% - 32px));box-sizing:border-box;" +
             s"display:flex;align-items:center;gap:10px;padding:8px 10px 8px 14px;background:${Tokens.panel};border:1px solid ${Tokens.accentLine};border-radius:8px;" +
             "box-shadow:0 6px 18px rgba(0,0,0,.18);font-size:12px",
-          span(styleAttr := s"font-family:${Tokens.mono};font-size:10px;color:${Tokens.ink4};flex-shrink:0", s"Tip ${i + 1}/${all.size}"),
+          span(styleAttr := s"font-size:10.5px;color:${Tokens.ink4};flex-shrink:0;font-variant-numeric:tabular-nums", s"Tip ${i + 1}/${all.size}"),
           span(dataAttr("first-tips-text") := "", styleAttr := s"color:${Tokens.ink2}", all(i)),
           button(dataAttr("first-tips-skip") := "1", styleAttr := s"$linkBtn;color:${Tokens.ink3};flex-shrink:0", onClick --> { _ => done() }, "Skip"),
           button(dataAttr("first-tips-next") := "1",

@@ -291,7 +291,7 @@ async function waitLoaded(frame) {
     seen.push(await page.locator('[data-first-tips-text]').textContent());
     await page.click('[data-first-tips-next]');
   }
-  check('normal', seen.length === 4 && new Set(seen).size === 4, `four tips, then closed (${JSON.stringify(seen)})`);
+  check('normal', seen.length === 3 && new Set(seen).size === 3, `three tips, then closed (${JSON.stringify(seen)})`);
   check('normal', (await page.evaluate(() => localStorage.getItem('socle-tips'))) === 'done', 'tips remembered as seen');
   await page.reload();
   await waitLoaded(page);
@@ -665,6 +665,9 @@ for (const width of [620, 360]) {
   await focusAfter('port io.out', () => stub('io.out'), P('io_out_valid'));
   await focusAfter('port io.out.bits.result', () => page.evaluate(() => window.__socleWave.select('io.out.bits.result')), P('io_out_bits_result'));
   await focusAfter('block blk$GCD$logic', () => page.locator('[data-block="blk$GCD$logic"]').first().click({ position: { x: 20, y: 5 } }), P('io_in_ready'));
+  // A bus into a block's typed pin (one per declared port) follows the port, from either end.
+  await focusAfter('bus io.in into blk$GCD$logic', () => page.locator('path[data-wire-to="blk$GCD$logic.io_in"], path[data-wire="blk$GCD$logic.io_in"]').first().dispatchEvent('click'), P('io_in_valid'));
+  await focusAfter('bus io.out selected by its pin end', () => page.evaluate(() => window.__socleWave.select('blk$GCD$logic.io_out')), P('io_out_valid'));
   await focusAfter('wire from when$GCD$when_io_in_fire$0.io_in_bits_a', () => page.locator('[data-wire="when$GCD$when_io_in_fire$0.io_in_bits_a"]').first().dispatchEvent('click'), P('io_in_bits_a'));
   await focusAfter('bundle io.out', () => page.evaluate(() => window.__socleWave.select('io.out')), P('io_out_valid'));
   // A focus below the visible rows scrolls it into view (ScrollToItem, at its visible
